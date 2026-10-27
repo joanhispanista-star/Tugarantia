@@ -34,6 +34,16 @@
  * como se llame. Las listas de abajo (lo que no se guarda) se quedan como
  * segundo candado y para decir POR QUÉ no se guarda una columna.
  *
+ * 27-oct-2026, ronda 4 — Y QUÉ COLUMNA LLENA CADA DATO TAMPOCO SE ADIVINA. La
+ * lista blanca seguía reconociendo la columna por PEDAZOS de su nombre:
+ * «Ubicación del negocio» o «Lugar de trabajo» entraban como «Ocupación o
+ * negocio», «Barrio / Ciudad» o «Municipio / Vereda» como «Ciudad», y «Medio
+ * de pago» como «Cómo llegó». Ahora el encabezado se casa contra una lista
+ * EXACTA de nombres (sin mayúsculas, tildes ni signos): una columna que se
+ * llame de otra manera no se ofrece. Y lo que sí viaja son TEXTOS LIBRES que
+ * vienen del archivo: las pantallas lo dicen así, porque ninguna regla puede
+ * saber que «vive en la vereda El Rosal» es una dirección.
+ *
  * La firma de abajo va PRIMERO: dice que llegó ESTE archivo (la página se
  * pide con ?v=…). Ver «¿LLEGÓ LO QUE PEDÍ?» en panel/crm.html.
  * ==========================================================================*/
@@ -53,18 +63,33 @@
 
   /* 27-oct-2026, ronda 3 — LAS ÚNICAS COLUMNAS QUE SE GUARDAN Y VIAJAN AL
      EQUIPO, con su nombre fijo (`clave`: así se guardan, y extra_limpio solo
-     acepta estas cinco claves EXACTAS). `encabezado` reconoce la columna del
-     archivo que trae ese dato; una columna que no casa con ninguno no se
-     ofrece. `admite`: las familias de abajo que no la tumban («Monto que pide»
-     lleva «monto»; «Ciudad de residencia» lleva «residencia»): los valores
-     igual pasan por su regla. «Barrio» no está a propósito: con el barrio y el
-     nombre ya se encuentra la casa, y el equipo contacta por WhatsApp. */
+     acepta estas cinco claves EXACTAS). `admite`: las familias de abajo que
+     no la tumban («Monto que pide» lleva «monto»; «Ciudad de residencia» lleva
+     «residencia»): los valores igual pasan por su regla. «Barrio» no está a
+     propósito: con el barrio y el nombre ya se encuentra la casa, y el equipo
+     contacta por WhatsApp.
+     27-oct-2026, ronda 4 — `nombres`: los encabezados EXACTOS que traen ese
+     dato, escritos como los deja normalEncabezado (sin mayúsculas, tildes ni
+     signos: «¿Cómo llegó?» es «como llego»). Antes era un patrón que casaba
+     con pedazos, y «Ciudad / Barrio» entraba como «Ciudad» justo debajo de la
+     frase que dice que el barrio no viaja. Si una base trae otro nombre que
+     sí es uno de estos datos, se agrega aquí, a mano y con su prueba. */
   var COLUMNAS_QUE_VIAJAN = [
-    { clave: 'Ciudad', encabezado: /(^|[^a-záéíóúñ])(ciudad|municipio)([^a-záéíóúñ]|$)/i, admite: ['direccion'] },
-    { clave: 'Monto que pide', encabezado: /(monto|valor|cu[aá]nto|cantidad).*(pide|pidi|solicit|necesit|quiere|requier|desea)/i, admite: ['plata', 'cobranza'] },
-    { clave: 'Ocupación o negocio', encabezado: /(ocupaci|oficio|profesi[oó]n|actividad|a qu[eé] se dedica|trabajo|empleo|negocio)/i, admite: [] },
-    { clave: 'Cómo llegó', encabezado: /(c[oó]mo (lleg|se enter|nos conoci|nos encontr|supo)|(^|[^a-záéíóúñ])(medio|canal|fuente|origen|campa[nñ]a)([^a-záéíóúñ]|$))/i, admite: [] },
-    { clave: 'Observación', encabezado: /(observaci|comentario|(^|[^a-záéíóúñ])(notas?|obs)([^a-záéíóúñ]|$))/i, admite: [] }
+    { clave: 'Ciudad', admite: ['direccion'],
+      nombres: ['ciudad', 'municipio', 'ciudad o municipio', 'municipio o ciudad', 'ciudad municipio', 'municipio ciudad',
+        'ciudad de residencia', 'municipio de residencia'] },
+    { clave: 'Monto que pide', admite: ['plata', 'cobranza'],
+      nombres: ['monto que pide', 'monto solicitado', 'monto a solicitar', 'monto que solicita', 'monto que necesita', 'monto requerido',
+        'monto deseado', 'valor solicitado', 'valor que solicita', 'valor que pide', 'valor requerido', 'cuanto pide', 'cuanto solicita',
+        'cuanto necesita', 'cuanto quiere', 'cuanto dinero necesita'] },
+    { clave: 'Ocupación o negocio', admite: [],
+      nombres: ['ocupacion', 'ocupacion o negocio', 'oficio', 'profesion', 'profesion u oficio', 'actividad', 'actividad economica',
+        'a que se dedica', 'en que trabaja', 'trabajo', 'empleo', 'negocio', 'tipo de negocio', 'nombre del negocio', 'empresa', 'que vende'] },
+    { clave: 'Cómo llegó', admite: [],
+      nombres: ['como llego', 'como nos conocio', 'como se entero', 'como nos encontro', 'como supo de nosotros', 'medio', 'canal',
+        'fuente', 'origen', 'campana'] },
+    { clave: 'Observación', admite: [],
+      nombres: ['observacion', 'observaciones', 'obs', 'nota', 'notas', 'comentario', 'comentarios'] }
   ];
   var CLAVES_QUE_VIAJAN = COLUMNAS_QUE_VIAJAN.map(function (c) { return c.clave; });
   var MAX_EXTRAS = CLAVES_QUE_VIAJAN.length;
@@ -110,12 +135,15 @@
      las dejaba pasar todas. Ahora basta la palabra de la vía o del inmueble
      seguida de un número (o «Mz» seguida de una letra), o «# 12-30». Se pasa
      de prudente a propósito: «vende en su casa 3 días» también se queda sin
-     guardar, y eso no le quita nada a nadie. La MISMA regla vive en extra_limpio. */
+     guardar, y eso no le quita nada a nadie. La MISMA regla vive en extra_limpio.
+     27-oct-2026, ronda 4 — también el puesto donde trabaja, que es otra forma
+     de encontrarlo: «CC Gran Estación local 2-115», «Corabastos bodega 23»,
+     «puesto 40», «oficina 301». */
   var VALORES_QUE_NO_SE_GUARDAN = {
     sieteDigitos: /[0-9]{7,}/,
     soloCifras: /^[0-9.,$ ]{3,}$/,
     cobro: /((^|[^a-záéíóúñ])mora([^a-záéíóúñ]|$)|vencid|pag[oóa]|deud|cobr|saldo|abon|cuota|castig|embarg|promesa|no contesta|\$)/i,
-    direccion: /(^|[^a-záéíóúñ])(calle|cll|clle|cl|carrera|cra|crr|kra|kr|cr|avenida|avda|av|ak|ac|diagonal|diag|dg|transversal|transv|trans|tv|tr|circular|cir|manzana|mza|mz|casa|cs|apartamento|apto|apt|ap|torre|interior|int|bloque|blq|bl|lote|lt|piso|km|kil[oó]metro|edificio|edif|conjunto|urbanizaci[oó]n|urb)\.?\s*(#|n[oº°]\.?)?\s*[0-9]|(^|[^a-záéíóúñ])(avenida|avda|av|autopista|calle|carrera)\.?\s+([a-záéíóúñ]+\s+){1,3}[0-9]|(^|[^a-záéíóúñ])(mza|mz)(\.\s*|\s+)[a-z]([^a-záéíóúñ]|$)|#\s*[0-9]+\s*-\s*[0-9]|(^|[^a-záéíóúñ])n[oº°]\.?\s*[0-9]+\s*-\s*[0-9]/i
+    direccion: /(^|[^a-záéíóúñ])(calle|cll|clle|cl|carrera|cra|crr|kra|kr|cr|avenida|avda|av|ak|ac|diagonal|diag|dg|transversal|transv|trans|tv|tr|circular|cir|manzana|mza|mz|casa|cs|apartamento|apto|apt|ap|torre|interior|int|bloque|blq|bl|lote|lt|piso|km|kil[oó]metro|edificio|edif|conjunto|urbanizaci[oó]n|urb|local|bodega|puesto|oficina)\.?\s*(#|n[oº°]\.?)?\s*[0-9]|(^|[^a-záéíóúñ])(avenida|avda|av|autopista|calle|carrera)\.?\s+([a-záéíóúñ]+\s+){1,3}[0-9]|(^|[^a-záéíóúñ])(mza|mz)(\.\s*|\s+)[a-z]([^a-záéíóúñ]|$)|#\s*[0-9]+\s*-\s*[0-9]|(^|[^a-záéíóúñ])n[oº°]\.?\s*[0-9]+\s*-\s*[0-9]/i
   };
   /* 27-oct-2026, revisión — una fecha escrita («2026-10-01», «01/10/2026»)
      tiene 8 cifras, pero no es una cédula ni un teléfono: la de los 7 dígitos
@@ -167,10 +195,18 @@
     if (clave === 'Ciudad' && /[0-9]/.test(t)) return '';
     return t;
   }
-  /* La columna del archivo que trae uno de los cinco datos, o null. */
+  /* 27-oct-2026, ronda 4 — el encabezado sin mayúsculas, tildes ni signos, con
+     un solo espacio: «  ¿Cómo  llegó? » es «como llego» y «Ciudad / Barrio» es
+     «ciudad barrio» (que no está en ninguna lista). */
+  function normalEncabezado(t) {
+    return texto(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  /* La columna del archivo que trae uno de los cinco datos, o null: solo si
+     su nombre es EXACTAMENTE uno de la lista. */
   function queViajaDe(encabezado) {
-    var t = texto(encabezado);
-    for (var k = 0; k < COLUMNAS_QUE_VIAJAN.length; k++) if (COLUMNAS_QUE_VIAJAN[k].encabezado.test(t)) return COLUMNAS_QUE_VIAJAN[k];
+    var t = normalEncabezado(encabezado);
+    for (var k = 0; k < COLUMNAS_QUE_VIAJAN.length; k++) if (COLUMNAS_QUE_VIAJAN[k].nombres.indexOf(t) >= 0) return COLUMNAS_QUE_VIAJAN[k];
     return null;
   }
   /* El nombre: el nombreDe de bases.js (Mayúscula Inicial, solo letras) SIN la
@@ -340,6 +376,7 @@
     celularDeFila: celularDeFila,
     esClaveQueViaja: esClaveQueViaja,
     queViajaDe: queViajaDe,
+    normalEncabezado: normalEncabezado,
     limpiarValorDe: limpiarValorDe,
     montoQuePide: montoQuePide,
     limpiarValor: limpiarValor,

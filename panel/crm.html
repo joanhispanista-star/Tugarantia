@@ -15138,7 +15138,7 @@ function agregarProspectoEq() {
         <textarea id="apNotaEq" rows="2" maxlength="300" placeholder="Ej: vende en la plaza de Kennedy, llamarlo después de las 3"></textarea>
         <div class="help">La ven tú, quien lo trabaje y Joan. No escribas cédulas, direcciones, claves, deudas ni nada de salud, religión o política.</div></div>
       <div class="field"><label>¿De dónde sale?</label><input id="apOrigenEq" placeholder="Ej: me lo recomendó un cliente — o: me escribió por Facebook">
-        <div class="help">Queda guardado con él. Si algún día pregunta de dónde sacamos su teléfono, esta es la respuesta, y tiene que existir antes, no después.</div></div>
+        <div class="help">Queda guardado con él tal como lo escribas, y lo ven quien lo trabaje y Joan. Si algún día pregunta de dónde sacamos su teléfono, esta es la respuesta, y tiene que existir antes, no después.</div></div>
       <div class="field"><label>¿Te autorizó que le escribamos por WhatsApp para ofrecerle el crédito?</label>
         <select id="apAutorizaEq" onchange="mostrarPruebaEq('ap')"><option value="">— Elige una —</option>
           <option value="si">Sí, me autorizó</option><option value="no">No, o no lo sé</option></select>
@@ -15470,8 +15470,8 @@ function pintarPrevioBaseEq() {
     <div id="muestraEq"></div>
     <div class="field" style="margin-top:12px"><label>¿De dónde salió esta base?</label>
       <input id="baseOrigenEq" placeholder="Ej: feria del barrio Kennedy, 20-oct — o: me escribieron por Facebook">
-      <div class="help">Queda guardado con cada persona. Si algún día alguien pregunta de dónde salió su teléfono, esta es la
-        respuesta, y tiene que existir antes, no después.</div></div>
+      <div class="help">Queda guardado con cada persona tal como lo escribas, y lo ven quien la trabaje y Joan. Si algún día
+        alguien pregunta de dónde salió su teléfono, esta es la respuesta, y tiene que existir antes, no después.</div></div>
     <div class="field"><label>¿Todos te autorizaron que les escribamos por WhatsApp para ofrecerles el crédito?</label>
       <select id="baseAutorizaEq" onchange="mostrarPruebaEq('base')"><option value="">— Elige una —</option>
         <option value="si">Sí, todos, y tengo cómo probarlo</option><option value="no">No todos, o no lo sé</option></select></div>
@@ -15523,14 +15523,27 @@ function cuantoTardaEq(n, c) {
    27-oct-2026, ronda 3 — solo se ofrecen las cinco de la lista blanca
    (AgregarProspectos.COLUMNAS_QUE_VIAJAN), con su nombre fijo y, al lado, la
    columna del archivo de donde sale: «Ciudad — columna «Municipio»». Y se
-   dice cuáles son las cinco, para que nadie busque cómo subir el barrio. */
+   dice cuáles son las cinco, para que nadie busque cómo subir el barrio.
+   27-oct-2026, ronda 4 — DICE QUE SON TEXTOS LIBRES Y VIAJAN COMO VIENEN.
+   Decía «Ninguna otra columna se guarda ni viaja (ni la dirección, ni el
+   barrio…)» y una «Observación» con «casa esquinera azul frente al parque» o
+   un «Cómo llegó» con «Referido por su hermana Marta Gómez» viajaban igual:
+   ninguna regla sabe que eso es una dirección o el nombre de otra persona.
+   Ahora la columna se reconoce por su nombre EXACTO (agregar-prospectos.js,
+   normalEncabezado) y la pantalla dice lo que pasa con lo que se marca. */
 function previoExtrasHTML(extra, prefijo, alCambiar) {
   const e = extra || { columnas: [], descartadas: [] };
   if (!e.columnas.length && !e.descartadas.length) return '';
+  const quien = prefijo === 'exEq_' ? 'lo ven quien trabaje a cada persona y Joan'
+    : _equipoAgrega === 'no' ? 'por ahora solo lo ves tú: falta correr el SQL del 27-oct en Supabase'
+    : 'si se la asignas a alguien de tu equipo, también lo ve él';
   return `<div class="sub-h">Información adicional que se guarda con cada uno</div>
-    <div class="muted" style="font-size:12px;margin-bottom:4px">De un archivo solo se guardan cinco datos: ciudad, monto que pide,
-      ocupación o negocio, cómo llegó y una observación. Ninguna otra columna se guarda ni viaja a nadie (ni la dirección, ni el
-      barrio, ni la cédula).</div>
+    <div class="muted" style="font-size:12px;margin-bottom:4px">De un archivo solo se guardan cinco datos, y solo de una columna con
+      ese nombre (o uno igual de claro, como «Municipio», «Empresa» o «Comentarios»): ciudad, monto que pide, ocupación o negocio,
+      cómo llegó y observación. Ninguna otra columna se guarda ni viaja a nadie: «Dirección», «Barrio», «Ubicación» o «Ciudad /
+      Barrio» no se ofrecen. <b>Lo que marques se guarda tal como viene escrito</b> (${quien}). De ahí solo quito cédulas,
+      teléfonos, cobros y direcciones con calle y número: un texto como «vive en la vereda El Rosal» o «su hermana Marta responde
+      por ella» pasa igual. Mira la muestra antes de marcar.</div>
     ${e.columnas.length ? e.columnas.map((c, k) => `<label style="display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13.5px">
       <input type="checkbox" id="${prefijo}${k}"${alCambiar ? ` onchange="${alCambiar}"` : ''}>
       <span>${escHTML(c.nombre)}${c.columna && c.columna !== c.nombre ? ' <span class="muted">— columna «' + escHTML(c.columna) + '»</span>' : ''}${
@@ -16818,11 +16831,18 @@ function pintarSubidoPorElEquipo(forzar) {
    px: tocar «📇 Bases» dejaba la pantalla en el menú y el ⛔ dos pantallas
    más abajo. Si la vista quedó debajo de la mitad de la pantalla, se baja
    hasta ella; en el PC ya está a la vista y no se mueve nada. */
+/* 27-oct-2026, ronda 4 — Y EN EL PC, SI SE VENÍA BAJADO. El menú del PC está
+   fijo a la izquierda e irA conserva la altura de la vista anterior: si Joan
+   venía bajado en Clientes, Cobranzas, Ventas o Comercial (listas largas) y
+   tocaba «📇 Bases», caía en medio de la tabla de Prospectos y el ⛔ quedaba
+   cientos o miles de píxeles más arriba, fuera de la pantalla. Ahora también
+   se sube al comienzo de la vista cuando su borde de arriba quedó por encima
+   de la pantalla. */
 function alAbrirBases() {
   const v = document.getElementById('v-bases');
   try {
     const r = v && v.getBoundingClientRect ? v.getBoundingClientRect() : null;
-    if (r && r.top > (window.innerHeight || 0) / 2 && v.scrollIntoView) v.scrollIntoView({ block: 'start' });
+    if (r && (r.top < 0 || r.top > (window.innerHeight || 0) / 2) && v.scrollIntoView) v.scrollIntoView({ block: 'start' });
   } catch (e) { /* sin medidas no se mueve nada */ }
   if (!sbListo()) return;
   const s = SUBIDO_EQUIPO;
@@ -17267,6 +17287,18 @@ function suprimirDesdeBases() {
     <div class="muted" style="font-size:12px">${escHTML(LO_QUE_NO_SE_BORRA)}</div>
     <button class="btn btn-rojo arriba" onclick="confirmarSuprimir()">Borrar</button>`);
 }
+/* 27-oct-2026, ronda 4 — LOS CÓDIGOS DE SUS PROSPECTOS DE ESTE COMPUTADOR.
+   El caso común es un prospecto que Joan trabaja él mismo: no está en la
+   cartera de la nube (no lo repartió) ni en la copia 'prospectos' del Panel
+   (esa la deja subir.html), pero sus gestiones, con su nota, sí están en la
+   copia 'gestiones' (NubeCRM las sube solas), y van por código, no por
+   celular. Sin el código, el servidor no las reconocía y se quedaban, y el
+   «Listo» decía que se habían ido. Solo viajan códigos con forma de código. */
+function codigosLocalesDe(cel) {
+  const B = window.BasesTuGarantia;
+  return prospectos().filter(p => (B ? B.celularDe(p.celular) : diezJoan(p.celular)) === cel)
+    .map(p => String(p.id)).filter(id => /^[A-Za-z0-9-]{1,40}$/.test(id)).slice(0, 50);
+}
 /* 27-oct-2026, ronda 3 — POR PARTES. equipo_suprimir quita a la persona de
    los choques viejos del Panel con un reloj de menos de un segundo, y contesta
    `copias_pendientes` si no alcanzó: se le vuelve a llamar con el mismo
@@ -17281,7 +17313,8 @@ function confirmarSuprimir() {
   if (como.length < 5) return alert('Escribe cómo lo pidió (por ejemplo, «por el chat de la app el 3-nov»).');
   if (!confirm('Voy a borrar a esta persona como prospecto, de la nube y de este computador, con su información adicional, sus ' +
     'gestiones, contactos y citas, y la anoto para que nadie la vuelva a agregar. No se puede deshacer.')) return;
-  const llamar = () => rpc('equipo_suprimir', { p_clave: sbCfg().clave, p_celular: cel, p_como: como });
+  const ids = codigosLocalesDe(cel);
+  const llamar = () => rpc('equipo_suprimir', { p_clave: sbCfg().clave, p_celular: cel, p_como: como, p_ids: ids });
   let primera = null, quedan = 0;
   const seguir = (r, vuelta) => {
     if (!r || r.ok !== true) {
@@ -17511,7 +17544,7 @@ function pintarPrevioBase() {
     <input id="baseOrigen" placeholder="Ej: pauta de Facebook, septiembre — o: me la pasó Nancy">
     <div class="help">Queda guardado con la base. Si algún día alguien pregunta de dónde salió su
       teléfono, esta es la respuesta — y tiene que existir antes, no después.${_equipoAgrega === 'no' ? ''
-        : ' A quien de tu equipo le asignes a alguien de esta base le llega también, con las columnas que marques arriba.'}</div>
+        : ' A quien de tu equipo le asignes a alguien de esta base le llega también, tal como lo escribas, con las columnas que marques arriba.'}</div>
 
     ${faltan ? `<div class="alerta warn" style="margin-top:14px">
       <b>No caben todos en este navegador: entran ${caben} de ${r.nuevos.length}.</b>
@@ -17992,14 +18025,22 @@ function publicarEquipoAhora(gente, asig, ps, op) {
        … dirección» era falso con una columna «DIR» o «Ubicación» marcada. Ahora
        de un archivo solo se guardan cinco columnas con nombre fijo (la lista
        blanca de agregar-prospectos.js, la misma de extra_limpio), y se nombran
-       aquí. Lo único que puede llevar una dirección es lo que Joan escribe a
-       mano en «Información adicional», y eso viaja tal cual: se dice. */
+       aquí.
+       27-oct-2026, ronda 4 — Y DICE QUE TODO TEXTO LIBRE VIAJA COMO ESTÁ. La
+       salvedad nombraba solo «Información adicional», y viajan igual «¿De dónde
+       sale?» («me la recomendó Nancy, la del 302»), el origen de la base y las
+       columnas marcadas, que vienen del archivo tal cual: una «Observación» con
+       «casa esquinera azul frente al parque» no la caza ninguna regla. */
     'Sigue sin viajar: cédula, dirección, fotos y referencias' + (_equipoAgrega === 'no' ? '.\n\n'
-      : ' (salvo lo que tú mismo\nhayas escrito en «Información adicional» de un potencial: eso viaja tal cual).\n\n' +
-        'De los potenciales viaja además, si lo tienen: lo que escribiste en «Información\n' +
-        'adicional», tal cual; de dónde salió; si autorizó; y de las columnas que marcaste al\n' +
-        'cargar su base, solo estas cinco: ciudad, monto que pide, ocupación o negocio, cómo\n' +
-        'llegó y observación. Ninguna otra columna viaja.\n\n') +
+      : ', salvo lo que esté escrito\nen un TEXTO LIBRE: eso viaja tal como está escrito, y si ahí hay una\n' +
+        'dirección o el nombre de otra persona, viaja también.\n\n' +
+        'De los potenciales viaja además, si lo tienen: si autorizó, y estos textos\n' +
+        'libres: lo que escribiste en «Información adicional» y en «¿De dónde sale?»,\n' +
+        'el origen de su base («¿De dónde salió esta base?») y las columnas que marcaste\n' +
+        'al cargar su base, que son solo estas cinco: ciudad, monto que pide, ocupación\n' +
+        'o negocio, cómo llegó y observación, tal como venían en el archivo (de ahí solo\n' +
+        'quito cédulas, teléfonos, cobros y direcciones con calle y número). Ninguna\n' +
+        'otra columna viaja.\n\n') +
     '⚠ El monto es una FOTO del cálculo de hoy. Si no vuelves a publicar, el\n' +
     'asesor seguirá leyendo esta cifra: por eso la pantalla le pone al lado el\n' +
     'día en que se calculó.\n\n' +
@@ -19528,7 +19569,9 @@ function asignableDe(tipo, id) {
 function loQueVeElEquipo(tipo) {
   return (tipo === 'prospecto'
       ? (_equipoAgrega === 'no' ? 'su nombre, su celular y en qué va'
-        : 'su nombre, su celular, en qué va y lo que anotaste de él: la información adicional, de dónde salió, si autorizó y, de las columnas de su base, solo ciudad, monto que pide, ocupación o negocio, cómo llegó y observación')
+        /* 27-oct-2026, ronda 4 — «tal como está escrito»: son textos libres y
+           viajan como vienen (ver la confirmación de «Publicar»). */
+        : 'su nombre, su celular, en qué va y lo que anotaste de él, tal como está escrito: la información adicional, de dónde salió, si autorizó y, de las columnas de su base, solo ciudad, monto que pide, ocupación o negocio, cómo llegó y observación')
       : 'su nombre, su celular, la etapa, cuánto debe y cuándo paga') +
     '. Y si se registró en la app con ese mismo celular, en «🪪 Ver su ficha» ve también lo que dejó al registrarse: su cédula, su dirección, sus cuentas y sus fotos';
 }
@@ -19682,7 +19725,7 @@ function agregarProspecto() {
       <div class="help" id="apNotaAyuda">${escHTML(ayudaNotaProspecto())}</div></div>
     <div class="field"><label>¿De dónde sale?</label><input id="apOrigen" placeholder="Ej: me lo recomendó Nancy — o: me escribió por Facebook">
       <div class="help">Queda guardado con él. Si algún día pregunta de dónde sacaste su teléfono, esta es la respuesta — y tiene que existir antes, no después.${
-        _equipoAgrega === 'no' ? '' : ' Si se lo asignas a alguien de tu equipo, también lo ve él.'}</div></div>
+        _equipoAgrega === 'no' ? '' : ' Si se lo asignas a alguien de tu equipo, también lo ve él, tal como lo escribas.'}</div></div>
     <div class="field"><label>¿Autorizó que lo contactemos?</label>
       <select id="apAutoriza"><option value="">— Elige una —</option>
         <option value="si">Sí, me autorizó que le escribamos</option>

@@ -273,6 +273,9 @@ describe('4 · un archivo', () => {
     assert.match(h, /<input type="checkbox" id="exEq_0" onchange="pintarMuestraEq\(\)">/);
     assert.doesNotMatch(h, /checked/);
     assert.match(plano(h), /No se guardan: Cédula \(es un documento\)/);
+    /* 27-oct-2026, ronda 4 — lo marcado y el origen viajan tal como vienen escritos, y se dice a quién. */
+    assert.match(plano(h), /Lo que marques se guarda tal como viene escrito \(lo ven quien trabaje a cada persona y Joan\)\./);
+    assert.match(plano(h), /Queda guardado con cada persona tal como lo escribas, y lo ven quien la trabaje y Joan\./);
     llenar(P, { baseOrigenEq: 'Feria de Kennedy, 30-oct', baseAutorizaEq: 'si', basePruebaEq: 'formularios firmados de la feria', baseParaEq: 'yo' });
     P.elems.exEq_0.checked = true;
     P.ev('subirBaseEq()'); await asentar(120);

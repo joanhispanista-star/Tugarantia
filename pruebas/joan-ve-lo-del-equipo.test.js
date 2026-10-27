@@ -234,6 +234,13 @@ describe('1 · la tarjeta «⤒ Lo que subió tu equipo»', () => {
     P.ev("_bajo = null; document.getElementById('v-bases').getBoundingClientRect = function () { return { top: 96 }; };");
     P.ev('alAbrirBases()'); await asentar();
     assert.equal(P.ev('_bajo'), null, 'en el PC movió la pantalla sin necesidad');
+    /* 27-oct-2026, ronda 4 — EL HALLAZGO: en el PC el menú está fijo e irA
+       conserva la altura de la vista anterior. Joan venía bajado en Clientes y
+       toca «📇 Bases»: el comienzo de la vista (con el ⛔) quedó 1.800 px por
+       encima de la pantalla. Se sube hasta él. */
+    P.ev("_bajo = null; document.getElementById('v-bases').getBoundingClientRect = function () { return { top: -1800 }; }; window.innerHeight = 800;");
+    P.ev('alAbrirBases()'); await asentar();
+    assert.deepEqual(aca(P.ev('_bajo')), { block: 'start' }, 'en el PC, viniendo bajado de otra vista, el ⛔ quedó fuera de la pantalla');
   });
 
   test('ver una carga y reasignar los marcados, también a «Nadie (soltarlo)»', async () => {
@@ -280,10 +287,11 @@ describe('2 · «＋ Agregar prospecto» de Joan', () => {
      columnas, el origen y si autorizó. Sin el SQL (404) eso no viaja. */
   test('lo que ve el equipo, dicho completo; y la ayuda de «¿De dónde sale?» lo dice', () => {
     const P = abrirJoan();
-    assert.match(P.ev("loQueVeElEquipo('prospecto')"), /^su nombre, su celular, en qué va y lo que anotaste de él: la información adicional, de dónde salió, si autorizó y, de las columnas de su base, solo ciudad, monto que pide, ocupación o negocio, cómo llegó y observación\./);
+    assert.match(P.ev("loQueVeElEquipo('prospecto')"), /^su nombre, su celular, en qué va y lo que anotaste de él, tal como está escrito: la información adicional, de dónde salió, si autorizó y, de las columnas de su base, solo ciudad, monto que pide, ocupación o negocio, cómo llegó y observación\./);
     assert.match(P.ev("textoPublicarAsignar('Al asignarlo', 'prospecto')"), /de dónde salió, si autorizó y, de las columnas de su base, solo ciudad, monto que pide, ocupación o negocio, cómo llegó y observación/);
     P.ev('agregarProspecto()');
-    assert.match(plano(P.elems.mBody.innerHTML), /tiene que existir antes, no después\. Si se lo asignas a alguien de tu equipo, también lo ve él\./);
+    /* 27-oct-2026, ronda 4 — el origen viaja como lo escribe («me la recomendó Nancy, la del 302»): se dice. */
+    assert.match(plano(P.elems.mBody.innerHTML), /tiene que existir antes, no después\. Si se lo asignas a alguien de tu equipo, también lo ve él, tal como lo escribas\./);
     P.ev("_equipoAgrega = 'no'");
     assert.match(P.ev("loQueVeElEquipo('prospecto')"), /^su nombre, su celular y en qué va\./);
     P.ev('agregarProspecto()');
@@ -347,7 +355,11 @@ describe('3 · «⤒ Cargar base» de Joan: las columnas extra', () => {
     assert.match(h, /<input type="checkbox" id="exCol_0">/);
     assert.doesNotMatch(h, /id="exCol_1"/, 'ofreció una segunda columna: DIR, Ubicación o Barrio');
     assert.doesNotMatch(h, /checked/);
-    assert.match(plano(h), /De un archivo solo se guardan cinco datos: ciudad, monto que pide, ocupación o negocio, cómo llegó y una observación\. Ninguna otra columna se guarda ni viaja a nadie \(ni la dirección, ni el barrio, ni la cédula\)\./);
+    /* 27-oct-2026, ronda 4 — la columna, por su nombre EXACTO; y lo marcado viaja tal como viene escrito, y se dice. */
+    assert.match(plano(h), /De un archivo solo se guardan cinco datos, y solo de una columna con ese nombre \(o uno igual de claro, como «Municipio», «Empresa» o «Comentarios»\): ciudad, monto que pide, ocupación o negocio, cómo llegó y observación\. Ninguna otra columna se guarda ni viaja a nadie: «Dirección», «Barrio», «Ubicación» o «Ciudad \/ Barrio» no se ofrecen\./);
+    assert.match(plano(h), /Lo que marques se guarda tal como viene escrito \(si se la asignas a alguien de tu equipo, también lo ve él\)\. De ahí solo quito cédulas, teléfonos, cobros y direcciones con calle y número: un texto como «vive en la vereda El Rosal» o «su hermana Marta responde por ella» pasa igual\. Mira la muestra antes de marcar\./);
+    assert.match(plano(h), /A quien de tu equipo le asignes a alguien de esta base le llega también, tal como lo escribas, con las columnas que marques arriba\./);
+    assert.doesNotMatch(plano(h), /ni la dirección, ni el barrio/, 'vuelve a prometer que lo marcado no lleva una dirección');
     assert.match(plano(h), /No se guardan: DIR \(no es de lo que viaja\) · Ubicación \(no es de lo que viaja\) · Barrio \(no es de lo que viaja\) · Saldo \(es plata o deuda\)/);
     assert.match(plano(h), /De esos, ya los subió tu equipo 1/);
     assert.equal(P.ev('_baseLeida.revision.nuevos.length'), 2, 'el que subió el equipo entró como nuevo');
@@ -469,9 +481,12 @@ describe('4 · lo de Joan no pisa ni duplica lo del equipo', () => {
     await P.ev("publicarEquipoAhora(equipo().filter(function (p) { return p.celular; }), armarPublicacionEquipo().asig, armarPublicacionEquipo().ps)");
     const t = avisos(P).replace(/\n/g, ' ');
     /* 27-oct-2026, ronda 3 — exactamente lo que viaja: las cinco columnas por su
-       nombre, y la salvedad de lo que Joan escribe a mano. */
-    assert.match(t, /Sigue sin viajar: cédula, dirección, fotos y referencias \(salvo lo que tú mismo hayas escrito en «Información adicional» de un potencial: eso viaja tal cual\)\./);
-    assert.match(t, /De los potenciales viaja además, si lo tienen: lo que escribiste en «Información adicional», tal cual; de dónde salió; si autorizó; y de las columnas que marcaste al cargar su base, solo estas cinco: ciudad, monto que pide, ocupación o negocio, cómo llegó y observación\. Ninguna otra columna viaja\./);
+       nombre. Ronda 4 — y la salvedad nombra TODO texto libre (también «¿De
+       dónde sale?», el origen de la base y las columnas, que vienen tal cual
+       del archivo), no solo «Información adicional». */
+    assert.match(t, /Sigue sin viajar: cédula, dirección, fotos y referencias, salvo lo que esté escrito en un TEXTO LIBRE: eso viaja tal como está escrito, y si ahí hay una dirección o el nombre de otra persona, viaja también\./);
+    assert.match(t, /De los potenciales viaja además, si lo tienen: si autorizó, y estos textos libres: lo que escribiste en «Información adicional» y en «¿De dónde sale\?», el origen de su base \(«¿De dónde salió esta base\?»\) y las columnas que marcaste al cargar su base, que son solo estas cinco: ciudad, monto que pide, ocupación o negocio, cómo llegó y observación, tal como venían en el archivo \(de ahí solo quito cédulas, teléfonos, cobros y direcciones con calle y número\)\. Ninguna otra columna viaja\./);
+    assert.doesNotMatch(t, /salvo lo que tú mismo hayas escrito en «Información adicional» de un potencial/, 'la salvedad vuelve a nombrar solo la nota');
     assert.equal(llamadas(P, 'equipo_publicar').length, 0);
     const Q = abrirJoan({ equipo_tiene: {} }, C);
     Q.ev("_equipoAgrega = 'no'; confirm = function (m) { _avisos.push('¿' + m); return false; }");
@@ -696,7 +711,11 @@ describe('7 · 📥 Registrados y «🚫 Borrar a alguien que lo pidió»', () =
     assert.match(avisos(P), /¿Voy a borrar a esta persona como prospecto, de la nube y de este computador, con su información adicional, sus gestiones, contactos y citas.*No se puede deshacer\./);
     const ll = llamadas(P, 'equipo_suprimir');
     assert.equal(ll.length, 3, 'no volvió a llamar mientras quedaban copias');
-    ll.forEach(x => assert.deepEqual(x.args, { p_clave: 'clave-larga-de-prueba', p_celular: '3001110002', p_como: 'por el chat de la app el 3-nov' }));
+    /* 27-oct-2026, ronda 4 — con los códigos de sus prospectos de ESTE computador:
+       sin ellos, las gestiones de alguien que Joan trabaja sin repartir (que no
+       está en la nube ni en la copia 'prospectos') se quedaban en la copia
+       'gestiones' del Panel. */
+    ll.forEach(x => assert.deepEqual(x.args, { p_clave: 'clave-larga-de-prueba', p_celular: '3001110002', p_como: 'por el chat de la app el 3-nov', p_ids: ['P1-1'] }));
     assert.match(avisos(P), /Listo: borré 1 que subió tu equipo y 1 tuyas de la nube, con sus gestiones, contactos y citas\. Ese número ya no se puede volver a agregar\./);
     assert.match(avisos(P), /También lo quité de tus prospectos de este computador, con sus gestiones y contactos\./);
     assert.match(avisos(P), /También la quité de la copia de tu Panel en la nube, con sus gestiones, y la nube no las vuelve a guardar aunque otro aparato tuyo las suba\. Si tienes el Panel en otro aparato \(el celular\), allá sigue en tus prospectos hasta que la borres a mano\./);
@@ -708,6 +727,15 @@ describe('7 · 📥 Registrados y «🚫 Borrar a alguien que lo pidió»', () =
     assert.deepEqual(aca(P.ev('gestiones().map(function (g) { return g.id; })')), ['loc-2']);
     assert.deepEqual(aca(P.ev('contactos().length')), 0);
     assert.deepEqual(aca(P.ev('asignaciones().map(function (a) { return a.socio_id; })')), ['P1-0']);
+  });
+
+  test('borrar: los códigos que viajan son solo los de sus prospectos de este computador, y solo con forma de código', () => {
+    const C = aca(CARTERA);
+    C.prospectos.push({ id: 'P2-0', nombre: 'Misma Persona', celular: '+57 300 111 0002', estado: 'nuevo' },
+      { id: "x',alert(1),'", nombre: 'Rara', celular: '3001110002', estado: 'nuevo' });
+    const P = abrirJoan({}, C);
+    assert.deepEqual(aca(P.ev("codigosLocalesDe('3001110002')")), ['P1-1', 'P2-0']);
+    assert.deepEqual(aca(P.ev("codigosLocalesDe('3009999999')")), []);
   });
 
   test('borrar: si se corta a mitad de las copias viejas, dice exactamente cuántas quedan y cómo terminarlas', async () => {

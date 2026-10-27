@@ -310,6 +310,13 @@ $$;
 -- las que mande el aparato: así una tanda con miles de claves basura no tiene
 -- el candado de agregar_prospectos_de recorriéndolas. La MISMA regla vive en
 -- panel/agregar-prospectos.js (COLUMNAS_QUE_VIAJAN, limpiarValorDe).
+-- 27-oct-2026, ronda 4 — también el puesto donde trabaja, que es otra forma
+-- de encontrarlo («CC Gran Estación local 2-115», «Corabastos bodega 23»,
+-- «puesto 40», «oficina 301»). Qué columna del archivo llena cada clave lo
+-- decide el CRM con una lista EXACTA de encabezados (normalEncabezado): aquí
+-- solo llegan las cinco claves. Son textos libres y viajan como vienen: las
+-- pantallas lo dicen, porque ninguna regla sabe que «vive en la vereda El
+-- Rosal» es una dirección.
 create or replace function public.extra_limpio(p jsonb)
 returns jsonb
 language plpgsql
@@ -343,7 +350,7 @@ begin
             and v !~ '^([0-9]{4}[-/][0-9]{1,2}[-/][0-9]{1,2}|[0-9]{1,2}[-/][0-9]{1,2}[-/][0-9]{4})$')
          or v ~ '^[0-9.,$ ]{3,}$'
          or v ~* '((^|[^a-záéíóúñ])mora([^a-záéíóúñ]|$)|vencid|pag[oóa]|deud|cobr|saldo|abon|cuota|castig|embarg|promesa|no contesta|\$)'
-         or v ~* '(^|[^a-záéíóúñ])(calle|cll|clle|cl|carrera|cra|crr|kra|kr|cr|avenida|avda|av|ak|ac|diagonal|diag|dg|transversal|transv|trans|tv|tr|circular|cir|manzana|mza|mz|casa|cs|apartamento|apto|apt|ap|torre|interior|int|bloque|blq|bl|lote|lt|piso|km|kil[oó]metro|edificio|edif|conjunto|urbanizaci[oó]n|urb)\.?\s*(#|n[oº°]\.?)?\s*[0-9]|(^|[^a-záéíóúñ])(avenida|avda|av|autopista|calle|carrera)\.?\s+([a-záéíóúñ]+\s+){1,3}[0-9]|(^|[^a-záéíóúñ])(mza|mz)(\.\s*|\s+)[a-z]([^a-záéíóúñ]|$)|#\s*[0-9]+\s*-\s*[0-9]|(^|[^a-záéíóúñ])n[oº°]\.?\s*[0-9]+\s*-\s*[0-9]'
+         or v ~* '(^|[^a-záéíóúñ])(calle|cll|clle|cl|carrera|cra|crr|kra|kr|cr|avenida|avda|av|ak|ac|diagonal|diag|dg|transversal|transv|trans|tv|tr|circular|cir|manzana|mza|mz|casa|cs|apartamento|apto|apt|ap|torre|interior|int|bloque|blq|bl|lote|lt|piso|km|kil[oó]metro|edificio|edif|conjunto|urbanizaci[oó]n|urb|local|bodega|puesto|oficina)\.?\s*(#|n[oº°]\.?)?\s*[0-9]|(^|[^a-záéíóúñ])(avenida|avda|av|autopista|calle|carrera)\.?\s+([a-záéíóúñ]+\s+){1,3}[0-9]|(^|[^a-záéíóúñ])(mza|mz)(\.\s*|\s+)[a-z]([^a-záéíóúñ]|$)|#\s*[0-9]+\s*-\s*[0-9]|(^|[^a-záéíóúñ])n[oº°]\.?\s*[0-9]+\s*-\s*[0-9]'
          or (k = 'Ciudad' and v ~ '[0-9]') then
         continue;
       end if;
@@ -1533,7 +1540,21 @@ $$;
 --   · Borra también sus gestiones de la copia del Panel en la nube
 --     (panel_ajustes 'gestiones', las que anota Joan, con su nota), y de los
 --     choques de esa lista. El cuadro decía que se borraban, y quedaban.
-create or replace function public.equipo_suprimir(p_clave text, p_celular text, p_como text)
+-- 27-oct-2026, ronda 4 — `p_ids`: los códigos de sus prospectos en el
+-- computador de Joan. El caso común es un prospecto que Joan trabaja él
+-- mismo: no está en la cartera (no lo repartió) ni en la copia 'prospectos'
+-- del Panel (esa la deja subir.html; NubeCRM no sube prospectos), pero sus
+-- gestiones, con su nota, sí están en la copia 'gestiones' (NubeCRM las sube
+-- solas). Sin su código el servidor no las reconocía: se quedaban en la nube
+-- y en los choques, y el cuadro decía que se borraban. Esos códigos solo se
+-- anotan en no_contactar.ids (con eso se quitan de la copia y de los choques,
+-- y no vuelven aunque otro aparato las suba): de la cartera no se borra nada
+-- por un código que mande el aparato. Además, de los choques viejos de
+-- 'prospectos' se recogen los códigos que tuvo allí (otro aparato pudo tener
+-- otro); si aparece uno nuevo, se limpia la copia 'gestiones' con él y los
+-- choques se vuelven a recorrer, por partes como siempre.
+drop function if exists public.equipo_suprimir(text, text, text);
+create or replace function public.equipo_suprimir(p_clave text, p_celular text, p_como text, p_ids text[] default '{}')
 returns jsonb
 language plpgsql
 volatile
@@ -1555,9 +1576,14 @@ declare
   ch         record;
   m          jsonb;
   s          jsonb;
+  m0         jsonb;
+  s0         jsonb;
   antes      integer;
   despues    integer;
   pendientes integer := 0;
+  locales    text[];
+  nuevos     text[];
+  otra_vuelta boolean := false;
 begin
   if not public.clave_ok(p_clave) then
     perform pg_sleep(1);
@@ -1568,6 +1594,9 @@ begin
   como := public.texto_del_equipo(p_como, 200);
   if length(como) < 5 then return jsonb_build_object('ok', false, 'motivo', 'falta_como'); end if;
   h := public.cel_hash(cel);
+  -- Ronda 4 — los códigos que manda el CRM: solo con forma de código, y pocos.
+  locales := array(select distinct x from unnest(coalesce(p_ids, '{}'::text[])) x
+                    where x ~ '^[A-Za-z0-9-]{1,40}$' limit 50);
 
   -- copias_hasta: los choques que ya existían al pedirlo. Los de después ya
   -- nacen sin esta persona (el disparador de panel_choques).
@@ -1593,13 +1622,22 @@ begin
     select coalesce(array_agg(distinct t.x), '{}') into todos from (
       select unnest(de_nube) x
       union all
+      select unnest(locales)
+      union all
       select e->>'id' from public.panel_ajustes pa cross join lateral jsonb_array_elements(pa.datos) e
        where pa.clave = 'prospectos' and jsonb_typeof(pa.datos) = 'array'
          and right(regexp_replace(coalesce(e->>'celular', ''), '[^0-9]', '', 'g'), 10) = cel
       union all
       select unnest(n.ids) from public.no_contactar n where n.cel_hash = h) t
      where coalesce(t.x, '') <> '';
-    update public.no_contactar n set ids = todos where n.cel_hash = h and n.ids is distinct from todos;
+    -- Ronda 4 — si llega un código que no tenía (por ejemplo, Joan la borró
+    -- antes desde otro computador, o con un CRM que no los mandaba), los
+    -- choques de 'gestiones' se vuelven a recorrer con él: ya estaban
+    -- limpios de los códigos de antes, no de este.
+    update public.no_contactar n set ids = todos,
+           copias_hasta = nullif(greatest(coalesce(n.copias_hasta, 0), (select coalesce(max(c.id), 0) from public.panel_choques c
+                                                                         where c.tabla = 'ajustes' and c.fila_id = 'gestiones')), 0)
+     where n.cel_hash = h and exists (select unnest(todos) except select unnest(n.ids));
   end if;
 
   -- 27-oct-2026, ronda 2 — de la copia del Panel de Joan en la nube: sin esto
@@ -1640,6 +1678,7 @@ begin
       if clock_timestamp() - inicio > interval '800 milliseconds' then cortado := true; exit; end if;
       if ch.fila_id = 'prospectos' or (not cliente and cardinality(todos) > 0) then
         select c.mio, c.suyo into m, s from public.panel_choques c where c.id = ch.id;
+        m0 := m; s0 := s;
         antes := 0; despues := 0;
         if jsonb_typeof(m -> 'datos') = 'array' then
           antes := antes + jsonb_array_length(m -> 'datos');
@@ -1656,11 +1695,37 @@ begin
         -- Solo se reescribe el choque donde de verdad estaba.
         if despues < antes then
           update public.panel_choques c set mio = m, suyo = s where c.id = ch.id;
+          -- Ronda 4 — los códigos que tuvo en esa copia vieja de sus prospectos.
+          if ch.fila_id = 'prospectos' and not cliente then
+            select coalesce(array_agg(distinct t.e->>'id'), '{}') into nuevos
+              from (select x.e from jsonb_array_elements(case when jsonb_typeof(m0->'datos') = 'array' then m0->'datos' else '[]'::jsonb end) x(e)
+                    union all
+                    select y.e from jsonb_array_elements(case when jsonb_typeof(s0->'datos') = 'array' then s0->'datos' else '[]'::jsonb end) y(e)) t
+             where right(regexp_replace(coalesce(t.e->>'celular', ''), '[^0-9]', '', 'g'), 10) = cel
+               and coalesce(t.e->>'id', '') ~ '^[A-Za-z0-9-]{1,40}$' and not ((t.e->>'id') = any(todos));
+            if cardinality(nuevos) > 0 then
+              todos := todos || nuevos;
+              otra_vuelta := true;
+              update public.no_contactar n set ids = todos where n.cel_hash = h;
+            end if;
+          end if;
         end if;
       end if;
       hasta := ch.id - 1;
     end loop;
     if not cortado then hasta := null; end if;
+    -- Ronda 4 — apareció un código suyo en un choque viejo de 'prospectos': la
+    -- copia 'gestiones' se limpia con él ya, y los choques de 'gestiones' se
+    -- vuelven a recorrer desde el más nuevo (en esta llamada o en la que sigue).
+    -- Solo pasa si el código es NUEVO, y los códigos se acaban: no da vueltas
+    -- sin fin.
+    if otra_vuelta then
+      update public.panel_ajustes set datos = datos
+       where clave = 'gestiones' and jsonb_typeof(datos) = 'array'
+         and exists (select 1 from jsonb_array_elements(datos) e where coalesce(e->>'persona_id', '') = any(todos));
+      hasta := nullif(greatest(coalesce(hasta, 0), (select coalesce(max(c.id), 0) from public.panel_choques c
+                                                     where c.tabla = 'ajustes' and c.fila_id = 'gestiones')), 0);
+    end if;
     update public.no_contactar set copias_hasta = hasta where cel_hash = h;
     if hasta is not null then
       select count(*) into pendientes from public.panel_choques c
@@ -1735,7 +1800,7 @@ revoke all on function public.equipo_tiene(text, text[])                       f
 revoke all on function public.equipo_reasignar(text, jsonb, text)              from public, anon, authenticated;
 revoke all on function public.equipo_publicar_info(text, jsonb)                from public, anon, authenticated;
 revoke all on function public.equipo_publicar_celulares(text, jsonb)           from public, anon, authenticated;
-revoke all on function public.equipo_suprimir(text, text, text)                from public, anon, authenticated;
+revoke all on function public.equipo_suprimir(text, text, text, text[])        from public, anon, authenticated;
 grant  execute on function public.equipo_agregados(text)                       to anon;   -- Joan, con su clave
 grant  execute on function public.equipo_agregados_de(text, bigint[], integer) to anon;
 grant  execute on function public.equipo_ya_existian(text, bigint[], boolean)  to anon;
@@ -1744,7 +1809,7 @@ grant  execute on function public.equipo_tiene(text, text[])                   t
 grant  execute on function public.equipo_reasignar(text, jsonb, text)          to anon;
 grant  execute on function public.equipo_publicar_info(text, jsonb)            to anon;
 grant  execute on function public.equipo_publicar_celulares(text, jsonb)       to anon;
-grant  execute on function public.equipo_suprimir(text, text, text)            to anon;
+grant  execute on function public.equipo_suprimir(text, text, text, text[])    to anon;
 
 notify pgrst, 'reload schema';
 
@@ -1851,7 +1916,7 @@ select 4, 'las nueve de Joan: solo anon (con tu clave), nunca authenticated',
                             'public.equipo_ya_existian(text, bigint[], boolean)'::regprocedure, 'public.equipo_soltar(text, text)'::regprocedure,
                             'public.equipo_tiene(text, text[])'::regprocedure, 'public.equipo_reasignar(text, jsonb, text)'::regprocedure,
                             'public.equipo_publicar_info(text, jsonb)'::regprocedure, 'public.equipo_publicar_celulares(text, jsonb)'::regprocedure,
-                            'public.equipo_suprimir(text, text, text)'::regprocedure]) f),
+                            'public.equipo_suprimir(text, text, text, text[])'::regprocedure]) f),
        ''
 union all
 select 5, 'los ayudantes, agregar_prospectos_de y equipo_acuerdo_firmado: nadie de afuera los llama',

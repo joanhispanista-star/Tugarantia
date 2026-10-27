@@ -202,6 +202,23 @@ describe('base/' + NOMBRE, () => {
     assert.match(CODIGO, /alter table public\.no_contactar add column if not exists copias_hasta bigint;/);
   });
 
+  /* 27-oct-2026, ronda 4 — las gestiones de alguien que Joan trabaja sin
+     repartir solo se reconocen por su código: el CRM los manda (p_ids), se
+     anotan sin borrar nada de la cartera por ellos, y de los choques viejos de
+     'prospectos' se recogen los que tuvo allí. La firma vieja se borra. */
+  test('equipo_suprimir recibe los códigos de los prospectos de Joan, solo los anota, y recoge los de los choques', () => {
+    const f = funciones().find(x => x.nombre === 'public.equipo_suprimir');
+    assert.equal(f.firma, "p_clave text, p_celular text, p_como text, p_ids text[] default '{}'");
+    assert.match(CODIGO, /drop function if exists public\.equipo_suprimir\(text, text, text\);\s+create or replace function public\.equipo_suprimir\(/);
+    assert.match(f.cuerpo, /locales := array\(select distinct x from unnest\(coalesce\(p_ids, '\{\}'::text\[\]\)\) x\s+where x ~ '\^\[A-Za-z0-9-\]\{1,40\}\$' limit 50\);/);
+    assert.match(f.cuerpo, /select unnest\(de_nube\) x\s+union all\s+select unnest\(locales\)/);
+    assert.doesNotMatch(f.cuerpo, /delete from public\.\w+\s+where [\w.]+ = any\(locales\)/, 'borra de la nube por un código que manda el aparato');
+    assert.match(f.cuerpo, /if ch\.fila_id = 'prospectos' and not cliente then/);
+    assert.match(f.cuerpo, /if otra_vuelta then/);
+    assert.match(f.cuerpo, /exists \(select unnest\(todos\) except select unnest\(n\.ids\)\)/);
+    assert.match(CODIGO, /grant  execute on function public\.equipo_suprimir\(text, text, text, text\[\]\)\s+to anon;/);
+  });
+
   test('la tabla final trae 12 filas, y debajo una por gerente', () => {
     const i = CRUDO.lastIndexOf('LO QUE JOAN VE');
     assert.ok(i > 0);

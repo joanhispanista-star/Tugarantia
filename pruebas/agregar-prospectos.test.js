@@ -11,6 +11,10 @@
  *     Ocupación o negocio, Cómo llegó y Observación, con su nombre fijo; una
  *     columna «DIR», «Ubicación», «Domicilio» o «Barrio» no se ofrece nunca, y
  *     una dirección escrita sin «#» («CL 45 SUR 12 34») tampoco se guarda;
+ *   · (ronda 4) la columna que llena cada dato se reconoce por su nombre
+ *     EXACTO, no por pedazos: «Ubicación del negocio», «Barrio / Ciudad»,
+ *     «Municipio / Vereda», «Observaciones de visita» o «Medio de pago» no se
+ *     ofrecen; «Empresa» sí (es el negocio);
  *   · una base de COBRANZA de otra empresa (la forma de las nueve que midió
  *     detectarColumnas) no deja pasar ninguna de sus columnas: ni el estado
  *     «YA PAGO» / «VENCIDO», ni el asesor, ni el valor, ni la fecha de Excel;
@@ -39,7 +43,7 @@ describe('las columnas extra: una lista blanca', () => {
     assert.equal(A.MAX_EXTRAS, 5);
   });
 
-  test('una feria: Ocupación, Municipio y «¿Cómo llegó?» se ofrecen SIN marcar; Barrio, Empresa y una sin encabezado no', () => {
+  test('una feria: Ocupación, Municipio y «¿Cómo llegó?» se ofrecen SIN marcar; Barrio, una segunda de negocio (Empresa) y una sin encabezado no', () => {
     const filas = [
       ['Nombre completo', 'Celular', 'Barrio', 'Ocupación', 'Municipio', '¿Cómo llegó?', 'Empresa', ''],
       ['ANA MARIA PEREZ', '3001112233', 'Kennedy', 'vende arepas', 'Bogotá', 'feria', 'Panadería La 40', 'tarde'],
@@ -54,7 +58,8 @@ describe('las columnas extra: una lista blanca', () => {
     assert.equal(r.columnas[1].muestra, 'Bogotá');
     const motivo = n => (r.descartadas.find(d => d.nombre === n) || {}).motivo;
     assert.equal(motivo('Barrio'), 'no es de lo que viaja');
-    assert.equal(motivo('Empresa'), 'no es de lo que viaja');
+    /* Ronda 4 — «Empresa» es el negocio, pero ya va «Ocupación». */
+    assert.equal(motivo('Empresa'), 'ya va «Ocupación o negocio» de la columna «Ocupación»');
     assert.equal(motivo('Columna H'), 'no es de lo que viaja');
     const e = A.extrasPorCelular(filas, cols, r.columnas);
     assert.deepEqual(e['3102223344'], { 'Ocupación o negocio': 'taller de motos', Ciudad: 'Soacha', 'Cómo llegó': 'volante' });
@@ -88,6 +93,38 @@ describe('las columnas extra: una lista blanca', () => {
     /* CONTROL: lo que no es una dirección sigue entrando. */
     ['vende en la calle del mercado', 'Av. principal', 'tiene 2 hijos', 'vende manzanas', 'casa propia', 'Apartadó']
       .forEach(v => assert.equal(A.limpiarValor(v), v, v));
+  });
+
+  /* 27-oct-2026, ronda 4 — EL HALLAZGO: la lista blanca seguía ADIVINANDO qué
+     columna llenaba cada dato por pedazos del nombre. «Ubicación del negocio» o
+     «Lugar de trabajo» entraban como «Ocupación o negocio», «Barrio / Ciudad»
+     como «Ciudad», «Observaciones de visita» como «Observación» y «Medio de
+     pago» como «Cómo llegó». Y «Empresa», que es el negocio, se descartaba. */
+  test('la columna se reconoce por su nombre EXACTO (sin mayúsculas, tildes ni signos), no por pedazos', () => {
+    ['Ubicación del negocio', 'Sitio del negocio', 'Lugar de trabajo', 'Punto de venta del negocio', 'Barrio / Ciudad', 'Ciudad y barrio',
+      'Municipio / Vereda', 'Ciudad / Barrio', '¿En qué ciudad y barrio vives?', 'Municipio - Barrio', 'Dirección y ciudad',
+      'Observaciones de visita', 'Medio de pago', 'Origen de los fondos', 'Valor de la cuota que pide', 'Trabajo de la mamá']
+      .forEach(n => assert.equal(A.queViajaDe(n), null, n + ' se ofreció como «' + (A.queViajaDe(n) || {}).clave + '»'));
+    [['Ciudad', 'Ciudad'], ['  CIUDAD:  ', 'Ciudad'], ['Municipio', 'Ciudad'], ['Ciudad de residencia', 'Ciudad'],
+      ['Monto que pide', 'Monto que pide'], ['Valor solicitado', 'Monto que pide'], ['¿Cuánto necesita?', 'Monto que pide'],
+      ['Ocupación', 'Ocupación o negocio'], ['Empresa', 'Ocupación o negocio'], ['Negocio', 'Ocupación o negocio'], ['¿A qué se dedica?', 'Ocupación o negocio'],
+      ['¿Cómo llegó?', 'Cómo llegó'], ['Medio', 'Cómo llegó'], ['Campaña', 'Cómo llegó'],
+      ['Observaciones', 'Observación'], ['OBS.', 'Observación'], ['Comentarios', 'Observación']]
+      .forEach(([n, clave]) => assert.equal((A.queViajaDe(n) || {}).clave, clave, n));
+    assert.equal(A.normalEncabezado('  ¿Cómo  llegó? '), 'como llego');
+    /* En un archivo: la de feria-suba.xlsx («Empresa») entra; las del hallazgo, no. */
+    const filas = [['Nombre', 'Celular', 'Empresa', 'Ubicación del negocio', 'Barrio / Ciudad', 'Observaciones de visita', 'Medio de pago'],
+      ['ANA PEREZ', '3001112233', 'Panadería La 40', 'CC Gran Estación local 2-115', 'Kennedy, Bogotá', 'casa esquinera azul frente al parque', 'efectivo'],
+      ['PEDRO GOMEZ', '3102223344', 'Taller El Rayo', 'Corabastos bodega 23', 'La Calera - Vereda El Salitre', 'detrás de la iglesia', 'Nequi']];
+    const r = A.columnasExtra(filas, { nombre: 0, celular: 1, encabezado: 1 });
+    assert.deepEqual(r.columnas.map(c => [c.nombre, c.columna]), [['Ocupación o negocio', 'Empresa']]);
+    ['Ubicación del negocio', 'Barrio / Ciudad', 'Observaciones de visita'].forEach(n =>
+      assert.equal((r.descartadas.find(d => d.nombre === n) || {}).motivo, 'no es de lo que viaja', n));
+    assert.equal((r.descartadas.find(d => d.nombre === 'Medio de pago') || {}).motivo, 'es plata o deuda');
+    /* El puesto donde trabaja es otra forma de encontrarlo: no se guarda. */
+    ['CC Gran Estación local 2-115', 'Corabastos bodega 23 puesto cuarenta', 'puesto 40 de la plaza', 'Oficina 301']
+      .forEach(v => assert.equal(A.limpiarValorDe('Ocupación o negocio', v), '', v));
+    ['tiene un local propio', 'vende en la plaza', 'trabaja en oficina'].forEach(v => assert.equal(A.limpiarValor(v), v, v));
   });
 
   test('una base de COBRANZA de mentira (como las nueve medidas) no ofrece NINGUNA de sus columnas', () => {

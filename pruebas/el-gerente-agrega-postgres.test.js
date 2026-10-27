@@ -58,7 +58,7 @@ const cel = (g, n) => '31' + String(g).padStart(2, '0') + String(n).padStart(6, 
 const EJEMPLO = { "Estado": "VENCIDO", "Valor": "350000", "Fecha": "45950", "EPS": "Sura", "Asesor": "CAMILA", "Observación": "YA PAGO", "Recomendado por": "María", "Barrio": "Kennedy", "Teléfono 2": "310 555 1234", "Empresa": "Panadería La 40", "Comentario": "debe 3 cuotas", "DIR": "CL 45 SUR 12 34", "Ubicación": "KR 7 45 10", "Ciudad": "Bogotá", "Ocupación o negocio": "panadería", "Cómo llegó": "feria de Kennedy", "Monto que pide": "500.000" };
 const QUEDAN = { "Ciudad": "Bogotá", "Monto que pide": "$500.000", "Ocupación o negocio": "panadería", "Cómo llegó": "feria de Kennedy" };
 /* Las direcciones del hallazgo de la ronda 3: ninguna se guarda, en ninguna de las cinco. */
-const DIRECCIONES = ["CL 45 SUR 12 34", "KR 7 # 12-30", "KR 7 45 10", "Cll 45 N 12-30", "Diagonal 5 Bis 3-2", "AK 68 12 30", "Mz 4 Casa 12", "Mz B Cs 12", "Av Boyacá 12-30", "Transv. 5 # 3-2", "Cra 7 45-10", "KR 80 C 2-15", "Diagonal 5 sur 3-20", "Apto 301", "Calle 13", "Carrera 7", "vive en la Cra 5 # 10-20", "Cl 45 No. 12-30", "Calle 1 # 2-3"];
+const DIRECCIONES = ["CL 45 SUR 12 34", "KR 7 # 12-30", "KR 7 45 10", "Cll 45 N 12-30", "Diagonal 5 Bis 3-2", "AK 68 12 30", "Mz 4 Casa 12", "Mz B Cs 12", "Av Boyacá 12-30", "Transv. 5 # 3-2", "Cra 7 45-10", "KR 80 C 2-15", "Diagonal 5 sur 3-20", "Apto 301", "Calle 13", "Carrera 7", "vive en la Cra 5 # 10-20", "Cl 45 No. 12-30", "Calle 1 # 2-3", "CC Gran Estación local 2-115", "Corabastos bodega 23 puesto cuarenta", "puesto 40 de la plaza", "Oficina 301"];
 
 describe('el gerente agrega, en un PostgreSQL', { skip: !BIN && 'sin TG_PG_BIN no hay PostgreSQL a mano' }, () => {
   let dir, puerto, n = 0;
@@ -788,6 +788,64 @@ describe('el gerente agrega, en un PostgreSQL', { skip: !BIN && 'sin TG_PG_BIN n
     /* Llamarla otra vez no cambia nada (y sigue cabiendo). */
     const otra = comoAnon(sup);
     assert.deepEqual([otra.r.ok, otra.r.copias_pendientes], [true, 0]);
+    sql("delete from public.panel_choques where tabla = 'ajustes' and fila_id in ('prospectos', 'gestiones');" +
+        " update public.panel_ajustes set datos = '[]'::jsonb where clave in ('prospectos', 'gestiones')");
+  });
+
+  /* 27-oct-2026, ronda 4 — EL HALLAZGO: el caso común es un prospecto que Joan
+     trabaja él mismo. No está en la cartera (no lo repartió) ni en la copia
+     'prospectos' del Panel (esa la deja subir.html; NubeCRM no sube
+     prospectos), pero su gestión, con su nota, sí está en la copia 'gestiones'
+     (NubeCRM la sube sola). El servidor no conocía su código, y la gestión se
+     quedaba en la nube y en los choques. Ahora el CRM manda los códigos de sus
+     prospectos de ese computador (p_ids), y de los choques viejos de
+     'prospectos' se recogen los que tuvo allí. */
+  test('26 · borrar a quien Joan trabaja sin repartir: sus gestiones se van de la copia del Panel y de los choques, con los códigos de su computador y de los choques', () => {
+    const loc = cel(49, 1), chq = cel(49, 2);
+    const gesLoc = { id: 'g-loc-26', persona_id: 'P-LOCAL-26', tipo: 'no_interesa', nota: 'LOCAL: no la llamen; vive en Usme con el tío',
+      cuando: '2026-10-20T15:00:00Z', quien: 'Joan' };
+    const gesChq = { id: 'g-chq-26', persona_id: 'P-CHQ-26', tipo: 'no_contesta', nota: 'la del choque: vive con la mamá',
+      cuando: '2026-10-20T15:00:00Z', quien: 'Joan' };
+    const gesOtra = { id: 'g-otra-26', persona_id: 'P-OTRA-26', tipo: 'no_contesta', nota: 'de otra persona', cuando: '2026-10-20T15:00:00Z', quien: 'Joan' };
+    const todas = jsonb([gesLoc, gesChq, gesOtra]);
+    sql("delete from public.panel_choques where tabla = 'ajustes' and fila_id in ('prospectos', 'gestiones');" +
+        " insert into public.panel_ajustes (clave, datos) values ('prospectos', '[]'::jsonb) on conflict (clave) do update set datos = excluded.datos;" +
+        " insert into public.panel_ajustes (clave, datos) values ('gestiones', " + todas + ") on conflict (clave) do update set datos = excluded.datos;" +
+        /* Un choque viejo de 'prospectos' (otro aparato con ESA persona) y, más nuevo, uno de 'gestiones'. */
+        " insert into public.panel_choques (tabla, fila_id, mio, suyo) values ('ajustes', 'prospectos', jsonb_build_object('datos', " +
+        jsonb([{ id: 'P-CHQ-26', celular: chq, nombre: 'La Del Choque' }, { id: 'P-OTRA-26', celular: cel(49, 9), nombre: 'Otra' }]) + "), '{}'::jsonb);" +
+        " insert into public.panel_choques (tabla, fila_id, mio, suyo) values ('ajustes', 'gestiones', jsonb_build_object('datos', " + todas + "), '{}'::jsonb);");
+    const enGestiones = pid => Number(sql("select count(*) from public.panel_ajustes pa cross join lateral jsonb_array_elements(pa.datos) e " +
+      "where pa.clave = 'gestiones' and e->>'persona_id' = '" + pid + "'"));
+    const enChoques = pid => Number(sql("select count(*) from public.panel_choques c cross join lateral jsonb_array_elements(c.mio->'datos') e " +
+      "where c.fila_id = 'gestiones' and e->>'persona_id' = '" + pid + "'"));
+    const hasta0 = (c, ids) => { let r, v = 0; do { r = joan('equipo_suprimir', "'" + c + "', 'por el chat de la app el 3-nov'" + (ids ? ', ' + ids : '')); v++; }
+      while (r.copias_pendientes > 0 && v < 20); return r; };
+    /* CONTROL: sin los códigos de su computador, el servidor no la reconoce y la gestión se queda (el defecto). */
+    assert.equal(hasta0(loc).ok, true);
+    assert.equal(enGestiones('P-LOCAL-26'), 1, 'CONTROL: sin p_ids no debería poder reconocerla');
+    /* Con el código de su prospecto local: se va de la copia y de los choques, y no vuelve. */
+    const r = hasta0(loc, "array['P-LOCAL-26', 'x'' or 1=1 --']");
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(r.copias_pendientes, 0);
+    assert.equal(enGestiones('P-LOCAL-26'), 0, 'su gestión (con su nota) sigue en la copia del Panel');
+    assert.equal(enChoques('P-LOCAL-26'), 0, 'su gestión sigue en el choque de gestiones');
+    assert.equal(sql("select ids::text from public.no_contactar where cel_hash = public.cel_hash('" + loc + "')"), '{P-LOCAL-26}',
+      'un código sin forma de código entró a la lista');
+    sql("update public.panel_ajustes set datos = " + todas + " where clave = 'gestiones'");
+    assert.equal(enGestiones('P-LOCAL-26'), 0, 'otro aparato la volvió a subir');
+    /* La del choque: el CRM no conoce su código (está solo en una copia vieja de otro aparato). */
+    assert.equal(enGestiones('P-CHQ-26'), 1);
+    const q = hasta0(chq);
+    assert.equal(q.copias_pendientes, 0, JSON.stringify(q));
+    assert.equal(sql("select ids::text from public.no_contactar where cel_hash = public.cel_hash('" + chq + "')"), '{P-CHQ-26}',
+      'no recogió el código del choque viejo de prospectos');
+    assert.equal(enGestiones('P-CHQ-26'), 0, 'su gestión sigue en la copia del Panel');
+    assert.equal(enChoques('P-CHQ-26'), 0, 'su gestión sigue en el choque de gestiones (que es más nuevo que el de prospectos)');
+    /* A los demás no se les tocó nada. */
+    assert.equal(enGestiones('P-OTRA-26'), 1);
+    assert.equal(enChoques('P-OTRA-26'), 1);
+    assert.equal(sql("select count(*) from public.panel_choques c cross join lateral jsonb_array_elements(c.mio->'datos') e where c.fila_id = 'prospectos' and e->>'id' = 'P-OTRA-26'"), '1');
     sql("delete from public.panel_choques where tabla = 'ajustes' and fila_id in ('prospectos', 'gestiones');" +
         " update public.panel_ajustes set datos = '[]'::jsonb where clave in ('prospectos', 'gestiones')");
   });

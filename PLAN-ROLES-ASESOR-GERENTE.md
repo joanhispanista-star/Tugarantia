@@ -338,10 +338,18 @@ de la receta, después del 2.4 (22d) y de noche.
   exactas). Dos rondas de revisión encontraron la dirección escapándose por
   columnas «DIR», «Ubicación» o «Barrio» y por valores sin «#» («CL 45 SUR 12
   34», «Mz B Cs 12»): adivinar por el nombre qué era peligroso no alcanzaba.
-  Además, un valor con forma de dirección («KR 7 45 10», «Apto 301») no se
-  guarda aunque venga en «Observación». Lo que Joan acepta al publicar dice
-  exactamente eso, y que lo que él escriba a mano en «Información adicional»
-  viaja tal cual.
+  Además, un valor con forma de dirección («KR 7 45 10», «Apto 301», «local
+  2-115», «bodega 23») no se guarda aunque venga en «Observación». **Qué columna
+  llena cada dato se decide por su nombre EXACTO** (sin mayúsculas, tildes ni
+  signos: `normalEncabezado`), no por pedazos: una cuarta revisión encontró
+  «Ubicación del negocio» entrando como «Ocupación o negocio», «Barrio / Ciudad»
+  como «Ciudad» y «Medio de pago» como «Cómo llegó». «Empresa» sí entra (es el
+  negocio). **Lo que viaja son textos libres, y se dice:** ninguna regla sabe
+  que «vive en la vereda El Rosal» o «su hermana Marta responde por ella» es
+  una dirección o el nombre de otra persona. El previo dice que lo marcado se
+  guarda tal como viene escrito, y lo que Joan acepta al publicar dice que todo
+  texto libre viaja como está escrito: «Información adicional», «¿De dónde
+  sale?», el origen de la base y las cinco columnas.
 - **Pasarse de los topes:** 300 al día (entran + ya existían), 100 intentos al
   día, 3.000 subidos por gerente hasta que «Mi base» se pagine. Un «ya existe»
   que ya había consultado **no vuelve a contar** ni para el tope ni para el
@@ -361,7 +369,9 @@ aunque llame a mano (`solo_gerente`).
   hora se miró y «↻ Volver a mirar»**. **Cada vez que Bases se abre**, se le
   pregunta a la nube en ese momento (antes, con datos de hasta 5 minutos, el ⛔
   de un gerente recién parado no salía); en el celular, tocar «📇 Bases» baja
-  hasta la vista, que queda debajo del menú.
+  hasta la vista, que queda debajo del menú, y en el PC sube hasta su comienzo
+  si Joan venía bajado en otra vista (el menú del PC está fijo y la pantalla
+  conservaba la altura de la lista anterior).
 - **Bases → «⤒ Lo que subió tu equipo»**: vive en la nube y **no se copia a su
   navegador** (por el espacio y las fotos). Cuándo, quién, qué, de dónde salió,
   la prueba, cuántos entraron, cuántos ya existían («cuáles», con dónde, de
@@ -387,6 +397,12 @@ aunque llame a mano (`solo_gerente`).
   contactos y asignación. Su número queda anotado (hash, más sus códigos de
   prospecto) para que nadie lo vuelva a agregar, y la nube no lo vuelve a
   guardar, ni a él ni a sus gestiones, aunque otro aparato de Joan lo suba.
+  **Los códigos salen también de este computador** (`p_ids`) y de los choques
+  viejos de su lista de prospectos: el caso común es alguien que Joan trabaja
+  sin repartir, que no está en la nube ni en la copia 'prospectos' (esa la deja
+  `subir.html`) y cuyas gestiones sí suben solas a la copia 'gestiones'. Esos
+  códigos solo se anotan: de la cartera no se borra nada por un código que
+  mande el aparato.
   **Cabe en el tiempo de una llamada**: toca solo las filas donde está esa
   persona, y los choques viejos los recorre por partes, con un reloj de menos de
   un segundo; el CRM repite la llamada hasta que no quede ninguno (antes, con 8
