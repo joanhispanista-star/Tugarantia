@@ -40,7 +40,7 @@ const GENTE = [
   { id: 'P9-0', nombre: 'Marta Quintero', celular: '3207770003', tipo: 'prospecto', etapa: 'PC', asesor: '3000000000', asesor_nombre: 'WILLIAN' }];
 const AHORA = new Date().toISOString();
 const INFO = {
-  'GP1-1-0': { nota: 'vende en la plaza de Kennedy', extra: { Barrio: 'Kennedy' }, origen: 'Feria de Kennedy', autoriza: true,
+  'GP1-1-0': { nota: 'vende en la plaza de Kennedy', extra: { Ciudad: 'Bogotá' }, origen: 'Feria de Kennedy', autoriza: true,
     canal: 'whatsapp', prueba: 'formularios firmados de la feria', subido_por: 'WILLIAN', subido_en: AHORA },
   'P9-0': { nota: '', extra: {}, origen: 'me la recomendó Nancy', autoriza: false, canal: '', prueba: '', subido_por: 'Joan',
     subido_en: '2026-09-01T10:00:00Z' } };
@@ -220,10 +220,31 @@ describe('3 · uno a mano', () => {
 });
 
 describe('4 · un archivo', () => {
-  const CSV = n => 'Nombre;Celular;Barrio;Cédula\r\n' + Array.from({ length: n }, (_, i) =>
+  const CSV = n => 'Nombre;Celular;Ciudad;Cédula\r\n' + Array.from({ length: n }, (_, i) =>
     ['PERSONA ' + ['ANA', 'LUZ', 'JOSE', 'PEDRO', 'MARTA', 'JUAN', 'ROSA'][i % 7] + ' ' + ['GOMEZ', 'ROJAS', 'PARDO', 'NIÑO', 'RUIZ'][i % 5] + ' ' + i,
-      String(3209000000 + i), ['Kennedy', 'Bosa', 'Suba'][i % 3], String(1000000000 + i)].join(';')).join('\r\n');
+      String(3209000000 + i), ['Bogotá', 'Soacha', 'Chía'][i % 3], String(1000000000 + i)].join(';')).join('\r\n');
   const archivo = (n, nombre) => ({ name: nombre || 'feria.csv', text: () => Promise.resolve(CSV(n)) });
+
+  /* 27-oct-2026, ronda 3 — LO SUYO NO ES UN ERROR. El KPI grande decía «No se
+     suben 936 — repetidas en el archivo o sin celular» y 881 eran suyos (el
+     segundo día de «vuelve a subir el mismo archivo»). */
+  test('el previo separa: repetidas dentro del archivo, sin celular válido, y ya en tu base', async () => {
+    const P = abrirEquipo('gerente');
+    /* 3 que ya son suyos (están en GENTE), 2 repetidas, 1 sin celular, 4 nuevos. */
+    const filas = ['Nombre;Celular', 'ROSA CARDENAS;3207770001', 'HERNAN OSPINA;3207770002', 'MARTA QUINTERO;3207770003',
+      'ANA NUEVA;3209100001', 'LUZ NUEVA;3209100002', 'JOSE NUEVO;3209100003', 'PEDRO NUEVO;3209100004',
+      'ANA NUEVA OTRA VEZ;3209100001', 'LUZ NUEVA OTRA VEZ;3209100002', 'SIN CELULAR;12345'].join('\r\n');
+    P.ctx._archivo = { name: 'repetido.csv', text: () => Promise.resolve(filas) };
+    P.ev('leerArchivoBaseEq(_archivo)'); await asentar(60);
+    const t = cuerpoModal(P);
+    assert.match(t, /Para subir 4 personas que todavía no están en tu base/);
+    assert.match(t, /Ya en tu base 3 ya son tuyas: no se vuelven a subir/);
+    assert.match(t, /Venían repetidas dentro del archivo 2/);
+    assert.match(t, /Sin un celular válido 1/);
+    assert.match(t, /Esas 3 filas no se suben: la persona ya venía más arriba en el archivo, o no tiene un celular que sirva\./);
+    /* CONTROL: ya no hay un número que junte lo suyo con lo que no sirve. */
+    assert.doesNotMatch(t, /No se suben|repetidas en el archivo o sin celular/);
+  });
 
   /* 27-oct-2026, ronda 2 — EL ARCHIVO ENTERO, y el servidor corta donde se
      acaba el cupo (fila por fila). Antes viajaban solo las primeras 300, y con
@@ -242,7 +263,7 @@ describe('4 · un archivo', () => {
     P.ctx._archivo = archivo(450);
     P.ev('leerArchivoBaseEq(_archivo)'); await asentar(60);
     const h = P.elems.mBody.innerHTML;
-    assert.match(plano(h), /Para subir 450 personas con celular/);
+    assert.match(plano(h), /Para subir 450 personas que todavía no están en tu base/);
     assert.match(plano(h), /Hoy puedes probar 300 celulares más\. Este archivo trae 450\./);
     /* 27-oct-2026, ronda 2 — lo que tarda, con números (a 300 por día). */
     assert.match(plano(h), /Hoy entran en el orden del archivo hasta gastar el cupo de hoy\. Lo que ya entró saldrá como «ya eran tuyos» y no gasta cupo, y lo que ya te dio «ya existe» tampoco\. Lo demás, otro día con el mismo archivo: a 300 por día, este archivo necesita un día más\./);
@@ -259,7 +280,7 @@ describe('4 · un archivo', () => {
     const f0 = llamadas(P, 'gerente_agregar_prospectos')[0].cuerpo.p_lote;
     assert.equal(f0.archivo, 'feria.csv');
     assert.equal(f0.autoriza, 'si');
-    assert.deepEqual(f0.filas[0].extra, { Barrio: 'Kennedy' }, 'la columna marcada no viajó');
+    assert.deepEqual(f0.filas[0].extra, { Ciudad: 'Bogotá' }, 'la columna marcada no viajó');
     assert.equal('Cédula' in (f0.filas[0].extra || {}), false);
     assert.equal(llamadas(P, 'mi_cartera').length, 2, 'no refrescó la base después de cada tanda en la que entró alguien');
     assert.match(cuerpoModal(P), /Listo\. Entraron 300 a tu base\./);
@@ -417,7 +438,7 @@ describe('5 · gestionar y asignar', () => {
     await P.ev('traerInfoEq()');
     const rosa = P.ev("filaPersonaEq(genteEquipo()[0])");
     assert.match(plano(rosa), /📝 «vende en la plaza de Kennedy»/);
-    assert.match(plano(rosa), /Barrio: Kennedy/);
+    assert.match(plano(rosa), /Ciudad: Bogotá/);
     assert.match(plano(rosa), /De dónde salió: Feria de Kennedy · lo subió WILLIAN el/);
     assert.match(plano(rosa), /Autorizó por WhatsApp · prueba: «formularios firmados de la feria»/);
     assert.match(rosa, /onclick="asignarUnoEq\('GP1-1-0'\)"/);

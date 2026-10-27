@@ -226,7 +226,7 @@ describe('3 · lo que ve quien lo recibe, dicho sin «nunca la cédula»', () =>
     });
     /* 27-oct-2026 (el gerente agrega, revisión) — de un prospecto viaja también
        lo que Joan anotó de él; con el SQL sin correr (404) vuelve a decir lo de antes. */
-    assert.match(textos.asignarProspecto, /su nombre, su celular, en qué va y lo que anotaste de él: la información adicional, las columnas que guardaste de su base, de dónde salió y si autorizó/);
+    assert.match(textos.asignarProspecto, /su nombre, su celular, en qué va y lo que anotaste de él: la información adicional, de dónde salió, si autorizó y, de las columnas de su base, solo ciudad, monto que pide, ocupación o negocio, cómo llegó y observación/);
     assert.match(textos.asignarCliente, /cuánto debe y cuándo paga/);
   });
 });

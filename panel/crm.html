@@ -15445,16 +15445,23 @@ function pintarPrevioBaseEq() {
   const r = b.revision, c = b.cupo || {};
   const quedan = Number(c.quedan_hoy) || 0;
   const n = b.paraSubir.length, cuantos = Math.min(n, quedan);
-  const noSuben = r.repetidos + r.sinCelular + b.tuyos;
+  /* 27-oct-2026, ronda 3 — LOS QUE YA SON SUYOS NO SON UN ERROR. El KPI grande
+     sumaba los repetidos, los sin celular Y los que ya están en su base, con el
+     rótulo «repetidas en el archivo o sin celular»: desde el segundo día de
+     «vuelve a subir el mismo archivo» decía «No se suben 936» con 881 suyos.
+     Ahora son tres cifras aparte, y la de lo suyo no va en el KPI de lo que
+     no sirve. */
+  const malas = r.repetidos + r.sinCelular;
+  const miles = x => Number(x || 0).toLocaleString('es-CO');
   const asesores = (c.destinos || []).filter(d => !d.yo);
   openModal('Cargar ' + b.archivo, `
     <div class="two">
-      <div class="kpi gan"><div class="et">Para subir</div><div class="nm">${n.toLocaleString('es-CO')}</div><div class="x">personas con celular</div></div>
-      <div class="kpi"><div class="et">No se suben</div><div class="nm">${noSuben.toLocaleString('es-CO')}</div><div class="x">repetidas en el archivo o sin celular</div></div>
+      <div class="kpi gan"><div class="et">Para subir</div><div class="nm">${miles(n)}</div><div class="x">personas que todavía no están en tu base</div></div>
+      <div class="kpi"><div class="et">Ya en tu base</div><div class="nm">${miles(b.tuyos)}</div><div class="x">ya son tuyas: no se vuelven a subir</div></div>
     </div>
-    ${filaInfo('Venían repetidas en el archivo', String(r.repetidos))}
-    ${filaInfo('Sin un celular utilizable', String(r.sinCelular))}
-    ${filaInfo('Ya son tuyos', String(b.tuyos))}
+    ${filaInfo('Venían repetidas dentro del archivo', miles(r.repetidos))}
+    ${filaInfo('Sin un celular válido', miles(r.sinCelular))}
+    ${malas ? '<div class="muted" style="font-size:12px">Esas ' + miles(malas) + ' filas no se suben: la persona ya venía más arriba en el archivo, o no tiene un celular que sirva.</div>' : ''}
     ${r.senalesFinancieras.length ? `<div class="alerta warn" style="margin-top:14px"><b>Este archivo trae información financiera de otra empresa</b>
       (${escHTML(r.senalesFinancieras.join(', '))}). Eso no se sube, ni a la nube ni a nadie. Si es un reporte de cobranza
       de otra empresa, no lo subas: esas personas no te autorizaron a ti.</div>` : ''}
@@ -15512,15 +15519,23 @@ function cuantoTardaEq(n, c) {
 }
 
 /* Las casillas de las columnas extra, SIN marcar (D7), y lo que no se guarda
-   con su porqué. Lo usan el gerente y Joan (con otro prefijo de ids). */
+   con su porqué. Lo usan el gerente y Joan (con otro prefijo de ids).
+   27-oct-2026, ronda 3 — solo se ofrecen las cinco de la lista blanca
+   (AgregarProspectos.COLUMNAS_QUE_VIAJAN), con su nombre fijo y, al lado, la
+   columna del archivo de donde sale: «Ciudad — columna «Municipio»». Y se
+   dice cuáles son las cinco, para que nadie busque cómo subir el barrio. */
 function previoExtrasHTML(extra, prefijo, alCambiar) {
   const e = extra || { columnas: [], descartadas: [] };
   if (!e.columnas.length && !e.descartadas.length) return '';
   return `<div class="sub-h">Información adicional que se guarda con cada uno</div>
+    <div class="muted" style="font-size:12px;margin-bottom:4px">De un archivo solo se guardan cinco datos: ciudad, monto que pide,
+      ocupación o negocio, cómo llegó y una observación. Ninguna otra columna se guarda ni viaja a nadie (ni la dirección, ni el
+      barrio, ni la cédula).</div>
     ${e.columnas.length ? e.columnas.map((c, k) => `<label style="display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13.5px">
       <input type="checkbox" id="${prefijo}${k}"${alCambiar ? ` onchange="${alCambiar}"` : ''}>
-      <span>${escHTML(c.nombre)}${c.muestra ? ' <span class="muted">(ej: ' + escHTML(c.muestra) + ')</span>' : ''}</span></label>`).join('')
-      : '<div class="muted" style="font-size:12.5px">Ninguna columna se puede guardar.</div>'}
+      <span>${escHTML(c.nombre)}${c.columna && c.columna !== c.nombre ? ' <span class="muted">— columna «' + escHTML(c.columna) + '»</span>' : ''}${
+        c.muestra ? ' <span class="muted">(ej: ' + escHTML(c.muestra) + ')</span>' : ''}</span></label>`).join('')
+      : '<div class="muted" style="font-size:12.5px">Ninguna columna de este archivo es de esas cinco.</div>'}
     <div class="muted" style="font-size:12px;margin-top:4px">Marca solo lo que sirva para atenderlo.${e.descartadas.length
       ? ' No se guardan: ' + e.descartadas.map(d => escHTML(d.nombre) + ' (' + escHTML(d.motivo) + ')').join(' · ') + '.' : ''}</div>`;
 }
@@ -16784,22 +16799,72 @@ function comoProspectosDelEquipo(r) {
 /* --------------------------------------------- la tarjeta de Bases ----- */
 function pintarSubidoPorElEquipo(forzar) {
   const caja = document.getElementById('tblDelEquipo'); if (!caja) return;
-  if (!sbListo()) { caja.innerHTML = '<div class="muted">Conecta la nube en Ajustes para ver lo que sube tu equipo.</div>'; return; }
+  if (!sbListo()) { caja.innerHTML = '<div class="muted">Conecta la nube en Ajustes para ver lo que sube tu equipo.</div>'; pintarAvisoDelEquipo(); return; }
   const viejo = !SUBIDO_EQUIPO || (SUBIDO_EQUIPO.estado !== 'cargando' && Date.now() - SUBIDO_EQUIPO.cuando > 5 * 60000);
   if (forzar || viejo) { traerSubidoPorElEquipo(); return; }
   caja.innerHTML = htmlSubidoPorElEquipo();
   pintarAvisoDelEquipo();
 }
+/* 27-oct-2026, ronda 3 — AL ABRIR BASES, LO DEL EQUIPO SE MIRA OTRA VEZ. Lo
+   de arriba solo pedía la nube si lo traído tenía más de 5 minutos, y cada
+   render() del CRM lo refresca: con Joan trabajando siempre había una copia
+   «reciente». William queda parado, le escribe a Joan «me pararon», Joan abre
+   Bases… y lee lo de hace 4 minutos, sin el ⛔. Ahora, cada vez que la vista
+   de Bases se ABRE (pasa de oculta a visible), se pregunta a la nube en ese
+   momento. Se detecta mirando la vista y no dentro de irA, que también toca
+   chat-1 (la fusión del viernes 30). Si renderBases ya la estaba pidiendo en
+   ese mismo instante, no se pide dos veces.
+   En el celular, el menú del CRM mide 16 entradas y la vista empieza a ~1.200
+   px: tocar «📇 Bases» dejaba la pantalla en el menú y el ⛔ dos pantallas
+   más abajo. Si la vista quedó debajo de la mitad de la pantalla, se baja
+   hasta ella; en el PC ya está a la vista y no se mueve nada. */
+function alAbrirBases() {
+  const v = document.getElementById('v-bases');
+  try {
+    const r = v && v.getBoundingClientRect ? v.getBoundingClientRect() : null;
+    if (r && r.top > (window.innerHeight || 0) / 2 && v.scrollIntoView) v.scrollIntoView({ block: 'start' });
+  } catch (e) { /* sin medidas no se mueve nada */ }
+  if (!sbListo()) return;
+  const s = SUBIDO_EQUIPO;
+  if (s && s.estado === 'cargando' && Date.now() - s.cuando < 3000) return;
+  return traerSubidoPorElEquipo();
+}
+(function vigilarAperturaDeBases() {
+  try {
+    const v = document.getElementById('v-bases');
+    if (!v || typeof MutationObserver !== 'function' || !v.classList || !v.classList.contains) return;
+    let antes = v.classList.contains('on');
+    new MutationObserver(() => {
+      const ahora = v.classList.contains('on');
+      if (ahora && !antes) alAbrirBases();
+      antes = ahora;
+    }).observe(v, { attributes: true, attributeFilter: ['class'] });
+  } catch (e) { /* un navegador sin MutationObserver se queda con los 5 minutos */ }
+})();
 /* 27-oct-2026, ronda 2 — ARRIBA DE BASES, LO QUE NO PUEDE ESPERAR. La tarjeta
    va debajo de la tabla de Prospectos, que pinta 200 filas: con los 18.190
    prospectos de Joan empieza a 13.800 px en el PC y a 25.200 en el celular, y
    el ⛔ de un gerente parado solo vivía ahí. Arriba, junto a los botones: el
    freno con sus dos botones, y una línea con lo que subió el equipo en la
-   última semana que lleva a la tarjeta. */
+   última semana que lleva a la tarjeta.
+   27-oct-2026, ronda 3 — y arriba también se ve CUÁNDO se miró y el «↻» para
+   volver a mirar (vivía al pie de la tarjeta, a miles de píxeles), y mientras
+   se mira lo dice: lo de arriba nunca es una foto vieja sin fecha. */
 function pintarAvisoDelEquipo() {
   const caja = document.getElementById('avisoDelEquipo'); if (!caja) return;
   const s = SUBIDO_EQUIPO;
-  if (!s || s.estado !== 'ok') { caja.innerHTML = ''; return; }
+  if (!sbListo() || !s || s.estado === 'apagado') { caja.innerHTML = ''; return; }
+  const otraVez = '<button class="btn btn-ghost btn-sm" onclick="pintarSubidoPorElEquipo(true)">↻ Volver a mirar</button>';
+  const linea = (clase, texto) => `<div class="${clase}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <span>${texto}</span>${otraVez}</div>`;
+  if (s.estado === 'cargando') {
+    caja.innerHTML = '<div class="muted" style="margin-bottom:12px">⤒ Mirando en la nube si alguien de tu equipo está parado o subió gente…</div>';
+    return;
+  }
+  if (s.estado !== 'ok') {
+    caja.innerHTML = linea('alerta warn', 'No pude mirar si alguien de tu equipo está parado: ' + escHTML(s.error || 'la nube no contestó') + '.');
+    return;
+  }
   const d = s.d || {};
   const frenados = Array.isArray(d.frenados) ? d.frenados : [];
   const semana = Date.now() - 7 * 86400000;
@@ -16807,10 +16872,15 @@ function pintarAvisoDelEquipo() {
     new Date(c.cuando).getTime() >= semana);
   const entraron = recientes.reduce((a, c) => a + (Number(c.entraron) || 0), 0);
   const quienes = [...new Set(recientes.map(c => String(c.quien_nombre || '')))].filter(Boolean);
+  /* «p. m.» ya termina en punto: no se le pone otro. */
+  const hora = new Date(s.cuando).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
+  const mirado = 'Mirado a las ' + escHTML(hora) + (/\.$/.test(hora) ? '' : '.');
   caja.innerHTML = frenados.map(franjaFrenoHTML).join('') + (entraron
-    ? `<div class="alerta info">⤒ Tu equipo subió ${entraron.toLocaleString('es-CO')} ${entraron === 1 ? 'persona' : 'personas'} esta semana
-        (${escHTML(quienes.join(', '))}). <a href="#" onclick="verLoQueSubioElEquipo();return false">Ver lo que subió tu equipo ↓</a></div>`
-    : '');
+    ? linea('alerta info', `⤒ Tu equipo subió ${entraron.toLocaleString('es-CO')} ${entraron === 1 ? 'persona' : 'personas'} esta semana
+        (${escHTML(quienes.join(', '))}). <a href="#" onclick="verLoQueSubioElEquipo();return false">Ver lo que subió tu equipo ↓</a>
+        <span class="muted">${mirado}</span>`)
+    : linea('muted', (frenados.length ? '⤒ Esta semana tu equipo no subió a nadie.'
+        : '⤒ Nadie de tu equipo está parado, y esta semana no subieron a nadie.') + ' ' + mirado));
 }
 function verLoQueSubioElEquipo() {
   const t = document.getElementById('tblDelEquipo');
@@ -16834,6 +16904,7 @@ function traerSubidoPorElEquipo() {
   const caja = document.getElementById('tblDelEquipo');
   SUBIDO_EQUIPO = { estado: 'cargando', cuando: Date.now(), d: SUBIDO_EQUIPO && SUBIDO_EQUIPO.d };
   if (caja) caja.innerHTML = htmlSubidoPorElEquipo();
+  pintarAvisoDelEquipo();   // ronda 3: arriba dice que está mirando, no lo de antes
   return rpc('equipo_agregados', { p_clave: sbCfg().clave })
     .then(d => { anotarAgrega(null); SUBIDO_EQUIPO = { estado: 'ok', cuando: Date.now(), d: d || {} }; })
     .catch(e => {
@@ -17040,7 +17111,12 @@ function publicarInfoDeProspectos(ps) {
     const p = porId[String(x.id)]; if (!p) return null;
     if (_infoPublicada[String(p.id)] === firmaInfoPublicada(p)) return null;
     const origen = p.origen || (bases[p.base] && bases[p.base].origen) || '';
-    const extra = p.extra && typeof p.extra === 'object' ? p.extra : null;
+    /* 27-oct-2026, ronda 3 — solo las cinco claves de la lista blanca salen
+       de este computador (el servidor descarta igual cualquier otra). */
+    const A = window.AgregarProspectos;
+    const ex = p.extra && typeof p.extra === 'object' && A
+      ? Object.keys(p.extra).filter(A.esClaveQueViaja).reduce((o, k) => { o[k] = p.extra[k]; return o; }, {}) : {};
+    const extra = Object.keys(ex).length ? ex : null;
     if (!p.nota && !extra && !origen && typeof p.autorizaInvitacion !== 'boolean') return null;
     return { id: String(p.id), nota: String(p.nota || ''), extra: extra || {}, origen: String(origen),
              autoriza: typeof p.autorizaInvitacion === 'boolean' ? p.autorizaInvitacion : null,
@@ -17170,57 +17246,106 @@ function laNubeCambioElAsesor(x) {
 }
 
 /* --------------------------- 🚫 borrar a alguien que lo pidió --------- */
+/* 27-oct-2026, ronda 3 — EL CUADRO DICE EXACTAMENTE QUÉ SE BORRA Y QUÉ QUEDA.
+   Decía «sus gestiones», y las que Joan anota en su computador (con su nota)
+   seguían en la copia del Panel en la nube y en este navegador: ahora se
+   borran de verdad (equipo_suprimir y suprimirProspectoLocal). Y lo que no se
+   borra desde aquí se nombra, con su porqué, ANTES de borrar. */
+const LO_QUE_NO_SE_BORRA = 'Lo que no se borra desde aquí, y por qué: lo que tu equipo ya le escribió por WhatsApp (queda en sus ' +
+  'teléfonos); tus prospectos en otro aparato, como el celular, hasta que la borres allá; su registro en la app (con su cédula y ' +
+  'fotos), si se registró; y las veces que alguien de tu equipo intentó subir ese número y le salió «ya existe», que son la prueba ' +
+  'de quién consultó el dato. Si es cliente, lo que la ley obliga a guardar (créditos y pagos) tampoco.';
 function suprimirDesdeBases() {
   openModal('🚫 ¿Quién pidió que lo borraran?', `
-    <p class="sub">La Ley 1581 da 15 días hábiles. Se borra de la nube como prospecto (lo que subió tu equipo, lo que publicaste
-      tú y la copia de tu Panel en la nube), con su información adicional, sus gestiones, contactos y citas, y queda anotado para
-      que nadie lo vuelva a agregar.</p>
+    <p class="sub">La Ley 1581 da 15 días hábiles. Se borra como prospecto, con su información adicional, sus gestiones (las del
+      equipo y las tuyas), contactos y citas: de la nube (lo que subió tu equipo, lo que publicaste tú, la copia de tu Panel y las
+      copias viejas que dejaron los choques entre tus aparatos) y de este computador. Queda anotado, sin el número, para que nadie
+      lo vuelva a agregar.</p>
     <div class="field"><label>Celular</label><input id="supCel" inputmode="numeric" placeholder="3001234567"></div>
     <div class="field"><label>¿Cómo lo pidió?</label><input id="supComo" placeholder="Ej: por el chat de la app el 3-nov">
       <div class="help">Queda guardado: es la prueba de que se borró porque lo pidió.</div></div>
-    <div class="muted" style="font-size:12px">Lo que tu equipo ya le escribió por WhatsApp queda en sus teléfonos: eso no lo borra el CRM.</div>
+    <div class="muted" style="font-size:12px">${escHTML(LO_QUE_NO_SE_BORRA)}</div>
     <button class="btn btn-rojo arriba" onclick="confirmarSuprimir()">Borrar</button>`);
 }
+/* 27-oct-2026, ronda 3 — POR PARTES. equipo_suprimir quita a la persona de
+   los choques viejos del Panel con un reloj de menos de un segundo, y contesta
+   `copias_pendientes` si no alcanzó: se le vuelve a llamar con el mismo
+   celular (llamarla otra vez no cambia lo que ya hizo) hasta que no quede
+   ninguna. Antes lo hacía todo de una vez y con 8 choques pasaba de los 3 s
+   de la llave anon: se caía entera y no se borraba nada. */
 function confirmarSuprimir() {
   const B = window.BasesTuGarantia;
   const cel = B ? B.celularDe(gv('supCel')) : diezJoan(gv('supCel'));
   const como = gv('supComo');
   if (!cel) return alert('Ese celular no me cuadra: son 10 dígitos y empieza por 3.');
   if (como.length < 5) return alert('Escribe cómo lo pidió (por ejemplo, «por el chat de la app el 3-nov»).');
-  if (!confirm('Voy a borrar de la nube a esta persona como prospecto (lo que subió tu equipo, lo que publicaste tú y la copia de ' +
-    'tu Panel en la nube), con su información adicional, sus gestiones, contactos y citas. Además la anoto para que nadie la vuelva ' +
-    'a agregar. No se puede deshacer.')) return;
-  return rpc('equipo_suprimir', { p_clave: sbCfg().clave, p_celular: cel, p_como: como })
-    .then(r => {
-      if (!r || r.ok !== true) return alert('No lo borré: ' + ((r && r.motivo) === 'falta_como' ? 'falta cómo lo pidió.' : ((r && r.motivo) || 'la nube dijo que no.')));
-      TIENE_EQUIPO[cel] = { no_contactar: true, desde: new Date().toISOString() };
-      if (r.es_cliente) {
-        cerrarModal();
-        return alert('Es cliente: lo que la ley obliga a guardar (créditos y pagos) no se borra. Habla con el abogado antes de tocarlo. ' +
-          'Sí lo anoté para que nadie lo vuelva a agregar como prospecto.');
-      }
-      const local = suprimirProspectoLocal(cel);
+  if (!confirm('Voy a borrar a esta persona como prospecto, de la nube y de este computador, con su información adicional, sus ' +
+    'gestiones, contactos y citas, y la anoto para que nadie la vuelva a agregar. No se puede deshacer.')) return;
+  const llamar = () => rpc('equipo_suprimir', { p_clave: sbCfg().clave, p_celular: cel, p_como: como });
+  let primera = null, quedan = 0;
+  const seguir = (r, vuelta) => {
+    if (!r || r.ok !== true) {
+      const e = new Error((r && r.motivo) === 'falta_como' ? 'falta cómo lo pidió.' : ((r && r.motivo) || 'la nube dijo que no.'));
+      e.sinNube = true; throw e;
+    }
+    if (!primera) primera = r;
+    quedan = Number(r.copias_pendientes) || 0;
+    if (quedan > 0 && vuelta < 60) {
+      openModal('🚫 Borrando…', '<div class="muted">Ya la borré de lo demás. Ahora la quito de las copias viejas de tu Panel en la nube: ' +
+        'quedan ' + quedan.toLocaleString('es-CO') + '. Un momento…</div>');
+      return llamar().then(r2 => seguir(r2, vuelta + 1));
+    }
+    return primera;
+  };
+  const listo = r => {
+    TIENE_EQUIPO[cel] = { no_contactar: true, desde: new Date().toISOString() };
+    const faltan = quedan > 0 ? '\n\nQuedan ' + quedan.toLocaleString('es-CO') + ' copias viejas de tu Panel en la nube con su número ' +
+      '(de cuando chocaron dos de tus aparatos). Vuelve a tocar «🚫 Borrar a alguien que lo pidió» con el mismo celular para terminarlas.' : '';
+    if (r.es_cliente) {
       cerrarModal();
-      alert('Listo: borré ' + (Number(r.del_equipo) || 0) + ' que subió tu equipo y ' + (Number(r.de_joan) || 0) +
-        ' tuyas de la nube. Ese número ya no se puede volver a agregar.' +
-        (local ? '\n\nTambién lo quité de tus prospectos de este computador.' : '') +
-        /* 27-oct-2026, ronda 2 — y de la copia del Panel en la nube: aunque
-           otro aparato de Joan la vuelva a subir, la nube ya no la guarda
-           (panel_ajustes_sin_suprimidos). Ese aparato sí la conserva hasta
-           que la borre ahí, y se dice. */
-        '\n\nTambién la quité de la copia de tu Panel en la nube, y la nube no la vuelve a guardar aunque otro aparato tuyo la suba. ' +
-        'Si tienes el Panel en otro aparato (el celular), allá sigue en tus prospectos hasta que la borres a mano.' +
-        '\n\nLo que tu equipo ya le escribió por WhatsApp queda en sus teléfonos: eso no lo borra el CRM.');
-      traerSubidoPorElEquipo();
-    })
-    .catch(e => alert('No lo borré: ' + errNube(e)));
+      return alert('Es cliente: lo que la ley obliga a guardar (créditos y pagos) no se borra. Habla con el abogado antes de tocarlo. ' +
+        'Sí lo anoté para que nadie lo vuelva a agregar como prospecto y, si estaba como prospecto en la copia de tu Panel en la nube, ' +
+        'lo quité de ahí (sus créditos y pagos no se tocan).' + faltan);
+    }
+    const local = suprimirProspectoLocal(cel);
+    cerrarModal();
+    alert('Listo: borré ' + (Number(r.del_equipo) || 0) + ' que subió tu equipo y ' + (Number(r.de_joan) || 0) +
+      ' tuyas de la nube, con sus gestiones, contactos y citas. Ese número ya no se puede volver a agregar.' +
+      (local ? '\n\nTambién lo quité de tus prospectos de este computador, con sus gestiones y contactos.' : '') +
+      /* 27-oct-2026, ronda 2 — y de la copia del Panel en la nube: aunque
+         otro aparato de Joan la vuelva a subir, la nube ya no la guarda
+         (panel_ajustes_sin_suprimidos). Ese aparato sí la conserva hasta
+         que la borre ahí, y se dice. Ronda 3: también sus gestiones. */
+      '\n\nTambién la quité de la copia de tu Panel en la nube, con sus gestiones, y la nube no las vuelve a guardar aunque otro ' +
+      'aparato tuyo las suba. Si tienes el Panel en otro aparato (el celular), allá sigue en tus prospectos hasta que la borres a mano.' +
+      (r.registrado ? '\n\nSe registró en la app: su registro (con su cédula y fotos) no se borra desde aquí.' : '') +
+      '\n\nLo que tu equipo ya le escribió por WhatsApp queda en sus teléfonos: eso no lo borra el CRM.' + faltan);
+  };
+  return llamar().then(r => seguir(r, 1)).then(listo)
+    .then(() => traerSubidoPorElEquipo())
+    .catch(e => {
+      /* Si la primera ya entró, lo demás está borrado: se dice qué falta. */
+      if (primera) return listo(primera);
+      alert('No lo borré: ' + (e && e.sinNube ? e.message : errNube(e)));
+    });
 }
+/* 27-oct-2026, ronda 3 — de este computador, también sus gestiones, sus
+   contactos y su asignación: con ellos aquí, la siguiente publicación volvía a
+   escribir su asignación en la nube y NubeCRM volvía a subir sus gestiones. */
 function suprimirProspectoLocal(cel) {
   const B = window.BasesTuGarantia;
+  const esSuyo = p => (B ? B.celularDe(p.celular) : diezJoan(p.celular)) === cel;
+  const ids = {};
+  prospectos().forEach(p => { if (esSuyo(p)) ids[String(p.id)] = true; });
   const antes = prospectos().length;
-  DB.prospectos = prospectos().filter(p => (B ? B.celularDe(p.celular) : diezJoan(p.celular)) !== cel);
+  DB.prospectos = prospectos().filter(p => !esSuyo(p));
   const quitados = antes - DB.prospectos.length;
-  if (quitados) { guardar(); try { render(); } catch (e) {} }
+  if (quitados) {
+    DB.gestiones = gestiones().filter(g => !ids[String(g.persona_id)]);
+    DB.contactos = contactos().filter(c => !ids[String(c.persona_id)]);
+    DB.asignaciones = asignaciones().filter(a => !ids[String(a.socio_id)]);
+    guardar(); try { render(); } catch (e) {}
+  }
   return quitados;
 }
 
@@ -17245,7 +17370,8 @@ function preguntarEquipoPorRegistros() {
     if (r.ok && Object.keys(r.r).some(c => r.r[c] && r.r[c].id)) renderRegistros();
   });
 }
-/* Las columnas que Joan marcó en el previo de su base: {celular: {Barrio: …}}. */
+/* Las columnas que Joan marcó en el previo de su base: {celular: {Ciudad: …}}
+   (solo las cinco de la lista blanca: ver previoExtrasHTML). */
 function extraParaGuardar(b) {
   const A = window.AgregarProspectos;
   if (!A || !b || !b.extra || !b.extra.columnas || !b.filas) return {};
@@ -17859,15 +17985,21 @@ function publicarEquipoAhora(gente, asig, ps, op) {
     (sinCel ? '⚠ ' + sinCel + ' de ellos no tienen celular: van a salir sin el botón de WhatsApp.\n\n' : '') +
     'De cada uno viaja el nombre, el celular, en qué etapa está y —desde hoy—\n' +
     'CUÁNTO DEBE y CUÁNDO LE TOCA PAGAR, para que se le pueda cobrar.\n' +
-    'Sigue sin viajar: cédula, dirección, fotos y referencias.\n\n' +
     /* 27-oct-2026, ronda 2 — con «el gerente agrega», de un potencial viaja
        también lo que Joan anotó de él (publicarInfoDeProspectos), y este
-       cuadro no lo decía. La columna «Dirección» de una base ya no se guarda
-       (agregar-prospectos.js y extra_limpio), así que la línea de arriba
-       sigue siendo verdad; la nota viaja tal como Joan la escribió. Sin el
-       SQL del 27-oct (404) no viaja, y no se dice. */
-    (_equipoAgrega === 'no' ? '' : 'De los potenciales viaja además lo que anotaste de ellos: la información adicional\n' +
-      '(tal como la escribiste), las columnas que marcaste al cargar su base, de dónde\nsalió y si autorizó.\n\n') +
+       cuadro no lo decía. Sin el SQL del 27-oct (404) no viaja, y no se dice.
+       27-oct-2026, ronda 3 — DICE EXACTAMENTE LO QUE VIAJA. «Sigue sin viajar:
+       … dirección» era falso con una columna «DIR» o «Ubicación» marcada. Ahora
+       de un archivo solo se guardan cinco columnas con nombre fijo (la lista
+       blanca de agregar-prospectos.js, la misma de extra_limpio), y se nombran
+       aquí. Lo único que puede llevar una dirección es lo que Joan escribe a
+       mano en «Información adicional», y eso viaja tal cual: se dice. */
+    'Sigue sin viajar: cédula, dirección, fotos y referencias' + (_equipoAgrega === 'no' ? '.\n\n'
+      : ' (salvo lo que tú mismo\nhayas escrito en «Información adicional» de un potencial: eso viaja tal cual).\n\n' +
+        'De los potenciales viaja además, si lo tienen: lo que escribiste en «Información\n' +
+        'adicional», tal cual; de dónde salió; si autorizó; y de las columnas que marcaste al\n' +
+        'cargar su base, solo estas cinco: ciudad, monto que pide, ocupación o negocio, cómo\n' +
+        'llegó y observación. Ninguna otra columna viaja.\n\n') +
     '⚠ El monto es una FOTO del cálculo de hoy. Si no vuelves a publicar, el\n' +
     'asesor seguirá leyendo esta cifra: por eso la pantalla le pone al lado el\n' +
     'día en que se calculó.\n\n' +
@@ -19390,11 +19522,13 @@ function asignableDe(tipo, id) {
    también lo que Joan anotó de él: la información adicional, las columnas que
    marcó de su base, de dónde salió y si autorizó. El cuadro seguía diciendo
    «su nombre, su celular y en qué va». Sin el SQL del 27-oct (404) eso no
-   viaja, y no se dice. */
+   viaja, y no se dice.
+   27-oct-2026, ronda 3 — y de las columnas, cuáles: solo las cinco de la
+   lista blanca (agregar-prospectos.js); ninguna otra se guarda. */
 function loQueVeElEquipo(tipo) {
   return (tipo === 'prospecto'
       ? (_equipoAgrega === 'no' ? 'su nombre, su celular y en qué va'
-        : 'su nombre, su celular, en qué va y lo que anotaste de él: la información adicional, las columnas que guardaste de su base, de dónde salió y si autorizó')
+        : 'su nombre, su celular, en qué va y lo que anotaste de él: la información adicional, de dónde salió, si autorizó y, de las columnas de su base, solo ciudad, monto que pide, ocupación o negocio, cómo llegó y observación')
       : 'su nombre, su celular, la etapa, cuánto debe y cuándo paga') +
     '. Y si se registró en la app con ese mismo celular, en «🪪 Ver su ficha» ve también lo que dejó al registrarse: su cédula, su dirección, sus cuentas y sus fotos';
 }

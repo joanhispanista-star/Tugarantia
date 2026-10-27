@@ -43,7 +43,7 @@ const CARTERA = {
   config: { negocio: 'Tu Garantía' }, socios: [], prestamos: [], equipo: EQUIPO, asignaciones: [], gestiones: [],
   prospectos: [
     { id: 'P1-0', nombre: 'Marta Q', celular: '3001110001', estado: 'nuevo', base: 'septiembre.xlsx', cargadoEn: '2026-09-26' },
-    { id: 'P1-1', nombre: 'Juan Z', celular: '3001110002', estado: 'nuevo', base: 'septiembre.xlsx', cargadoEn: '2026-09-26', nota: 'tiene una tienda', extra: { Barrio: 'Suba' } },
+    { id: 'P1-1', nombre: 'Juan Z', celular: '3001110002', estado: 'nuevo', base: 'septiembre.xlsx', cargadoEn: '2026-09-26', nota: 'tiene una tienda', extra: { Ciudad: 'Soacha', Barrio: 'Suba' } },
     { id: 'P1-2', nombre: 'Rosa Y', celular: '3001110003', estado: 'nuevo', base: 'A mano', origen: 'me la recomendó Nancy', autorizaInvitacion: false, cargadoEn: '2026-10-20' }],
   bases: [{ id: 'B1', archivo: 'septiembre.xlsx', origen: 'pauta de Facebook', fecha: '2026-09-26', entraron: 2 }]
 };
@@ -191,10 +191,49 @@ describe('1 · la tarjeta «⤒ Lo que subió tu equipo»', () => {
     assert.match(h, /onclick="verYaExistianNuevos\(43\)">Ver cuáles<\/button>/);
     assert.match(t, /⤒ Tu equipo subió 244 personas esta semana \(WILLIAN\)\. Ver lo que subió tu equipo ↓/);
     assert.match(h, /onclick="verLoQueSubioElEquipo\(\);return false"/);
-    /* Sin nada en la semana ni nadie parado, arriba no sale nada. */
+    /* 27-oct-2026, ronda 3 — arriba también dice cuándo se miró, con su «↻». */
+    assert.match(t, /Mirado a las .*↻ Volver a mirar/);
+    assert.match(h, /onclick="pintarSubidoPorElEquipo\(true\)">↻ Volver a mirar<\/button>/);
+    /* Sin nada en la semana ni nadie parado, arriba lo dice en una línea, con la hora. */
     const Q = abrirJoan({ equipo_agregados: { cargas: [], frenados: [], por_gerente: [] } });
     Q.ev('pintarSubidoPorElEquipo()'); await asentar();
-    assert.equal(Q.elems.avisoDelEquipo.innerHTML, '');
+    assert.match(plano(Q.elems.avisoDelEquipo.innerHTML), /Nadie de tu equipo está parado, y esta semana no subieron a nadie. Mirado a las /);
+  });
+
+  /* 27-oct-2026, ronda 3 — EL HALLAZGO: William avisa «me pararon», Joan abre
+     Bases y no ve el ⛔, porque lo traído tenía menos de 5 minutos. Ahora, al
+     ABRIR Bases se pregunta a la nube en ese momento, y mientras tanto arriba
+     dice que está mirando (no lo de antes, sin fecha). */
+  test('al ABRIR Bases pregunta en ese momento, aunque lo traído tenga menos de 5 minutos: el ⛔ de hace un minuto sale', async () => {
+    let parado = false;
+    const P = abrirJoan({ equipo_agregados: () => (parado ? aca(AGREGADOS) : { cargas: [], frenados: [], por_gerente: [] }) });
+    P.ev('pintarSubidoPorElEquipo()'); await asentar();
+    assert.doesNotMatch(plano(P.elems.avisoDelEquipo.innerHTML), /parado desde/);
+    parado = true;                                   // William queda parado un minuto después
+    P.ev('renderBases()'); await asentar();          // un render() cualquiera: lo de hace un minuto sirve
+    assert.equal(llamadas(P, 'equipo_agregados').length, 1, 'CONTROL: un render() no vuelve a pedir antes de 5 minutos');
+    assert.doesNotMatch(plano(P.elems.avisoDelEquipo.innerHTML), /parado desde/);
+    const vigilada = P.ev('alAbrirBases()');         // Joan toca «📇 Bases»
+    assert.match(plano(P.elems.avisoDelEquipo.innerHTML), /Mirando en la nube si alguien de tu equipo está parado/);
+    await vigilada; await asentar();
+    assert.equal(llamadas(P, 'equipo_agregados').length, 2, 'al abrir Bases no le preguntó a la nube');
+    assert.match(plano(P.elems.avisoDelEquipo.innerHTML), /⛔ OTRO está parado desde el .*Ya lo revisé: que siga/);
+    /* Si renderBases ya la estaba pidiendo en ese mismo instante, no se pide dos veces. */
+    P.ev('traerSubidoPorElEquipo(); alAbrirBases()'); await asentar();
+    assert.equal(llamadas(P, 'equipo_agregados').length, 3);
+    /* Lo detecta mirando la vista (no dentro de irA, que también toca chat-1). */
+    const fn = CRM.slice(CRM.indexOf('(function vigilarAperturaDeBases()'), CRM.indexOf('})();', CRM.indexOf('(function vigilarAperturaDeBases()')));
+    assert.match(fn, /getElementById\('v-bases'\)/);
+    assert.match(fn, /new MutationObserver/);
+    assert.match(fn, /if \(ahora && !antes\) alAbrirBases\(\);/);
+    /* En el celular, la vista queda debajo del menú: se baja hasta ella. */
+    P.ev("document.getElementById('v-bases').getBoundingClientRect = function () { return { top: 1231 }; };" +
+         " document.getElementById('v-bases').scrollIntoView = function (o) { _bajo = o; }; window.innerHeight = 844; var _bajo = null;");
+    P.ev('alAbrirBases()'); await asentar();
+    assert.deepEqual(aca(P.ev('_bajo')), { block: 'start' }, 'en el celular no bajó hasta Bases');
+    P.ev("_bajo = null; document.getElementById('v-bases').getBoundingClientRect = function () { return { top: 96 }; };");
+    P.ev('alAbrirBases()'); await asentar();
+    assert.equal(P.ev('_bajo'), null, 'en el PC movió la pantalla sin necesidad');
   });
 
   test('ver una carga y reasignar los marcados, también a «Nadie (soltarlo)»', async () => {
@@ -241,8 +280,8 @@ describe('2 · «＋ Agregar prospecto» de Joan', () => {
      columnas, el origen y si autorizó. Sin el SQL (404) eso no viaja. */
   test('lo que ve el equipo, dicho completo; y la ayuda de «¿De dónde sale?» lo dice', () => {
     const P = abrirJoan();
-    assert.match(P.ev("loQueVeElEquipo('prospecto')"), /^su nombre, su celular, en qué va y lo que anotaste de él: la información adicional, las columnas que guardaste de su base, de dónde salió y si autorizó\./);
-    assert.match(P.ev("textoPublicarAsignar('Al asignarlo', 'prospecto')"), /de dónde salió y si autorizó/);
+    assert.match(P.ev("loQueVeElEquipo('prospecto')"), /^su nombre, su celular, en qué va y lo que anotaste de él: la información adicional, de dónde salió, si autorizó y, de las columnas de su base, solo ciudad, monto que pide, ocupación o negocio, cómo llegó y observación\./);
+    assert.match(P.ev("textoPublicarAsignar('Al asignarlo', 'prospecto')"), /de dónde salió, si autorizó y, de las columnas de su base, solo ciudad, monto que pide, ocupación o negocio, cómo llegó y observación/);
     P.ev('agregarProspecto()');
     assert.match(plano(P.elems.mBody.innerHTML), /tiene que existir antes, no después\. Si se lo asignas a alguien de tu equipo, también lo ve él\./);
     P.ev("_equipoAgrega = 'no'");
@@ -289,23 +328,27 @@ describe('2 · «＋ Agregar prospecto» de Joan', () => {
     const P = abrirJoan();
     P.ev('renderBases()');
     const t = plano(P.elems.tblProspectos.innerHTML);
-    assert.match(t, /📝 «tiene una tienda» Barrio: Suba/);
-    assert.equal(P.ev("coincideProspecto(prospectos()[1], 'suba')"), true);
+    assert.match(t, /📝 «tiene una tienda» Ciudad: Soacha/);
+    assert.equal(P.ev("coincideProspecto(prospectos()[1], 'soacha')"), true);
     assert.equal(P.ev("coincideProspecto(prospectos()[1], 'tienda')"), true);
-    assert.equal(P.ev("coincideProspecto(prospectos()[0], 'suba')"), false);
+    assert.equal(P.ev("coincideProspecto(prospectos()[0], 'soacha')"), false);
   });
 });
 
 describe('3 · «⤒ Cargar base» de Joan: las columnas extra', () => {
-  const CSV = 'Nombre;Celular;Barrio;Saldo\r\nANA GOMEZ PEREZ;3209000001;Kennedy;200000\r\nLUZ ROJAS RUIZ;3209000002;Bosa;0\r\nJOSE PARDO NIÑO;3209000003;Suba;50000';
+  /* 27-oct-2026, ronda 3 — con «DIR», «Ubicación» y «Barrio»: no se ofrecen (la lista blanca). */
+  const CSV = 'Nombre;Celular;Ciudad;DIR;Ubicación;Barrio;Saldo\r\nANA GOMEZ PEREZ;3209000001;Bogotá;CL 45 SUR 12 34;KR 7 45 10;Kennedy;200000\r\n' +
+    'LUZ ROJAS RUIZ;3209000002;Soacha;Mz B Cs 12;Av Boyacá 12-30;Bosa;0\r\nJOSE PARDO NIÑO;3209000003;Chía;Apto 301;Cll 45 N 12-30;Suba;50000';
   test('se ofrecen sin marcar; solo lo marcado se guarda; pesan; y lo del equipo cuenta como «ya era prospecto»', async () => {
     const P = abrirJoan({ equipo_tiene: { '3209000003': { id: 'GP5', subido_por_nombre: 'WILLIAN' } }, equipo_publicar_celulares: { ok: true } });
     P.ctx._f = { name: 'feria.csv', text: () => Promise.resolve(CSV) };
     P.ev('leerArchivoBase(_f)'); await asentar();
     const h = P.elems.mBody.innerHTML;
     assert.match(h, /<input type="checkbox" id="exCol_0">/);
+    assert.doesNotMatch(h, /id="exCol_1"/, 'ofreció una segunda columna: DIR, Ubicación o Barrio');
     assert.doesNotMatch(h, /checked/);
-    assert.match(plano(h), /No se guardan: Saldo \(es plata o deuda\)/);
+    assert.match(plano(h), /De un archivo solo se guardan cinco datos: ciudad, monto que pide, ocupación o negocio, cómo llegó y una observación\. Ninguna otra columna se guarda ni viaja a nadie \(ni la dirección, ni el barrio, ni la cédula\)\./);
+    assert.match(plano(h), /No se guardan: DIR \(no es de lo que viaja\) · Ubicación \(no es de lo que viaja\) · Barrio \(no es de lo que viaja\) · Saldo \(es plata o deuda\)/);
     assert.match(plano(h), /De esos, ya los subió tu equipo 1/);
     assert.equal(P.ev('_baseLeida.revision.nuevos.length'), 2, 'el que subió el equipo entró como nuevo');
     /* espacioParaBase pesa la información adicional que se podría guardar. */
@@ -318,7 +361,8 @@ describe('3 · «⤒ Cargar base» de Joan: las columnas extra', () => {
     P.ev('confirmarCargaBase()'); await asentar();
     const ps = aca(P.ev("prospectos().filter(function (x) { return x.base === 'feria.csv'; })"));
     assert.equal(ps.length, 2);
-    assert.deepEqual(ps[0].extra, { Barrio: 'Kennedy' });
+    assert.deepEqual(ps[0].extra, { Ciudad: 'Bogotá' });
+    assert.doesNotMatch(JSON.stringify(ps), /CL 45|KR 7|Cs 12|Boyacá|Apto|Cll 45|Kennedy/, 'una dirección o el barrio quedó guardado');
     assert.ok(llamadas(P, 'equipo_publicar_celulares').length >= 1);
   });
 });
@@ -357,7 +401,7 @@ describe('4 · lo de Joan no pisa ni duplica lo del equipo', () => {
     await asentar();
     const info = llamadas(P, 'equipo_publicar_info');
     assert.equal(info.length, 1);
-    assert.deepEqual(info[0].args.p_info, [{ id: 'P1-1', nota: 'tiene una tienda', extra: { Barrio: 'Suba' }, origen: 'pauta de Facebook', autoriza: null,
+    assert.deepEqual(info[0].args.p_info, [{ id: 'P1-1', nota: 'tiene una tienda', extra: { Ciudad: 'Soacha' }, origen: 'pauta de Facebook', autoriza: null,
       creado: '2026-09-26' }]);
   });
 
@@ -424,13 +468,16 @@ describe('4 · lo de Joan no pisa ni duplica lo del equipo', () => {
     P.ev('confirm = function (m) { _avisos.push(\'¿\' + m); return false; }');
     await P.ev("publicarEquipoAhora(equipo().filter(function (p) { return p.celular; }), armarPublicacionEquipo().asig, armarPublicacionEquipo().ps)");
     const t = avisos(P).replace(/\n/g, ' ');
-    assert.match(t, /Sigue sin viajar: cédula, dirección, fotos y referencias\./);
-    assert.match(t, /De los potenciales viaja además lo que anotaste de ellos: la información adicional .*las columnas que marcaste al cargar su base, de dónde salió y si autorizó\./);
+    /* 27-oct-2026, ronda 3 — exactamente lo que viaja: las cinco columnas por su
+       nombre, y la salvedad de lo que Joan escribe a mano. */
+    assert.match(t, /Sigue sin viajar: cédula, dirección, fotos y referencias \(salvo lo que tú mismo hayas escrito en «Información adicional» de un potencial: eso viaja tal cual\)\./);
+    assert.match(t, /De los potenciales viaja además, si lo tienen: lo que escribiste en «Información adicional», tal cual; de dónde salió; si autorizó; y de las columnas que marcaste al cargar su base, solo estas cinco: ciudad, monto que pide, ocupación o negocio, cómo llegó y observación\. Ninguna otra columna viaja\./);
     assert.equal(llamadas(P, 'equipo_publicar').length, 0);
     const Q = abrirJoan({ equipo_tiene: {} }, C);
     Q.ev("_equipoAgrega = 'no'; confirm = function (m) { _avisos.push('¿' + m); return false; }");
     await Q.ev("publicarEquipoAhora(equipo().filter(function (p) { return p.celular; }), armarPublicacionEquipo().asig, armarPublicacionEquipo().ps)");
     assert.doesNotMatch(avisos(Q), /De los potenciales viaja además/);
+    assert.match(avisos(Q).replace(/\n/g, ' '), /Sigue sin viajar: cédula, dirección, fotos y referencias\. /);
   });
 
   test('publicarCelularesDeJoan: la primera vez todos (de 5.000 en 5.000), después solo los nuevos', async () => {
@@ -626,21 +673,60 @@ describe('7 · 📥 Registrados y «🚫 Borrar a alguien que lo pidió»', () =
     assert.equal(llamadas(P, 'equipo_tiene').length, 1);
   });
 
-  test('borrar: el cuadro, la confirmación, equipo_suprimir, y también de los prospectos de este computador', async () => {
-    const P = abrirJoan({ equipo_suprimir: { ok: true, es_cliente: false, del_equipo: 1, de_joan: 1 }, equipo_agregados: AGREGADOS });
+  /* 27-oct-2026, ronda 3 — el cuadro decía «sus gestiones» y las que Joan anota
+     (con su nota) se quedaban en la copia del Panel y en este navegador. Ahora
+     se borran, el cuadro nombra lo que NO se borra y por qué, y si el servidor
+     no alcanza a quitarla de los choques viejos en una llamada, se repite. */
+  test('borrar: el cuadro dice qué se borra y qué queda; por partes hasta el final; y también sus gestiones de este computador', async () => {
+    const C = aca(CARTERA);
+    C.gestiones = [{ id: 'loc-1', persona_id: 'P1-1', tipo: 'no_interesa', nota: 'dice que no la llamen más', cuando: '2026-10-20T15:00:00Z', quien: 'Joan' },
+      { id: 'loc-2', persona_id: 'P1-0', tipo: 'no_contesta', nota: 'otra', cuando: '2026-10-20T15:00:00Z', quien: 'Joan' }];
+    C.contactos = [{ id: 'c1', persona_id: 'P1-1', quien: 'LEIDY', texto: 'hola' }];
+    C.asignaciones = [{ id: 'A1', socio_id: 'P1-1', asesor_id: 'a1', desde: HOY }, { id: 'A2', socio_id: 'P1-0', asesor_id: 'a1', desde: HOY }];
+    let vuelta = 0;
+    const P = abrirJoan({ equipo_suprimir: () => (++vuelta === 1 ? { ok: true, es_cliente: false, del_equipo: 1, de_joan: 1, copias_pendientes: 5, registrado: true }
+      : { ok: true, es_cliente: false, del_equipo: 0, de_joan: 0, copias_pendientes: vuelta === 2 ? 2 : 0 }), equipo_agregados: AGREGADOS }, C);
     P.ev('suprimirDesdeBases()');
     assert.equal(P.elems.mTitle.textContent, '🚫 ¿Quién pidió que lo borraran?');
+    const cuadro = plano(P.elems.mBody.innerHTML);
+    assert.match(cuadro, /Se borra como prospecto, con su información adicional, sus gestiones \(las del equipo y las tuyas\), contactos y citas: de la nube \(lo que subió tu equipo, lo que publicaste tú, la copia de tu Panel y las copias viejas que dejaron los choques entre tus aparatos\) y de este computador\./);
+    assert.match(cuadro, /Lo que no se borra desde aquí, y por qué: lo que tu equipo ya le escribió por WhatsApp \(queda en sus teléfonos\); tus prospectos en otro aparato, como el celular, hasta que la borres allá; su registro en la app \(con su cédula y fotos\), si se registró; y las veces que alguien de tu equipo intentó subir ese número y le salió «ya existe», que son la prueba de quién consultó el dato\./);
     P.ev("document.getElementById('supCel').value = " + JSON.stringify('3001110002')); P.ev("document.getElementById('supComo').value = " + JSON.stringify('por el chat de la app el 3-nov'));
-    P.ev('confirmarSuprimir()'); await asentar();
-    assert.match(avisos(P), /¿Voy a borrar de la nube a esta persona como prospecto .*No se puede deshacer\./);
-    assert.deepEqual(llamadas(P, 'equipo_suprimir')[0].args, { p_clave: 'clave-larga-de-prueba', p_celular: '3001110002', p_como: 'por el chat de la app el 3-nov' });
-    assert.match(avisos(P), /Listo: borré 1 que subió tu equipo y 1 tuyas de la nube\. Ese número ya no se puede volver a agregar\./);
-    assert.match(avisos(P), /También lo quité de tus prospectos de este computador\./);
-    /* 27-oct-2026, ronda 2 — y de la copia del Panel en la nube; lo de otro aparato se dice. */
-    assert.match(avisos(P), /¿Voy a borrar de la nube .*la copia de tu Panel en la nube/);
-    assert.match(avisos(P), /También la quité de la copia de tu Panel en la nube, y la nube no la vuelve a guardar aunque otro aparato tuyo la suba\. Si tienes el Panel en otro aparato \(el celular\), allá sigue en tus prospectos hasta que la borres a mano\./);
+    P.ev('confirmarSuprimir()'); await asentar(60);
+    assert.match(avisos(P), /¿Voy a borrar a esta persona como prospecto, de la nube y de este computador, con su información adicional, sus gestiones, contactos y citas.*No se puede deshacer\./);
+    const ll = llamadas(P, 'equipo_suprimir');
+    assert.equal(ll.length, 3, 'no volvió a llamar mientras quedaban copias');
+    ll.forEach(x => assert.deepEqual(x.args, { p_clave: 'clave-larga-de-prueba', p_celular: '3001110002', p_como: 'por el chat de la app el 3-nov' }));
+    assert.match(avisos(P), /Listo: borré 1 que subió tu equipo y 1 tuyas de la nube, con sus gestiones, contactos y citas\. Ese número ya no se puede volver a agregar\./);
+    assert.match(avisos(P), /También lo quité de tus prospectos de este computador, con sus gestiones y contactos\./);
+    assert.match(avisos(P), /También la quité de la copia de tu Panel en la nube, con sus gestiones, y la nube no las vuelve a guardar aunque otro aparato tuyo las suba\. Si tienes el Panel en otro aparato \(el celular\), allá sigue en tus prospectos hasta que la borres a mano\./);
+    assert.match(avisos(P), /Se registró en la app: su registro \(con su cédula y fotos\) no se borra desde aquí\./);
     assert.match(avisos(P), /Lo que tu equipo ya le escribió por WhatsApp queda en sus teléfonos/);
+    assert.doesNotMatch(avisos(P), /Quedan \d+ copias viejas/);
     assert.equal(P.ev("prospectos().some(function (p) { return p.celular === '3001110002'; })"), false);
+    /* Sus gestiones, contactos y asignación de este computador se fueron; las de los demás, no. */
+    assert.deepEqual(aca(P.ev('gestiones().map(function (g) { return g.id; })')), ['loc-2']);
+    assert.deepEqual(aca(P.ev('contactos().length')), 0);
+    assert.deepEqual(aca(P.ev('asignaciones().map(function (a) { return a.socio_id; })')), ['P1-0']);
+  });
+
+  test('borrar: si se corta a mitad de las copias viejas, dice exactamente cuántas quedan y cómo terminarlas', async () => {
+    let vuelta = 0;
+    const P = abrirJoan({ equipo_suprimir: () => (++vuelta === 1 ? { ok: true, es_cliente: false, del_equipo: 0, de_joan: 1, copias_pendientes: 4 }
+      : { falla: 'canceling statement due to statement timeout' }), equipo_agregados: AGREGADOS });
+    P.ev('suprimirDesdeBases()');
+    P.ev("document.getElementById('supCel').value = " + JSON.stringify('3001110002')); P.ev("document.getElementById('supComo').value = " + JSON.stringify('por el chat de la app el 3-nov'));
+    P.ev('confirmarSuprimir()'); await asentar(60);
+    assert.match(avisos(P), /Listo: borré 0 que subió tu equipo y 1 tuyas de la nube/);
+    assert.match(avisos(P), /Quedan 4 copias viejas de tu Panel en la nube con su número \(de cuando chocaron dos de tus aparatos\)\. Vuelve a tocar «🚫 Borrar a alguien que lo pidió» con el mismo celular para terminarlas\./);
+    /* CONTROL: si la PRIMERA falla, no se dice que se borró nada. */
+    const Q = abrirJoan({ equipo_suprimir: { falla: 'canceling statement due to statement timeout' } });
+    Q.ev('suprimirDesdeBases()');
+    Q.ev("document.getElementById('supCel').value = " + JSON.stringify('3001110002')); Q.ev("document.getElementById('supComo').value = " + JSON.stringify('por el chat de la app el 3-nov'));
+    Q.ev('confirmarSuprimir()'); await asentar(60);
+    assert.match(avisos(Q), /No lo borré: /);
+    assert.doesNotMatch(avisos(Q), /Listo/);
+    assert.equal(Q.ev("prospectos().some(function (p) { return p.celular === '3001110002'; })"), true);
   });
 
   test('a un cliente no se le borra nada: solo se anota', async () => {

@@ -43,7 +43,9 @@ const DE_JOAN = ['equipo_agregados', 'equipo_agregados_de', 'equipo_ya_existian'
   'equipo_reasignar', 'equipo_publicar_info', 'equipo_publicar_celulares', 'equipo_suprimir'];
 const DE_NADIE = ['celular_de_base', 'nombre_limpio', 'texto_del_equipo', 'extra_limpio', 'cel_hash', 'celulares_conocidos',
   'agregar_prospectos_de', 'equipo_acuerdo_firmado', 'equipo_cargas_no_se_cambian', 'registros_nombre_limpio',
-  'prospectos_sin_suprimidos', 'panel_ajustes_sin_suprimidos', 'panel_choques_sin_suprimidos'];
+  'prospectos_sin_suprimidos', 'panel_ajustes_sin_suprimidos', 'panel_choques_sin_suprimidos',
+  /* 27-oct-2026, ronda 3 — quitar a una persona de una lista del Panel, y sus gestiones. */
+  'lista_sin_celular', 'lista_sin_ids', 'gestiones_sin_suprimidas'];
 const QUE_NO_SE_TOCAN = ['equipo_publicar', 'equipo_traer', 'mi_cartera', 'asignar_a', 'mi_alcance', 'ficha_de_mi_base',
   'registro_en_mi_alcance', 'responsable_de', 'gerente_registros', 'gerente_archivos', 'asesor_enviar', 'registrar_abierto',
   'gerente_de_sesion', 'celular_del_equipo_de_sesion', 'clave_ok'];
@@ -168,6 +170,36 @@ describe('base/' + NOMBRE, () => {
     assert.match(bloque, /bog\s+constant text := '\(now\(\) at time zone ''America\/Bogota''\)::date'/);
     const r = funciones().find(x => x.nombre === 'public.equipo_reasignar').cuerpo;
     assert.ok(!/current_date/.test(r), 'equipo_reasignar escribe con current_date');
+  });
+
+  /* 27-oct-2026, ronda 3 — la dirección se escapaba porque extra_limpio
+     adivinaba por el NOMBRE de la clave qué era malo. Ahora lee SOLO cinco
+     claves exactas: cualquier otra se ignora, se llame como se llame. */
+  test('extra_limpio es una lista blanca: solo lee las cinco claves exactas, y nunca recorre las demás', () => {
+    const cuerpo = funciones().find(x => x.nombre === 'public.extra_limpio').cuerpo;
+    assert.match(cuerpo, /foreach k in array array\['Ciudad', 'Monto que pide', 'Ocupación o negocio', 'Cómo llegó', 'Observación'\] loop/);
+    assert.match(cuerpo, /bruto := p -> k;/);
+    assert.doesNotMatch(cuerpo, /jsonb_each/, 'recorre todas las claves que mande el aparato');
+    const js = require('../panel/agregar-prospectos.js');
+    assert.deepEqual(js.CLAVES_QUE_VIAJAN, ['Ciudad', 'Monto que pide', 'Ocupación o negocio', 'Cómo llegó', 'Observación'],
+      'el CRM y el servidor no tienen la misma lista blanca');
+  });
+
+  /* 27-oct-2026, ronda 3 — «Borrar a alguien que lo pidió» reescribía TODOS
+     los choques de 'prospectos' en cada llamada y se caía por tiempo. */
+  test('equipo_suprimir toca solo lo de esa persona, por partes y con reloj; el choque se limpia al crearlo, no al reescribirlo', () => {
+    const cuerpo = funciones().find(x => x.nombre === 'public.equipo_suprimir').cuerpo;
+    assert.doesNotMatch(cuerpo, /update public\.panel_choques set mio = mio/, 'vuelve a reescribir todos los choques');
+    assert.match(cuerpo, /if clock_timestamp\(\) - inicio > interval '800 milliseconds' then cortado := true; exit; end if;/);
+    assert.match(cuerpo, /update public\.no_contactar set copias_hasta = hasta where cel_hash = h;/);
+    assert.match(cuerpo, /'copias_pendientes', pendientes/);
+    assert.match(cuerpo, /if despues < antes then\s+update public\.panel_choques c set mio = m, suyo = s where c\.id = ch\.id;/);
+    /* Y sus gestiones de la copia del Panel. */
+    assert.match(cuerpo, /where clave = 'gestiones' and jsonb_typeof\(datos\) = 'array'/);
+    assert.match(CODIGO, /create trigger panel_choques_sin_suprimidos\s+before insert on public\.panel_choques/);
+    assert.match(CODIGO, /if new\.clave = 'gestiones' then new\.datos := public\.gestiones_sin_suprimidas\(new\.datos\); end if;/);
+    assert.match(CODIGO, /alter table public\.no_contactar add column if not exists ids text\[\] not null default '\{\}';/);
+    assert.match(CODIGO, /alter table public\.no_contactar add column if not exists copias_hasta bigint;/);
   });
 
   test('la tabla final trae 12 filas, y debajo una por gerente', () => {

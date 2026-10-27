@@ -301,10 +301,12 @@ de la receta, después del 2.4 (22d) y de noche.
 - **Uno a mano:** nombre, celular, información adicional (300 letras), de dónde
   sale, si autorizó que le escribamos **por WhatsApp para ofrecerle el
   crédito**, dónde está la prueba, y quién lo trabaja (él o un asesor activo).
-- **Un archivo** (.xlsx o .csv): el previo cuenta lo que sube y lo que no; las
-  columnas extra se ofrecen **sin marcar** y las que son plata, cobros,
-  documentos, otras personas o datos sensibles no se ofrecen (y se dice por
-  qué); sube el archivo entero en tandas de 200 y **el servidor deja entrar
+- **Un archivo** (.xlsx o .csv): el previo cuenta aparte lo que sube, lo que
+  **ya está en su base** y lo que no sirve (repetido dentro del archivo o sin
+  celular válido). De las columnas, **solo cinco**, con nombre fijo, se ofrecen
+  (**sin marcar**): ciudad, monto que pide, ocupación o negocio, cómo llegó y
+  una observación. Ninguna otra se guarda ni viaja, se llame como se llame (ver
+  «Guardar direcciones» abajo), y se dice por qué; sube el archivo entero en tandas de 200 y **el servidor deja entrar
   fila por fila lo que cabe** en el cupo del día (lo suyo y los «ya existe» que
   ya había consultado no gastan ni ocupan el lugar de nadie); cerrar el cuadro
   no corta la subida. El previo dice cuántos días tarda un archivo grande (a 300
@@ -330,9 +332,16 @@ de la receta, después del 2.4 (22d) y de noche.
   **no se reinicia a medianoche**: corre desde el último «que siga» de Joan (por
   eso su pantalla dice «desde la última vez que Joan te dio paso», no «en lo
   último que subiste»: lo puede parar un número a mano).
-- **Guardar direcciones.** Una columna «Dirección» (o una dirección escrita en
-  otra, «Calle 1 # 2-3») no se guarda: lo que Joan acepta al publicar dice que la
-  dirección no viaja al equipo.
+- **Guardar direcciones, ni nada fuera de las cinco.** Lo que viaja al equipo
+  de un archivo es una **lista blanca** (`AgregarProspectos.COLUMNAS_QUE_VIAJAN`
+  en el CRM y `extra_limpio` en el servidor, que solo lee esas cinco claves
+  exactas). Dos rondas de revisión encontraron la dirección escapándose por
+  columnas «DIR», «Ubicación» o «Barrio» y por valores sin «#» («CL 45 SUR 12
+  34», «Mz B Cs 12»): adivinar por el nombre qué era peligroso no alcanzaba.
+  Además, un valor con forma de dirección («KR 7 45 10», «Apto 301») no se
+  guarda aunque venga en «Observación». Lo que Joan acepta al publicar dice
+  exactamente eso, y que lo que él escriba a mano en «Información adicional»
+  viaja tal cual.
 - **Pasarse de los topes:** 300 al día (entran + ya existían), 100 intentos al
   día, 3.000 subidos por gerente hasta que «Mi base» se pagine. Un «ya existe»
   que ya había consultado **no vuelve a contar** ni para el tope ni para el
@@ -348,7 +357,11 @@ aunque llame a mano (`solo_gerente`).
 ### Lo que ve y hace Joan
 - **Arriba de Bases**, junto a los botones: el ⛔ de un gerente parado (con «Ver
   cuáles» y «Ya lo revisé: que siga») y lo que subió el equipo esta semana, con
-  un enlace a la tarjeta (que queda debajo de la tabla de Prospectos).
+  un enlace a la tarjeta (que queda debajo de la tabla de Prospectos), **a qué
+  hora se miró y «↻ Volver a mirar»**. **Cada vez que Bases se abre**, se le
+  pregunta a la nube en ese momento (antes, con datos de hasta 5 minutos, el ⛔
+  de un gerente recién parado no salía); en el celular, tocar «📇 Bases» baja
+  hasta la vista, que queda debajo del menú.
 - **Bases → «⤒ Lo que subió tu equipo»**: vive en la nube y **no se copia a su
   navegador** (por el espacio y las fotos). Cuándo, quién, qué, de dónde salió,
   la prueba, cuántos entraron, cuántos ya existían («cuáles», con dónde, de
@@ -357,8 +370,8 @@ aunque llame a mano (`solo_gerente`).
   solo). En «Ver», el origen y la prueba van persona por persona. Desde ahí
   reasigna a cualquiera, o a **nadie** («soltarlo»).
 - **Su «＋ Agregar prospecto»** gana la información adicional, y **su «⤒ Cargar
-  base»** las columnas extra (sin marcar). Su nota, sus columnas, el origen y
-  si autorizó **viajan** a quien trabaje a la persona (los cuadros de asignar lo
+  base»** las mismas cinco columnas (sin marcar). Su nota, esas columnas, el
+  origen y si autorizó **viajan** a quien trabaje a la persona (los cuadros de asignar lo
   dicen); su «No autorizó» le cierra el 📲 al equipo, también el de «Hoy» y
   «Agenda». Si Joan cambia el «Sí» o el «No» en Comercial **después**, el
   cambio le llega a quien lo trabaja en ese momento.
@@ -368,11 +381,22 @@ aunque llame a mano (`solo_gerente`).
   los nuevos), para que el «ya existe» del equipo los vea aunque no haya
   publicado nada.
 - **«🚫 Borrar a alguien que lo pidió»**: se va de la nube como prospecto, con
-  todo lo suyo **y también de la copia de su Panel en la nube** (y de sus
-  choques); su número queda anotado (hash) para que nadie lo vuelva a agregar,
-  y la nube no lo vuelve a guardar aunque otro aparato de Joan lo suba. En ese
-  otro aparato sigue hasta que Joan lo borre ahí, y se le dice. A un cliente no
-  se le borra nada: solo se anota.
+  todo lo suyo **y también de la copia de su Panel en la nube** (y de los
+  choques viejos), **con sus gestiones** (también las que Joan anotó, que suben
+  a la copia del Panel con su nota) y, en este computador, con sus gestiones,
+  contactos y asignación. Su número queda anotado (hash, más sus códigos de
+  prospecto) para que nadie lo vuelva a agregar, y la nube no lo vuelve a
+  guardar, ni a él ni a sus gestiones, aunque otro aparato de Joan lo suba.
+  **Cabe en el tiempo de una llamada**: toca solo las filas donde está esa
+  persona, y los choques viejos los recorre por partes, con un reloj de menos de
+  un segundo; el CRM repite la llamada hasta que no quede ninguno (antes, con 8
+  choques de la lista de Joan, pasaba de los 3 s y se caía entera). El cuadro
+  dice, antes de borrar, lo que **no** se borra y por qué: lo que el equipo ya
+  le escribió por WhatsApp, el Panel en otro aparato de Joan, su registro en la
+  app (cédula y fotos) si se registró, y el rastro de quién consultó ese número
+  («ya existe»), que es la prueba de quién trató el dato. A un cliente no se le
+  borra lo que la ley obliga a guardar (créditos y pagos): se anota, y solo se
+  quita su ficha de **prospecto** de la copia del Panel.
 - **Arreglado de paso:** cuando el gerente reasignaba a alguien de Joan, la
   siguiente publicación de Joan lo deshacía sin avisar. Ahora `traerEquipo`
   respeta lo que hizo el gerente (con la fecha de la nube), salvo que Joan

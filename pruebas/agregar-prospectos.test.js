@@ -7,13 +7,16 @@
  * panel/agregar-prospectos.js decide qué columnas extra de un archivo se
  * ofrecen para guardar (y cuáles no, y por qué), cómo se limpian el nombre, la
  * nota y cada valor, y cómo se parte y se reparte un archivo. Lo que se cuida:
+ *   · (ronda 3) LO QUE VIAJA ES UNA LISTA BLANCA: solo Ciudad, Monto que pide,
+ *     Ocupación o negocio, Cómo llegó y Observación, con su nombre fijo; una
+ *     columna «DIR», «Ubicación», «Domicilio» o «Barrio» no se ofrece nunca, y
+ *     una dirección escrita sin «#» («CL 45 SUR 12 34») tampoco se guarda;
  *   · una base de COBRANZA de otra empresa (la forma de las nueve que midió
  *     detectarColumnas) no deja pasar ninguna de sus columnas: ni el estado
  *     «YA PAGO» / «VENCIDO», ni el asesor, ni el valor, ni la fecha de Excel;
- *   · lo que sí se puede guardar va SIN MARCAR, hasta 6, y una columna sin
- *     encabezado se llama por su letra;
- *   · la regla es la misma del servidor (extra_limpio): el mismo ejemplo, con
- *     las mismas claves fuera;
+ *   · lo que sí se puede guardar va SIN MARCAR;
+ *   · la regla es la misma del servidor (extra_limpio): el mismo ejemplo y las
+ *     mismas direcciones, leídos de la prueba de PostgreSQL;
  *   · el nombre sin comilla (nada se ejecuta), el resumen sin nombres.
  * ======================================================================== */
 const { test, describe } = require('node:test');
@@ -25,22 +28,66 @@ const B = require('../app/bases.js');
 
 const FIRMA = '(function () { try { var s = document.currentScript; if (s && s.src) '
   + '(window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();';
+const PG = fs.readFileSync(path.join(__dirname, 'el-gerente-agrega-postgres.test.js'), 'utf8');
+/* Las direcciones del hallazgo de la ronda 3, las MISMAS que prueba extra_limpio. */
+const DIRECCIONES = JSON.parse((PG.match(/const DIRECCIONES = (\[[^\]]+\]);/) || [])[1] || '[]');
 
-describe('las columnas extra', () => {
+describe('las columnas extra: una lista blanca', () => {
 
-  test('una feria: Barrio, Empresa y una sin encabezado se ofrecen SIN marcar; celular y nombre no', () => {
+  test('las cinco, y nada más; con su nombre fijo y la columna de donde salen', () => {
+    assert.deepEqual(A.CLAVES_QUE_VIAJAN, ['Ciudad', 'Monto que pide', 'Ocupación o negocio', 'Cómo llegó', 'Observación']);
+    assert.equal(A.MAX_EXTRAS, 5);
+  });
+
+  test('una feria: Ocupación, Municipio y «¿Cómo llegó?» se ofrecen SIN marcar; Barrio, Empresa y una sin encabezado no', () => {
     const filas = [
-      ['Nombre completo', 'Celular', 'Barrio', 'Empresa', ''],
-      ['ANA MARIA PEREZ', '3001112233', 'Kennedy', 'Panadería La 40', 'tarde'],
-      ['PEDRO GOMEZ', '310 222 3344', 'Suba', 'Taller El Rayo', 'mañana'],
-      ['LUZ TORRES', '+57 320 555 6677', 'Bosa', '', 'tarde']];
+      ['Nombre completo', 'Celular', 'Barrio', 'Ocupación', 'Municipio', '¿Cómo llegó?', 'Empresa', ''],
+      ['ANA MARIA PEREZ', '3001112233', 'Kennedy', 'vende arepas', 'Bogotá', 'feria', 'Panadería La 40', 'tarde'],
+      ['PEDRO GOMEZ', '310 222 3344', 'Suba', 'taller de motos', 'Soacha', 'volante', 'Taller El Rayo', 'mañana'],
+      ['LUZ TORRES', '+57 320 555 6677', 'Bosa', 'modista', 'Bogotá', 'feria', '', 'tarde']];
     const cols = B.detectarColumnas(filas);
     assert.deepEqual([cols.nombre, cols.celular, cols.encabezado], [0, 1, 1]);
     const r = A.columnasExtra(filas, cols);
-    assert.deepEqual(r.columnas.map(c => c.nombre), ['Barrio', 'Empresa', 'Columna E']);
+    assert.deepEqual(r.columnas.map(c => c.nombre), ['Ocupación o negocio', 'Ciudad', 'Cómo llegó']);
+    assert.deepEqual(r.columnas.map(c => c.columna), ['Ocupación', 'Municipio', '¿Cómo llegó?']);
     assert.ok(r.columnas.every(c => c.marcada === false), 'una columna salió marcada: se marcan a propósito, no por defecto');
-    assert.equal(r.columnas[0].muestra, 'Kennedy');
-    assert.deepEqual(r.descartadas, []);
+    assert.equal(r.columnas[1].muestra, 'Bogotá');
+    const motivo = n => (r.descartadas.find(d => d.nombre === n) || {}).motivo;
+    assert.equal(motivo('Barrio'), 'no es de lo que viaja');
+    assert.equal(motivo('Empresa'), 'no es de lo que viaja');
+    assert.equal(motivo('Columna H'), 'no es de lo que viaja');
+    const e = A.extrasPorCelular(filas, cols, r.columnas);
+    assert.deepEqual(e['3102223344'], { 'Ocupación o negocio': 'taller de motos', Ciudad: 'Soacha', 'Cómo llegó': 'volante' });
+  });
+
+  /* 27-oct-2026, ronda 3 — EL HALLAZGO: la dirección seguía viajando con una
+     columna «DIR» o «Ubicación» y con direcciones escritas sin «#». */
+  test('LA DIRECCIÓN NO VIAJA: «DIR», «Ubicación», «Domicilio», «Barrio» o «Dir 2» no se ofrecen, y una dirección en «Observaciones» no se guarda', () => {
+    const filas = [
+      ['Nombre', 'Celular', 'DIR', 'Ubicación', 'Domicilio', 'Barrio', 'Dir 2', 'Observaciones', 'Ciudad'],
+      ['PABLO GOMEZ', '3001112233', 'CL 45 SUR 12 34', 'KR 7 45 10', 'Mz 4 Casa 12', 'Kennedy', 'Cll 45 N 12-30', 'vende empanadas', 'Bogotá'],
+      ['ANA PEREZ', '3102223344', 'KR 7 # 12-30', 'Av Boyacá 12-30', 'Mz B Cs 12', 'Bosa', 'AK 68 12 30', 'KR 80 C 2-15', 'Soacha'],
+      ['LUZ TORRES', '3205556677', 'Diagonal 5 Bis 3-2', 'Transv. 5 # 3-2', 'Apto 301', 'Suba', 'Calle 13', 'tiene un taller', 'Bogotá']];
+    const cols = B.detectarColumnas(filas);
+    const r = A.columnasExtra(filas, cols);
+    assert.deepEqual(r.columnas.map(c => c.nombre), ['Observación', 'Ciudad'], 'ofreció: ' + r.columnas.map(c => c.columna).join(', '));
+    const motivo = n => (r.descartadas.find(d => d.nombre === n) || {}).motivo;
+    ['DIR', 'Ubicación', 'Barrio', 'Dir 2'].forEach(n => assert.equal(motivo(n), 'no es de lo que viaja', n));
+    assert.equal(motivo('Domicilio'), 'es una dirección: no viaja al equipo');
+    const e = A.extrasPorCelular(filas, cols, r.columnas);
+    assert.deepEqual(e['3102223344'], { Ciudad: 'Soacha' }, 'la dirección escrita en «Observaciones» viajó');
+    assert.deepEqual(e['3001112233'], { 'Observación': 'vende empanadas', Ciudad: 'Bogotá' });
+    /* Aunque alguien le pase la columna a mano, una que no es de las cinco no se guarda. */
+    assert.deepEqual(A.extrasPorCelular(filas, cols, [{ i: 2, nombre: 'DIR' }, { i: 5, nombre: 'Barrio' }]), {});
+    /* Cada una de las direcciones del hallazgo, en cualquiera de las cinco. */
+    assert.ok(DIRECCIONES.length >= 15, 'no encontré la lista DIRECCIONES de la prueba de PostgreSQL');
+    DIRECCIONES.forEach(v => {
+      assert.equal(A.limpiarValor(v), '', v);
+      A.CLAVES_QUE_VIAJAN.forEach(k => assert.equal(A.limpiarValorDe(k, v), '', k + ': ' + v));
+    });
+    /* CONTROL: lo que no es una dirección sigue entrando. */
+    ['vende en la calle del mercado', 'Av. principal', 'tiene 2 hijos', 'vende manzanas', 'casa propia', 'Apartadó']
+      .forEach(v => assert.equal(A.limpiarValor(v), v, v));
   });
 
   test('una base de COBRANZA de mentira (como las nueve medidas) no ofrece NINGUNA de sus columnas', () => {
@@ -51,13 +98,13 @@ describe('las columnas extra', () => {
       ['LUZ TORRES', '3205556677', 'PROMESA DE PAGO', 'JORGE', '150000', '45952', 'AL DIA', '0', 'Sanitas', '52111224', 'Ana'],
       ['JOSE RUIZ', '3115556677', 'YA PAGO', 'JORGE', '90000', '45953', 'VENCIDO', '15.000', 'Sura', '52111225', 'Ana']];
     const r = A.columnasExtra(filas, B.detectarColumnas(filas));
-    assert.deepEqual(r.columnas, [], 'ofreció guardar: ' + r.columnas.map(c => c.nombre).join(', '));
+    assert.deepEqual(r.columnas, [], 'ofreció guardar: ' + r.columnas.map(c => c.columna).join(', '));
     const motivo = n => (r.descartadas.find(d => d.nombre === n) || {}).motivo;
     assert.match(motivo('OBSERVACIÓN'), /trae estados de cobro: «YA PAGO», «NO CONTESTA»/);
     assert.equal(motivo('Asesor'), 'es otra persona');
-    assert.equal(motivo('Valor'), 'son solo números');
-    assert.equal(motivo('Fecha'), 'son solo números', 'la fecha de Excel (45950) pasaría como texto');
-    assert.match(motivo('Estado'), /trae estados de cobro: «VENCIDO»/);
+    assert.equal(motivo('Valor'), 'suele traer datos de cobranza');
+    assert.equal(motivo('Fecha'), 'no es de lo que viaja');
+    assert.equal(motivo('Estado'), 'suele traer datos de cobranza');
     assert.equal(motivo('Saldo'), 'es plata o deuda');
     assert.equal(motivo('EPS'), 'es un dato de salud');
     assert.equal(motivo('Cédula'), 'es un documento');
@@ -65,54 +112,44 @@ describe('las columnas extra', () => {
   });
 
   /* 27-oct-2026, revisión — «Observaciones» se descartaba por su NOMBRE
-     («es de cobranza») aunque dijera «vende arepas», y una fecha escrita por
-     sus 8 cifras («trae cédulas o teléfonos»). */
-  test('una feria: «Observaciones» y «Fecha de la feria» SÍ se ofrecen; la cédula no; el motivo de un nombre dice lo que suele traer', () => {
+     («es de cobranza») aunque dijera «vende arepas». */
+  test('una feria: «Observaciones» SÍ se ofrece; la cédula y la fecha no', () => {
     const filas = [
       ['Nombre', 'Celular', 'Observaciones', 'Fecha de la feria', 'Cédula', 'Estado'],
       ['ANA PEREZ', '3001112233', 'vende arepas en la esquina', '2026-10-01', '52111222', 'interesada'],
       ['PEDRO GOMEZ', '3102223344', 'prefiere WhatsApp', '01/10/2026', '52111223', 'lo piensa'],
       ['LUZ TORRES', '3205556677', 'tiene un taller', '2026-10-01', '52111224', 'interesada']];
     const r = A.columnasExtra(filas, B.detectarColumnas(filas));
-    assert.deepEqual(r.columnas.map(c => c.nombre), ['Observaciones', 'Fecha de la feria']);
+    assert.deepEqual(r.columnas.map(c => c.nombre), ['Observación']);
     assert.equal(r.columnas[0].muestra, 'vende arepas en la esquina');
-    assert.equal(r.columnas[1].muestra, '2026-10-01');
     const motivo = n => (r.descartadas.find(d => d.nombre === n) || {}).motivo;
     assert.equal(motivo('Cédula'), 'es un documento');
+    assert.equal(motivo('Fecha de la feria'), 'no es de lo que viaja');
     assert.equal(motivo('Estado'), 'suele traer datos de cobranza');
     const e = A.extrasPorCelular(filas, B.detectarColumnas(filas), r.columnas);
-    assert.deepEqual(e['3102223344'], { Observaciones: 'prefiere WhatsApp', 'Fecha de la feria': '01/10/2026' });
+    assert.deepEqual(e['3102223344'], { 'Observación': 'prefiere WhatsApp' });
   });
 
-  /* 27-oct-2026, ronda 2 — LA DIRECCIÓN NO VIAJA. Lo que Joan acepta al publicar
-     dice «Sigue sin viajar: cédula, dirección, fotos y referencias», y una columna
-     «Dirección» marcada llegaba al celular del asesor («Carrera 17 # 7-7»). */
-  test('«Dirección» no se ofrece, y una dirección escrita en otra columna tampoco se guarda (la MISMA regla de extra_limpio)', () => {
-    const filas = [
-      ['Nombre', 'Celular', 'Dirección', 'Ubicación', 'Observaciones', 'Barrio'],
-      ['PABLO GOMEZ', '3001112233', 'Carrera 17 # 7-7', 'Cl 45 No. 12-30', 'vende empanadas', 'Kennedy'],
-      ['ANA PEREZ', '3102223344', 'Calle 1 # 2-3', 'Kr 10 #20-30', 'vive en la Cra 5 # 10-20', 'Bosa'],
-      ['LUZ TORRES', '3205556677', 'Av. Boyacá 3 # 4-5', 'Diagonal 4 Bis # 5-6', 'tiene un taller', 'Suba']];
-    const r = A.columnasExtra(filas, B.detectarColumnas(filas));
-    assert.deepEqual(r.columnas.map(c => c.nombre), ['Observaciones', 'Barrio']);
-    const motivo = n => (r.descartadas.find(d => d.nombre === n) || {}).motivo;
-    assert.equal(motivo('Dirección'), 'es una dirección: no viaja al equipo');
-    assert.equal(motivo('Ubicación'), 'es una dirección: no viaja al equipo');
-    const e = A.extrasPorCelular(filas, B.detectarColumnas(filas), r.columnas);
-    assert.deepEqual(e['3102223344'], { Barrio: 'Bosa' }, 'la dirección escrita en «Observaciones» viajó');
-    assert.deepEqual(e['3001112233'], { Observaciones: 'vende empanadas', Barrio: 'Kennedy' });
-    /* CONTROL: lo que no es una dirección sigue entrando. */
-    ['vende en la calle del mercado', 'Calle 13', 'Av. principal', 'tiene 2 hijos'].forEach(v => assert.equal(A.limpiarValor(v), v, v));
-    assert.equal(A.familiaDeClave('Domicilio'), 'direccion');
+  test('cada dato una sola vez: la segunda columna de lo mismo dice de dónde sale el primero', () => {
+    const filas = [['Nombre', 'Celular', 'Ocupación', 'Negocio'], ['ANA PEREZ', '3001112233', 'modista', 'Taller Ana'],
+      ['PEDRO GOMEZ', '3102223344', 'mecánico', 'Motos Pedro']];
+    const r = A.columnasExtra(filas, { nombre: 0, celular: 1, encabezado: 1 });
+    assert.deepEqual(r.columnas.map(c => c.columna), ['Ocupación']);
+    assert.deepEqual(r.descartadas.map(d => d.motivo), ['ya va «Ocupación o negocio» de la columna «Ocupación»']);
   });
 
-  test('hasta 6, y el séptimo dice por qué; dos encabezados iguales no se pisan', () => {
-    const cab = ['Nombre', 'Celular', 'A1', 'A2', 'A3', 'A4', 'A5', 'Barrio', 'Barrio'];
-    const fila = ['ANA PEREZ', '3001112233', 'x', 'y', 'z', 'w', 'v', 'Kennedy', 'Suba'];
-    const r = A.columnasExtra([cab, fila, fila.map((v, i) => i === 1 ? '3001112234' : v)], { nombre: 0, celular: 1, encabezado: 1 });
-    assert.equal(r.columnas.length, 6);
-    assert.equal(r.columnas[5].nombre, 'Barrio');
-    assert.deepEqual(r.descartadas.map(d => d.motivo), ['solo se guardan 6']);
+  test('«Monto que pide»: solo montos en pesos, redondos a mil; «Monto» a secas no (es plata o deuda)', () => {
+    const filas = [['Nombre', 'Celular', 'Monto que pide', 'Monto'], ['ANA PEREZ', '3001112233', '500.000', '120.000'],
+      ['PEDRO GOMEZ', '3102223344', '$ 1.200.000', '80.000'], ['LUZ TORRES', '3205556677', 800000, '0']];
+    const cols = { nombre: 0, celular: 1, encabezado: 1 };
+    const r = A.columnasExtra(filas, cols);
+    assert.deepEqual(r.columnas.map(c => c.nombre), ['Monto que pide']);
+    assert.equal(r.columnas[0].muestra, '$500.000');
+    assert.equal((r.descartadas.find(d => d.nombre === 'Monto') || {}).motivo, 'es plata o deuda');
+    assert.deepEqual(A.extrasPorCelular(filas, cols, r.columnas)['3205556677'], { 'Monto que pide': '$800.000' });
+    /* Una cédula o un teléfono no son un monto: no terminan en 000, o no caben. */
+    ['52345678', '3001234567', '1.000', 'lo que pueda', '1.5 millones'].forEach(v => assert.equal(A.montoQuePide(v), '', v));
+    assert.equal(A.montoQuePide('500.000,00'), '$500.000');
   });
 
   test('la columna que bases.js marca como financiera tampoco', () => {
@@ -127,15 +164,15 @@ describe('lo que se guarda de cada persona', () => {
 
   test('extrasPorCelular: solo lo elegido, la primera aparición, sin cédulas ni teléfonos ajenos, cortado a 120', () => {
     const filas = [
-      ['Nombre', 'Celular', 'Barrio', 'Nota'],
-      ['ANA PEREZ', '3001112233', 'Kennedy', 'su hermano 3109998877'],
-      ['ANA PEREZ', '573001112233', 'Suba', 'otra'],
+      ['Nombre', 'Celular', 'Ciudad', 'Observaciones'],
+      ['ANA PEREZ', '3001112233', 'Bogotá', 'su hermano 3109998877'],
+      ['ANA PEREZ', '573001112233', 'Cali', 'otra'],
       ['PEDRO GOMEZ', '3102223344', 'x'.repeat(200), 'vende arepas']];
     const cols = { nombre: 0, celular: 1, encabezado: 1 };
-    const e = A.extrasPorCelular(filas, cols, [{ i: 2, nombre: 'Barrio' }, { i: 3, nombre: 'Nota' }]);
-    assert.deepEqual(e['3001112233'], { Barrio: 'Kennedy' }, 'no ganó la primera aparición, o pasó un teléfono ajeno');
-    assert.equal(e['3102223344'].Barrio.length, 120);
-    assert.equal(e['3102223344'].Nota, 'vende arepas');
+    const e = A.extrasPorCelular(filas, cols, [{ i: 2, nombre: 'Ciudad' }, { i: 3, nombre: 'Observación' }]);
+    assert.deepEqual(e['3001112233'], { Ciudad: 'Bogotá' }, 'no ganó la primera aparición, o pasó un teléfono ajeno');
+    assert.equal(e['3102223344'].Ciudad.length, 120);
+    assert.equal(e['3102223344']['Observación'], 'vende arepas');
     assert.deepEqual(A.extrasPorCelular(filas, cols, []), {}, 'sin nada elegido guardó algo');
   });
 
@@ -154,20 +191,21 @@ describe('lo que se guarda de cada persona', () => {
     assert.equal(A.limpiarValor('01/10/2026'), '01/10/2026');
     assert.equal(A.limpiarValor('20261001'), '');
     assert.equal(A.limpiarValor('2026-10-01 llamar 3109998877'), '', 'una fecha con un teléfono al lado');
+    /* Una ciudad no lleva números. */
+    assert.equal(A.limpiarValorDe('Ciudad', 'Bogotá'), 'Bogotá');
+    assert.equal(A.limpiarValorDe('Ciudad', 'Bogotá 110111'), '');
+    assert.equal(A.limpiarValorDe('Barrio', 'Kennedy'), '', 'una clave que no es de las cinco se guardó');
   });
 
   test('el ejemplo de la prueba del servidor da lo mismo aquí (extra_limpio)', () => {
-    const pg = fs.readFileSync(path.join(__dirname, 'el-gerente-agrega-postgres.test.js'), 'utf8');
-    assert.match(pg, /assert\.deepEqual\(Object\.keys\(limpio\)\.sort\(\), \['Barrio', 'Ciudad', 'Empresa'\]/);
-    const ejemplo = { 'Estado': 'VENCIDO', 'Valor': '350000', 'Fecha': '45950', 'EPS': 'Sura', 'Asesor': 'CAMILA',
-      'Observación': 'YA PAGO', 'Recomendado por': 'María', 'Barrio': 'Kennedy', 'Teléfono 2': '310 555 1234',
-      'Empresa': 'Panadería La 40', 'Comentario': 'debe 3 cuotas', 'Ciudad': 'Bogotá' };
-    const quedan = Object.keys(ejemplo).filter(k => !A.familiaDeClave(k) && A.limpiarValor(ejemplo[k]));
-    assert.deepEqual(quedan.sort(), ['Barrio', 'Ciudad', 'Empresa']);
-    /* Y el de la feria (27-oct, revisión): las dos pruebas usan el mismo ejemplo. */
-    assert.match(pg, /assert\.deepEqual\(Object\.keys\(feria\)\.sort\(\), \['Fecha de la feria', 'Observaciones'\]/);
-    const feria = { 'Observaciones': 'vende arepas en la esquina', 'Fecha de la feria': '2026-10-01', 'Cédula': '52111222' };
-    assert.deepEqual(Object.keys(feria).filter(k => !A.familiaDeClave(k) && A.limpiarValor(feria[k])).sort(), ['Fecha de la feria', 'Observaciones']);
+    const m = PG.match(/const EJEMPLO = (\{[^}]+\});/);
+    assert.ok(m, 'no encontré EJEMPLO en la prueba de PostgreSQL');
+    const ejemplo = JSON.parse(m[1]);
+    const esperado = JSON.parse((PG.match(/const QUEDAN = (\{[^}]+\});/) || [])[1] || 'null');
+    const aqui = {};
+    Object.keys(ejemplo).forEach(k => { const v = A.limpiarValorDe(k, ejemplo[k]); if (v) aqui[k] = v; });
+    assert.deepEqual(aqui, esperado, 'el CRM y extra_limpio no guardan lo mismo');
+    assert.match(PG, /assert\.deepEqual\(limpio, QUEDAN/);
   });
 
   test('el nombre sin comilla ni símbolos (nada se ejecuta), en Mayúscula Inicial', () => {

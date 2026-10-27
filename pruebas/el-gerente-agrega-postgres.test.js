@@ -52,6 +52,13 @@ const G_BUCLE = '3000000015', G_DIAS = '3000000016', G_AMANO = '3000000017';
 const G_PREF = '3000000018', G_VUELTA = '3000000019';
 /* Celulares de prueba: 31 + dos dígitos de grupo + seis. */
 const cel = (g, n) => '31' + String(g).padStart(2, '0') + String(n).padStart(6, '0');
+/* 27-oct-2026, ronda 3 — la lista blanca de la información adicional. Estas
+   tres constantes las lee también pruebas/agregar-prospectos.test.js (en JSON,
+   una por línea): el CRM y extra_limpio tienen que guardar lo mismo. */
+const EJEMPLO = { "Estado": "VENCIDO", "Valor": "350000", "Fecha": "45950", "EPS": "Sura", "Asesor": "CAMILA", "Observación": "YA PAGO", "Recomendado por": "María", "Barrio": "Kennedy", "Teléfono 2": "310 555 1234", "Empresa": "Panadería La 40", "Comentario": "debe 3 cuotas", "DIR": "CL 45 SUR 12 34", "Ubicación": "KR 7 45 10", "Ciudad": "Bogotá", "Ocupación o negocio": "panadería", "Cómo llegó": "feria de Kennedy", "Monto que pide": "500.000" };
+const QUEDAN = { "Ciudad": "Bogotá", "Monto que pide": "$500.000", "Ocupación o negocio": "panadería", "Cómo llegó": "feria de Kennedy" };
+/* Las direcciones del hallazgo de la ronda 3: ninguna se guarda, en ninguna de las cinco. */
+const DIRECCIONES = ["CL 45 SUR 12 34", "KR 7 # 12-30", "KR 7 45 10", "Cll 45 N 12-30", "Diagonal 5 Bis 3-2", "AK 68 12 30", "Mz 4 Casa 12", "Mz B Cs 12", "Av Boyacá 12-30", "Transv. 5 # 3-2", "Cra 7 45-10", "KR 80 C 2-15", "Diagonal 5 sur 3-20", "Apto 301", "Calle 13", "Carrera 7", "vive en la Cra 5 # 10-20", "Cl 45 No. 12-30", "Calle 1 # 2-3"];
 
 describe('el gerente agrega, en un PostgreSQL', { skip: !BIN && 'sin TG_PG_BIN no hay PostgreSQL a mano' }, () => {
   let dir, puerto, n = 0;
@@ -379,33 +386,37 @@ describe('el gerente agrega, en un PostgreSQL', { skip: !BIN && 'sin TG_PG_BIN n
     assert.match(falla('delete from public.equipo_frenos'), /no se cambia ni se borra/);
   });
 
-  test('12 · la información adicional no guarda plata, cobros, documentos, otras personas ni datos sensibles', () => {
-    const limpio = JSON.parse(sql("select public.extra_limpio('" + JSON.stringify({
-      'Estado': 'VENCIDO', 'Valor': '350000', 'Fecha': '45950', 'EPS': 'Sura', 'Asesor': 'CAMILA',
-      'Observación': 'YA PAGO', 'Recomendado por': 'María', 'Barrio': 'Kennedy', 'Teléfono 2': '310 555 1234',
-      'Empresa': 'Panadería La 40', 'Comentario': 'debe 3 cuotas', 'Ciudad': 'Bogotá' }) + "'::jsonb)::text"));
-    assert.deepEqual(Object.keys(limpio).sort(), ['Barrio', 'Ciudad', 'Empresa'], JSON.stringify(limpio));
-    assert.equal(limpio.Barrio, 'Kennedy');
-    /* Máximo 6, y cada valor hasta 120. */
-    const muchas = {}; for (let i = 0; i < 9; i++) muchas['Dato ' + i] = 'v'.repeat(200);
-    const seis = JSON.parse(sql("select public.extra_limpio('" + JSON.stringify(muchas) + "'::jsonb)::text"));
-    assert.equal(Object.keys(seis).length, 6);
-    assert.ok(Object.values(seis).every(v => v.length === 120));
+  /* 27-oct-2026, ronda 3 — UNA LISTA BLANCA: solo cinco claves exactas. Dos
+     rondas seguidas se escapó la dirección («DIR», «Ubicación», «Barrio»,
+     «CL 45 SUR 12 34») porque la regla adivinaba por el nombre qué era malo. */
+  test('12 · la información adicional: solo las cinco de la lista blanca; ni direcciones, ni plata, ni cobros, ni documentos', () => {
+    const limpio = JSON.parse(sql("select public.extra_limpio('" + JSON.stringify(EJEMPLO) + "'::jsonb)::text"));
+    assert.deepEqual(limpio, QUEDAN, JSON.stringify(limpio));
+    /* Cada dirección del hallazgo, puesta en las cinco a la vez: no queda nada. */
+    const todas = JSON.parse(sql("select json_agg(public.extra_limpio(x) order by o)::text from jsonb_array_elements('" +
+      JSON.stringify(DIRECCIONES.map(v => ({ 'Ciudad': v, 'Monto que pide': v, 'Ocupación o negocio': v, 'Cómo llegó': v, 'Observación': v }))) +
+      "'::jsonb) with ordinality t(x, o)"));
+    todas.forEach((o, k) => assert.deepEqual(o, {}, 'se guardó la dirección «' + DIRECCIONES[k] + '»: ' + JSON.stringify(o)));
+    /* CONTROL: lo que no es una dirección sí se guarda (la prueba mira). */
+    const bien = JSON.parse(sql("select public.extra_limpio('" + JSON.stringify({ 'Observación': 'vende en la calle del mercado',
+      'Ocupación o negocio': 'tiene 2 hijos y una tienda', 'Ciudad': 'Soacha', 'Cómo llegó': 'vende manzanas en la feria' }) + "'::jsonb)::text"));
+    assert.deepEqual(bien, { 'Observación': 'vende en la calle del mercado', 'Ocupación o negocio': 'tiene 2 hijos y una tienda',
+      'Ciudad': 'Soacha', 'Cómo llegó': 'vende manzanas en la feria' }, JSON.stringify(bien));
+    /* Cualquier otra clave se ignora; cada valor hasta 120; una ciudad sin números. */
+    const otras = {}; for (let i = 0; i < 9; i++) otras['Dato ' + i] = 'v'.repeat(200);
+    otras['Observación'] = 'v'.repeat(200); otras['Ciudad'] = 'Bogotá 110111';
+    assert.deepEqual(JSON.parse(sql("select public.extra_limpio('" + JSON.stringify(otras) + "'::jsonb)::text")), { 'Observación': 'v'.repeat(120) });
     assert.equal(sql("select public.extra_limpio('[1,2]'::jsonb)::text"), '{}');
-    /* 27-oct-2026, revisión — «Observaciones» con información de verdad y una
-       fecha escrita SÍ se guardan (el mismo ejemplo en agregar-prospectos.test.js). */
-    const feria = JSON.parse(sql("select public.extra_limpio('" + JSON.stringify({ 'Observaciones': 'vende arepas en la esquina',
-      'Fecha de la feria': '2026-10-01', 'Cédula': '52111222' }) + "'::jsonb)::text"));
-    assert.deepEqual(Object.keys(feria).sort(), ['Fecha de la feria', 'Observaciones']);
-    /* 27-oct-2026, ronda 2 — la dirección no viaja: ni la columna ni una escrita en otra (lo de agregar-prospectos.test.js). */
-    const dir = JSON.parse(sql("select public.extra_limpio('" + JSON.stringify({ 'Dirección': 'Carrera 17 # 7-7', 'Domicilio': 'casa azul',
-      'Ubicación': 'Cl 45 No. 12-30', 'Observaciones': 'vive en la Cra 5 # 10-20', 'Barrio': 'Kennedy', 'Nota': 'vende en la calle del mercado' }) + "'::jsonb)::text"));
-    assert.deepEqual(dir, { Barrio: 'Kennedy', Nota: 'vende en la calle del mercado' }, JSON.stringify(dir));
+    /* «Monto que pide»: solo un monto redondo a mil; una cédula o un teléfono, no. */
+    assert.deepEqual(JSON.parse(sql(`select public.extra_limpio('{"Monto que pide": 800000}'::jsonb)::text`)), { 'Monto que pide': '$800.000' });
+    ['52345678', '3001234567', '1.000', '$ 1.200.000,00'].forEach((v, k) => assert.equal(
+      sql(`select coalesce(public.extra_limpio('{"Monto que pide": "${v}"}'::jsonb)->>'Monto que pide', '')`), ['', '', '', '$1.200.000'][k], v));
     /* Y lo que manda el CRM pasa por ahí al guardar. */
-    const r = agregar(WILLIAN, lote([{ nombre: 'Con Extra', celular: cel(18, 1), extra: { Barrio: 'Kennedy', Saldo: '200000' } }]));
+    const r = agregar(WILLIAN, lote([{ nombre: 'Con Extra', celular: cel(18, 1),
+      extra: { Ciudad: 'Bogotá', Barrio: 'Kennedy', DIR: 'CL 45 SUR 12 34', Saldo: '200000' } }]));
     assert.equal(r.entraron, 1);
     const p = base(WILLIAN).find(x => x.celular === cel(18, 1));
-    assert.deepEqual(info(WILLIAN)[p.id].extra, { Barrio: 'Kennedy' });
+    assert.deepEqual(info(WILLIAN)[p.id].extra, { Ciudad: 'Bogotá' });
   });
 
   test('13 · lo de Joan: la tarjeta, equipo_tiene, reasignar y soltar', () => {
@@ -494,13 +505,13 @@ describe('el gerente agrega, en un PostgreSQL', { skip: !BIN && 'sin TG_PG_BIN n
     assert.equal(info(WILLIAN)[gp.id].nota, 'vende en la plaza, llamarlo después de las 3');
     const r = joan('equipo_publicar_info', jsonb([
       { id: gp.id, nota: 'esto no pisa', origen: 'otra' },
-      { id: 'P-NUEVO', nota: 'llamar en la tarde', extra: { Barrio: 'Suba', Cedula: '1010101010' }, origen: 'feria', autoriza: false },
+      { id: 'P-NUEVO', nota: 'llamar en la tarde', extra: { Ciudad: 'Chía', Barrio: 'Suba', Cedula: '1010101010', DIR: 'KR 7 45 10' }, origen: 'feria', autoriza: false },
       { id: 'NO-EXISTE', nota: 'x' }]));
     assert.deepEqual([r.guardadas, r.ya_tenian, r.sin_fila], [1, 1, 1]);
     assert.equal(info(WILLIAN)[gp.id].nota, 'vende en la plaza, llamarlo después de las 3', 'la de Joan pisó la del gerente');
     const deJoan = info(WILLIAN)['P-NUEVO'];
     assert.deepEqual([deJoan.nota, deJoan.subido_por, deJoan.autoriza], ['llamar en la tarde', 'Joan', false]);
-    assert.deepEqual(deJoan.extra, { Barrio: 'Suba' }, 'la cédula viajó en el extra');
+    assert.deepEqual(deJoan.extra, { Ciudad: 'Chía' }, 'viajó algo fuera de la lista blanca (la cédula, el barrio o la dirección)');
   });
 
   /* 27-oct-2026, revisión — EL BUCLE DEL FRENO. CAMILO sube 60 que ya existen
@@ -706,6 +717,79 @@ describe('el gerente agrega, en un PostgreSQL', { skip: !BIN && 'sin TG_PG_BIN n
     assert.equal(sql("select count(*) from public.panel_choques where mio::text ~ '" + g + "'"), '0', 'un choque nuevo la guardó');
     /* CONTROL: sin nadie en no_contactar con su número, la lista no se toca. */
     assert.equal(sql("select jsonb_array_length(public.prospectos_sin_suprimidos(" + jsonb([{ celular: cel(47, 9) }, { celular: otra }]) + "))"), '2');
+  });
+
+  /* 27-oct-2026, ronda 3 — DOS HALLAZGOS DE «BORRAR A ALGUIEN QUE LO PIDIÓ»:
+     (a) con la copia real del Panel de Joan (18.190 prospectos, 3,2 MB) y 8
+     choques, equipo_suprimir pasaba de los 3 s de la llave anon y se caía
+     ENTERO (reescribía todos los choques, aunque la persona no estuviera); y
+     (b) dejaba en la copia del Panel sus gestiones, con su nota. Aquí, como en
+     Supabase: anon con statement_timeout de 3 s. */
+  test('25 · borrar cabe en una llamada (por partes) con la copia real del Panel y 8 choques; toca solo lo de ESA persona; y se lleva sus gestiones', () => {
+    const N = 18190, sup = cel(48, 1), nada = cel(48, 9);
+    const lista = Array.from({ length: N }, (_, i) => ({ id: 'P1729' + String(i).padStart(8, '0') + '-' + i, nombre: 'Persona Numero ' + i,
+      celular: '31' + String(80000000 + i), estado: 'nuevo', base: 'feria-' + (i % 7) + '.xlsx', cargadoEn: '2026-09-26', autorizaInvitacion: true }));
+    lista.push({ id: 'P-SUP-25', nombre: 'Pidio Borrar', celular: sup, estado: 'nuevo', nota: 'vende arepas en la 45' });
+    const ges = Array.from({ length: 3000 }, (_, i) => ({ id: 'loc-' + i, persona_id: lista[i].id, tipo: 'no_contesta', nota: 'nota ' + i,
+      cuando: '2026-10-20T15:00:00Z', quien: 'Joan' }));
+    ges.push({ id: 'g-sup-25', persona_id: 'P-SUP-25', tipo: 'no_interesa', nota: 'dice que no la llamen más; vive con la mamá',
+      cuando: '2026-10-20T15:00:00Z', quien: 'Joan' });
+    const fP = path.join(dir, 'prosp-25.json'), fG = path.join(dir, 'ges-25.json');
+    fs.writeFileSync(fP, JSON.stringify(lista)); fs.writeFileSync(fG, JSON.stringify(ges));
+    const leer = f => "pg_read_file('" + f.split(path.sep).join('/') + "')::jsonb";
+    sql("delete from public.panel_choques where tabla = 'ajustes' and fila_id in ('prospectos', 'gestiones');" +
+        " insert into public.panel_ajustes (clave, datos) values ('prospectos', " + leer(fP) + ") on conflict (clave) do update set datos = excluded.datos;" +
+        " insert into public.panel_ajustes (clave, datos) values ('gestiones', " + leer(fG) + ") on conflict (clave) do update set datos = excluded.datos;" +
+        " insert into public.panel_choques (tabla, fila_id, mio, suyo) select 'ajustes', 'prospectos', jsonb_build_object('clave', 'prospectos', 'datos', datos)," +
+        "   jsonb_build_object('revision', 2, 'datos', datos) from public.panel_ajustes, generate_series(1, 8) where clave = 'prospectos';" +
+        " insert into public.panel_choques (tabla, fila_id, mio, suyo) select 'ajustes', 'gestiones', jsonb_build_object('clave', 'gestiones', 'datos', datos)," +
+        "   jsonb_build_object('revision', 2, 'datos', datos) from public.panel_ajustes, generate_series(1, 2) where clave = 'gestiones';");
+    const comoAnon = c => {
+      const t0 = Date.now();
+      const out = sql("set role anon; set statement_timeout = '3s'; select public.equipo_suprimir('" + CLAVE + "', '" + c + "', 'por el chat de la app el 3-nov')::text")
+        .split(/\r?\n/).pop();
+      return { ms: Date.now() - t0, r: JSON.parse(out) };
+    };
+    const huellas = () => sql("select string_agg(id || ':' || xmin::text, ',' order by id) from public.panel_choques where tabla = 'ajustes'") +
+      '|' + sql("select xmin::text from public.panel_ajustes where clave = 'prospectos'");
+    /* CONTROL de «toca solo lo de esa persona»: un número que no está en
+       ninguna copia no reescribe ni la copia del Panel ni ningún choque. */
+    const antes = huellas();
+    const c0 = comoAnon(nada);
+    assert.equal(c0.r.ok, true, JSON.stringify(c0.r));
+    assert.equal(huellas(), antes, 'con un número que no estaba, reescribió la copia del Panel o los choques');
+    /* La persona está en la copia del Panel y en los 8 choques: cada llamada
+       cabe (si no, sql() revienta con «canceling statement due to statement
+       timeout»), y se repite hasta que no quede ninguna copia. */
+    let r = null, vueltas = 0;
+    do { r = comoAnon(sup); vueltas++; } while (r.r.copias_pendientes > 0 && vueltas < 20);
+    assert.equal(r.r.copias_pendientes, 0, 'después de ' + vueltas + ' llamadas siguen quedando copias');
+    assert.ok(vueltas < 20);
+    const enLista = (donde, campo, valor) => Number(sql("select count(*) from " + donde + " cross join lateral jsonb_array_elements(x) e where e->>'" + campo + "' = '" + valor + "'"));
+    assert.equal(enLista("(select datos x from public.panel_ajustes where clave = 'prospectos') t", 'celular', sup), 0, 'sigue en la copia del Panel');
+    assert.equal(enLista("(select mio->'datos' x from public.panel_choques where fila_id = 'prospectos' union all select suyo->'datos' from public.panel_choques where fila_id = 'prospectos') t", 'celular', sup), 0,
+      'sigue en los choques viejos');
+    assert.equal(enLista("(select datos x from public.panel_ajustes where clave = 'gestiones') t", 'persona_id', 'P-SUP-25'), 0,
+      'su gestión (con su nota) sigue en la copia del Panel');
+    assert.equal(enLista("(select mio->'datos' x from public.panel_choques where fila_id = 'gestiones' union all select suyo->'datos' from public.panel_choques where fila_id = 'gestiones') t", 'persona_id', 'P-SUP-25'), 0,
+      'su gestión sigue en los choques de gestiones');
+    /* A los demás no se les tocó nada. */
+    assert.equal(sql("select jsonb_array_length(datos) from public.panel_ajustes where clave = 'prospectos'"), String(N));
+    assert.equal(sql("select jsonb_array_length(datos) from public.panel_ajustes where clave = 'gestiones'"), '3000');
+    assert.equal(sql("select string_agg(distinct jsonb_array_length(mio->'datos')::text, ',') from public.panel_choques where fila_id = 'prospectos'"), String(N));
+    /* Su número no queda en claro: solo la huella y sus códigos. */
+    assert.equal(sql("select ids::text from public.no_contactar where cel_hash = public.cel_hash('" + sup + "')"), '{P-SUP-25}');
+    assert.equal(sql("select count(*) from public.no_contactar where cel_hash = '" + sup + "' or como ~ '" + sup + "'"), '0');
+    /* Otro aparato de Joan sube otra vez sus gestiones con la de ella, o choca: la nube no la guarda. */
+    sql("update public.panel_ajustes set datos = " + leer(fG) + " where clave = 'gestiones'");
+    assert.equal(enLista("(select datos x from public.panel_ajustes where clave = 'gestiones') t", 'persona_id', 'P-SUP-25'), 0, 'otro aparato la volvió a subir');
+    sql("insert into public.panel_choques (tabla, fila_id, mio, suyo) values ('ajustes', 'gestiones', jsonb_build_object('datos', " + leer(fG) + "), '{}'::jsonb)");
+    assert.equal(enLista("(select mio->'datos' x from public.panel_choques where fila_id = 'gestiones') t", 'persona_id', 'P-SUP-25'), 0, 'un choque nuevo la guardó');
+    /* Llamarla otra vez no cambia nada (y sigue cabiendo). */
+    const otra = comoAnon(sup);
+    assert.deepEqual([otra.r.ok, otra.r.copias_pendientes], [true, 0]);
+    sql("delete from public.panel_choques where tabla = 'ajustes' and fila_id in ('prospectos', 'gestiones');" +
+        " update public.panel_ajustes set datos = '[]'::jsonb where clave in ('prospectos', 'gestiones')");
   });
 
   test('16 · el archivo corre dos veces con sus 12 en true; sin 22d se para y no toca nada', () => {

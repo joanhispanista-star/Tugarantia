@@ -24,6 +24,16 @@
  * que un reporte de cobranza de otra empresa no se convierta en una base de
  * Tu Garantía con su «YA PAGO» y su «VENCIDO» pegados a cada persona.
  *
+ * 27-oct-2026, ronda 3 — LO QUE VIAJA ES UNA LISTA BLANCA. Dos rondas
+ * seguidas se escapó la dirección: primero con una columna «Dirección», después
+ * con «DIR», «Ubicación», «Barrio» o un valor como «CL 45 SUR 12 34», porque la
+ * regla adivinaba por el NOMBRE qué era peligroso, y cada base nombra sus
+ * columnas a su manera. Ahora es al revés: solo se ofrecen (y el servidor solo
+ * guarda) cinco datos con nombre fijo —Ciudad, Monto que pide, Ocupación o
+ * negocio, Cómo llegó y Observación— y lo demás no se guarda nunca, se llame
+ * como se llame. Las listas de abajo (lo que no se guarda) se quedan como
+ * segundo candado y para decir POR QUÉ no se guarda una columna.
+ *
  * La firma de abajo va PRIMERO: dice que llegó ESTE archivo (la página se
  * pide con ?v=…). Ver «¿LLEGÓ LO QUE PEDÍ?» en panel/crm.html.
  * ==========================================================================*/
@@ -37,10 +47,28 @@
   'use strict';
 
   var TOPE_TANDA = 200;      // filas por llamada (el servidor rechaza más: tanda_grande)
-  var MAX_EXTRAS = 6;        // columnas extra por persona
   var MAX_VALOR = 120;       // caracteres por valor
   var MAX_CLAVE = 40;        // caracteres por nombre de columna
   var MAX_NOTA = 300;        // la «Información adicional» a mano
+
+  /* 27-oct-2026, ronda 3 — LAS ÚNICAS COLUMNAS QUE SE GUARDAN Y VIAJAN AL
+     EQUIPO, con su nombre fijo (`clave`: así se guardan, y extra_limpio solo
+     acepta estas cinco claves EXACTAS). `encabezado` reconoce la columna del
+     archivo que trae ese dato; una columna que no casa con ninguno no se
+     ofrece. `admite`: las familias de abajo que no la tumban («Monto que pide»
+     lleva «monto»; «Ciudad de residencia» lleva «residencia»): los valores
+     igual pasan por su regla. «Barrio» no está a propósito: con el barrio y el
+     nombre ya se encuentra la casa, y el equipo contacta por WhatsApp. */
+  var COLUMNAS_QUE_VIAJAN = [
+    { clave: 'Ciudad', encabezado: /(^|[^a-záéíóúñ])(ciudad|municipio)([^a-záéíóúñ]|$)/i, admite: ['direccion'] },
+    { clave: 'Monto que pide', encabezado: /(monto|valor|cu[aá]nto|cantidad).*(pide|pidi|solicit|necesit|quiere|requier|desea)/i, admite: ['plata', 'cobranza'] },
+    { clave: 'Ocupación o negocio', encabezado: /(ocupaci|oficio|profesi[oó]n|actividad|a qu[eé] se dedica|trabajo|empleo|negocio)/i, admite: [] },
+    { clave: 'Cómo llegó', encabezado: /(c[oó]mo (lleg|se enter|nos conoci|nos encontr|supo)|(^|[^a-záéíóúñ])(medio|canal|fuente|origen|campa[nñ]a)([^a-záéíóúñ]|$))/i, admite: [] },
+    { clave: 'Observación', encabezado: /(observaci|comentario|(^|[^a-záéíóúñ])(notas?|obs)([^a-záéíóúñ]|$))/i, admite: [] }
+  ];
+  var CLAVES_QUE_VIAJAN = COLUMNAS_QUE_VIAJAN.map(function (c) { return c.clave; });
+  var MAX_EXTRAS = CLAVES_QUE_VIAJAN.length;
+  var NO_VIAJA = 'no es de lo que viaja';
 
   /* Las claves que NO se guardan, por familia (sin importar mayúsculas). Las
      cortas (eps, nit, app) solo como palabra entera: «Apellido» no es «app». */
@@ -73,13 +101,21 @@
   };
   /* Los VALORES que no se guardan: cédulas y teléfonos de otros (7 dígitos o
      más seguidos), montos, fechas de Excel y códigos (solo cifras), los que
-     traen palabras de cobro y (ronda 2) los que son una dirección escrita
-     («Calle 1 # 2-3», «Cra 17 No. 7-7»), aunque vengan en otra columna. */
+     traen palabras de cobro y (ronda 2) los que son una dirección escrita,
+     aunque vengan en otra columna.
+     27-oct-2026, ronda 3 — la dirección colombiana se escribe de mil maneras
+     y casi nunca con «#»: «CL 45 SUR 12 34», «KR 7 45 10», «Cll 45 N 12-30»,
+     «AK 68 12 30», «Diagonal 5 Bis 3-2», «Mz 4 Casa 12», «Mz B Cs 12», «Apto
+     301», «Av Boyacá 12-30». La regla de ronda 2 exigía un «#» o un «No.» y
+     las dejaba pasar todas. Ahora basta la palabra de la vía o del inmueble
+     seguida de un número (o «Mz» seguida de una letra), o «# 12-30». Se pasa
+     de prudente a propósito: «vende en su casa 3 días» también se queda sin
+     guardar, y eso no le quita nada a nadie. La MISMA regla vive en extra_limpio. */
   var VALORES_QUE_NO_SE_GUARDAN = {
     sieteDigitos: /[0-9]{7,}/,
     soloCifras: /^[0-9.,$ ]{3,}$/,
     cobro: /((^|[^a-záéíóúñ])mora([^a-záéíóúñ]|$)|vencid|pag[oóa]|deud|cobr|saldo|abon|cuota|castig|embarg|promesa|no contesta|\$)/i,
-    direccion: /(^|[^a-záéíóúñ])(calle|cll|cl|carrera|cra|kra|kr|cr|avenida|av|diagonal|dg|transversal|tv)\.?\s*[0-9]+[a-z]?.*(#|n[oº°]\.?\s*[0-9])/i
+    direccion: /(^|[^a-záéíóúñ])(calle|cll|clle|cl|carrera|cra|crr|kra|kr|cr|avenida|avda|av|ak|ac|diagonal|diag|dg|transversal|transv|trans|tv|tr|circular|cir|manzana|mza|mz|casa|cs|apartamento|apto|apt|ap|torre|interior|int|bloque|blq|bl|lote|lt|piso|km|kil[oó]metro|edificio|edif|conjunto|urbanizaci[oó]n|urb)\.?\s*(#|n[oº°]\.?)?\s*[0-9]|(^|[^a-záéíóúñ])(avenida|avda|av|autopista|calle|carrera)\.?\s+([a-záéíóúñ]+\s+){1,3}[0-9]|(^|[^a-záéíóúñ])(mza|mz)(\.\s*|\s+)[a-z]([^a-záéíóúñ]|$)|#\s*[0-9]+\s*-\s*[0-9]|(^|[^a-záéíóúñ])n[oº°]\.?\s*[0-9]+\s*-\s*[0-9]/i
   };
   /* 27-oct-2026, revisión — una fecha escrita («2026-10-01», «01/10/2026»)
      tiene 8 cifras, pero no es una cédula ni un teléfono: la de los 7 dígitos
@@ -109,6 +145,34 @@
     if (VALORES_QUE_NO_SE_GUARDAN.direccion.test(t)) return '';
     return t;
   }
+  /* 27-oct-2026, ronda 3 — «Monto que pide»: solo un monto en pesos, redondo
+     a mil y de 10.000 a 99.999.000 («500.000», «$ 1.200.000», 500000 de
+     Excel). Es la única columna que guarda cifras: una cédula o un teléfono no
+     terminan en 000 (y uno de 10 dígitos no cabe). Se guarda escrito igual
+     siempre: «$500.000». La MISMA regla vive en extra_limpio. */
+  function montoQuePide(v) {
+    var t = limpiarTexto(v, MAX_VALOR);
+    if (!/^\$?\s*[0-9][0-9., ]*$/.test(t)) return '';
+    var d = t.replace(/[.,]00$/, '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+    if (d.length < 5 || d.length > 8 || Number(d) % 1000) return '';
+    return '$' + d.replace(/\B(?=([0-9]{3})+$)/g, '.');
+  }
+  function esClaveQueViaja(k) { return CLAVES_QUE_VIAJAN.indexOf(String(k == null ? '' : k)) >= 0; }
+  /* El valor de UNA de las cinco, o '' si no se guarda (ni viaja). */
+  function limpiarValorDe(clave, v) {
+    if (!esClaveQueViaja(clave)) return '';
+    if (clave === 'Monto que pide') return montoQuePide(v);
+    var t = limpiarValor(v);
+    /* Una ciudad no lleva números: con números ya es una dirección o un código. */
+    if (clave === 'Ciudad' && /[0-9]/.test(t)) return '';
+    return t;
+  }
+  /* La columna del archivo que trae uno de los cinco datos, o null. */
+  function queViajaDe(encabezado) {
+    var t = texto(encabezado);
+    for (var k = 0; k < COLUMNAS_QUE_VIAJAN.length; k++) if (COLUMNAS_QUE_VIAJAN[k].encabezado.test(t)) return COLUMNAS_QUE_VIAJAN[k];
+    return null;
+  }
   /* El nombre: el nombreDe de bases.js (Mayúscula Inicial, solo letras) SIN la
      comilla, para que ninguna pantalla lo pueda ejecutar (R11). */
   function limpiarNombre(v) {
@@ -131,11 +195,13 @@
   /* --------------------------------------------------------------------------
    * LAS COLUMNAS EXTRA DE UN ARCHIVO
    *
-   * Devuelve { columnas: [{i, nombre, muestra, marcada:false}], descartadas:
-   * [{i, nombre, motivo}] }. Las que se pueden guardar van SIN MARCAR (D7,
-   * minimización): las marca quien sube, sabiendo qué es. Una columna se
-   * descarta ENTERA si más de la mitad de sus valores caen en una regla de
-   * arriba, y se dice por qué. Hasta 6.
+   * Devuelve { columnas: [{i, nombre, columna, muestra, marcada:false}],
+   * descartadas: [{i, nombre, motivo}] }. `nombre` es la clave FIJA con que
+   * se guarda (una de las cinco de COLUMNAS_QUE_VIAJAN) y `columna`, cómo se
+   * llama en el archivo. Las que se pueden guardar van SIN MARCAR (D7,
+   * minimización): las marca quien sube, sabiendo qué es. Todas las demás
+   * columnas se descartan, y se dice por qué. Una de las cinco también se
+   * descarta ENTERA si más de la mitad de sus valores no se pueden guardar.
    * ------------------------------------------------------------------------ */
   function columnasExtra(filas, cols) {
     filas = Array.isArray(filas) ? filas : [];
@@ -145,40 +211,46 @@
     var datos = filas.slice(enc);
     var ancho = filas.reduce(function (a, f) { return Math.max(a, (f || []).length); }, 0);
     var senales = (B && B.SENALES_FINANCIERAS) || [];
-    var columnas = [], descartadas = [], usados = {};
+    var columnas = [], descartadas = [], tomadas = {};
     for (var i = 0; i < ancho; i++) {
       if (i === cols.celular || i === cols.nombre) continue;
       var nombre = limpiarTexto(cabecera[i], MAX_CLAVE) || ('Columna ' + letra(i));
       var valores = datos.map(function (f) { return texto((f || [])[i]); }).filter(Boolean);
       if (!valores.length) continue;
-      var motivo = '';
+      var viaja = queViajaDe(nombre);
       var fam = familiaDeClave(nombre);
-      if (fam && fam !== 'cobranza') motivo = POR_QUE[fam];
-      var mitad = valores.length / 2;
-      if (!motivo) {
-        var deCobro = valores.filter(function (v) { return VALORES_QUE_NO_SE_GUARDAN.cobro.test(v); });
-        if (deCobro.length > mitad) {
-          var ej = [];
-          deCobro.forEach(function (v) { var u = v.toUpperCase().slice(0, 20); if (ej.indexOf(u) < 0 && ej.length < 2) ej.push(u); });
-          motivo = 'trae estados de cobro: ' + ej.map(function (x) { return '«' + x + '»'; }).join(', ');
-        }
-      }
-      if (!motivo && valores.filter(function (v) { return VALORES_QUE_NO_SE_GUARDAN.direccion.test(v); }).length > mitad) motivo = POR_QUE.direccion;
-      if (!motivo && valores.filter(function (v) { return VALORES_QUE_NO_SE_GUARDAN.soloCifras.test(v); }).length > mitad) motivo = 'son solo números';
-      if (!motivo && valores.filter(pareceDocumento).length > mitad) motivo = 'trae cédulas o teléfonos';
-      if (!motivo && fam === 'cobranza') motivo = POR_QUE.cobranza;
-      if (!motivo && senales.some(function (s) { return nombre.toLowerCase().indexOf(s) >= 0; })) motivo = 'es información financiera de otra empresa';
-      if (!motivo && columnas.length >= MAX_EXTRAS) motivo = 'solo se guardan ' + MAX_EXTRAS;
+      var motivo = '';
+      if (!viaja) motivo = fam ? POR_QUE[fam] : NO_VIAJA;
+      else if (fam && viaja.admite.indexOf(fam) < 0) motivo = POR_QUE[fam];
+      else if (tomadas[viaja.clave]) motivo = 'ya va «' + viaja.clave + '» de la columna «' + tomadas[viaja.clave] + '»';
+      else if (senales.some(function (s) { return nombre.toLowerCase().indexOf(s) >= 0; })) motivo = 'es información financiera de otra empresa';
+      else motivo = motivoPorValores(viaja.clave, valores);
       if (motivo) { descartadas.push({ i: i, nombre: nombre, motivo: motivo }); continue; }
-      /* Dos columnas con el mismo encabezado no pueden pisarse en el objeto. */
-      var clave = nombre, k = 2;
-      while (usados[clave.toLowerCase()]) clave = nombre.slice(0, MAX_CLAVE - 3) + ' ' + (k++);
-      usados[clave.toLowerCase()] = 1;
+      tomadas[viaja.clave] = nombre;
       var muestra = '';
-      for (var j = 0; j < valores.length && !muestra; j++) muestra = limpiarValor(valores[j]);
-      columnas.push({ i: i, nombre: clave, muestra: muestra.slice(0, 30), marcada: false });
+      for (var j = 0; j < valores.length && !muestra; j++) muestra = limpiarValorDe(viaja.clave, valores[j]);
+      columnas.push({ i: i, nombre: viaja.clave, columna: nombre, muestra: muestra.slice(0, 30), marcada: false });
     }
     return { columnas: columnas, descartadas: descartadas };
+  }
+  /* Por qué una de las cinco no sirve, si más de la mitad de sus valores no
+     se pueden guardar ('' si sirve). Se dice lo más concreto que se sabe. */
+  function motivoPorValores(clave, valores) {
+    var mitad = valores.length / 2;
+    var malos = valores.filter(function (v) { return !limpiarValorDe(clave, v); });
+    if (malos.length <= mitad) return '';
+    if (clave === 'Monto que pide') return 'no son montos en pesos';
+    var V = VALORES_QUE_NO_SE_GUARDAN;
+    var deCobro = malos.filter(function (v) { return V.cobro.test(v); });
+    if (deCobro.length > mitad) {
+      var ej = [];
+      deCobro.forEach(function (v) { var u = v.toUpperCase().slice(0, 20); if (ej.indexOf(u) < 0 && ej.length < 2) ej.push(u); });
+      return 'trae estados de cobro: ' + ej.map(function (x) { return '«' + x + '»'; }).join(', ');
+    }
+    if (malos.filter(function (v) { return V.direccion.test(v); }).length > mitad) return 'trae direcciones: no viajan al equipo';
+    if (malos.filter(function (v) { return V.soloCifras.test(v); }).length > mitad) return 'son solo números';
+    if (malos.filter(pareceDocumento).length > mitad) return 'trae cédulas o teléfonos';
+    return clave === 'Ciudad' ? 'no son nombres de ciudades' : 'casi nada se puede guardar';
   }
 
   /* El celular de una fila con la MISMA regla de revisarBase (incluida su
@@ -191,12 +263,13 @@
     return cel;
   }
 
-  /* { celular: {Barrio: 'Kennedy', …} } con SOLO las columnas elegidas. Gana la
-     primera aparición, como en revisarBase. */
+  /* { celular: {Ciudad: 'Bogotá', …} } con SOLO las columnas elegidas, y solo
+     si son de las cinco (una columna con otro nombre no se guarda aunque la
+     pasen). Gana la primera aparición, como en revisarBase. */
   function extrasPorCelular(filas, cols, elegidas) {
     filas = Array.isArray(filas) ? filas : [];
     cols = cols || {};
-    var el = (elegidas || []).slice(0, MAX_EXTRAS);
+    var el = (elegidas || []).filter(function (c) { return c && esClaveQueViaja(c.nombre); }).slice(0, MAX_EXTRAS);
     var out = {};
     if (!el.length) return out;
     for (var r = Math.max(0, Number(cols.encabezado) || 0); r < filas.length; r++) {
@@ -205,8 +278,8 @@
       if (!cel || out[cel]) continue;
       var obj = {}, hay = false;
       el.forEach(function (c) {
-        var v = limpiarValor(f[c.i]);
-        if (v && !familiaDeClave(c.nombre)) { obj[limpiarTexto(c.nombre, MAX_CLAVE)] = v; hay = true; }
+        var v = limpiarValorDe(c.nombre, f[c.i]);
+        if (v && !(c.nombre in obj)) { obj[c.nombre] = v; hay = true; }
       });
       out[cel] = hay ? obj : null;
     }
@@ -257,12 +330,18 @@
     TOPE_TANDA: TOPE_TANDA,
     MAX_EXTRAS: MAX_EXTRAS,
     MAX_NOTA: MAX_NOTA,
+    COLUMNAS_QUE_VIAJAN: COLUMNAS_QUE_VIAJAN,
+    CLAVES_QUE_VIAJAN: CLAVES_QUE_VIAJAN,
     PALABRAS_QUE_NO_SE_GUARDAN: PALABRAS_QUE_NO_SE_GUARDAN,
     VALORES_QUE_NO_SE_GUARDAN: VALORES_QUE_NO_SE_GUARDAN,
     FECHA_ESCRITA: FECHA_ESCRITA,
     columnasExtra: columnasExtra,
     extrasPorCelular: extrasPorCelular,
     celularDeFila: celularDeFila,
+    esClaveQueViaja: esClaveQueViaja,
+    queViajaDe: queViajaDe,
+    limpiarValorDe: limpiarValorDe,
+    montoQuePide: montoQuePide,
     limpiarValor: limpiarValor,
     limpiarNombre: limpiarNombre,
     limpiarNota: limpiarNota,
