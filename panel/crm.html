@@ -15119,7 +15119,8 @@ function etiquetaArchivoEq(clase, estilo, texto) {
 function botonesAgregarEq() {
   return `<div style="display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn btn-ghost btn-sm" onclick="agregarProspectoEq()">＋ Agregar prospecto</button>
-    ${etiquetaArchivoEq('btn btn-rojo btn-sm', '', '⤒ Cargar base')}</div>`;
+    ${etiquetaArchivoEq('btn btn-rojo btn-sm', '', '⤒ Cargar base')}
+    <button class="btn btn-ghost btn-sm" onclick="descargarBaseEq()">⬇ Descargar para Excel</button></div>`;
 }
 
 /* ------------------------------------------------- uno a mano ---------- */
@@ -15680,6 +15681,45 @@ function subirBaseEq() {
   });
 }
 /* ===================================== fin de EL GERENTE AGREGA (equipo) == */
+/* 27-oct-2026 — La descarga vive FUERA del bloque de arriba a propósito: ese
+   bloque prohíbe .click() (el selector de archivos del iPhone solo abre con el
+   toque de la persona; lo vigila el-gerente-agrega.test.js), y aquí el clic es
+   el de un enlace de descarga, que es otra cosa. */
+/* 27-oct-2026 — «⬇ DESCARGAR PARA EXCEL» (ver csvDeMiBase en
+   panel/agregar-prospectos.js: solo prospectos, solo lo que ya ve). Antes de
+   bajarlo se dice lo que el archivo es —datos personales que Joan le confía— y
+   lo que NO hace: lo que cambie en el Excel no vuelve a Tu Garantía. */
+function descargarBaseEq() {
+  if (!esGerenteEq()) return;
+  const A = window.AgregarProspectos;
+  if (!A || !A.csvDeMiBase) return openModal('⬇ Descargar para Excel', '<div class="alerta warn">Falta bajar parte de la versión nueva (panel/agregar-prospectos.js). Recarga con señal.</div>');
+  const gente = genteDeMiBaseEq();
+  const n = gente.filter(p => p.tipo !== 'cliente').length;
+  if (!n) return openModal('⬇ Descargar para Excel', '<div class="alerta info">No tienes prospectos en esta vista: no hay nada que descargar.</div>');
+  const sinInfo = !(INFO_EQ && INFO_EQ.para === CARTERA_EQUIPO && INFO_EQ.estado === 'ok');
+  openModal('⬇ Descargar para Excel', `
+    <p class="sub">Vas a descargar <b>${n} prospecto${n === 1 ? '' : 's'}</b>${_asesorBaseEq ? ' de la base que estás mirando' : ' de tu base'}: nombre, celular, en qué va, quién lo trabaja, la última gestión y su información adicional. Los clientes no van.</p>
+    ${sinInfo ? '<div class="alerta warn">No pude traer la información adicional: el archivo sale sin ella. Si la quieres, cierra, recarga y vuelve a descargar.</div>' : ''}
+    <div class="alerta info"><b>Son datos personales que Joan te confía.</b> Guárdalo solo en tu celular o tu computador, no lo reenvíes ni lo subas a otro lado, y bórralo cuando ya no lo uses.</div>
+    <div class="alerta warn"><b>Lo que cambies en el Excel no vuelve solo a Tu Garantía.</b> Lo que hagas con cada persona anótalo aquí, con ✎ en su fila, para que quede en su historia y lo vea Joan.</div>
+    <button class="btn btn-rojo arriba" onclick="bajarBaseEq()">Descargar</button>`);
+}
+function bajarBaseEq() {
+  const A = window.AgregarProspectos;
+  if (!A || !A.csvDeMiBase) return;
+  const r = A.csvDeMiBase(genteDeMiBaseEq(), {
+    info: (INFO_EQ && INFO_EQ.para === CARTERA_EQUIPO && INFO_EQ.info) || {},
+    etapa: e => { const t = ETAPAS && ETAPAS.ETAPAS[e]; return t ? t.et : (e || ''); },
+    gestion: g => { const t = TIPOS_GESTION[g.tipo]; return t ? t.et : (g.tipo || ''); },
+    cuando: iso => { const d = new Date(String(iso || '')); return isNaN(d) ? '' : d.toISOString().slice(0, 10); }
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([r.csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'mi-base-' + hoyISO() + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  cerrarModal();
+}
 /* --------------------------------------------------------------------------
  * LOS INDICADORES POR ASESOR — 15-sep-2026
  *

@@ -269,6 +269,52 @@
   }
 
   /* --------------------------------------------------------------------------
+   * «⬇ DESCARGAR PARA EXCEL» — 27 de octubre de 2026
+   *
+   * Joan: «quiero que el rol de gerente tenga la posibilidad de descargar la
+   * base de prospectos para que pueda gestionar incluso desde un excel».
+   *
+   * Solo PROSPECTOS (lo que pidió: «la base de prospectos»): los clientes
+   * llevan saldo y fechas de pago, y eso no sale en un archivo que se reenvía
+   * con un toque. Solo lo que el gerente YA ve en «Mi base» (sale de
+   * mi_cartera y de la información adicional que ya le llega): ni una consulta
+   * nueva, ni nada que su pantalla no le muestre.
+   *
+   * LA FÓRMULA QUE SE EJECUTA: un nombre o una nota que empieza por = + - @
+   * Excel la corre como fórmula al abrir el archivo («=HYPERLINK(…)» en una
+   * base subida por otro). Se le antepone una comilla: se ve igual y no corre.
+   * Separador «;» y BOM, como el resto de lo que descarga el CRM
+   * (exportarSocios): es lo que el Excel en español abre en columnas.
+   * ------------------------------------------------------------------------ */
+  var COLUMNAS_DESCARGA = ['Nombre', 'Celular', 'Etapa', 'Quién lo trabaja', 'Última gestión', 'Cuándo',
+    'Nota de la gestión', 'Información adicional'].concat(CLAVES_QUE_VIAJAN).concat(['De dónde salió', 'Autorizó', 'Prueba']);
+  function celdaCSV(v) {
+    var s = String(v == null ? '' : v).replace(/[\r\n]+/g, ' ');
+    if (/^[=+\-@\t]/.test(s)) s = "'" + s;
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  /* gente: las filas de mi_cartera; o: {info: {id: {...}}, etapa(e), gestion(g), cuando(iso)}.
+     Devuelve {csv, n}: n = cuántos prospectos van. */
+  function csvDeMiBase(gente, o) {
+    o = o || {};
+    var info = o.info || {};
+    var et = typeof o.etapa === 'function' ? o.etapa : function (e) { return e || ''; };
+    var ge = typeof o.gestion === 'function' ? o.gestion : function (g) { return g && g.tipo ? g.tipo : ''; };
+    var cu = typeof o.cuando === 'function' ? o.cuando : function (x) { return x || ''; };
+    var filas = (gente || []).filter(function (p) { return p && p.tipo !== 'cliente'; }).map(function (p) {
+      var i = info[p.id] || {};
+      var ex = (i.extra && typeof i.extra === 'object') ? i.extra : {};
+      var g = p.gestion || null;
+      return [p.nombre || '', p.celular || '', et(p.etapa), p.asesor_nombre || '', g ? ge(g) : '',
+        g ? cu(g.cuando) : '', g && g.nota ? g.nota : '', i.nota || '']
+        .concat(CLAVES_QUE_VIAJAN.map(function (k) { return ex[k] || ''; }))
+        .concat([i.origen || '', i.autoriza === true ? 'Sí' : (i.autoriza === false ? 'No' : ''), i.prueba || ''])
+        .map(celdaCSV).join(';');
+    });
+    return { csv: '\uFEFF' + [COLUMNAS_DESCARGA.map(celdaCSV).join(';')].concat(filas).join('\r\n'), n: filas.length };
+  }
+
+  /* --------------------------------------------------------------------------
    * LAS COLUMNAS EXTRA DE UN ARCHIVO
    *
    * Devuelve { columnas: [{i, nombre, columna, muestra, marcada:false}],
@@ -412,6 +458,9 @@
     VALORES_QUE_NO_SE_GUARDAN: VALORES_QUE_NO_SE_GUARDAN,
     FECHA_ESCRITA: FECHA_ESCRITA,
     columnasExtra: columnasExtra,
+    csvDeMiBase: csvDeMiBase,
+    celdaCSV: celdaCSV,
+    COLUMNAS_DESCARGA: COLUMNAS_DESCARGA,
     columnasConNombre: columnasConNombre,
     ENCABEZADOS_DE_NOMBRE: ENCABEZADOS_DE_NOMBRE,
     extrasPorCelular: extrasPorCelular,
