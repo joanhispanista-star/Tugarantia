@@ -111,8 +111,10 @@ describe('1 · la tarjeta «⤒ Lo que subió tu equipo»', () => {
     const P = abrirJoan({ equipo_agregados: AGREGADOS, equipo_soltar: { ok: true } });
     P.ev('pintarSubidoPorElEquipo()'); await asentar();
     const h = P.elems.tblDelEquipo.innerHTML, t = plano(h);
-    assert.match(t, /⛔ OTRO está parado desde el .*en lo que subió, 61 celulares ya existían en Tu Garantía\. Míralos antes de darle paso\./);
-    assert.match(h, /onclick="verYaExistian\(43\)">Ver cuáles<\/button>/);
+    /* 27-oct-2026, ronda 2 — «se le juntaron» (desde el último «que siga»), y
+       «Ver cuáles» pide solo esos (verYaExistianNuevos). */
+    assert.match(t, /⛔ OTRO está parado desde el .*se le juntaron 61 celulares que ya existían en Tu Garantía\. Míralos antes de darle paso\./);
+    assert.match(h, /onclick="verYaExistianNuevos\(43\)">Ver cuáles<\/button>/);
     assert.match(h, /onclick="soltarGerente\('3000000009'\)">Ya lo revisé: que siga<\/button>/);
     assert.match(t, /WILLIAN lleva 2\.480 de 3\.000/);
     assert.match(t, /feria-kennedy\.xlsx/);
@@ -141,7 +143,7 @@ describe('1 · la tarjeta «⤒ Lo que subió tu equipo»', () => {
     const h = P.elems.tblDelEquipo.innerHTML;
     assert.match(h, /onclick="verYaExistian\(41,42\);return false">cuáles<\/a>/, 'el archivo de dos tandas manda solo la primera');
     assert.match(h, /onclick="verYaExistian\(50,51,52,53\);return false">cuáles<\/a>/, 'lo de a mano manda solo la primera');
-    assert.match(h, /onclick="verYaExistian\(40,43\)">Ver cuáles<\/button>/, 'la franja manda solo la tanda que lo paró');
+    assert.match(h, /onclick="verYaExistianNuevos\(40,43\)">Ver cuáles<\/button>/, 'la franja manda solo la tanda que lo paró');
     const fila = plano(h.slice(h.indexOf('a mano (4)') - 400, h.indexOf('a mano (4)') + 600));
     assert.match(fila, /varios: cada uno en «Ver»/);
     assert.doesNotMatch(fila, /me lo recomendó un cliente/, 'pintó un origen que no es de todos');
@@ -157,6 +159,42 @@ describe('1 · la tarjeta «⤒ Lo que subió tu equipo»', () => {
     P.ev('verCargaDelEquipo(41)'); await asentar();
     assert.doesNotMatch(P.elems.mBody.innerHTML, /<th>De dónde salió<\/th>/);
     assert.match(plano(P.elems.mBody.innerHTML), /De dónde salió: Feria de Kennedy · Prueba: formularios firmados/);
+  });
+
+  /* 27-oct-2026, ronda 2 — LOS NÚMEROS CUADRAN. La franja dice los «ya
+     existe» nuevos desde el último «que siga», y «Ver cuáles» abría también
+     los que Joan ya había revisado en el freno anterior (51 abría 111). */
+  test('«Ver cuáles» de la franja pide SOLO los nuevos (p_solo_nuevos); el «cuáles» de una fila, todos los de sus tandas', async () => {
+    const P = abrirJoan({ equipo_agregados: AGREGADOS, equipo_ya_existian: [{ celular: '3001112233', donde: 'base de OTRO' }] });
+    P.ev('verYaExistianNuevos(40,43)'); await asentar();
+    assert.deepEqual(llamadas(P, 'equipo_ya_existian')[0].args, { p_clave: 'clave-larga-de-prueba', p_cargas: [40, 43], p_solo_nuevos: true });
+    P.ev('verYaExistian(41,42)'); await asentar();
+    assert.deepEqual(llamadas(P, 'equipo_ya_existian')[1].args, { p_clave: 'clave-larga-de-prueba', p_cargas: [41, 42] });
+  });
+
+  /* 27-oct-2026, ronda 2 — ARRIBA DE BASES. La tarjeta queda debajo de la
+     tabla de Prospectos (a 13.800 px en el PC con la base de Joan) y el ⛔ solo
+     vivía ahí: Joan no se enteraba de que su gerente estaba parado. */
+  test('el ⛔ del freno y lo que subió el equipo esta semana salen ARRIBA de Bases, antes de la tabla de Prospectos', async () => {
+    const v = CRM.slice(CRM.indexOf('<section class="view" id="v-bases">'), CRM.indexOf('<section class="view" id="v-equipo">'));
+    assert.ok(v.indexOf('id="avisoDelEquipo"') > 0 && v.indexOf('id="avisoDelEquipo"') < v.indexOf('id="kpiBases"'),
+      'el aviso no está arriba, junto a los botones');
+    assert.ok(v.indexOf('id="avisoDelEquipo"') < v.indexOf('id="tblProspectos"'));
+    const d = aca(AGREGADOS);
+    d.cargas[0].cuando = new Date(Date.now() - 86400000).toISOString();
+    d.cargas[1].cuando = new Date(Date.now() - 30 * 86400000).toISOString();   // la de a mano, de hace un mes: no es de esta semana
+    const P = abrirJoan({ equipo_agregados: d, equipo_soltar: { ok: true } });
+    P.ev('pintarSubidoPorElEquipo()'); await asentar();
+    const h = P.elems.avisoDelEquipo.innerHTML, t = plano(h);
+    assert.match(t, /⛔ OTRO está parado desde el .*se le juntaron 61 celulares que ya existían/);
+    assert.match(h, /onclick="soltarGerente\('3000000009'\)">Ya lo revisé: que siga<\/button>/);
+    assert.match(h, /onclick="verYaExistianNuevos\(43\)">Ver cuáles<\/button>/);
+    assert.match(t, /⤒ Tu equipo subió 244 personas esta semana \(WILLIAN\)\. Ver lo que subió tu equipo ↓/);
+    assert.match(h, /onclick="verLoQueSubioElEquipo\(\);return false"/);
+    /* Sin nada en la semana ni nadie parado, arriba no sale nada. */
+    const Q = abrirJoan({ equipo_agregados: { cargas: [], frenados: [], por_gerente: [] } });
+    Q.ev('pintarSubidoPorElEquipo()'); await asentar();
+    assert.equal(Q.elems.avisoDelEquipo.innerHTML, '');
   });
 
   test('ver una carga y reasignar los marcados, también a «Nadie (soltarlo)»', async () => {
@@ -191,7 +229,7 @@ describe('2 · «＋ Agregar prospecto» de Joan', () => {
     const h = P.elems.mBody.innerHTML;
     assert.ok(h.indexOf('id="apCel"') < h.indexOf('id="apNota"') && h.indexOf('id="apNota"') < h.indexOf('id="apOrigen"'));
     assert.match(h, /<textarea id="apNota" rows="2" maxlength="300"/);
-    assert.equal(P.ev('ayudaNotaProspecto()'), 'Lo que sirva para atenderlo. No escribas cédulas, claves, deudas ni nada de salud, religión o política.');
+    assert.equal(P.ev('ayudaNotaProspecto()'), 'Lo que sirva para atenderlo. No escribas cédulas, direcciones, claves, deudas ni nada de salud, religión o política.');
     P.ev("_equipoAgrega = 'si'");
     assert.match(P.ev('ayudaNotaProspecto()'), /Si se lo asignas a alguien de tu equipo, también lo ve él\./);
     P.ev("_equipoAgrega = 'no'");
@@ -357,6 +395,44 @@ describe('4 · lo de Joan no pisa ni duplica lo del equipo', () => {
     assert.equal(P.ev("fechaDeCargaProspecto({ id: 'X-1' })"), '');
   });
 
+  /* 27-oct-2026, ronda 2 — LOS CELULARES DE JOAN SUBEN AL ENTRAR. Solo subían al
+     publicar, cargar o agregar: con el SQL recién corrido y nada que publicar,
+     un gerente podía quedarse con un prospecto de Joan sin repartir. */
+  test('al abrir el CRM, los celulares de Joan suben solos (a los 20 s) y después cada 15 min solo los nuevos', async () => {
+    const P = abrirJoan({ equipo_publicar_celulares: { ok: true } });
+    P.ctx._timers = [];
+    P.ev('setTimeout = function (f, ms) { _timers.push({ f: f, ms: ms, una: true }); return 1; };' +
+         ' setInterval = function (f, ms) { _timers.push({ f: f, ms: ms }); return 2; };');
+    P.ev('arrancarPublicarSolo()');
+    const t20 = P.ctx._timers.find(t => t.una && t.ms === 20000);
+    assert.ok(t20, 'no programó la subida de los celulares al entrar');
+    t20.f(); await asentar();
+    assert.deepEqual(llamadas(P, 'equipo_publicar_celulares').map(x => x.args.p_cels.length), [3]);
+    const cada15 = P.ctx._timers.find(t => !t.una);
+    P.ev("prospectos().push({ id: 'PN', nombre: 'Nuevo', celular: '3159999998', estado: 'nuevo' })");
+    P.ev('publicarEquipoSolo = function () { return Promise.resolve(\'x\'); }');
+    cada15.f(); await asentar();
+    assert.deepEqual(llamadas(P, 'equipo_publicar_celulares')[1].args.p_cels, ['3159999998']);
+  });
+
+  /* 27-oct-2026, ronda 2 — lo que Joan acepta al publicar decía que la
+     dirección no viaja y no mencionaba la información de los potenciales. */
+  test('la confirmación de «Publicar» dice que de los potenciales viaja lo que anotaste; con 404, no', async () => {
+    const C = aca(CARTERA);
+    C.asignaciones = [{ id: 'A2', socio_id: 'P1-1', asesor_id: 'a1', desde: HOY }];
+    const P = abrirJoan({ equipo_tiene: {}, equipo_publicar: { ok: true } }, C);
+    P.ev('confirm = function (m) { _avisos.push(\'¿\' + m); return false; }');
+    await P.ev("publicarEquipoAhora(equipo().filter(function (p) { return p.celular; }), armarPublicacionEquipo().asig, armarPublicacionEquipo().ps)");
+    const t = avisos(P).replace(/\n/g, ' ');
+    assert.match(t, /Sigue sin viajar: cédula, dirección, fotos y referencias\./);
+    assert.match(t, /De los potenciales viaja además lo que anotaste de ellos: la información adicional .*las columnas que marcaste al cargar su base, de dónde salió y si autorizó\./);
+    assert.equal(llamadas(P, 'equipo_publicar').length, 0);
+    const Q = abrirJoan({ equipo_tiene: {} }, C);
+    Q.ev("_equipoAgrega = 'no'; confirm = function (m) { _avisos.push('¿' + m); return false; }");
+    await Q.ev("publicarEquipoAhora(equipo().filter(function (p) { return p.celular; }), armarPublicacionEquipo().asig, armarPublicacionEquipo().ps)");
+    assert.doesNotMatch(avisos(Q), /De los potenciales viaja además/);
+  });
+
   test('publicarCelularesDeJoan: la primera vez todos (de 5.000 en 5.000), después solo los nuevos', async () => {
     const C = aca(CARTERA);
     for (let i = 0; i < 5100; i++) C.prospectos.push({ id: 'PX-' + i, nombre: 'X', celular: String(3100000000 + i), estado: 'nuevo' });
@@ -460,6 +536,55 @@ describe('5 · REGRESIÓN DE LA SONDA (2): el gerente reasigna y Joan ya no lo d
     assert.equal(P.ev("hayAsigPorPublicar('P1729000000000-5|" + HOY + "')"), false);
   });
 
+  /* 27-oct-2026, ronda 2 — LA FILA NUEVA DEL GERENTE (G…). asignar_a escribe
+     con su propio id; si Joan reasignó ese día antes de traerla, la fila del
+     gerente se sumaba DETRÁS de la de Joan, ganaba «la última del día», se
+     publicaba esa, y Joan leía «queda con OTRO» mientras quedaba con LEIDY. */
+  [['publicarEquipo (el botón)', 'publicarEquipo()'], ['publicarEquipoSolo (un cambio de Joan)', 'publicarEquipoSolo({ porCambio: true })']].forEach(([nombre, llamar]) => {
+    test(nombre + ': el gerente le pasó a P1-0 a LEIDY con una fila NUEVA y Joan se lo pasa a OTRO antes de traerla: gana Joan, con el id de la nube', async () => {
+      const C = aca(CARTERA);
+      C.asignaciones = [{ id: 'A1', socio_id: 'P1-0', asesor_id: 'g1', desde: HACE7 }];
+      const nube = [{ id: 'A1', persona_id: 'P1-0', asesor: '3000000000', desde: HACE7 },
+        { id: 'G20261027200000000-0', persona_id: 'P1-0', asesor: '3000000002', desde: HOY }];
+      const P = abrirJoan({ equipo_traer: { equipo: [], contactos: [], asignaciones: nube },
+        gestiones_listar: [], equipo_tiene: {}, equipo_publicar: { ok: true, equipo: 3, asignaciones: 1, gente: 1 },
+        equipo_publicar_info: { ok: true }, equipo_publicar_celulares: { ok: true } }, C);
+      /* Joan, sin haber traído lo del gerente: P1-0 → OTRO (g2), hoy. */
+      assert.equal(P.ev("anotarAsignacion('P1-0', 'g2', '" + HOY + "', 'A2')"), HOY);
+      P.ev('guardar()');
+      await P.ev(llamar); await asentar(60);
+      const pub = llamadas(P, 'equipo_publicar');
+      assert.equal(pub.length, 1, 'no publicó');
+      const deHoy = pub[0].args.p_asignaciones.filter(a => a.persona_id === 'P1-0' && a.desde === HOY);
+      assert.deepEqual(deHoy.map(a => [a.id, a.asesor]), [['G20261027200000000-0', '3000000009']],
+        'la publicación de Joan dejó al gerente ganar, o no usó el id de la nube');
+      /* El dueño de hoy en ESTE computador (la última del día) también es OTRO. */
+      assert.equal(P.ev("asignaciones().filter(function (a) { return a.socio_id === 'P1-0' && a.desde === '" + HOY + "'; }).pop().asesor_id"), 'g2', 'el CRM de Joan dice otro dueño');
+    });
+  });
+
+  /* 27-oct-2026, ronda 2 — con la huella quieta, la vuelta de 15 min no traía
+     nada: lo que el gerente reasignaba durante el día no llegaba al CRM de Joan
+     hasta que Joan tocaba algo, y Joan decidía sobre una vista vieja. */
+  test('la vuelta de 15 min sin nada que publicar TRAE lo del gerente igual', async () => {
+    const C = aca(CARTERA);
+    C.asignaciones = [{ id: 'A1', socio_id: 'P1-0', asesor_id: 'g1', desde: HACE7 }];
+    const nube = { equipo: [], contactos: [], asignaciones: [{ id: 'A1', persona_id: 'P1-0', asesor: '3000000000', desde: HACE7 }] };
+    const P = abrirJoan({ equipo_traer: () => nube, gestiones_listar: [], equipo_tiene: {},
+      equipo_publicar: { ok: true, equipo: 3, asignaciones: 1, gente: 1 }, equipo_publicar_info: { ok: true }, equipo_publicar_celulares: { ok: true } }, C);
+    P.ev("window.NubeCRM = { estado: function () { return { fase: 'lista' }; }, libroAlDiaEsperando: function () { return Promise.resolve({ ok: true, motivo: 'al-dia' }); } }");
+    P.ev('guardar()');
+    assert.equal(await P.ev('publicarEquipoSolo()'), 'publicado');
+    await asentar(60);
+    /* 10:00 — el gerente se lo pasa a LEIDY (fila nueva). 10:15 — la vuelta de Joan, sin nada que publicar. */
+    nube.asignaciones.push({ id: 'G1-0', persona_id: 'P1-0', asesor: '3000000002', desde: HOY });
+    const antes = llamadas(P, 'equipo_traer').length;
+    assert.equal(await P.ev('publicarEquipoSolo()'), 'sin_cambios');
+    await asentar(60);
+    assert.equal(llamadas(P, 'equipo_traer').length, antes + 1, 'la vuelta sin cambios no trajo nada');
+    assert.equal(P.ev("asignaciones().filter(function (a) { return a.socio_id === 'P1-0' && a.desde === '" + HOY + "'; }).pop().asesor_id"), 'a1', 'el CRM de Joan sigue diciendo el dueño de antes');
+  });
+
   test('CONTROL: sin laNubeCambioElAsesor, la misma prueba manda WILLIAN (el defecto que se arregló)', async () => {
     const P = conA1(HOY);
     P.ev('laNubeCambioElAsesor = function () { return false; }');
@@ -511,6 +636,9 @@ describe('7 · 📥 Registrados y «🚫 Borrar a alguien que lo pidió»', () =
     assert.deepEqual(llamadas(P, 'equipo_suprimir')[0].args, { p_clave: 'clave-larga-de-prueba', p_celular: '3001110002', p_como: 'por el chat de la app el 3-nov' });
     assert.match(avisos(P), /Listo: borré 1 que subió tu equipo y 1 tuyas de la nube\. Ese número ya no se puede volver a agregar\./);
     assert.match(avisos(P), /También lo quité de tus prospectos de este computador\./);
+    /* 27-oct-2026, ronda 2 — y de la copia del Panel en la nube; lo de otro aparato se dice. */
+    assert.match(avisos(P), /¿Voy a borrar de la nube .*la copia de tu Panel en la nube/);
+    assert.match(avisos(P), /También la quité de la copia de tu Panel en la nube, y la nube no la vuelve a guardar aunque otro aparato tuyo la suba\. Si tienes el Panel en otro aparato \(el celular\), allá sigue en tus prospectos hasta que la borres a mano\./);
     assert.match(avisos(P), /Lo que tu equipo ya le escribió por WhatsApp queda en sus teléfonos/);
     assert.equal(P.ev("prospectos().some(function (p) { return p.celular === '3001110002'; })"), false);
   });

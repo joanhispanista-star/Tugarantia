@@ -16,7 +16,10 @@
  *   · cada función security definer con search_path fijo, y los permisos
  *     exactos: tres para el equipo, nueve para Joan, ninguno para lo demás;
  *   · no reescribe ninguna función que ya existe, no escribe en auth.users, y
- *     su tabla final trae 10 filas.
+ *     su tabla final trae 12 filas;
+ *   · (ronda 2) el cupo se cuenta fila por fila, la asignación lleva la fecha
+ *     de Bogotá, y asignar_a y asesor_retirar cambian SOLO current_date sobre
+ *     su cuerpo vivo, con huella.
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -39,7 +42,8 @@ const DEL_EQUIPO = ['gerente_carga_cupo', 'gerente_agregar_prospectos', 'mi_cart
 const DE_JOAN = ['equipo_agregados', 'equipo_agregados_de', 'equipo_ya_existian', 'equipo_soltar', 'equipo_tiene',
   'equipo_reasignar', 'equipo_publicar_info', 'equipo_publicar_celulares', 'equipo_suprimir'];
 const DE_NADIE = ['celular_de_base', 'nombre_limpio', 'texto_del_equipo', 'extra_limpio', 'cel_hash', 'celulares_conocidos',
-  'agregar_prospectos_de', 'equipo_acuerdo_firmado', 'equipo_cargas_no_se_cambian', 'registros_nombre_limpio'];
+  'agregar_prospectos_de', 'equipo_acuerdo_firmado', 'equipo_cargas_no_se_cambian', 'registros_nombre_limpio',
+  'prospectos_sin_suprimidos', 'panel_ajustes_sin_suprimidos', 'panel_choques_sin_suprimidos'];
 const QUE_NO_SE_TOCAN = ['equipo_publicar', 'equipo_traer', 'mi_cartera', 'asignar_a', 'mi_alcance', 'ficha_de_mi_base',
   'registro_en_mi_alcance', 'responsable_de', 'gerente_registros', 'gerente_archivos', 'asesor_enviar', 'registrar_abierto',
   'gerente_de_sesion', 'celular_del_equipo_de_sesion', 'clave_ok'];
@@ -128,7 +132,14 @@ describe('base/' + NOMBRE, () => {
     /* 27-oct-2026, revisión — con los «ya existe» NUEVOS: uno que ya había
        consultado no vuelve a gastar (el bucle de después del freno). */
     assert.match(cuerpo, /sum\(c\.entraron \+ c\.ya_existen_nuevos\), 0\) into usadas from public\.equipo_cargas c\s+where c\.quien = p_yo\.celular and c\.rechazo = '' and c\.cuando >= inicio_hoy/);
-    assert.match(cuerpo, /usadas \+ n_entran \+ n_nuevos > 300/);
+    /* 27-oct-2026, ronda 2 — FILA POR FILA: entra lo que cabe, y se corta antes
+       de la primera que no cabe (en el cupo del día o en el techo de 3.000). */
+    assert.match(cuerpo, /if usadas \+ gasto \+ costo > 300 then corte := 'tope'; exit; end if;/);
+    assert.match(cuerpo, /if subidos \+ nuevos_t \+ nuevo_t > 3000 then corte := 'techo_base'; exit; end if;/);
+    assert.match(cuerpo, /'corto', corte, 'procesadas', procesadas/);
+    /* La asignación nace con la fecha de Bogotá, no la del servidor (UTC). */
+    assert.match(cuerpo, /hoy_bog\s+date := \(now\(\) at time zone 'America\/Bogota'\)::date/);
+    assert.ok(!/current_date/.test(cuerpo), 'agregar_prospectos_de escribe con current_date');
     /* Y el freno no se reinicia a medianoche: su ventana es el último «que siga». */
     assert.match(cuerpo, /coalesce\(max\(fr\.cuando\), '-infinity'::timestamptz\) into ventana/);
     assert.match(cuerpo, /en_ventana \+ n_nuevos > 50/);
@@ -145,11 +156,25 @@ describe('base/' + NOMBRE, () => {
     QUE_NO_SE_TOCAN.forEach(n => assert.ok(nombres.indexOf(n) < 0, 'reescribe ' + n + ': su cuerpo vivo lleva parches'));
   });
 
-  test('la tabla final trae 10 filas, y debajo una por gerente', () => {
+  /* 27-oct-2026, ronda 2 — asignar_a y asesor_retirar, con la fecha de Bogotá
+     SIN reescribirlos: pg_get_functiondef, reemplazo y huella. */
+  test('asignar_a y asesor_retirar: solo current_date, sobre su cuerpo vivo y con huella', () => {
+    const i = CODIGO.indexOf("p.proname in ('asignar_a', 'asesor_retirar')");
+    assert.ok(i > 0, 'no cambia la fecha de asignar_a ni de asesor_retirar');
+    const bloque = CODIGO.slice(CODIGO.lastIndexOf('do $$', i), CODIGO.indexOf('end $$;', i));
+    assert.match(bloque, /pg_get_functiondef\(r\.oid\)/);
+    assert.match(bloque, /replace\(antes, 'current_date', bog\)/);
+    assert.match(bloque, /md5\(replace\(despues, bog, 'current_date'\)\) <> md5\(antes\)/);
+    assert.match(bloque, /bog\s+constant text := '\(now\(\) at time zone ''America\/Bogota''\)::date'/);
+    const r = funciones().find(x => x.nombre === 'public.equipo_reasignar').cuerpo;
+    assert.ok(!/current_date/.test(r), 'equipo_reasignar escribe con current_date');
+  });
+
+  test('la tabla final trae 12 filas, y debajo una por gerente', () => {
     const i = CRUDO.lastIndexOf('LO QUE JOAN VE');
     assert.ok(i > 0);
     const selects = CRUDO.slice(i).split('\n').filter(l => /^select\s/i.test(l));
-    assert.equal(selects.filter(l => !/row_number/.test(l)).length, 10);
+    assert.equal(selects.filter(l => !/row_number/.test(l)).length, 12);
     assert.equal(selects.filter(l => /row_number/.test(l)).length, 1);
     assert.match(CRUDO.slice(i), /equipo_acuerdo_firmado\(''' \|\| e\.celular/);
     assert.match(CODIGO, /notify pgrst, 'reload schema';/);

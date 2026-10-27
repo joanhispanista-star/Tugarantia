@@ -97,12 +97,13 @@ describe('la receta del 27-oct dice lo que hay en base/', {
     assert.match(sql27, /to_regprocedure\('public\.celular_del_equipo_de_sesion\(\)'\) is null/, 'el 2.4-bis no exige el 2.4');
   });
 
-  test('el 2.4-bis dice que va después del 2.4, de noche, y con 10 filas en true', () => {
+  test('el 2.4-bis dice que va después del 2.4, de noche, y con 12 filas en true', () => {
     const s = seccionDe(leerReceta(), '20261027_el_gerente_agrega.sql');
     assert.ok(s, 'la receta no tiene la sección del 2.4-bis (base/20261027_el_gerente_agrega.sql): pégala de RECETA-2.4-bis.md');
     assert.match(s, /2\.4-bis/);
     assert.match(s, /de noche/i, 'no dice que se corre de noche (crea índices: mientras tanto nadie termina su registro)');
-    assert.match(s, /10\s+filas/);
+    /* 27-oct-2026, ronda 2 — 12: la fecha de Bogotá y el borrado en la copia del Panel. */
+    assert.match(s, /12\s+filas/, 'la receta no dice las 12 filas en true del 2.4-bis: pega otra vez RECETA-2.4-bis.md');
     assert.match(s, /equipo_acuerdo_firmado/, 'no dice cómo anotar el acuerdo del gerente');
     assert.match(s, /recarga el CRM/i, 'no dice que recargue el CRM del computador');
   });

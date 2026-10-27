@@ -184,14 +184,18 @@ function loQueMuestraElCuadro(P, id) {
   };
 }
 /* 9:00 — la vuelta de 15 min publica; 10:00 — Willian retira a Pedro desde su
-   celular; y la vuelta de 15 min de Joan NO trae (nada cambió en su computador). */
+   celular; y Joan abre «Editar a Pedro» antes de que su CRM lo traiga.
+   27-oct-2026, ronda 2 — la vuelta sin cambios ahora SÍ trae lo del gerente
+   (si no, Joan decidía con una vista vieja durante todo el día): por eso el
+   retiro pasa justo DESPUÉS de esa vuelta, que es el hueco que queda. */
 async function willianRetiraAPedro(P, nube) {
   assert.equal(await P.ev('publicarEquipoSolo()'), 'publicado', 'la vuelta de la mañana no publicó');
   await ticks();
   assert.deepEqual(nube.base(PEDRO), ['p1'], 'precondición: Pedro ve su base');
+  assert.equal(await P.ev('publicarEquipoSolo()'), 'sin_cambios');
+  await ticks();
   nube.retirar(PEDRO, WILLIAN);
   assert.deepEqual(nube.base(PEDRO), [], 'precondición: el retiro del gerente le corta la base');
-  assert.equal(await P.ev('publicarEquipoSolo()'), 'sin_cambios');
   assert.equal(P.ev("personaDeEquipo('a1').estado"), 'activo', 'precondición: este computador no se enteró del retiro');
 }
 

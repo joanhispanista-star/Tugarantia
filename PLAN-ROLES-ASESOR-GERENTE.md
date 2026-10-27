@@ -304,12 +304,16 @@ de la receta, después del 2.4 (22d) y de noche.
 - **Un archivo** (.xlsx o .csv): el previo cuenta lo que sube y lo que no; las
   columnas extra se ofrecen **sin marcar** y las que son plata, cobros,
   documentos, otras personas o datos sensibles no se ofrecen (y se dice por
-  qué); sube en tandas de 200, solo lo que cabe en el cupo del día, y cerrar el
-  cuadro no corta la subida.
+  qué); sube el archivo entero en tandas de 200 y **el servidor deja entrar
+  fila por fila lo que cabe** en el cupo del día (lo suyo y los «ya existe» que
+  ya había consultado no gastan ni ocupan el lugar de nadie); cerrar el cuadro
+  no corta la subida. El previo dice cuántos días tarda un archivo grande (a 300
+  por día) y **avisa antes** si no cabe en el techo de 3.000.
 - **«👤» en cada fila:** se la deja él o se la pasa a un asesor activo
   (`asignar_a`, la de siempre).
 - **«🆕 Recién agregados»** (7 días, del más nuevo al más viejo: lo que acaba
-  de agregar sale arriba) y, en cada fila, la nota, las columnas extra, de
+  de agregar sale arriba; el botón sigue en la fila de filtros aunque elija
+  «Todos») y, en cada fila, la nota, las columnas extra, de
   dónde salió, quién lo subió y la prueba. Lo de Joan cuenta desde el día en
   que Joan lo cargó, no desde el día en que se publicó.
 
@@ -323,7 +327,12 @@ de la receta, después del 2.4 (22d) y de noche.
   chat ni el registro en vivo de un tercero. Como «ya existe» igual delata
   número por número, **cada 50 «ya existía» se para** hasta que Joan los mira
   («Ya lo revisé: que siga»), y el rastro guarda cuáles consultó. La cuenta
-  **no se reinicia a medianoche**: corre desde el último «que siga» de Joan.
+  **no se reinicia a medianoche**: corre desde el último «que siga» de Joan (por
+  eso su pantalla dice «desde la última vez que Joan te dio paso», no «en lo
+  último que subiste»: lo puede parar un número a mano).
+- **Guardar direcciones.** Una columna «Dirección» (o una dirección escrita en
+  otra, «Calle 1 # 2-3») no se guarda: lo que Joan acepta al publicar dice que la
+  dirección no viaja al equipo.
 - **Pasarse de los topes:** 300 al día (entran + ya existían), 100 intentos al
   día, 3.000 subidos por gerente hasta que «Mi base» se pagine. Un «ya existe»
   que ya había consultado **no vuelve a contar** ni para el tope ni para el
@@ -337,10 +346,13 @@ clave de Joan (22d). El asesor no ve los botones, y el servidor lo rechaza
 aunque llame a mano (`solo_gerente`).
 
 ### Lo que ve y hace Joan
+- **Arriba de Bases**, junto a los botones: el ⛔ de un gerente parado (con «Ver
+  cuáles» y «Ya lo revisé: que siga») y lo que subió el equipo esta semana, con
+  un enlace a la tarjeta (que queda debajo de la tabla de Prospectos).
 - **Bases → «⤒ Lo que subió tu equipo»**: vive en la nube y **no se copia a su
   navegador** (por el espacio y las fotos). Cuándo, quién, qué, de dónde salió,
   la prueba, cuántos entraron, cuántos ya existían («cuáles», con dónde, de
-  TODAS las tandas de la fila) y cuántos se registraron después sin gestión
+  TODAS las tandas de la fila, contados sin repetir) y cuántos se registraron después sin gestión
   antes (la huella de quien sube números para quedarse con el que se registre
   solo). En «Ver», el origen y la prueba van persona por persona. Desde ahí
   reasigna a cualquiera, o a **nadie** («soltarlo»).
@@ -352,10 +364,15 @@ aunque llame a mano (`solo_gerente`).
   cambio le llega a quien lo trabaja en ese momento.
 - **Antes de agregar, cargar, repartir y publicar** se pregunta si el equipo ya
   subió ese celular: lo que ya es del equipo no se duplica (la compuerta de
-  publicar).
+  publicar). Sus celulares suben a la nube **al abrir el CRM** (y cada 15 min
+  los nuevos), para que el «ya existe» del equipo los vea aunque no haya
+  publicado nada.
 - **«🚫 Borrar a alguien que lo pidió»**: se va de la nube como prospecto, con
-  todo lo suyo, y su número queda anotado (hash) para que nadie lo vuelva a
-  agregar. A un cliente no se le borra nada: solo se anota.
+  todo lo suyo **y también de la copia de su Panel en la nube** (y de sus
+  choques); su número queda anotado (hash) para que nadie lo vuelva a agregar,
+  y la nube no lo vuelve a guardar aunque otro aparato de Joan lo suba. En ese
+  otro aparato sigue hasta que Joan lo borre ahí, y se le dice. A un cliente no
+  se le borra nada: solo se anota.
 - **Arreglado de paso:** cuando el gerente reasignaba a alguien de Joan, la
   siguiente publicación de Joan lo deshacía sin avisar. Ahora `traerEquipo`
   respeta lo que hizo el gerente (con la fecha de la nube), salvo que Joan
@@ -363,7 +380,15 @@ aunque llame a mano (`solo_gerente`).
   traer (a mano y en la publicación sola de 15 min). Las marcas de esos
   cambios sin publicar viven en memoria y solo van al navegador si la
   publicación falla o la pestaña se cierra: «🔀 Repartir» miles ya no traba el
-  CRM ni llena el espacio antes de guardar.
+  CRM ni llena el espacio antes de guardar. Con una fila **nueva** del gerente
+  (`asignar_a` escribe con su propio id) vale lo mismo: si Joan tiene su cambio
+  sin publicar para esa persona y ese día, gana Joan. Y la vuelta de 15 min trae
+  lo del gerente aunque no tenga nada que publicar.
+- **Lo que reparte el gerente lleva la fecha de Bogotá.** `asignar_a` y
+  `asesor_retirar` escribían con `current_date` (UTC en Supabase): después de
+  las 7 p. m. su reparto quedaba con la fecha de mañana y le ganaba a lo que Joan
+  decidía ese día. El 2.4-bis les cambia solo esa fecha sobre su cuerpo vivo
+  (con huella), sin reescribirlos.
 
 ### Lo que va en el commit aparte (se puede publicar solo)
 Ningún nombre de afuera va dentro de un `onclick`: con un nombre preparado al

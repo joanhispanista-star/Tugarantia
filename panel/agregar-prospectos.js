@@ -57,21 +57,29 @@
        arepas en la esquina»), y lo que traiga de cobro ya lo descarta la regla
        de VALORES («YA PAGO», «VENCIDO»). Se descartaba diciendo «es de
        cobranza», y eso era falso. */
-    cobranza: /(valor|estado|gesti[oó]n|resultado|tipific|orden|plataforma|(^|[^a-záéíóúñ])app([^a-záéíóúñ]|$))/i
+    cobranza: /(valor|estado|gesti[oó]n|resultado|tipific|orden|plataforma|(^|[^a-záéíóúñ])app([^a-záéíóúñ]|$))/i,
+    /* 27-oct-2026, ronda 2 — LA DIRECCIÓN NO VIAJA. Desde el 22-sep, lo que
+       Joan acepta al publicar dice «Sigue sin viajar: cédula, dirección, fotos
+       y referencias», y una columna «Dirección» marcada llegaba al celular del
+       asesor. Joan decidió que el equipo contacta por WhatsApp, no en la casa. */
+    direccion: /(direcci|domicilio|residencia)/i
   };
   var POR_QUE = {
     plata: 'es plata o deuda', documento: 'es un documento', salud: 'es un dato de salud',
     sensible: 'es un dato sensible', biometrico: 'es un dato biométrico', persona: 'es otra persona',
     /* Por el NOMBRE no se sabe qué trae: se dice lo que suele traer. */
-    banco: 'es una clave o un dato del banco', cobranza: 'suele traer datos de cobranza'
+    banco: 'es una clave o un dato del banco', cobranza: 'suele traer datos de cobranza',
+    direccion: 'es una dirección: no viaja al equipo'
   };
   /* Los VALORES que no se guardan: cédulas y teléfonos de otros (7 dígitos o
-     más seguidos), montos, fechas de Excel y códigos (solo cifras), y los que
-     traen palabras de cobro. */
+     más seguidos), montos, fechas de Excel y códigos (solo cifras), los que
+     traen palabras de cobro y (ronda 2) los que son una dirección escrita
+     («Calle 1 # 2-3», «Cra 17 No. 7-7»), aunque vengan en otra columna. */
   var VALORES_QUE_NO_SE_GUARDAN = {
     sieteDigitos: /[0-9]{7,}/,
     soloCifras: /^[0-9.,$ ]{3,}$/,
-    cobro: /((^|[^a-záéíóúñ])mora([^a-záéíóúñ]|$)|vencid|pag[oóa]|deud|cobr|saldo|abon|cuota|castig|embarg|promesa|no contesta|\$)/i
+    cobro: /((^|[^a-záéíóúñ])mora([^a-záéíóúñ]|$)|vencid|pag[oóa]|deud|cobr|saldo|abon|cuota|castig|embarg|promesa|no contesta|\$)/i,
+    direccion: /(^|[^a-záéíóúñ])(calle|cll|cl|carrera|cra|kra|kr|cr|avenida|av|diagonal|dg|transversal|tv)\.?\s*[0-9]+[a-z]?.*(#|n[oº°]\.?\s*[0-9])/i
   };
   /* 27-oct-2026, revisión — una fecha escrita («2026-10-01», «01/10/2026»)
      tiene 8 cifras, pero no es una cédula ni un teléfono: la de los 7 dígitos
@@ -98,6 +106,7 @@
     if (pareceDocumento(t)) return '';
     if (VALORES_QUE_NO_SE_GUARDAN.soloCifras.test(t)) return '';
     if (VALORES_QUE_NO_SE_GUARDAN.cobro.test(t)) return '';
+    if (VALORES_QUE_NO_SE_GUARDAN.direccion.test(t)) return '';
     return t;
   }
   /* El nombre: el nombreDe de bases.js (Mayúscula Inicial, solo letras) SIN la
@@ -154,6 +163,7 @@
           motivo = 'trae estados de cobro: ' + ej.map(function (x) { return '«' + x + '»'; }).join(', ');
         }
       }
+      if (!motivo && valores.filter(function (v) { return VALORES_QUE_NO_SE_GUARDAN.direccion.test(v); }).length > mitad) motivo = POR_QUE.direccion;
       if (!motivo && valores.filter(function (v) { return VALORES_QUE_NO_SE_GUARDAN.soloCifras.test(v); }).length > mitad) motivo = 'son solo números';
       if (!motivo && valores.filter(pareceDocumento).length > mitad) motivo = 'trae cédulas o teléfonos';
       if (!motivo && fam === 'cobranza') motivo = POR_QUE.cobranza;

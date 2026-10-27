@@ -10,7 +10,7 @@
 -- construyen (son segundos, una sola vez) nadie puede terminar su registro en
 -- play/.
 -- Se puede correr dos veces: la segunda ve que ya está y no cambia nada.
--- Al final sale UNA TABLA: 10 filas que tienen que salir en true y, debajo,
+-- Al final sale UNA TABLA: 12 filas que tienen que salir en true y, debajo,
 -- una fila por gerente activo que dice si ya puede subir gente y, si no, la
 -- línea exacta que te falta correr.
 --
@@ -55,12 +55,19 @@
 --     una lista para que nadie lo vuelva a agregar.
 --   · El nombre que llega de play/ se limpia al entrar (un disparador): sin
 --     comillas ni símbolos, para que ninguna pantalla lo pueda ejecutar.
+--   · Quien pidió que lo borraran tampoco se queda en la copia de tu Panel en
+--     la nube (un disparador en panel_ajustes), y no vuelve con «⬇ Traer».
+--   · Lo que reparte tu gerente lleva la fecha de Bogotá, no la de Londres:
+--     después de las 7 p. m. su reparto quedaba con la fecha de mañana y le
+--     ganaba a lo que tú decidías ese mismo día.
 --
--- LO QUE NO TOCA: equipo_publicar, equipo_traer, mi_cartera, asignar_a,
--- mi_alcance, ficha_de_mi_base, registro_en_mi_alcance, responsable_de,
--- gerente_registros, gerente_archivos, asesor_enviar ni registrar_abierto. Sus
--- cuerpos vivos llevan parches de otros días; reescribirlos es la manera de
--- perder uno sin que nadie lo note. Todo lo de aquí es NUEVO.
+-- LO QUE NO TOCA: equipo_publicar, equipo_traer, mi_cartera, mi_alcance,
+-- ficha_de_mi_base, registro_en_mi_alcance, responsable_de, gerente_registros,
+-- gerente_archivos, asesor_enviar ni registrar_abierto. Sus cuerpos vivos
+-- llevan parches de otros días; reescribirlos es la manera de perder uno sin
+-- que nadie lo note. Todo lo de aquí es NUEVO, salvo UN cambio en asignar_a y
+-- asesor_retirar: current_date por la fecha de Bogotá, hecho sobre su cuerpo
+-- vivo (pg_get_functiondef + reemplazo + huella), sin copiarlo (parte 4-bis).
 -- ===========================================================================
 
 -- ====== 0. LO QUE TIENE QUE EXISTIR ANTES ======
@@ -78,7 +85,8 @@ begin
     raise exception 'Primero corre base/20261022d_el_equipo_con_la_clave_de_joan.sql (el 2.4 de la receta). Este archivo va después. No se tocó nada.';
   end if;
   if to_regclass('public.cartera') is null or to_regclass('public.panel_socios') is null
-     or to_regclass('public.panel_ajustes') is null or to_regclass('public.registros_asignados') is null
+     or to_regclass('public.panel_ajustes') is null or to_regclass('public.panel_choques') is null
+     or to_regclass('public.registros_asignados') is null
      or to_regclass('public.registro_en_vivo') is null or to_regclass('public.asignaciones_una_por_dia') is null then
     raise exception 'Faltan tablas de antes (equipo en la nube, panel en la nube o el gerente vende). No se tocó nada.';
   end if;
@@ -301,7 +309,9 @@ begin
     -- esquina»), y lo que traiga de cobro lo descarta la regla de VALORES de
     -- abajo («YA PAGO», «VENCIDO»). La MISMA lista vive en
     -- panel/agregar-prospectos.js.
-    if k ~* '(saldo|mora|deuda|cuota|inter[eé]s|pr[eé]stamo|monto|valor|capital|cr[eé]dito|cupo|pago|abono|vencim|estado|gesti[oó]n|resultado|tipific|orden|plataforma|c[eé]dula|documento|identificaci|pasaporte|referencia|codeudor|fiador|c[oó]nyuge|familiar|asesor|cobrador|gestor|vendedor|recomend|referid|clave|contrase|tarjeta|cuenta|banco|salario|ingreso|salud|diagn|enfermedad|discapacid|m[eé]dic|religi|pol[ií]tic|partido|sindica|etni|raza|orientaci|sexual|huella|foto|biom)'
+    -- 27-oct-2026, ronda 2 — y la dirección (direcci, domicilio, residencia):
+    -- lo que Joan acepta al publicar dice «Sigue sin viajar: … dirección».
+    if k ~* '(saldo|mora|deuda|cuota|inter[eé]s|pr[eé]stamo|monto|valor|capital|cr[eé]dito|cupo|pago|abono|vencim|estado|gesti[oó]n|resultado|tipific|orden|plataforma|c[eé]dula|documento|identificaci|pasaporte|referencia|codeudor|fiador|c[oó]nyuge|familiar|asesor|cobrador|gestor|vendedor|recomend|referid|clave|contrase|tarjeta|cuenta|banco|salario|ingreso|salud|diagn|enfermedad|discapacid|m[eé]dic|religi|pol[ií]tic|partido|sindica|etni|raza|orientaci|sexual|huella|foto|biom|direcci|domicilio|residencia)'
        or k ~* '(^|[^a-záéíóúñ])(eps|nit|app)([^a-záéíóúñ]|$)' then
       continue;
     end if;
@@ -310,7 +320,8 @@ begin
     if (regexp_replace(v, '[ .-]', '', 'g') ~ '[0-9]{7,}'
           and v !~ '^([0-9]{4}[-/][0-9]{1,2}[-/][0-9]{1,2}|[0-9]{1,2}[-/][0-9]{1,2}[-/][0-9]{4})$')
        or v ~ '^[0-9.,$ ]{3,}$'
-       or v ~* '((^|[^a-záéíóúñ])mora([^a-záéíóúñ]|$)|vencid|pag[oóa]|deud|cobr|saldo|abon|cuota|castig|embarg|promesa|no contesta|\$)' then
+       or v ~* '((^|[^a-záéíóúñ])mora([^a-záéíóúñ]|$)|vencid|pag[oóa]|deud|cobr|saldo|abon|cuota|castig|embarg|promesa|no contesta|\$)'
+       or v ~* '(^|[^a-záéíóúñ])(calle|cll|cl|carrera|cra|kra|kr|cr|avenida|av|diagonal|dg|transversal|tv)\.?\s*[0-9]+[a-z]?.*(#|n[oº°]\.?\s*[0-9])' then
       continue;
     end if;
     salida := salida || jsonb_build_object(k, v);
@@ -431,6 +442,75 @@ create trigger registros_nombre_limpio
 update public.registros set nombre = nombre
  where nombre ~ '[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ .-]';
 
+-- ====== 3-bis. QUIEN PIDIÓ QUE LO BORRARAN NO VUELVE A LA COPIA DEL PANEL ======
+-- 27-oct-2026, ronda 2 — «🚫 Borrar a alguien que lo pidió» borraba la
+-- cartera del equipo, pero la copia del Panel de Joan en la nube
+-- (panel_ajustes 'prospectos', la que deja «⬆ Subir») lo seguía teniendo con
+-- su nota, y «⬇ Traer» —que junta las listas por celular y solo suma— lo
+-- devolvía al CRM de Joan, desde donde se le puede escribir. Para la Ley 1581
+-- la supresión quedaba a medias, y el cuadro decía «se borra de la nube».
+-- Ahora equipo_suprimir lo quita de ahí y de las copias de sus choques, y
+-- estos disparadores lo quitan cada vez que un aparato vuelve a subir la
+-- lista: el otro aparato de Joan (el celular) puede tenerlo todavía, pero la
+-- nube ya no lo guarda. Si nadie ha pedido que lo borren, no hace nada.
+create or replace function public.prospectos_sin_suprimidos(p jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if p is null or jsonb_typeof(p) <> 'array' or not exists (select 1 from public.no_contactar) then
+    return p;
+  end if;
+  return coalesce((
+    select jsonb_agg(e.value order by e.o)
+      from jsonb_array_elements(p) with ordinality e(value, o)
+     where not exists (select 1 from public.no_contactar n
+                        where n.cel_hash = public.cel_hash(public.celular_de_base(e.value->>'celular')))), '[]'::jsonb);
+end
+$$;
+create or replace function public.panel_ajustes_sin_suprimidos()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.clave = 'prospectos' then new.datos := public.prospectos_sin_suprimidos(new.datos); end if;
+  return new;
+end
+$$;
+create or replace function public.panel_choques_sin_suprimidos()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.tabla = 'ajustes' and new.fila_id = 'prospectos' then
+    if jsonb_typeof(new.mio -> 'datos') = 'array' then
+      new.mio := jsonb_set(new.mio, '{datos}', public.prospectos_sin_suprimidos(new.mio -> 'datos'));
+    end if;
+    if jsonb_typeof(new.suyo -> 'datos') = 'array' then
+      new.suyo := jsonb_set(new.suyo, '{datos}', public.prospectos_sin_suprimidos(new.suyo -> 'datos'));
+    end if;
+  end if;
+  return new;
+end
+$$;
+revoke all on function public.panel_ajustes_sin_suprimidos() from public, anon, authenticated;
+revoke all on function public.panel_choques_sin_suprimidos() from public, anon, authenticated;
+drop trigger if exists panel_ajustes_sin_suprimidos on public.panel_ajustes;
+create trigger panel_ajustes_sin_suprimidos
+  before insert or update of datos on public.panel_ajustes
+  for each row execute function public.panel_ajustes_sin_suprimidos();
+drop trigger if exists panel_choques_sin_suprimidos on public.panel_choques;
+create trigger panel_choques_sin_suprimidos
+  before insert or update of mio, suyo on public.panel_choques
+  for each row execute function public.panel_choques_sin_suprimidos();
+
 -- ====== 4. EL TRABAJO DEL GERENTE, con el gerente ya resuelto ======
 -- Está separada de gerente_agregar_prospectos para que la prueba de este mismo
 -- archivo recorra el camino entero contra la base de verdad y lo deshaga. No
@@ -445,6 +525,10 @@ as $$
 declare
   -- El día es el de Bogotá: en UTC, a las 7 p. m. ya sería «mañana».
   inicio_hoy  timestamptz := (date_trunc('day', now() at time zone 'America/Bogota')) at time zone 'America/Bogota';
+  -- 27-oct-2026, ronda 2 — y la FECHA de la asignación también: con la del
+  -- servidor (UTC en Supabase) lo que el gerente repartía a las 8 p. m.
+  -- quedaba con la fecha de mañana y le ganaba a lo que Joan decidía hoy.
+  hoy_bog     date := (now() at time zone 'America/Bogota')::date;
   lote        jsonb := coalesce(p_lote, '{}'::jsonb);
   v_archivo   text;
   v_origen    text;
@@ -483,6 +567,17 @@ declare
   pid         text;
   k           integer := 0;
   i           integer;
+  fila_in     record;
+  pos         integer[] := '{}';   -- la fila del lote de cada celular de cels
+  inval_pos   integer[] := '{}';
+  rep_pos     integer[] := '{}';
+  costo       integer;
+  nuevo_t     integer;
+  gasto       integer := 0;
+  nuevos_t    integer := 0;
+  m           integer := 0;
+  corte       text := '';
+  procesadas  integer;
 begin
   if p_yo.celular is null then
     return jsonb_build_object('ok', false, 'motivo', 'solo_gerente');
@@ -549,13 +644,19 @@ begin
   end if;
 
   -- 6. Cada fila, limpia. Los repetidos dentro de la tanda cuentan aparte.
-  for f in select value from jsonb_array_elements(filas) loop
+  --    27-oct-2026, ronda 2 — con su POSICIÓN en el lote (pos, inval_pos,
+  --    rep_pos): si el cupo se acaba a mitad de la tanda, el corte se dice en
+  --    filas del lote, que es lo que el CRM sabe contar.
+  for fila_in in select e.value as v, e.ordinality::integer as o
+                   from jsonb_array_elements(filas) with ordinality e loop
+    f := fila_in.v;
     cel := public.celular_de_base(f->>'celular');
-    if cel = '' then invalidas := invalidas + 1; continue; end if;
-    if cel = any(cels) then repetidas := repetidas + 1; continue; end if;
+    if cel = '' then invalidas := invalidas + 1; inval_pos := inval_pos || fila_in.o; continue; end if;
+    if cel = any(cels) then repetidas := repetidas + 1; rep_pos := rep_pos || fila_in.o; continue; end if;
     para := right(public.solo_digitos(coalesce(f->>'para', '')), 10);
     if para = '' then para := p_yo.celular; end if;
     cels    := cels || cel;
+    pos     := pos || fila_in.o;
     nombres := nombres || public.nombre_limpio(f->>'nombre', 120);
     notas   := notas || public.texto_del_equipo(f->>'nota', 300);
     extras  := extras || public.extra_limpio(f->'extra');
@@ -602,25 +703,58 @@ begin
 
   -- 8. El techo: «Mi base» baja entera en cada llamada; con más de 3.000 por
   --    gerente hay que paginarla antes.
-  select count(*) into subidos from public.cartera_info where subido_por = p_yo.celular;
-  if subidos + n_entran > 3000 then
-    motivo := 'techo_base';
-  end if;
-
   -- 9. El tope del día: cuentan los que entran y los que ya existían de las
   --    tandas ACEPTADAS (solo los que no había consultado antes). Una
   --    rechazada no gasta, y no devuelve cuentas: si las devolviera, serviría
   --    de consulta gratis.
+  --    27-oct-2026, ronda 2 — FILA POR FILA, y entra lo que cabe. Antes la
+  --    tanda entraba entera o no entraba, así que el CRM mandaba solo las
+  --    primeras «quedan_hoy» filas del archivo; con un archivo grande, esas
+  --    eran SIEMPRE los mismos «ya existe» que ya había consultado (gratis
+  --    aquí, pero ocupando el lugar de gente nueva): cada día entraba menos
+  --    (270, 228, 220… 69 el día 14) con cupo sin usar, y la pantalla decía
+  --    «no cabían en el cupo de hoy». Ahora el CRM manda el archivo entero
+  --    en tandas y aquí se recorre en orden: lo tuyo y lo ya consultado no
+  --    gastan; lo nuevo gasta uno de cupo (y uno de techo si entra). Se corta
+  --    ANTES de la primera fila que no cabe, y solo se consulta lo de antes
+  --    del corte: lo de después ni se clasifica en el rastro ni se responde.
+  select count(*) into subidos from public.cartera_info where subido_por = p_yo.celular;
   select coalesce(sum(c.entraron + c.ya_existen_nuevos), 0) into usadas from public.equipo_cargas c
    where c.quien = p_yo.celular and c.rechazo = '' and c.cuando >= inicio_hoy;
-  if motivo = '' and usadas + n_entran + n_nuevos > 300 then
-    motivo := 'tope';
+  for i in 1 .. coalesce(array_length(cels, 1), 0) loop
+    if cels[i] = any(tuyos) then costo := 0; nuevo_t := 0;
+    elsif cels[i] = any(conocidos) then costo := case when cels[i] = any(sabidos) then 0 else 1 end; nuevo_t := 0;
+    else costo := 1; nuevo_t := 1;
+    end if;
+    if usadas + gasto + costo > 300 then corte := 'tope'; exit; end if;
+    if subidos + nuevos_t + nuevo_t > 3000 then corte := 'techo_base'; exit; end if;
+    gasto := gasto + costo; nuevos_t := nuevos_t + nuevo_t; m := i;
+  end loop;
+
+  -- Si antes del corte no hay nada que gaste (ni entra nadie ni se consulta
+  -- nada nuevo), la tanda se rechaza como siempre: sin cuentas.
+  if corte <> '' and gasto = 0 then
+    insert into public.equipo_cargas (quien, archivo, origen, autoriza, prueba, recibidas, repetidas, invalidas, rechazo)
+    values (p_yo.celular, v_archivo, v_origen, true, v_prueba, recibidas, repetidas, invalidas, corte);
+    return jsonb_build_object('ok', false, 'motivo', corte, 'quedan_hoy', greatest(0, 300 - usadas));
   end if;
 
-  if motivo <> '' then
-    insert into public.equipo_cargas (quien, archivo, origen, autoriza, prueba, recibidas, repetidas, invalidas, rechazo)
-    values (p_yo.celular, v_archivo, v_origen, true, v_prueba, recibidas, repetidas, invalidas, motivo);
-    return jsonb_build_object('ok', false, 'motivo', motivo, 'quedan_hoy', greatest(0, 300 - usadas));
+  -- Lo que cabe: el lote hasta la fila de antes del corte. Todo lo que se
+  -- cuenta y se guarda es de ese pedazo.
+  procesadas := recibidas;
+  if corte <> '' then
+    procesadas := pos[m + 1] - 1;
+    cels := cels[1:m]; pos := pos[1:m]; nombres := nombres[1:m]; notas := notas[1:m];
+    extras := extras[1:m]; paras := paras[1:m];
+    tuyos     := array(select x from unnest(tuyos) x where x = any(cels));
+    conocidos := array(select x from unnest(conocidos) x where x = any(cels));
+    sabidos   := array(select x from unnest(sabidos) x where x = any(cels));
+    repetidas := (select count(*) from unnest(rep_pos) x where x <= procesadas);
+    invalidas := (select count(*) from unnest(inval_pos) x where x <= procesadas);
+    n_tuyos   := coalesce(array_length(tuyos, 1), 0);
+    n_existen := coalesce(array_length(conocidos, 1), 0);
+    n_entran  := coalesce(array_length(cels, 1), 0) - n_tuyos - n_existen;
+    n_nuevos  := n_existen - coalesce(array_length(sabidos, 1), 0);
   end if;
 
   -- 10. EL FRENO DE LOS 50. La ventana empieza en la última vez que Joan le
@@ -640,7 +774,7 @@ begin
   if en_ventana + n_nuevos > 50 then
     insert into public.equipo_cargas (quien, archivo, origen, autoriza, prueba, recibidas, ya_existen,
                                       ya_existen_cels, ya_existen_nuevos, repetidas, invalidas, rechazo)
-    values (p_yo.celular, v_archivo, v_origen, true, v_prueba, recibidas, n_existen,
+    values (p_yo.celular, v_archivo, v_origen, true, v_prueba, procesadas, n_existen,
             conocidos, n_nuevos, repetidas, invalidas, 'tope_ya_existen')
     returning id into carga;
     insert into public.equipo_frenos (quien, accion, carga_id, por)
@@ -651,14 +785,15 @@ begin
   -- 11. El rastro de la tanda que entra.
   insert into public.equipo_cargas (quien, archivo, origen, autoriza, canal, prueba, recibidas, entraron,
                                     ya_en_tu_base, ya_existen, ya_existen_cels, ya_existen_nuevos, repetidas, invalidas, rechazo)
-  values (p_yo.celular, v_archivo, v_origen, true, 'whatsapp', v_prueba, recibidas, n_entran,
+  values (p_yo.celular, v_archivo, v_origen, true, 'whatsapp', v_prueba, procesadas, n_entran,
           n_tuyos, n_existen, conocidos, n_nuevos, repetidas, invalidas, '')
   returning id into carga;
 
   -- 12. Cada uno que entra: su fila en cartera (como todo prospecto: no_sms en
   --     null, así que ✉️ y 📞 siguen cerrados), su PRIMERA asignación (con la
-  --     misma fecha que usa asignar_a, y como es la primera de una persona
-  --     nueva no choca con asignaciones_una_por_dia) y su información.
+  --     fecha de Bogotá, la misma que usa asignar_a desde la parte 4-bis, y
+  --     como es la primera de una persona nueva no choca con
+  --     asignaciones_una_por_dia) y su información.
   --     Los prefijos GP/GA no chocan con nada: Joan escribe P, A y B; asignar_a
   --     escribe G+dígitos; asesor_retirar, RE-; equipo_reasignar, JA.
   sello := to_char(clock_timestamp() at time zone 'America/Bogota', 'YYYYMMDDHH24MISSMS');
@@ -668,18 +803,57 @@ begin
     insert into public.cartera (id, tipo, celular, nombre, estado, etapa, actualizado)
     values (pid, 'prospecto', cels[i], nombres[i], 'nuevo', 'PC', now());
     insert into public.asignaciones (id, persona_id, asesor, desde, actualizado)
-    values ('GA' || sello || '-' || carga || '-' || k, pid, paras[i], current_date, now());
+    values ('GA' || sello || '-' || carga || '-' || k, pid, paras[i], hoy_bog, now());
     insert into public.cartera_info (persona_id, origen, autoriza, canal, nota, extra, subido_por, subido_en, carga_id)
     values (pid, v_origen, true, 'whatsapp', notas[i], extras[i], p_yo.celular, now(), carga);
     k := k + 1;
   end loop;
 
   -- 13. Sin ids, sin nombres y sin decir dónde existe un número ni de quién es.
+  --     27-oct-2026, ronda 2 — `corto`: el cupo ('tope') o el techo
+  --     ('techo_base') se acabó a mitad de la tanda; '' si entró entera.
+  --     `procesadas`: cuántas filas del lote se miraron, para que el CRM sepa
+  --     cuántas quedan para otro día.
   return jsonb_build_object('ok', true, 'carga', carga, 'entraron', n_entran,
     'ya_en_tu_base', n_tuyos, 'ya_existen', n_existen, 'repetidas', repetidas,
-    'invalidas', invalidas, 'quedan_hoy', greatest(0, 300 - usadas - n_entran - n_nuevos));
+    'invalidas', invalidas, 'quedan_hoy', greatest(0, 300 - usadas - n_entran - n_nuevos),
+    'corto', corte, 'procesadas', procesadas);
 end
 $$;
+
+-- ====== 4-bis. LO QUE REPARTE EL GERENTE LLEVA LA FECHA DE BOGOTÁ ======
+-- 27-oct-2026, ronda 2 — asignar_a (el 👤 y el 🔀 Repartir del gerente) y
+-- asesor_retirar escribían la asignación con current_date, que en Supabase es
+-- la fecha de Londres (UTC). Desde las 7 p. m. de Bogotá, lo que el gerente
+-- repartía quedaba con la fecha de MAÑANA, y la asignación vigente es la de
+-- fecha más reciente: le ganaba a lo que Joan decidía ese mismo día, y el
+-- CRM de Joan decía «queda con SANDRA» mientras en la nube quedaba con LEIDY.
+-- Joan escribe con la fecha de Bogotá. No se reescriben (sus cuerpos vivos
+-- llevan parches de 20261015 y de 22d): se cambia SOLO current_date sobre el
+-- cuerpo que hay, y la huella confirma que no cambió nada más. La segunda vez
+-- no encuentra current_date y no toca nada.
+do $$
+declare
+  r       record;
+  antes   text;
+  despues text;
+  bog     constant text := '(now() at time zone ''America/Bogota'')::date';
+begin
+  for r in select p.oid, p.proname from pg_proc p
+            where p.pronamespace = 'public'::regnamespace
+              and p.proname in ('asignar_a', 'asesor_retirar') loop
+    antes := pg_get_functiondef(r.oid);
+    if position('current_date' in antes) = 0 then
+      raise notice '%: ya escribe con la fecha de Bogotá; no se cambió nada.', r.proname;
+      continue;
+    end if;
+    despues := replace(antes, 'current_date', bog);
+    if md5(replace(despues, bog, 'current_date')) <> md5(antes) then
+      raise exception '% no se dejó cambiar solo la fecha. No se tocó nada: avísale a Claude.', r.proname;
+    end if;
+    execute despues;
+  end loop;
+end $$;
 
 -- ====== 5. LO QUE LLAMA EL GERENTE (con su sesión y la clave de Joan) ======
 
@@ -842,7 +1016,13 @@ begin
                    coalesce((array_agg(c.prueba order by c.id desc) filter (where c.entraron > 0))[1],
                             (array_agg(c.prueba order by c.id desc))[1]) as prueba,
                    sum(c.recibidas)::int as recibidas, sum(c.entraron)::int as entraron,
-                   sum(c.ya_en_tu_base)::int as ya_en_tu_base, sum(c.ya_existen)::int as ya_existen,
+                   -- 27-oct-2026, ronda 2 — «Ya existían» son los celulares
+                   -- DISTINTOS de esas tandas, que es lo que abre «cuáles». Con
+                   -- la suma, el mismo archivo subido dos veces el mismo día
+                   -- decía «Ya existían 120» y «cuáles» abría 60.
+                   sum(c.ya_en_tu_base)::int as ya_en_tu_base,
+                   (select count(distinct y)::int from public.equipo_cargas c2 cross join lateral unnest(c2.ya_existen_cels) y
+                     where c2.id = any(array_agg(c.id))) as ya_existen,
                    sum(c.repetidas)::int as repetidas, sum(c.invalidas)::int as invalidas,
                    count(*)::int as tandas, ''::text as rechazo,
                    (count(distinct c.origen) filter (where c.entraron > 0))::int as origenes,
@@ -950,8 +1130,16 @@ $$;
 -- junta lo de a mano de un día y las tandas de un archivo, y mandaba solo la
 -- primera: «a mano (4) · Ya existían 3 · cuáles» abría «Ninguno». La firma de
 -- antes se borra (este archivo no ha corrido en producción).
+-- 27-oct-2026, ronda 2 — `p_solo_nuevos`: la franja del freno dice cuántos
+-- «ya existe» NUEVOS se juntaron desde el último «que siga» (los que lo
+-- pararon), y «Ver cuáles» abría también los que Joan ya había revisado en el
+-- freno anterior: «51» abría 111. Con true, solo los que este gerente no había
+-- consultado en ninguna carga anterior a las pedidas (la misma regla con la
+-- que agregar_prospectos_de los cuenta). Sin él (las filas de la tarjeta), los
+-- distintos de esas cargas, que es lo que la fila cuenta.
 drop function if exists public.equipo_ya_existian(text, bigint);
-create or replace function public.equipo_ya_existian(p_clave text, p_cargas bigint[])
+drop function if exists public.equipo_ya_existian(text, bigint[]);
+create or replace function public.equipo_ya_existian(p_clave text, p_cargas bigint[], p_solo_nuevos boolean default false)
 returns jsonb
 language plpgsql
 volatile
@@ -985,7 +1173,13 @@ begin
       end) order by c.x)
       from (select distinct x from public.equipo_cargas ca
              cross join lateral unnest(ca.ya_existen_cels) x
-            where ca.id = any(coalesce(p_cargas, '{}'))) c(x)
+            where ca.id = any(coalesce(p_cargas, '{}'))
+              and (not coalesce(p_solo_nuevos, false) or not exists (
+                    select 1 from public.equipo_cargas pr
+                     where pr.quien = ca.quien
+                       and pr.id < (select min(y) from unnest(p_cargas) y)
+                       and pr.rechazo in ('', 'tope_ya_existen')
+                       and pr.ya_existen_cels @> array[x]))) c(x)
       -- De quién es hoy en el equipo: la ÚLTIMA asignación de cualquier fila
       -- de cartera con ese celular ('' si la soltaron).
       left join lateral (select ea.nombre
@@ -1077,6 +1271,7 @@ $$;
 -- nadie ('' = soltarlo: nadie lo trabaja y nadie ve su registro). Solo mueve
 -- gente del equipo: lo de Joan se reparte desde su CRM, como siempre (dos
 -- caminos para lo mismo terminan pisándose). Una fila por persona y día.
+-- 27-oct-2026, ronda 2 — el día es el de Bogotá (ver la parte 4-bis).
 create or replace function public.equipo_reasignar(p_clave text, p_personas jsonb, p_asesor text)
 returns jsonb
 language plpgsql
@@ -1108,7 +1303,7 @@ begin
       fuera := fuera + 1; continue;
     end if;
     insert into public.asignaciones (id, persona_id, asesor, desde, actualizado)
-    values (sello || '-' || n, pid, destino, current_date, now())
+    values (sello || '-' || n, pid, destino, (now() at time zone 'America/Bogota')::date, now())
     on conflict (persona_id, desde) do update set asesor = excluded.asesor, actualizado = now();
     n := n + 1;
   end loop;
@@ -1252,6 +1447,17 @@ begin
   insert into public.no_contactar (cel_hash, desde, como) values (public.cel_hash(cel), now(), como)
   on conflict (cel_hash) do nothing;
 
+  -- 27-oct-2026, ronda 2 — y de la copia del Panel de Joan en la nube y de
+  -- las copias de sus choques (ver la parte 3-bis): sin esto «⬇ Traer» lo
+  -- devolvía a su CRM con su nota. Con la fila en no_contactar, los
+  -- disparadores lo quitan al reescribir. No es un prospecto que la ley
+  -- obligue a guardar, así que se quita también si es cliente.
+  update public.panel_ajustes set datos = datos
+   where clave = 'prospectos' and jsonb_typeof(datos) = 'array'
+     and exists (select 1 from jsonb_array_elements(datos) e where public.celular_de_base(e->>'celular') = cel);
+  update public.panel_choques set mio = mio, suyo = suyo
+   where tabla = 'ajustes' and fila_id = 'prospectos';
+
   if exists (select 1 from public.panel_socios ps where not ps.borrado and cel in (
                right(public.solo_digitos(ps.datos->>'telefono'), 10),
                right(public.solo_digitos(ps.datos->>'telefono2'), 10),
@@ -1313,6 +1519,7 @@ revoke all on function public.texto_del_equipo(text, integer)                  f
 revoke all on function public.extra_limpio(jsonb)                              from public, anon, authenticated;
 revoke all on function public.cel_hash(text)                                   from public, anon, authenticated;
 revoke all on function public.celulares_conocidos(text[])                      from public, anon, authenticated;
+revoke all on function public.prospectos_sin_suprimidos(jsonb)                 from public, anon, authenticated;
 revoke all on function public.agregar_prospectos_de(public.equipo, jsonb)      from public, anon, authenticated;
 revoke all on function public.equipo_acuerdo_firmado(text, date, text)         from public, anon, authenticated;
 revoke all on function public.gerente_carga_cupo()                             from public, anon, authenticated;
@@ -1323,7 +1530,7 @@ grant  execute on function public.gerente_agregar_prospectos(jsonb)            t
 grant  execute on function public.mi_cartera_info()                            to authenticated;
 revoke all on function public.equipo_agregados(text)                           from public, anon, authenticated;
 revoke all on function public.equipo_agregados_de(text, bigint[], integer)     from public, anon, authenticated;
-revoke all on function public.equipo_ya_existian(text, bigint[])               from public, anon, authenticated;
+revoke all on function public.equipo_ya_existian(text, bigint[], boolean)      from public, anon, authenticated;
 revoke all on function public.equipo_soltar(text, text)                        from public, anon, authenticated;
 revoke all on function public.equipo_tiene(text, text[])                       from public, anon, authenticated;
 revoke all on function public.equipo_reasignar(text, jsonb, text)              from public, anon, authenticated;
@@ -1332,7 +1539,7 @@ revoke all on function public.equipo_publicar_celulares(text, jsonb)           f
 revoke all on function public.equipo_suprimir(text, text, text)                from public, anon, authenticated;
 grant  execute on function public.equipo_agregados(text)                       to anon;   -- Joan, con su clave
 grant  execute on function public.equipo_agregados_de(text, bigint[], integer) to anon;
-grant  execute on function public.equipo_ya_existian(text, bigint[])           to anon;
+grant  execute on function public.equipo_ya_existian(text, bigint[], boolean)  to anon;
 grant  execute on function public.equipo_soltar(text, text)                    to anon;
 grant  execute on function public.equipo_tiene(text, text[])                   to anon;
 grant  execute on function public.equipo_reasignar(text, jsonb, text)          to anon;
@@ -1442,7 +1649,7 @@ union all
 select 4, 'las nueve de Joan: solo anon (con tu clave), nunca authenticated',
        (select bool_and(has_function_privilege('anon', f, 'execute') and not has_function_privilege('authenticated', f, 'execute'))
           from unnest(array['public.equipo_agregados(text)'::regprocedure, 'public.equipo_agregados_de(text, bigint[], integer)'::regprocedure,
-                            'public.equipo_ya_existian(text, bigint[])'::regprocedure, 'public.equipo_soltar(text, text)'::regprocedure,
+                            'public.equipo_ya_existian(text, bigint[], boolean)'::regprocedure, 'public.equipo_soltar(text, text)'::regprocedure,
                             'public.equipo_tiene(text, text[])'::regprocedure, 'public.equipo_reasignar(text, jsonb, text)'::regprocedure,
                             'public.equipo_publicar_info(text, jsonb)'::regprocedure, 'public.equipo_publicar_celulares(text, jsonb)'::regprocedure,
                             'public.equipo_suprimir(text, text, text)'::regprocedure]) f),
@@ -1453,6 +1660,7 @@ select 5, 'los ayudantes, agregar_prospectos_de y equipo_acuerdo_firmado: nadie 
           from unnest(array['public.celular_de_base(text)'::regprocedure, 'public.nombre_limpio(text, integer)'::regprocedure,
                             'public.texto_del_equipo(text, integer)'::regprocedure, 'public.extra_limpio(jsonb)'::regprocedure,
                             'public.cel_hash(text)'::regprocedure, 'public.celulares_conocidos(text[])'::regprocedure,
+                            'public.prospectos_sin_suprimidos(jsonb)'::regprocedure,
                             'public.agregar_prospectos_de(public.equipo, jsonb)'::regprocedure,
                             'public.equipo_acuerdo_firmado(text, date, text)'::regprocedure]) f),
        ''
@@ -1486,6 +1694,20 @@ select 10, 'la prueba en vivo no dejó nada',
         and not exists (select 1 from public.equipo where nombre = 'PRUEBA 27-OCT')
         and not exists (select 1 from public.equipo_acuerdos where donde = 'prueba del archivo')
         and not exists (select 1 from public.equipo_cargas where origen = 'prueba 27-oct')),
+       ''
+union all
+select 11, 'lo que reparte tu gerente lleva la fecha de Bogotá (asignar_a, asesor_retirar, agregar y reasignar)',
+       (exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'asignar_a')
+        and not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace
+                         and p.proname in ('asignar_a', 'asesor_retirar', 'agregar_prospectos_de', 'equipo_reasignar')
+                         and p.prosrc ~ 'current_date')),
+       ''
+union all
+select 12, 'quien pidió que lo borraran no vuelve a la copia de tu Panel en la nube (los dos disparadores existen)',
+       (select count(*) = 2 from pg_trigger t
+         where not t.tgisinternal
+           and ((t.tgname = 'panel_ajustes_sin_suprimidos' and t.tgrelid = 'public.panel_ajustes'::regclass)
+             or (t.tgname = 'panel_choques_sin_suprimidos' and t.tgrelid = 'public.panel_choques'::regclass))),
        ''
 union all
 select 20 + row_number() over (order by e.nombre, e.celular),

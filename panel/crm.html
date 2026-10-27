@@ -775,6 +775,10 @@
         <div><button class="btn btn-ghost" onclick="pantallaAsignar('potenciales')">🔀 Repartir</button>
         <button class="btn btn-ghost" onclick="agregarProspecto()">＋ Agregar prospecto</button>
         <button class="btn btn-rojo" onclick="cargarBase()">⤒ Cargar base</button></div></div>
+      <!-- 27-oct-2026, ronda 2 — lo del equipo que no puede esperar, ARRIBA: la
+           tarjeta queda debajo de la tabla de Prospectos (a 13.800 px en el PC)
+           y el ⛔ del freno solo vivía allá (ver pintarAvisoDelEquipo). -->
+      <div id="avisoDelEquipo"></div>
       <div class="kpis" id="kpiBases"></div>
       <div class="card"><div class="card-h"><h3>📇 Prospectos</h3>
         <span class="tag">Se vuelven clientes cuando se registran y les desembolsas</span></div>
@@ -14942,7 +14946,7 @@ function vistaBaseEquipo() {
       ${bot('todos', 'Todos (' + deQuien.length + ')')}
       ${bot('clientes', '🧑‍🤝‍🧑 Cobrar (' + cli + ')')}
       ${bot('potenciales', '📇 Vender (' + pot + ')')}
-      ${extra}</div>` : ''}
+      ${extra}${botonRecienEq(deQuien)}</div>` : ''}
     ${avisoAlDiaDeEq()}
     ${avisosBaseEq()}
     <div class="card">${g.length ? g.map(p => filaPersonaEq(p)).join('')
@@ -15000,6 +15004,23 @@ function subidoEnEq(p) {
   const t = i ? new Date(i.subido_en).getTime() : NaN;
   return isNaN(t) ? 0 : t;
 }
+/* 27-oct-2026, ronda 2 — «🆕 Recién agregados» SIEMPRE A LA VISTA mientras
+   haya alguien de los últimos 7 días. El botón solo existía con el filtro ya
+   elegido (el «extra» de vistaBaseEquipo): en cuanto William tocaba «Todos»
+   desaparecía, y la única forma de volver a ver a los de la feria era agregar
+   a alguien más. La información adicional llega después de pintar la vista
+   (traerInfoEq), así que el hueco se vuelve a llenar en su sitio. */
+function botonRecienEq(gente) {
+  return '<span id="botonRecienEq" style="display:contents">' + htmlBotonRecienEq(gente) + '</span>';
+}
+function htmlBotonRecienEq(gente) {
+  if (_grupoBaseEq === 'recien' || !FILTROS_BASE.recien) return '';
+  const n = (gente || []).filter(FILTROS_BASE.recien.f).length;
+  return n ? `<button class="btn btn-ghost btn-sm" onclick="irGrupoBase('recien')">${escHTML(FILTROS_BASE.recien.et)} (${n})</button>` : '';
+}
+function genteDeMiBaseEq() {
+  return _asesorBaseEq ? genteEquipo().filter(p => p.asesor === _asesorBaseEq) : genteEquipo();
+}
 
 const MESES_CORTOS_EQ = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 function fechaCortaEq(iso) {
@@ -15015,11 +15036,17 @@ function esFaltaFuncionEq(res) {
 /* Los textos de cuando no se puede, escritos UNA vez: el cuadro del menú, el
    archivo y el «Agregar» dicen lo mismo. Ninguno cita la numeración de la
    receta (Joan no la reconocería en boca de William). */
+/* 27-oct-2026, ronda 2 — «en_revision» ya no dice «en lo último que subiste»
+   ni «vuelve a subir el mismo archivo»: el freno junta los «ya existe» desde
+   la última vez que Joan le dio paso (no se reinicia a medianoche), y lo
+   puede disparar UN número escrito a mano con 50 de días anteriores. Este
+   texto sale en el cuadro del menú, en «Agregar» y en el archivo: dice lo que
+   es verdad en los tres. */
 const NO_SE_PUEDE_EQ = {
   falta: 'Todavía no: falta un paso de Joan en la nube. Avísale.',
   solo_gerente: 'No pude confirmar que eres gerente. Sal y vuelve a entrar; si sigue, avísale a Joan.',
   sin_acuerdo: 'Todavía no puedes subir a nadie: falta que Joan anote tu acuerdo de manejo de datos con NEXECO. Es un papel que se firma una vez; pídeselo a Joan.',
-  en_revision: 'Paré tus subidas: en lo último que subiste, más de 50 celulares ya existían en Tu Garantía. Joan lo revisa antes de que sigas. Avísale, y cuando él te dé paso, vuelve a subir el mismo archivo.',
+  en_revision: 'Paré tus subidas: desde la última vez que Joan te dio paso, ya van más de 50 celulares que ya existían en Tu Garantía (se juntan de un día para otro, a mano o en archivo). Joan los revisa antes de que sigas. Avísale; cuando te dé paso, puedes seguir agregando.',
   techo_base: 'Ya subiste 3.000 personas, que es lo que hoy aguanta «Mi base» en el celular sin ponerse lenta. Antes de subir más hay que preparar esa pantalla: avísale a Joan.',
   muchas_llamadas: 'Hoy ya intentaste agregar 100 veces. Mañana se reinicia.',
   tope: 'Hoy ya probaste 300 celulares (cuentan los que entraron y los que ya existían). Mañana se reinicia.',
@@ -15109,7 +15136,7 @@ function agregarProspectoEq() {
       <div class="field"><label>Celular</label><input id="apCelEq" inputmode="numeric" placeholder="3001234567" autocomplete="off"></div>
       <div class="field"><label>Información adicional <span class="opc">(opcional)</span></label>
         <textarea id="apNotaEq" rows="2" maxlength="300" placeholder="Ej: vende en la plaza de Kennedy, llamarlo después de las 3"></textarea>
-        <div class="help">La ven tú, quien lo trabaje y Joan. No escribas cédulas, claves, deudas ni nada de salud, religión o política.</div></div>
+        <div class="help">La ven tú, quien lo trabaje y Joan. No escribas cédulas, direcciones, claves, deudas ni nada de salud, religión o política.</div></div>
       <div class="field"><label>¿De dónde sale?</label><input id="apOrigenEq" placeholder="Ej: me lo recomendó un cliente — o: me escribió por Facebook">
         <div class="help">Queda guardado con él. Si algún día pregunta de dónde sacamos su teléfono, esta es la respuesta, y tiene que existir antes, no después.</div></div>
       <div class="field"><label>¿Te autorizó que le escribamos por WhatsApp para ofrecerle el crédito?</label>
@@ -15265,6 +15292,8 @@ function pintarInfoEnSuSitioEq() {
     });
     const caja = document.getElementById('avisoInfoEq');
     if (caja) caja.innerHTML = INFO_EQ && INFO_EQ.estado === 'error' ? lineaInfoFallaEq() : '';
+    const recien = document.getElementById('botonRecienEq');
+    if (recien) recien.innerHTML = htmlBotonRecienEq(genteDeMiBaseEq());
   } catch (e) {}
 }
 function htmlInfoEq(i) {
@@ -15447,13 +15476,39 @@ function pintarPrevioBaseEq() {
       ${asesores.map(a => `<option value="${escHTML(digitosDeBoton(a.celular))}">Todos a ${escHTML(a.nombre)}</option>`).join('')}
       ${asesores.length ? `<option value="parejo">Repartir parejo entre mis asesores (${asesores.length})</option>` : ''}</select></div>
     <div class="muted" style="font-size:12.5px">Hoy puedes probar ${quedan.toLocaleString('es-CO')} celulares más. Este archivo trae ${n.toLocaleString('es-CO')}.</div>
-    ${n > quedan && quedan > 0 ? `<div class="muted" style="font-size:12.5px;margin-top:4px">Las primeras ${quedan.toLocaleString('es-CO')} del archivo
-      que todavía no son tuyas. Las demás, mañana, con el mismo archivo: las que ya entraron saldrán como «ya eran tuyas»,
-      y las que ya te dieron «ya existe» no vuelven a gastar cupo.</div>` : ''}
+    ${cuantoTardaEq(n, c)}
     <div id="baseErrorEq"></div>
     <button class="btn btn-rojo arriba" id="baseBotonEq" onclick="subirBaseEq()" ${cuantos ? '' : 'disabled'}>${
-      n > quedan ? 'Subir las primeras ' + quedan.toLocaleString('es-CO') : 'Subir ' + n.toLocaleString('es-CO') + (n === 1 ? ' persona' : ' personas')}</button>`);
+      n > quedan ? 'Subir lo que quepa hoy (hasta ' + quedan.toLocaleString('es-CO') + ')' : 'Subir ' + n.toLocaleString('es-CO') + (n === 1 ? ' persona' : ' personas')}</button>`);
   pintarMuestraEq();
+}
+/* 27-oct-2026, ronda 2 — LO QUE NO ENTRA HOY, DICHO CON NÚMEROS. El previo
+   decía «Las demás, mañana, con el mismo archivo» a un archivo de 4.923 con
+   299 de cupo: a 300 por día son 17 días, y el techo de 3.000 por gerente lo
+   paraba antes (ya llevaba 280), sin que ningún texto lo dijera hasta chocar.
+   gerente_carga_cupo ya traía `subidos`; ahora se usa. Los días son «unos»:
+   lo que ya te dio «ya existe» no gasta, y el freno de los 50 puede parar. */
+function cuantoTardaEq(n, c) {
+  c = c || {};
+  const quedan = Number(c.quedan_hoy) || 0, dia = Number(c.tope_dia) || 300;
+  const techo = Number(c.techo_base) || 3000, subidos = Number(c.subidos) || 0;
+  const caben = Math.max(0, techo - subidos);
+  const miles = x => x.toLocaleString('es-CO');
+  const l = [];
+  if (n > quedan && quedan > 0) {
+    const dias = Math.ceil((Math.min(n, caben) - quedan) / dia);
+    l.push('Hoy entran en el orden del archivo hasta gastar el cupo de hoy. Lo que ya entró saldrá como «ya eran tuyos» y no gasta cupo, ' +
+      'y lo que ya te dio «ya existe» tampoco. ' + (dias > 0
+        ? 'Lo demás, otro día con el mismo archivo: a ' + miles(dia) + ' por día, este archivo necesita ' +
+          (dias === 1 ? 'un día más.' : 'unos ' + miles(dias) + ' días más.')
+        : ''));
+  }
+  if (n > caben) {
+    l.push('<b>Ojo: «Mi base» aguanta ' + miles(techo) + ' personas que subas tú, y ya llevas ' + miles(subidos) +
+      '.</b> De este archivo caben como mucho ' + miles(caben) + ' nuevas: las demás no van a entrar hasta que Joan prepare esa pantalla. ' +
+      'Avísale antes de contar con ellas.');
+  }
+  return l.map(x => '<div class="muted" style="font-size:12.5px;margin-top:4px">' + x + '</div>').join('');
 }
 
 /* Las casillas de las columnas extra, SIN marcar (D7), y lo que no se guarda
@@ -15491,7 +15546,15 @@ function subirBaseEq() {
   if (prueba.length < 5) return errorBaseEq(NO_SE_PUEDE_EQ.falta_prueba);
   const c = b.cupo || {};
   const extras = A.extrasPorCelular(b.filas, b.cols, extrasElegidosEq());
-  let filas = A.primerasN(b.paraSubir, Number(c.quedan_hoy) || 0).map(p => {
+  /* 27-oct-2026, ronda 2 — EL ARCHIVO ENTERO, y el servidor dice dónde se
+     acaba el cupo. Antes viajaban solo las primeras «quedan_hoy» filas, y con
+     un archivo grande esas eran SIEMPRE los mismos «ya existe» que William ya
+     había consultado: no gastaban cupo, pero ocupaban el lugar de gente nueva
+     (270, 228… 69 el día 14, con 223 de cupo sin usar y «no cabían en el cupo
+     de hoy» en la pantalla). Ahora gerente_agregar_prospectos recorre la
+     tanda fila por fila, deja entrar lo que cabe y contesta `corto` y
+     `procesadas`; aquí se para en cuanto el cupo se acaba. */
+  let filas = b.paraSubir.map(p => {
     const f = { nombre: A.limpiarNombre(p.nombre), celular: p.celular, para: '' };
     if (extras[p.celular]) f.extra = extras[p.celular];
     return f;
@@ -15502,16 +15565,19 @@ function subirBaseEq() {
   if (!filas.length) return errorBaseEq('No hay a nadie que subir hoy.');
   const tandas = A.enTandas(filas, AGREGA_TOPE_TANDA);
   const total = { entraron: 0, ya_en_tu_base: 0, ya_existen: 0, repetidas: b.revision.repetidos, invalidas: b.revision.sinCelular };
+  const quedanAntes = Number(c.quedan_hoy) || 0;
   _subidaEq = { archivo: b.archivo, hechas: 0, total: filas.length };
   const progreso = () => {
     const caja = document.getElementById('baseErrorEq');
     if (caja) caja.innerHTML = '<div class="alerta info">Subiendo… ' + _subidaEq.hechas.toLocaleString('es-CO') + ' de ' +
-      _subidaEq.total.toLocaleString('es-CO') + '.</div>';
+      _subidaEq.total.toLocaleString('es-CO') + (_subidaEq.total > quedanAntes ? ' (hasta llenar el cupo de hoy).' : '.') + '</div>';
     const bt = document.getElementById('baseBotonEq');
     if (bt) bt.disabled = true;
   };
   progreso();
-  let corte = null;
+  /* `corte`: por qué se paró antes del final. `faltan`: las filas del archivo
+     que no se alcanzaron a mirar (las cuenta el servidor con `procesadas`). */
+  let corte = null, faltan = 0;
   const lote = { archivo: b.archivo, origen, autoriza: 'si', prueba };
   const una = k => {
     if (k >= tandas.length) return Promise.resolve();
@@ -15519,17 +15585,28 @@ function subirBaseEq() {
       if (esFinDeSesion(null, res)) { corte = { k, sesion: true }; return; }
       if (esFaltaFuncionEq(res)) { corte = { k, motivo: 'falta' }; return; }
       const j = (res && res.j) || {};
-      if (j.ok !== true) { corte = { k, motivo: j.motivo || 'la nube dijo que no' }; return; }
+      if (j.ok !== true) {
+        corte = { k, motivo: j.motivo || 'la nube dijo que no' };
+        /* Sin cupo (o en el techo) desde la primera fila de esta tanda: no es
+           un error, es el final de hoy. Lo que falta, se dice con su número. */
+        if (j.motivo === 'tope' || j.motivo === 'techo_base') faltan = filas.length - _subidaEq.hechas;
+        return;
+      }
       total.entraron += Number(j.entraron) || 0;
       total.ya_en_tu_base += Number(j.ya_en_tu_base) || 0;
       total.ya_existen += Number(j.ya_existen) || 0;
-      _subidaEq.hechas += tandas[k].length;
+      const miradas = j.procesadas == null ? tandas[k].length : Math.max(0, Math.min(tandas[k].length, Number(j.procesadas) || 0));
+      _subidaEq.hechas += miradas;
       if (_cupoEq) _cupoEq.quedan_hoy = j.quedan_hoy;
       progreso();
+      /* Hasta aquí llegó hoy: el servidor cortó a mitad de la tanda, o el
+         cupo quedó en cero y lo que sigue no entraría. */
+      if (j.corto) { corte = { k, motivo: String(j.corto) }; faltan = filas.length - _subidaEq.hechas; }
+      else if (k + 1 < tandas.length && !(Number(j.quedan_hoy) > 0)) { corte = { k: k + 1, motivo: 'tope' }; faltan = filas.length - _subidaEq.hechas; }
       /* Lo que entró ya está en «Mi base» antes de la siguiente tanda: si se
          corta y William vuelve a cargar el archivo, el previo lo cuenta como
          suyo y no se lo vuelve a cobrar. */
-      return (Number(j.entraron) ? refrescarCarteraEq().catch(() => null) : Promise.resolve()).then(() => una(k + 1));
+      return (Number(j.entraron) ? refrescarCarteraEq().catch(() => null) : Promise.resolve()).then(() => corte ? null : una(k + 1));
     }, e => { corte = { k, error: (e && e.message) || 'sin conexión', sesion: esFinDeSesion(e) }; });
   };
   return una(0).then(() => {
@@ -15538,22 +15615,33 @@ function subirBaseEq() {
     _cupoEq = null;
     if (corte && corte.sesion) return avisarFinDeSesion('La subida se cortó en la tanda ' + (corte.k + 1) + '. ');
     const l = window.AgregarProspectos.textoResultado(total);
-    let arriba = '';
+    const miles = x => Number(x).toLocaleString('es-CO');
+    let arriba = '', resto = '';
     if (corte) {
       const de = ' en la tanda ' + (corte.k + 1) + ' de ' + tandas.length;
-      if (corte.motivo === 'tope') arriba = 'Llegaste al tope de hoy' + de + '. Entraron ' + total.entraron + '. El resto, mañana, con el mismo archivo.';
-      else if (corte.motivo === 'en_revision') arriba = 'Paré' + de + ': ya existían más de 50. Joan lo revisa antes de que sigas. Entraron ' + total.entraron +
-        '. Cuando te dé paso, vuelve a subir el mismo archivo: los que ya existían en lo que subiste no vuelven a contar.';
-      else if (NO_SE_PUEDE_EQ[corte.motivo]) arriba = 'Paré' + de + ': ' + NO_SE_PUEDE_EQ[corte.motivo] + ' Entraron ' + total.entraron + '.';
-      else arriba = 'Se cortó' + de + ': ' + (corte.error || corte.motivo) + '. Entraron ' + total.entraron +
+      /* 27-oct-2026, ronda 2 — LO QUE QUEDA, CON SU PORQUÉ DE VERDAD. «No
+         cabían en el cupo de hoy» solo se dice cuando el cupo de hoy se acabó
+         (lo dice el servidor), y el techo de 3.000 se nombra como techo. */
+      if (corte.motivo === 'tope') {
+        const caben = Math.max(0, (Number(c.techo_base) || 3000) - (Number(c.subidos) || 0) - total.entraron);
+        const dias = Math.ceil(Math.min(faltan, caben) / 300);
+        resto = 'Quedan ' + miles(faltan) + ' de este archivo para otro día: hoy ya no cabe nadie más (son 300 al día, y cuentan ' +
+          'los que entran y los que ya existían la primera vez que los subes). Mañana vuelve a subir el mismo archivo: lo que ya entró ' +
+          'saldrá como «ya eran tuyos» y lo que ya te dio «ya existe» tampoco gasta cupo.' + (dias > 0 ? ' A ese ritmo, ' +
+          (dias === 1 ? 'un día más.' : 'unos ' + miles(dias) + ' días más.') : '') +
+          (faltan > caben ? ' Ojo: «Mi base» aguanta ' + miles(Number(c.techo_base) || 3000) + ' personas que subas tú; de estas caben como ' +
+            'mucho ' + miles(caben) + ', y las demás no van a entrar hasta que Joan prepare esa pantalla. Avísale.' : '');
+      } else if (corte.motivo === 'techo_base') {
+        arriba = 'Llegaste a las 3.000 personas que aguanta «Mi base» en el celular sin ponerse lenta. Quedan ' + miles(faltan) +
+          ' de este archivo que no van a entrar hasta que Joan prepare esa pantalla: avísale.';
+      } else if (corte.motivo === 'en_revision') {
+        arriba = 'Paré' + de + ': con esta, desde la última vez que Joan te dio paso ya van más de 50 celulares que ya existían en ' +
+          'Tu Garantía. Joan los revisa antes de que sigas. Entraron ' + miles(total.entraron) + '. Cuando te dé paso, vuelve a subir ' +
+          'el mismo archivo: lo que ya entró saldrá como «ya eran tuyos», y los que ya existían en lo que subiste no vuelven a contar.';
+      } else if (NO_SE_PUEDE_EQ[corte.motivo]) arriba = 'Paré' + de + ': ' + NO_SE_PUEDE_EQ[corte.motivo] + ' Entraron ' + miles(total.entraron) + '.';
+      else arriba = 'Se cortó' + de + ': ' + (corte.error || corte.motivo) + '. Entraron ' + miles(total.entraron) +
         '. Vuelve a subir el mismo archivo: los que ya entraron saldrán como «ya eran tuyos» y no gastan cupo, y los que ya te dieron «ya existe» tampoco.';
     }
-    /* 27-oct-2026, revisión — LO QUE QUEDÓ SIN SUBIR SE DICE. Con más gente
-       que cupo solo viajan las primeras; el resultado decía «Listo. Entraron
-       292» y callaba los 4.155 que faltaban. */
-    const faltan = corte ? 0 : b.paraSubir.length - filas.length;
-    const resto = faltan > 0 ? 'Quedan ' + faltan.toLocaleString('es-CO') + ' de este archivo por subir: no cabían en el cupo de hoy. ' +
-      'Mañana vuelve a subir el mismo archivo: los que ya entraron saldrán como «ya eran tuyos» y no gastan cupo.' : '';
     /* Y con 0 no hay «Listo» en verde: debajo de «Paré…» se leía como que salió bien. */
     openModal('Cargar base', (arriba ? '<div class="alerta warn">' + escHTML(arriba) + '</div>' : '') +
       '<div class="alerta ' + (total.entraron ? 'ok' : 'info') + '"><b>' + escHTML(l[0]) + '</b></div>' +
@@ -16652,7 +16740,7 @@ function anotarAgrega(e) {
    se promete que la información viaje a nadie. */
 function ayudaNotaProspecto() {
   const base = 'Lo que sirva para atenderlo. ';
-  const no = 'No escribas cédulas, claves, deudas ni nada de salud, religión o política.';
+  const no = 'No escribas cédulas, direcciones, claves, deudas ni nada de salud, religión o política.';
   if (_equipoAgrega === 'si') return base + 'Si se lo asignas a alguien de tu equipo, también lo ve él. ' + no;
   if (_equipoAgrega === 'no') return base + no + ' Por ahora solo la ves tú: falta correr el SQL del 27-oct en Supabase.';
   return base + no;
@@ -16700,6 +16788,47 @@ function pintarSubidoPorElEquipo(forzar) {
   const viejo = !SUBIDO_EQUIPO || (SUBIDO_EQUIPO.estado !== 'cargando' && Date.now() - SUBIDO_EQUIPO.cuando > 5 * 60000);
   if (forzar || viejo) { traerSubidoPorElEquipo(); return; }
   caja.innerHTML = htmlSubidoPorElEquipo();
+  pintarAvisoDelEquipo();
+}
+/* 27-oct-2026, ronda 2 — ARRIBA DE BASES, LO QUE NO PUEDE ESPERAR. La tarjeta
+   va debajo de la tabla de Prospectos, que pinta 200 filas: con los 18.190
+   prospectos de Joan empieza a 13.800 px en el PC y a 25.200 en el celular, y
+   el ⛔ de un gerente parado solo vivía ahí. Arriba, junto a los botones: el
+   freno con sus dos botones, y una línea con lo que subió el equipo en la
+   última semana que lleva a la tarjeta. */
+function pintarAvisoDelEquipo() {
+  const caja = document.getElementById('avisoDelEquipo'); if (!caja) return;
+  const s = SUBIDO_EQUIPO;
+  if (!s || s.estado !== 'ok') { caja.innerHTML = ''; return; }
+  const d = s.d || {};
+  const frenados = Array.isArray(d.frenados) ? d.frenados : [];
+  const semana = Date.now() - 7 * 86400000;
+  const recientes = (Array.isArray(d.cargas) ? d.cargas : []).filter(c => !c.rechazo && Number(c.entraron) > 0 &&
+    new Date(c.cuando).getTime() >= semana);
+  const entraron = recientes.reduce((a, c) => a + (Number(c.entraron) || 0), 0);
+  const quienes = [...new Set(recientes.map(c => String(c.quien_nombre || '')))].filter(Boolean);
+  caja.innerHTML = frenados.map(franjaFrenoHTML).join('') + (entraron
+    ? `<div class="alerta info">⤒ Tu equipo subió ${entraron.toLocaleString('es-CO')} ${entraron === 1 ? 'persona' : 'personas'} esta semana
+        (${escHTML(quienes.join(', '))}). <a href="#" onclick="verLoQueSubioElEquipo();return false">Ver lo que subió tu equipo ↓</a></div>`
+    : '');
+}
+function verLoQueSubioElEquipo() {
+  const t = document.getElementById('tblDelEquipo');
+  if (t && t.scrollIntoView) t.scrollIntoView({ block: 'start' });
+}
+/* La franja de un gerente parado: la misma arriba de Bases y en la tarjeta.
+   «Ver cuáles» pide SOLO los «ya existe» nuevos desde el último «que siga»
+   (los que lo pararon y que dice el número): los que Joan ya revisó en el
+   freno anterior no se le vuelven a mostrar como si fueran de esta vuelta. */
+function franjaFrenoHTML(f) {
+  const ids = idsDeCargas(f.cargas, f.carga);
+  return `<div class="alerta mal">⛔ <b>${escHTML(f.quien_nombre)} está parado</b> desde el
+      ${escHTML(fechaCortaJoan(f.desde))}, ${escHTML(new Date(f.desde).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' }))}:
+      se le juntaron ${Number(f.ya_existen) || 0} celulares que ya existían en Tu Garantía. Míralos antes de darle paso.
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        ${ids.length ? `<button class="btn btn-ghost btn-sm" onclick="verYaExistianNuevos(${ids.join(',')})">Ver cuáles</button>` : ''}
+        <button class="btn btn-rojo btn-sm" onclick="soltarGerente('${digitosDeBoton(f.quien)}')">Ya lo revisé: que siga</button></div>
+      <div class="muted" style="font-size:12px;margin-top:6px">Si se le juntan otros 50, se vuelve a parar.</div></div>`;
 }
 function traerSubidoPorElEquipo() {
   const caja = document.getElementById('tblDelEquipo');
@@ -16711,7 +16840,7 @@ function traerSubidoPorElEquipo() {
       anotarAgrega(e);
       SUBIDO_EQUIPO = { estado: esFaltaFuncionNube(e) ? 'apagado' : 'error', cuando: Date.now(), error: errNube(e) };
     })
-    .then(() => { const c = document.getElementById('tblDelEquipo'); if (c) c.innerHTML = htmlSubidoPorElEquipo(); });
+    .then(() => { const c = document.getElementById('tblDelEquipo'); if (c) c.innerHTML = htmlSubidoPorElEquipo(); pintarAvisoDelEquipo(); });
 }
 function htmlSubidoPorElEquipo() {
   const s = SUBIDO_EQUIPO || { estado: 'cargando' };
@@ -16728,13 +16857,7 @@ function htmlSubidoPorElEquipo() {
   const cargas = Array.isArray(d.cargas) ? d.cargas : [];
   const frenados = Array.isArray(d.frenados) ? d.frenados : [];
   const porGerente = (Array.isArray(d.por_gerente) ? d.por_gerente : []).filter(g => Number(g.subidos) > 0);
-  const franja = frenados.map(f => `<div class="alerta mal">⛔ <b>${escHTML(f.quien_nombre)} está parado</b> desde el
-      ${escHTML(fechaCortaJoan(f.desde))}, ${escHTML(new Date(f.desde).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' }))}:
-      en lo que subió, ${Number(f.ya_existen) || 0} celulares ya existían en Tu Garantía. Míralos antes de darle paso.
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-        ${idsDeCargas(f.cargas, f.carga).length ? `<button class="btn btn-ghost btn-sm" onclick="verYaExistian(${idsDeCargas(f.cargas, f.carga).join(',')})">Ver cuáles</button>` : ''}
-        <button class="btn btn-rojo btn-sm" onclick="soltarGerente('${digitosDeBoton(f.quien)}')">Ya lo revisé: que siga</button></div>
-      <div class="muted" style="font-size:12px;margin-top:6px">Si se le juntan otros 50, se vuelve a parar.</div></div>`).join('');
+  const franja = frenados.map(franjaFrenoHTML).join('');
   const techos = porGerente.map(g => `<div class="muted" style="font-size:12.5px">${escHTML(g.quien_nombre)} lleva
       ${(Number(g.subidos) || 0).toLocaleString('es-CO')} de ${(Number(g.techo) || 3000).toLocaleString('es-CO')}</div>`).join('');
   if (!cargas.length) return sinSubir + noPub + franja + '<div class="muted">Tu equipo todavía no ha subido a nadie.</div>' + pie;
@@ -16843,10 +16966,14 @@ function asignarMarcadosDelEquipo() {
     })
     .catch(e => alert('No pude moverlos: ' + errNube(e)));
 }
-function verYaExistian() {
-  const ids = idsDeCargas([].slice.call(arguments));
+/* 27-oct-2026, ronda 2 — los de la franja del freno: SOLO los nuevos desde el
+   último «que siga» (p_solo_nuevos), que son los que dice su número. Sin eso
+   «51» abría 111, con los 60 que Joan ya había revisado la vez anterior. */
+function verYaExistianNuevos() { return verYaExistianDe(idsDeCargas([].slice.call(arguments)), true); }
+function verYaExistian() { return verYaExistianDe(idsDeCargas([].slice.call(arguments)), false); }
+function verYaExistianDe(ids, soloNuevos) {
   openModal('Los que ya existían', '<div class="muted">Mirando la nube…</div>');
-  return rpc('equipo_ya_existian', { p_clave: sbCfg().clave, p_cargas: ids })
+  return rpc('equipo_ya_existian', soloNuevos ? { p_clave: sbCfg().clave, p_cargas: ids, p_solo_nuevos: true } : { p_clave: sbCfg().clave, p_cargas: ids })
     .then(l => {
       const lista = Array.isArray(l) ? l : [];
       openModal('Los que ya existían (' + lista.length + ')', '<p class="sub">Solo lo ves tú: a tu equipo se le dijo «ya existe», sin decir de quién.</p>' +
@@ -17045,8 +17172,9 @@ function laNubeCambioElAsesor(x) {
 /* --------------------------- 🚫 borrar a alguien que lo pidió --------- */
 function suprimirDesdeBases() {
   openModal('🚫 ¿Quién pidió que lo borraran?', `
-    <p class="sub">La Ley 1581 da 15 días hábiles. Se borra de la nube como prospecto (lo que subió tu equipo y lo que publicaste
-      tú), con su información adicional, sus gestiones, contactos y citas, y queda anotado para que nadie lo vuelva a agregar.</p>
+    <p class="sub">La Ley 1581 da 15 días hábiles. Se borra de la nube como prospecto (lo que subió tu equipo, lo que publicaste
+      tú y la copia de tu Panel en la nube), con su información adicional, sus gestiones, contactos y citas, y queda anotado para
+      que nadie lo vuelva a agregar.</p>
     <div class="field"><label>Celular</label><input id="supCel" inputmode="numeric" placeholder="3001234567"></div>
     <div class="field"><label>¿Cómo lo pidió?</label><input id="supComo" placeholder="Ej: por el chat de la app el 3-nov">
       <div class="help">Queda guardado: es la prueba de que se borró porque lo pidió.</div></div>
@@ -17059,8 +17187,9 @@ function confirmarSuprimir() {
   const como = gv('supComo');
   if (!cel) return alert('Ese celular no me cuadra: son 10 dígitos y empieza por 3.');
   if (como.length < 5) return alert('Escribe cómo lo pidió (por ejemplo, «por el chat de la app el 3-nov»).');
-  if (!confirm('Voy a borrar de la nube a esta persona como prospecto (lo que subió tu equipo y lo que publicaste tú), con su ' +
-    'información adicional, sus gestiones, contactos y citas. Además la anoto para que nadie la vuelva a agregar. No se puede deshacer.')) return;
+  if (!confirm('Voy a borrar de la nube a esta persona como prospecto (lo que subió tu equipo, lo que publicaste tú y la copia de ' +
+    'tu Panel en la nube), con su información adicional, sus gestiones, contactos y citas. Además la anoto para que nadie la vuelva ' +
+    'a agregar. No se puede deshacer.')) return;
   return rpc('equipo_suprimir', { p_clave: sbCfg().clave, p_celular: cel, p_como: como })
     .then(r => {
       if (!r || r.ok !== true) return alert('No lo borré: ' + ((r && r.motivo) === 'falta_como' ? 'falta cómo lo pidió.' : ((r && r.motivo) || 'la nube dijo que no.')));
@@ -17075,6 +17204,12 @@ function confirmarSuprimir() {
       alert('Listo: borré ' + (Number(r.del_equipo) || 0) + ' que subió tu equipo y ' + (Number(r.de_joan) || 0) +
         ' tuyas de la nube. Ese número ya no se puede volver a agregar.' +
         (local ? '\n\nTambién lo quité de tus prospectos de este computador.' : '') +
+        /* 27-oct-2026, ronda 2 — y de la copia del Panel en la nube: aunque
+           otro aparato de Joan la vuelva a subir, la nube ya no la guarda
+           (panel_ajustes_sin_suprimidos). Ese aparato sí la conserva hasta
+           que la borre ahí, y se dice. */
+        '\n\nTambién la quité de la copia de tu Panel en la nube, y la nube no la vuelve a guardar aunque otro aparato tuyo la suba. ' +
+        'Si tienes el Panel en otro aparato (el celular), allá sigue en tus prospectos hasta que la borres a mano.' +
         '\n\nLo que tu equipo ya le escribió por WhatsApp queda en sus teléfonos: eso no lo borra el CRM.');
       traerSubidoPorElEquipo();
     })
@@ -17725,6 +17860,14 @@ function publicarEquipoAhora(gente, asig, ps, op) {
     'De cada uno viaja el nombre, el celular, en qué etapa está y —desde hoy—\n' +
     'CUÁNTO DEBE y CUÁNDO LE TOCA PAGAR, para que se le pueda cobrar.\n' +
     'Sigue sin viajar: cédula, dirección, fotos y referencias.\n\n' +
+    /* 27-oct-2026, ronda 2 — con «el gerente agrega», de un potencial viaja
+       también lo que Joan anotó de él (publicarInfoDeProspectos), y este
+       cuadro no lo decía. La columna «Dirección» de una base ya no se guarda
+       (agregar-prospectos.js y extra_limpio), así que la línea de arriba
+       sigue siendo verdad; la nota viaja tal como Joan la escribió. Sin el
+       SQL del 27-oct (404) no viaja, y no se dice. */
+    (_equipoAgrega === 'no' ? '' : 'De los potenciales viaja además lo que anotaste de ellos: la información adicional\n' +
+      '(tal como la escribiste), las columnas que marcaste al cargar su base, de dónde\nsalió y si autorizó.\n\n') +
     '⚠ El monto es una FOTO del cálculo de hoy. Si no vuelves a publicar, el\n' +
     'asesor seguirá leyendo esta cifra: por eso la pantalla le pone al lado el\n' +
     'día en que se calculó.\n\n' +
@@ -18135,6 +18278,12 @@ function publicarEquipoSolo(op) {
   if (!o.porCambio && antes && antes.ok && antes.huella === huella && antes.dia === hoyISO()) {
     /* Nada que publicar: nada que frenar. */
     if (_libroEquipo) { _libroEquipo = null; try { pintarPublicadoSolo(); } catch (e) { /* idem */ } }
+    /* 27-oct-2026, ronda 2 — PERO SÍ SE TRAE lo que hizo el gerente. Con la
+       huella quieta, lo que William reasignaba durante el día no entraba a
+       este CRM hasta que Joan tocaba algo: la ficha decía «lo atiende
+       WILLIAN» cuando ya era de LEIDY, y Joan decidía sobre eso. Se dispara y
+       no se espera; si cambió algo, la vuelta siguiente lo publica igual. */
+    traerEquipo('auto').catch(() => 0);
     return Promise.resolve('sin_cambios');
   }
   _publicandoSolo = true;
@@ -18268,7 +18417,15 @@ function arrancarPublicarSolo() {
   /* 22-oct-2026 — envueltas: publicarEquipoSolo recibe ahora `op`, y un reloj
      no puede colarle un argumento suyo. */
   setTimeout(() => publicarEquipoSolo(), 100 * 1000);
-  _relojPublicarSolo = setInterval(() => publicarEquipoSolo(), PUBLICAR_SOLO_CADA_MS);
+  _relojPublicarSolo = setInterval(() => { publicarCelularesDeJoan(); publicarEquipoSolo(); }, PUBLICAR_SOLO_CADA_MS);
+  /* 27-oct-2026, ronda 2 — LOS CELULARES DE JOAN SUBEN AL ENTRAR. Solo subían
+     al publicar, cargar una base o agregar uno, y la vuelta de 15 min no
+     publica si nada cambió: con el SQL recién corrido, joan_celulares quedaba
+     vacía, y un gerente podía quedarse con un prospecto de Joan sin repartir
+     (entraba como nuevo, y desde ahí la compuerta ya no se lo dejaba
+     publicar a Joan). Son solo números, no esperan a estar emparejado: a
+     los 20 s de abrir el CRM, y después cada 15 min solo los nuevos. */
+  setTimeout(() => publicarCelularesDeJoan(), 20 * 1000);
 }
 /* 22-oct-2026 — las frases ya no mandan a «Sí, emparejar y subir» ni a
    «Publicar equipo»: emparejar es solo, y publicar también. Lo que falló va
@@ -18408,6 +18565,16 @@ function traerEquipo(callado) {
         /* 27-oct-2026 — EL GERENTE AGREGA (ver laNubeCambioElAsesor y esDelEquipoSinFichaAca). */
         if (esDelEquipoSinFichaAca(x.persona_id)) return;
         if (hay[String(x.id)]) { if (laNubeCambioElAsesor(x)) cambios++; return; }
+        /* 27-oct-2026, ronda 2 — UNA FILA NUEVA DEL GERENTE NO TAPA UN CAMBIO
+           DE JOAN SIN PUBLICAR. asignar_a escribe con su propio id (G…): si
+           Joan reasignó a esa persona ese mismo día y su CRM todavía no había
+           traído lo del gerente, la fila del gerente se sumaba DETRÁS de la de
+           Joan, ganaba «la última del día», se publicaba esa, y Joan leía
+           «queda con SANDRA» mientras en la nube quedaba con LEIDY. Con la
+           marca pendiente gana Joan, igual que con el mismo id
+           (laNubeCambioElAsesor): no se suma, y su publicación sale con el id
+           de la nube (conIdsDeLaNube) y la pisa. */
+        if (hayAsigPorPublicar(String(x.persona_id) + '|' + String(x.desde || '').slice(0, 10))) return;
         /* 23-oct-2026 — una fila SIN asesor es un «Quitarle la asignación»
            (armarPublicacionEquipo la publica así): llega como de nadie. Sin
            esto, buscar el celular vacío encontraba a cualquiera del equipo SIN

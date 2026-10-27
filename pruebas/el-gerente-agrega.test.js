@@ -113,7 +113,8 @@ describe('2 · el cuadro del menú dice por qué no, sin formulario', () => {
   const casos = [
     [{ status: 404, j: { code: 'PGRST202' } }, /Todavía no: falta un paso de Joan en la nube\. Avísale\./],
     [{ status: 200, j: { ok: true, puede: false, motivo: 'sin_acuerdo' } }, /falta que Joan anote tu acuerdo de manejo de datos con NEXECO/],
-    [{ status: 200, j: { ok: true, puede: false, motivo: 'en_revision' } }, /más de 50 celulares ya existían en Tu Garantía\. Joan lo revisa/],
+    /* 27-oct-2026, ronda 2 — sin «en lo último que subiste» ni «el mismo archivo»: el freno junta desde el último «que siga». */
+    [{ status: 200, j: { ok: true, puede: false, motivo: 'en_revision' } }, /Paré tus subidas: desde la última vez que Joan te dio paso, ya van más de 50 celulares que ya existían en Tu Garantía .*Joan los revisa antes de que sigas\. Avísale; cuando te dé paso, puedes seguir agregando\./],
     [{ status: 200, j: { ok: true, puede: false, motivo: 'techo_base' } }, /Ya subiste 3\.000 personas/],
     [{ status: 200, j: { ok: true, puede: false, motivo: 'muchas_llamadas' } }, /Hoy ya intentaste agregar 100 veces\. Mañana se reinicia\./],
     [{ status: 200, j: { ok: false } }, /No pude confirmar que eres gerente/]];
@@ -150,7 +151,7 @@ describe('3 · uno a mano', () => {
     assert.ok(orden.every((x, i) => x > 0 && (i === 0 || x > orden[i - 1])), 'los campos no están en el orden del plan: ' + orden);
     assert.match(h, /<textarea id="apNotaEq" rows="2" maxlength="300"/);
     assert.match(plano(h), /¿Te autorizó que le escribamos por WhatsApp para ofrecerle el crédito\?/);
-    assert.match(plano(h), /No escribas cédulas, claves, deudas ni nada de salud, religión o política\./);
+    assert.match(plano(h), /No escribas cédulas, direcciones, claves, deudas ni nada de salud, religión o política\./);
     assert.match(h, /<option value="3000000000" selected>Lo trabajo yo<\/option>/);
     assert.match(h, /Se lo asigno a LEIDY/);
     assert.doesNotMatch(h, /RAMIRO/);
@@ -224,22 +225,29 @@ describe('4 · un archivo', () => {
       String(3209000000 + i), ['Kennedy', 'Bosa', 'Suba'][i % 3], String(1000000000 + i)].join(';')).join('\r\n');
   const archivo = (n, nombre) => ({ name: nombre || 'feria.csv', text: () => Promise.resolve(CSV(n)) });
 
-  test('450 con cupo de 300: «Subir las primeras 300», dos tandas (200 y 100), con su avance', async () => {
+  /* 27-oct-2026, ronda 2 — EL ARCHIVO ENTERO, y el servidor corta donde se
+     acaba el cupo (fila por fila). Antes viajaban solo las primeras 300, y con
+     un archivo grande esas eran siempre los mismos «ya existe» ya consultados. */
+  test('450 con cupo de 300: «Subir lo que quepa hoy», el archivo en tandas de 200 y el servidor corta donde se acaba el cupo', async () => {
     const tandas = [];
+    let cupo = 300;
     const P = abrirEquipo('gerente', { gerente_agregar_prospectos: c => {
-      tandas.push(c.p_lote.filas.length);
-      return { status: 200, j: { ok: true, entraron: c.p_lote.filas.length, ya_existen: 0, ya_en_tu_base: 0, repetidas: 0, invalidas: 0, quedan_hoy: 0 } };
+      const n = c.p_lote.filas.length;
+      tandas.push(n);
+      const entran = Math.min(n, cupo);
+      cupo -= entran;
+      return { status: 200, j: { ok: true, entraron: entran, ya_existen: 0, ya_en_tu_base: 0, repetidas: 0, invalidas: 0, quedan_hoy: cupo,
+        corto: entran < n ? 'tope' : '', procesadas: entran } };
     } });
     P.ctx._archivo = archivo(450);
     P.ev('leerArchivoBaseEq(_archivo)'); await asentar(60);
     const h = P.elems.mBody.innerHTML;
     assert.match(plano(h), /Para subir 450 personas con celular/);
     assert.match(plano(h), /Hoy puedes probar 300 celulares más\. Este archivo trae 450\./);
-    /* 27-oct-2026, revisión — «Las filas 1 a 300» era falso al día siguiente:
-       lo que ya es suyo no se cuenta, así que suben las primeras que no lo son. */
-    assert.match(plano(h), /Las primeras 300 del archivo que todavía no son tuyas\. Las demás, mañana, con el mismo archivo: .*las que ya te dieron «ya existe» no vuelven a gastar cupo\./);
-    assert.doesNotMatch(plano(h), /Las filas 1 a/);
-    assert.match(h, /id="baseBotonEq"[^>]*>Subir las primeras 300<\/button>/);
+    /* 27-oct-2026, ronda 2 — lo que tarda, con números (a 300 por día). */
+    assert.match(plano(h), /Hoy entran en el orden del archivo hasta gastar el cupo de hoy\. Lo que ya entró saldrá como «ya eran tuyos» y no gasta cupo, y lo que ya te dio «ya existe» tampoco\. Lo demás, otro día con el mismo archivo: a 300 por día, este archivo necesita un día más\./);
+    assert.doesNotMatch(plano(h), /Las filas 1 a|Las demás, mañana|Las primeras 300/);
+    assert.match(h, /id="baseBotonEq"[^>]*>Subir lo que quepa hoy \(hasta 300\)<\/button>/);
     /* Las casillas, SIN marcar; la cédula no se ofrece y se dice por qué. */
     assert.match(h, /<input type="checkbox" id="exEq_0" onchange="pintarMuestraEq\(\)">/);
     assert.doesNotMatch(h, /checked/);
@@ -247,7 +255,7 @@ describe('4 · un archivo', () => {
     llenar(P, { baseOrigenEq: 'Feria de Kennedy, 30-oct', baseAutorizaEq: 'si', basePruebaEq: 'formularios firmados de la feria', baseParaEq: 'yo' });
     P.elems.exEq_0.checked = true;
     P.ev('subirBaseEq()'); await asentar(120);
-    assert.deepEqual(tandas, [200, 100]);
+    assert.deepEqual(tandas, [200, 200], 'no mandó el archivo en tandas de 200, o siguió después de que el servidor cortó');
     const f0 = llamadas(P, 'gerente_agregar_prospectos')[0].cuerpo.p_lote;
     assert.equal(f0.archivo, 'feria.csv');
     assert.equal(f0.autoriza, 'si');
@@ -256,7 +264,59 @@ describe('4 · un archivo', () => {
     assert.equal(llamadas(P, 'mi_cartera').length, 2, 'no refrescó la base después de cada tanda en la que entró alguien');
     assert.match(cuerpoModal(P), /Listo\. Entraron 300 a tu base\./);
     /* 27-oct-2026, revisión — y dice cuántos quedaron sin subir (antes callaba los 150). */
-    assert.match(cuerpoModal(P), /Quedan 150 de este archivo por subir: no cabían en el cupo de hoy\. Mañana vuelve a subir el mismo archivo/);
+    assert.match(cuerpoModal(P), /Quedan 150 de este archivo para otro día: hoy ya no cabe nadie más .*Mañana vuelve a subir el mismo archivo.* A ese ritmo, un día más\./);
+  });
+
+  /* 27-oct-2026, ronda 2 — LO YA CONSULTADO NO OCUPA EL LUGAR DE NADIE: el
+     servidor dice cuántas filas miró (procesadas) y lo que falta se cuenta con
+     eso; «no cabían en el cupo de hoy» solo cuando el cupo de hoy se acabó. */
+  test('el servidor corta a mitad de la tanda 2: lo que falta es lo que no miró, y no se manda la tanda 3', async () => {
+    const tandas = [];
+    let k = 0;
+    const P = abrirEquipo('gerente', { gerente_agregar_prospectos: c => {
+      tandas.push(c.p_lote.filas.length);
+      return ++k === 1
+        ? { status: 200, j: { ok: true, entraron: 150, ya_existen: 50, quedan_hoy: 150, corto: '', procesadas: 200 } }
+        : { status: 200, j: { ok: true, entraron: 120, ya_existen: 40, quedan_hoy: 0, corto: 'tope', procesadas: 160 } };
+    } });
+    P.ctx._archivo = archivo(450);
+    P.ev('leerArchivoBaseEq(_archivo)'); await asentar(60);
+    llenar(P, { baseOrigenEq: 'Feria', baseAutorizaEq: 'si', basePruebaEq: 'formularios firmados', baseParaEq: 'yo' });
+    P.ev('subirBaseEq()'); await asentar(120);
+    assert.deepEqual(tandas, [200, 200]);
+    const t = cuerpoModal(P);
+    assert.match(t, /Listo\. Entraron 270 a tu base\./);
+    assert.match(t, /Quedan 90 de este archivo para otro día: hoy ya no cabe nadie más/);
+    assert.doesNotMatch(t, /no cabían en el cupo de hoy/);
+  });
+
+  test('si el cupo ya no alcanza desde la primera fila de una tanda (el servidor dice «tope»), es el final de hoy, no un error', async () => {
+    let k = 0;
+    const P = abrirEquipo('gerente', { gerente_agregar_prospectos: () => (++k === 1
+      ? { status: 200, j: { ok: true, entraron: 200, ya_existen: 0, quedan_hoy: 100, corto: '', procesadas: 200 } }
+      : { status: 200, j: { ok: false, motivo: 'tope', quedan_hoy: 0 } }) });
+    P.ctx._archivo = archivo(450);
+    P.ev('leerArchivoBaseEq(_archivo)'); await asentar(60);
+    llenar(P, { baseOrigenEq: 'Feria', baseAutorizaEq: 'si', basePruebaEq: 'formularios firmados', baseParaEq: 'yo' });
+    P.ev('subirBaseEq()'); await asentar(120);
+    const t = cuerpoModal(P);
+    assert.match(t, /Quedan 250 de este archivo para otro día/);
+    assert.doesNotMatch(P.elems.mBody.innerHTML, /alerta warn/, 'el final del cupo salió como un error');
+  });
+
+  /* 27-oct-2026, ronda 2 — el previo dice cuántos días y avisa del techo de
+     3.000 ANTES de que choque (gerente_carga_cupo trae «subidos»). */
+  test('el previo dice cuántos días tarda un archivo grande y avisa del techo de 3.000 antes de chocar', async () => {
+    const A = abrirEquipo('gerente', { gerente_carga_cupo: { status: 200, j: Object.assign({}, CUPO, { quedan_hoy: 299, subidos: 280, techo_base: 3000, tope_dia: 300 }) } });
+    A.ctx._archivo = archivo(1000);
+    A.ev('leerArchivoBaseEq(_archivo)'); await asentar(60);
+    assert.match(cuerpoModal(A), /a 300 por día, este archivo necesita unos 3 días más\./);
+    assert.doesNotMatch(cuerpoModal(A), /aguanta 3\.000/);
+    const B = abrirEquipo('gerente', { gerente_carga_cupo: { status: 200, j: Object.assign({}, CUPO, { quedan_hoy: 300, subidos: 2500, techo_base: 3000, tope_dia: 300 }) } });
+    B.ctx._archivo = archivo(1000);
+    B.ev('leerArchivoBaseEq(_archivo)'); await asentar(60);
+    assert.match(cuerpoModal(B), /Ojo: «Mi base» aguanta 3\.000 personas que subas tú, y ya llevas 2\.500\. De este archivo caben como mucho 500 nuevas: las demás no van a entrar hasta que Joan prepare esa pantalla\./);
+    assert.match(cuerpoModal(B), /este archivo necesita un día más\./);
   });
 
   test('cerrar el cuadro a mitad NO para la subida, y el resultado se vuelve a abrir', async () => {
@@ -296,7 +356,20 @@ describe('4 · un archivo', () => {
     P.ev('leerArchivoBaseEq(_archivo)'); await asentar(60);
     llenar(P, { baseOrigenEq: 'Feria', baseAutorizaEq: 'si', basePruebaEq: 'formularios firmados', baseParaEq: 'yo' });
     P.ev('subirBaseEq()'); await asentar(120);
-    assert.match(cuerpoModal(P), /Paré en la tanda 2 de 2: ya existían más de 50\. Joan lo revisa antes de que sigas\. Entraron 150\. Cuando te dé paso, vuelve a subir el mismo archivo: los que ya existían en lo que subiste no vuelven a contar\./);
+    /* 27-oct-2026, ronda 2 — se junta desde el último «que siga», no «en lo último que subiste». */
+    assert.match(cuerpoModal(P), /Paré en la tanda 2 de 2: con esta, desde la última vez que Joan te dio paso ya van más de 50 celulares que ya existían en Tu Garantía\. Joan los revisa antes de que sigas\. Entraron 150\. Cuando te dé paso, vuelve a subir el mismo archivo: lo que ya entró saldrá como «ya eran tuyos», y los que ya existían en lo que subiste no vuelven a contar\./);
+  });
+
+  /* 27-oct-2026, ronda 2 — UNO A MANO con 50 «ya existe» de días anteriores lo
+     para: el texto no puede hablar de «lo último que subiste» ni de un archivo. */
+  test('uno a mano que dispara el freno: no dice «en lo último que subiste» ni «el mismo archivo»', async () => {
+    const P = abrirEquipo('gerente', { gerente_agregar_prospectos: { status: 200, j: { ok: false, motivo: 'en_revision' } } });
+    P.ev('agregarProspectoEq()'); await asentar();
+    llenar(P, DATOS);
+    P.ev('guardarProspectoEq()'); await asentar(60);
+    const t = plano(P.elems.apErrorEq.innerHTML);
+    assert.match(t, /desde la última vez que Joan te dio paso, ya van más de 50/);
+    assert.doesNotMatch(t, /lo último que subiste|el mismo archivo/);
   });
 
   test('27-oct, revisión: si el freno llega en la PRIMERA tanda, no hay «Listo» en verde (entró 0)', async () => {
@@ -387,6 +460,28 @@ describe('5 · gestionar y asignar', () => {
     await Q.ev('traerInfoEq()');
     Q.ev("_grupoBaseEq = 'recien'");
     assert.match(plano(Q.ev('vistaBaseEquipo()')), /No pude traer la información adicional: sin ella no sé quién es reciente\./);
+  });
+
+  /* 27-oct-2026, ronda 2 — EL BOTÓN NO SE VA. Solo existía con el filtro ya
+     elegido: en cuanto William tocaba «Todos», no había forma de volver a los
+     de la feria salvo agregar a alguien más. */
+  test('«🆕 Recién agregados» sigue en la fila de filtros con «Todos» elegido, y llega en su sitio si la información tarda', async () => {
+    const P = abrirEquipo('gerente');
+    await P.ev('traerInfoEq()');
+    P.ev("_grupoBaseEq = 'todos'");
+    const h = P.ev('vistaBaseEquipo()');
+    assert.match(h, /onclick="irGrupoBase\('recien'\)">🆕 Recién agregados \(1\)<\/button>/);
+    assert.match(plano(h), /Todos \(3\)/);
+    /* Elegido, sale UNA vez (marcado). */
+    P.ev("_grupoBaseEq = 'recien'");
+    assert.equal((P.ev('vistaBaseEquipo()').match(/🆕 Recién agregados/g) || []).length, 1);
+    /* Sin la información todavía, el hueco queda vacío y se llena al llegar. */
+    const Q = abrirEquipo('gerente');
+    Q.ev("_grupoBaseEq = 'todos'");
+    Q.ev("document.getElementById('botonRecienEq').innerHTML = ''");
+    assert.doesNotMatch(Q.ev('vistaBaseEquipo()'), /🆕 Recién agregados/);
+    await Q.ev('traerInfoEq()');
+    assert.match(Q.elems.botonRecienEq.innerHTML, /🆕 Recién agregados \(1\)/);
   });
 
   /* 27-oct-2026, revisión — LO NUEVO, ARRIBA. Ordenado por etapa, Zoila (la

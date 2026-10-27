@@ -84,6 +84,28 @@ describe('las columnas extra', () => {
     assert.deepEqual(e['3102223344'], { Observaciones: 'prefiere WhatsApp', 'Fecha de la feria': '01/10/2026' });
   });
 
+  /* 27-oct-2026, ronda 2 — LA DIRECCIÓN NO VIAJA. Lo que Joan acepta al publicar
+     dice «Sigue sin viajar: cédula, dirección, fotos y referencias», y una columna
+     «Dirección» marcada llegaba al celular del asesor («Carrera 17 # 7-7»). */
+  test('«Dirección» no se ofrece, y una dirección escrita en otra columna tampoco se guarda (la MISMA regla de extra_limpio)', () => {
+    const filas = [
+      ['Nombre', 'Celular', 'Dirección', 'Ubicación', 'Observaciones', 'Barrio'],
+      ['PABLO GOMEZ', '3001112233', 'Carrera 17 # 7-7', 'Cl 45 No. 12-30', 'vende empanadas', 'Kennedy'],
+      ['ANA PEREZ', '3102223344', 'Calle 1 # 2-3', 'Kr 10 #20-30', 'vive en la Cra 5 # 10-20', 'Bosa'],
+      ['LUZ TORRES', '3205556677', 'Av. Boyacá 3 # 4-5', 'Diagonal 4 Bis # 5-6', 'tiene un taller', 'Suba']];
+    const r = A.columnasExtra(filas, B.detectarColumnas(filas));
+    assert.deepEqual(r.columnas.map(c => c.nombre), ['Observaciones', 'Barrio']);
+    const motivo = n => (r.descartadas.find(d => d.nombre === n) || {}).motivo;
+    assert.equal(motivo('Dirección'), 'es una dirección: no viaja al equipo');
+    assert.equal(motivo('Ubicación'), 'es una dirección: no viaja al equipo');
+    const e = A.extrasPorCelular(filas, B.detectarColumnas(filas), r.columnas);
+    assert.deepEqual(e['3102223344'], { Barrio: 'Bosa' }, 'la dirección escrita en «Observaciones» viajó');
+    assert.deepEqual(e['3001112233'], { Observaciones: 'vende empanadas', Barrio: 'Kennedy' });
+    /* CONTROL: lo que no es una dirección sigue entrando. */
+    ['vende en la calle del mercado', 'Calle 13', 'Av. principal', 'tiene 2 hijos'].forEach(v => assert.equal(A.limpiarValor(v), v, v));
+    assert.equal(A.familiaDeClave('Domicilio'), 'direccion');
+  });
+
   test('hasta 6, y el séptimo dice por qué; dos encabezados iguales no se pisan', () => {
     const cab = ['Nombre', 'Celular', 'A1', 'A2', 'A3', 'A4', 'A5', 'Barrio', 'Barrio'];
     const fila = ['ANA PEREZ', '3001112233', 'x', 'y', 'z', 'w', 'v', 'Kennedy', 'Suba'];
