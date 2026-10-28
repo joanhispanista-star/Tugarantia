@@ -35,6 +35,18 @@ const { abrirPlay } = require('./banco-play.js');
 const { abrirSocio } = require('./banco-socio.js');
 const { abrirPlataChat } = require('./banco-platachat.js');
 const { asentar } = require('./esperar.js');
+const fs = require('node:fs');
+const path = require('node:path');
+const RAIZ = path.join(__dirname, '..');
+/* 30-oct-2026 — LA VERSIÓN DE HOY SALE DE sw.js, NO SE CLAVA. Las páginas de
+   verdad arrancan app/actualizar.js con SU VERSION_SITIO, que es el CACHE de
+   sw.js (pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro).
+   Con 'v139' y 'v140' escritos aquí, la publicación de v140 dejó la página
+   de verdad en v140 frente a una «publicada» de v139 y una «nueva» de v140:
+   nada nuevo que avisar, y estas pruebas caían sin que nada se hubiera roto.
+   VERSION_HOY es la de la página; VERSION_NUEVA, la que se publica después. */
+const NUM_HOY = Number((/const CACHE = 'tugarantia-v(\d+)';/.exec(fs.readFileSync(path.join(RAIZ, 'sw.js'), 'utf8')) || [])[1]);
+const VERSION_HOY = 'v' + NUM_HOY, VERSION_NUEVA = 'v' + (NUM_HOY + 1);
 
 /* ==========================================================================
  * EL CONTROLADOR DE VERDAD, CON UN NAVEGADOR DE MENTIRA
@@ -46,7 +58,7 @@ const { asentar } = require('./esperar.js');
  * ======================================================================== */
 async function controladorDeVerdad(ev, ventana, o) {
   o = o || {};
-  const st = { recargas: 0, hidden: false, claves: ['tugarantia-v139'], oyentes: { doc: {}, win: {}, sw: {} },
+  const st = { recargas: 0, hidden: false, claves: ['tugarantia-' + VERSION_HOY], oyentes: { doc: {}, win: {}, sw: {} },
                sesion: {}, t: Date.parse('2026-10-21T19:00:00-05:00'), campos: o.campos || (() => []), elementos: [] };
   const oir = d => (t, f) => { (st.oyentes[d][t] = st.oyentes[d][t] || []).push(f); };
   const disparar = (d, t) => (st.oyentes[d][t] || []).slice().forEach(f => f({ type: t }));
@@ -113,7 +125,7 @@ describe('R2: «Salir» con la subida de fotos en el aire (la que I3 deja viva)'
     P.ev("irA('perfil')");   // donde está «Salir»: no es momento seguro
     const C = await controladorDeVerdad(P.ev, P.ventana);
     C.mirando();
-    await C.publicar('v140');
+    await C.publicar(VERSION_NUEVA);
     assert.equal(C.st.recargas, 0, 'recargó en Perfil');
     /* «Salir» para devolver el teléfono prestado. */
     P.ev('salirDeCuenta()');
@@ -170,7 +182,7 @@ describe('R3: una escritura en camino no se corta por cambiar de pestaña', () =
       redQueRetiene(P);
       const C = await controladorDeVerdad(P.ev, P.ventana);
       C.mirando();
-      await C.publicar('v140');
+      await C.publicar(VERSION_NUEVA);
       P.ev("irA('chat')");   // una pantalla que no es de la lista
       P.ev(salir);
       await asentar(8);
@@ -188,7 +200,7 @@ describe('R3: una escritura en camino no se corta por cambiar de pestaña', () =
     redQueRetiene(P);
     const C = await controladorDeVerdad(P.ev, P.ventana);
     C.mirando();
-    await C.publicar('v140');
+    await C.publicar(VERSION_NUEVA);
     P.ev("irA('chat'); rpcSesion('chat_leer_sesion', { p_canal: 'servicio', p_desde: 0 });");
     P.ev("irA('historial')");
     await asentar(16);
@@ -204,7 +216,7 @@ describe('R3: una escritura en camino no se corta por cambiar de pestaña', () =
       await P.entrarComo('3001112233', 'Maria.Secreta9');
       const C = await controladorDeVerdad(P.ev, P.ctx);
       C.mirando();
-      await C.publicar('v140');
+      await C.publicar(VERSION_NUEVA);
       P.ev("irA('chats')");
       await asentar(8);
       P.st.colgar = re;
@@ -245,7 +257,7 @@ describe('R3: una escritura en camino no se corta por cambiar de pestaña', () =
       assert.equal(S.ev('PANTALLA'), 'inicio', 'no entró');
       const C = await controladorDeVerdad(S.ev, S.ctx);
       C.mirando();
-      await C.publicar('v140');
+      await C.publicar(VERSION_NUEVA);
       S.ev(hacer);
       await asentar(8);
       assert.equal(pendientes.length, 1, nombre + ' no salió');
@@ -305,7 +317,7 @@ describe('R4: la caja de solo lectura de la tarjeta de instalar no frena la actu
       assert.ok(cajas.length >= 1, nombre + ': la tarjeta no pintó la caja del enlace: la prueba no prueba el caso');
       const C = await controladorDeVerdad(S.ev, S.ctx, { campos: () => camposVisibles(S) });
       C.mirando();
-      await C.publicar('v140');
+      await C.publicar(VERSION_NUEVA);
       assert.equal(/se pone sola cuando termines/.test(C.texto()), false,
         nombre + ': en la entrada (que es el inicio) dijo «cuando termines y vuelvas al inicio»: ' + C.texto());
       await C.ocultar();
@@ -346,7 +358,7 @@ describe('R5: un modo sin momento seguro no promete «se pone sola»', () => {
     assert.equal(S.ev('PANTALLA'), 'inicio');
     const C = await controladorDeVerdad(S.ev, S.ctx);
     C.mirando();
-    await C.publicar('v140');
+    await C.publicar(VERSION_NUEVA);
     assert.equal(C.st.recargas, 0, 'recargó debajo del dedo');
     assert.equal(/termines y vuelvas al inicio/.test(C.texto()), false, 'en el inicio le dijo «cuando vuelvas al inicio»: ' + C.texto());
     S.ev("irA('calc')");
@@ -365,7 +377,7 @@ describe('R5: un modo sin momento seguro no promete «se pone sola»', () => {
          " socio: { codigo: 'CL-0007' }, perfil: { datos: {} }, referidos: { total: 0, pagaron: 0, lista: [] } }, origen: 'panel' })");
     const C = await controladorDeVerdad(S.ev, S.ctx);
     C.mirando();
-    await C.publicar('v140');
+    await C.publicar(VERSION_NUEVA);
     for (const t of ['inicio', 'historial', 'garantia', 'calc', 'chat', 'inicio']) {
       S.ev("irA('" + t + "')");
       await asentar(16);
@@ -384,7 +396,7 @@ describe('R5: un modo sin momento seguro no promete «se pone sola»', () => {
     P.ev('setMonto(MONTO + 50000)');
     const C = await controladorDeVerdad(P.ev, P.ctx);
     C.mirando();
-    await C.publicar('v140');
+    await C.publicar(VERSION_NUEVA);
     for (const t of ['plata', 'yo', 'chats', 'plata']) {
       P.ev("irA('" + t + "')");
       await asentar(16);

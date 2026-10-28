@@ -323,7 +323,9 @@ describe('3 · La política del 27-oct: una fecha y un «Lo que cambió» para l
    (app/bancos-colombia.js y app/cuentas-pago.js), además de los cuatro del
    lote 1. Un <script src> que no está en la precarga deja a la app instalada
    sin esa pieza la primera vez que abre sin señal; una entrada que no existe
-   es basura que nadie nota. CACHE sigue en v139: nunca se publicó. */
+   es basura que nadie nota. 30-oct-2026 — CACHE en v140: v139 se publicó el
+   26-oct con este lote, y el del viernes 30 (chat-1 y el gerente agrega)
+   sube al siguiente. */
 const precarga = () => {
   const sw = fs.readFileSync(path.join(RAIZ, 'sw.js'), 'utf8');
   const i = sw.indexOf('const ARCHIVOS = ['), j = sw.indexOf('].map(f => BASE + f)', i);
@@ -342,9 +344,9 @@ const conVersion = f => comoArchivo(f) + (f.indexOf('?') >= 0 ? f.slice(f.indexO
 
 describe('4 · La precarga de sw.js tiene todo lo nuevo del lote, y nada que no exista', () => {
 
-  test('CACHE es tugarantia-v139 y cada entrada de ARCHIVOS existe', () => {
+  test('CACHE es tugarantia-v140 y cada entrada de ARCHIVOS existe', () => {
     const { sw, lista } = precarga();
-    assert.match(sw, /const CACHE = 'tugarantia-v139';/);
+    assert.match(sw, /const CACHE = 'tugarantia-v140';/);
     assert.ok(lista.length > 50, 'no leí la lista entera');
     const faltan = lista.map(comoArchivo).filter(f => !fs.existsSync(path.join(RAIZ, f)));
     assert.deepEqual(faltan, [], 'la precarga pide archivos que no existen');

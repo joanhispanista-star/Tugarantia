@@ -1936,7 +1936,21 @@
    con el mismo nombre. Nada quedó envenenado en disco: el HTML servido como
    .js nunca se guardó bajo la dirección del .js (solo se guarda lo que llegó
    de la red). */
-const CACHE = 'tugarantia-v139';
+/* v140 — 30-oct-2026. EL LOTE DEL VIERNES: chat-1 (el chat se mueve solo en
+   el CRM, en el celular de Joan y en la app del cliente) y «el gerente
+   agrega» (William agrega prospectos a mano y por archivo, y descarga su
+   base). Entran DOS archivos nuevos a la precarga: app/chat-vivo.js SIN
+   versión en la dirección (es nuevo: no hay copia vieja con la que
+   mezclarse, y las tres páginas lo piden igual, como vigila
+   pruebas/las-tres-pantallas-el-mismo-reloj.test.js; el día que cambie,
+   ahí sí lleva ?v=), y panel/agregar-prospectos.js?v=140, que crm.html pide
+   con versión y firma al llegar. Ningún .js ya publicado cambió frente a
+   v139 (git diff 5c61d08 -- app panel platachat play), así que ninguna otra
+   dirección se mueve: lo que dice ?v=139 sigue siendo ese mismo archivo, y
+   se revalida con un 304 en vez de bajarse entero. Cambian páginas
+   (panel/crm.html, panel/espejo.html y app/socio.html), y VERSION_SITIO sube
+   a v140 en las cinco que se actualizan solas. */
+const CACHE = 'tugarantia-v140';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -1997,9 +2011,9 @@ const ARCHIVOS = [
   /* 19-oct-2026 — «🔑 Mi contraseña» del equipo: crm.html la carga con <script src>. Ver la nota de v138. */
   'panel/mi-clave.js',
   /* 27-oct-2026 — «el gerente agrega»: las reglas de agregar gente (columnas
-     extra, limpieza, tandas). crm.html la pide con ?v= y firma al llegar. El
-     CACHE no se toca aquí: lo sube a v140 el integrador del viernes 30, con chat-1. */
-  'panel/agregar-prospectos.js?v=139',
+     extra, limpieza, tandas). crm.html la pide con ?v= y firma al llegar.
+     Sale en v140 (el lote del viernes 30-oct, con chat-1): ?v=140. */
+  'panel/agregar-prospectos.js?v=140',
   'panel/tanda.js',
   /* 2-oct-2026 — «Tu gente», los referidos del espejo. Ver la nota de v124. */
   'app/gente.js',

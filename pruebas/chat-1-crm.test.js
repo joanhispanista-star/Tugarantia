@@ -762,13 +762,15 @@ describe('7. honestidad, y sin el módulo el CRM anda como antes', () => {
     } finally { cerrar(); }
   });
 
-  test('crm.html carga el módulo, sw.js lo precarga, y el CACHE no se tocó (lo sube la integración del 30-oct)', () => {
+  test('crm.html carga el módulo, sw.js lo precarga, y el CACHE es el de la integración del 30-oct (v140)', () => {
     assert.match(CRM, /<script src="\.\.\/app\/chat-vivo\.js"><\/script>/);
     assert.ok(CRM.indexOf('<script src="../app/chat-vivo.js">') > CRM.indexOf('<script src="../app/chat.js">'), 'chat-vivo.js va antes de chat.js');
     const SW = leer('sw.js');
     const lista = SW.slice(SW.indexOf('const ARCHIVOS = ['), SW.indexOf('].map(f => BASE + f)'));
     assert.ok(lista.indexOf("'app/chat-vivo.js'") >= 0, 'sw.js no precarga app/chat-vivo.js: la primera vez sin señal, sin reloj');
-    assert.match(SW, /const CACHE = 'tugarantia-v139';/, 'el CACHE lo sube quien integra el lote del 30-oct, no esta rama');
+    /* 30-oct-2026 — la integración del lote del viernes subió el CACHE a v140
+       (chat-1 sale ahí, con el gerente agrega). */
+    assert.match(SW, /const CACHE = 'tugarantia-v140';/, 'chat-1 sale en v140: el CACHE lo subió la integración del 30-oct');
     assert.ok(fs.existsSync(path.join(RAIZ, 'app', 'chat-vivo.js')));
     /* Y las páginas siguen pidiendo app/chat.js como antes: chat-1 no lo tocó,
        así que ninguna tiene que subir su ?v= (eso lo vigila

@@ -73,6 +73,15 @@ const { abrirPlataChat } = require('./banco-platachat.js');
 const { asentar } = require('./esperar.js');
 
 const RAIZ = path.join(__dirname, '..');
+/* 30-oct-2026 — LA VERSIÓN DE HOY SALE DE sw.js, NO SE CLAVA. Las páginas de
+   verdad arrancan app/actualizar.js con SU VERSION_SITIO, que es el CACHE de
+   sw.js (pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro).
+   Con 'v139' y 'v140' escritos aquí, la publicación de v140 dejó la página
+   de verdad en v140 frente a una «publicada» de v139 y una «nueva» de v140:
+   nada nuevo que avisar, y estas pruebas caían sin que nada se hubiera roto.
+   VERSION_HOY es la de la página; VERSION_NUEVA, la que se publica después. */
+const NUM_HOY = Number((/const CACHE = 'tugarantia-v(\d+)';/.exec(fs.readFileSync(path.join(RAIZ, 'sw.js'), 'utf8')) || [])[1]);
+const VERSION_HOY = 'v' + NUM_HOY, VERSION_NUEVA = 'v' + (NUM_HOY + 1);
 const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8').replace(/\r\n/g, '\n');
 const PROMETE_AL_SALIR = /se pone sola cuando salgas/;
 
@@ -88,7 +97,7 @@ function navegadorConOjos(o) {
   o = o || {};
   const st = {
     t: Date.parse('2026-10-22T10:00:00-05:00'), recargas: 0, hidden: false, onLine: true,
-    claves: ['tugarantia-v139'], sesion: {}, oyentes: { doc: {}, win: {}, sw: {} },
+    claves: ['tugarantia-' + VERSION_HOY], sesion: {}, oyentes: { doc: {}, win: {}, sw: {} },
     elementos: [], campos: o.campos || (() => []), videos: o.videos || (() => []),
     observadores: [], registros: [], relojes: [], entregando: false
   };
@@ -178,7 +187,7 @@ function navegadorConOjos(o) {
       return asentar(16);
     },
     arrancar(op) {
-      const c = A.iniciar(Object.assign({ version: 'v139', entorno }, op || {}));
+      const c = A.iniciar(Object.assign({ version: VERSION_HOY, entorno }, op || {}));
       return asentar(12).then(() => c);
     },
     /* La página de verdad, con este navegador: se arranca SU controlador (con
@@ -230,7 +239,7 @@ describe('1. la franja vuelve a mirar sola, desde app/actualizar.js', () => {
     let es = true;
     await N.arrancar({ momentoSeguro: () => es });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
     /* Pasa a una pantalla de fuera de la lista (el registro): solo cambia el DOM. */
     es = false;
@@ -253,7 +262,7 @@ describe('1. la franja vuelve a mirar sola, desde app/actualizar.js', () => {
     let preguntas = 0;
     await N.arrancar({ momentoSeguro: () => { preguntas++; return false; } });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     const caja = N.st.elementos.find(e => e.id === A.ID_FRANJA);
     const antes = preguntas;
     N.mutar(caja.hijos[0]);                                             // su texto
@@ -270,11 +279,11 @@ describe('1. la franja vuelve a mirar sola, desde app/actualizar.js', () => {
     await N.arrancar({ momentoSeguro: () => true });
     assert.equal(N.st.observadores.length, 0, 'conectó el observador sin versión nueva: la página paga por cada cambio del DOM');
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.equal(N.st.observadores.length, 1, 'con versión nueva no mira la pantalla');
     const P = navegadorConOjos();
     await P.arrancar({ soloAvisar: true });
-    await P.publicar('v140');
+    await P.publicar(VERSION_NUEVA);
     assert.equal(P.st.observadores.length, 0, 'el CRM mira cada cambio de su DOM enorme para un texto que no depende de la pantalla');
   });
 
@@ -284,7 +293,7 @@ describe('1. la franja vuelve a mirar sola, desde app/actualizar.js', () => {
     let casilla = false;
     await N.arrancar({ momentoSeguro: () => !casilla });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.equal(N.franja().boton, 'Actualizar ahora');
     campo.value = 'una nota para Joan';
     await N.teclear();
@@ -303,7 +312,7 @@ describe('1. la franja vuelve a mirar sola, desde app/actualizar.js', () => {
     let enCamino = false;
     const c = await N.arrancar({ momentoSeguro: () => true, ocupado: () => enCamino });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.equal(N.franja().boton, 'Actualizar ahora');
     enCamino = true;
     c.volverAMirar();   // sin await: el botón no puede seguir a la vista ni un instante
@@ -315,7 +324,7 @@ describe('1. la franja vuelve a mirar sola, desde app/actualizar.js', () => {
     const N = navegadorConOjos();
     let enCamino = true;
     await N.arrancar({ momentoSeguro: () => true, ocupado: () => enCamino });
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     await N.ocultar();
     assert.equal(N.st.recargas, 0, 'recargó al salir de la app con algo en camino');
     enCamino = false;
@@ -333,7 +342,7 @@ describe('1b. «Actualizar ahora» vuelve a preguntar al tocarlo', () => {
     let enCamino = false;
     await N.arrancar({ momentoSeguro: () => true, ocupado: () => enCamino });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     const tocar = N.botonDeLaFranja();
     enCamino = true;          // sale el pedido en el mismo instante del toque
     tocar();
@@ -357,7 +366,7 @@ describe('1b. «Actualizar ahora» vuelve a preguntar al tocarlo', () => {
     let enCamino = false, es = true;
     const c = await N.arrancar({ momentoSeguro: () => es && !enCamino, ocupado: () => enCamino });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     const tocar = N.botonDeLaFranja();
     enCamino = true;
     tocar();
@@ -377,7 +386,7 @@ describe('1b. «Actualizar ahora» vuelve a preguntar al tocarlo', () => {
     const N = navegadorConOjos({ campos: () => [campo] });
     await N.arrancar({ momentoSeguro: () => false, nuncaEsSeguro: () => true });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.nuncaSola, 'Actualizar ahora']);
     N.franja().tocar();
     assert.equal(N.st.recargas, 0, 'recargó y se llevó lo escrito sin decirlo');
@@ -395,7 +404,7 @@ describe('1b. «Actualizar ahora» vuelve a preguntar al tocarlo', () => {
     const N = navegadorConOjos({ videos: () => [{ srcObject: { active: true } }] });
     await N.arrancar({ momentoSeguro: () => true, nuncaEsSeguro: () => true });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     N.franja().tocar();
     assert.equal(N.st.recargas, 0);
     assert.equal(N.franja().texto, A.TEXTOS.confirmarCamara);
@@ -406,7 +415,7 @@ describe('1b. «Actualizar ahora» vuelve a preguntar al tocarlo', () => {
     let enCamino = false;
     const c = await N.arrancar({ momentoSeguro: () => !enCamino, ocupado: () => enCamino, nuncaEsSeguro: () => true });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     enCamino = true;
     N.franja().tocar();
     assert.equal(N.franja().texto, A.TEXTOS.esperando);
@@ -424,7 +433,7 @@ describe('1b. «Actualizar ahora» vuelve a preguntar al tocarlo', () => {
     let enCamino = false;
     const c = await N.arrancar({ momentoSeguro: () => true, ocupado: () => enCamino });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     enCamino = true;
     N.franja().tocar();
     N.sinSenal();
@@ -449,7 +458,7 @@ describe('2. hallazgo 1: las pantallas que no avisaban', () => {
     assert.equal(P.ev('VISTA'), 'entrar');
     const N = await navegadorConOjos().enLaPagina(P.ev, P.ventana);
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
     P.ev('abrirRegistro()');
     await asentar(8);
@@ -468,7 +477,7 @@ describe('2. hallazgo 1: las pantallas que no avisaban', () => {
     const N = await navegadorConOjos().enLaPagina(P.ev, P.ventana);
     P.ev("irA('credito')");
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.equal(N.franja().boton, 'Actualizar ahora');
     P.ev("pintarSolicitud({ id: 7, estado: 'propuesta', pedido: { capital: 300000 }, capital: 300000, fecha_pago: '2026-11-15', costo: 9000, total: 309000 })");
     await asentar(8);
@@ -500,7 +509,7 @@ describe('2. hallazgo 1: las pantallas que no avisaban', () => {
       assert.equal(S.ev('PANTALLA'), 'inicio');
       const N = await navegadorConOjos().enLaPagina(S.ev, S.ctx);
       N.mirando();
-      await N.publicar('v140');
+      await N.publicar(VERSION_NUEVA);
       assert.equal(N.franja().boton, 'Actualizar ahora');
       S.ev(abrir);
       await asentar(8);
@@ -521,7 +530,7 @@ describe('2. hallazgo 1: las pantallas que no avisaban', () => {
     await asentar();
     const N = await navegadorConOjos().enLaPagina(P.ev, P.ctx);
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
     P.ev('pintarRecado()');
     await asentar(8);
@@ -544,7 +553,7 @@ describe('2b. hallazgo 2: «Actualizar ahora» con algo en el aire', () => {
     const N = await navegadorConOjos().enLaPagina(P.ev, P.ventana);
     P.ev("irA('credito')");
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.equal(N.franja().boton, 'Actualizar ahora');
     const tocar = N.botonDeLaFranja();
     P.ev('enviarPedido()');
@@ -572,7 +581,7 @@ describe('2b. hallazgo 2: «Actualizar ahora» con algo en el aire', () => {
     const N = await navegadorConOjos().enLaPagina(P.ev, P.ventana);
     P.ev("irA('credito')");
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     const tocar = N.botonDeLaFranja();
     P.ev("rpcSesion('aceptar_condiciones', { p_id: 7, p_vio: {} })");
     assert.equal(N.franja().boton, null, 'con la aceptación en el aire, el botón siguió a la vista');
@@ -611,7 +620,7 @@ describe('2b. hallazgo 2: «Actualizar ahora» con algo en el aire', () => {
     const N = navegadorConOjos({ campos: camposVisibles(S.ev, 'cuerpo') });
     await N.enLaPagina(S.ev, S.ctx);
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.equal(N.franja().boton, 'Actualizar ahora');
     const tocar = N.botonDeLaFranja();
     S.elem('chTexto').value = 'Ya consigné, ¿me confirman?';
@@ -642,7 +651,7 @@ describe('2b. hallazgo 2: «Actualizar ahora» con algo en el aire', () => {
     P.ev('setMonto(MONTO + 50000)');
     const N = await navegadorConOjos().enLaPagina(P.ev, P.ctx);
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.nuncaSola, 'Actualizar ahora']);
     /* «Pedir» por el camino de la pantalla: el onclick que pintó la calculadora. */
     const html = String(P.ev("$('calcSalida').innerHTML"));
@@ -675,7 +684,7 @@ describe('2b. hallazgo 2: «Actualizar ahora» con algo en el aire', () => {
     const N = navegadorConOjos({ campos: camposVisibles(P.ev, 'cuerpo') });
     await N.enLaPagina(P.ev, P.ctx);
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     P.ev("irA('chats')");
     await asentar(8);
     P.ev("$('chTexto').value = 'ya pagué, les mando la foto'");
@@ -731,7 +740,7 @@ describe('4a. «ya terminó»: ni una recarga sola antes de que la persona vea l
     const v = { enCamino: false };
     const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     const tocar = N.botonDeLaFranja();
     v.enCamino = true;
     tocar();
@@ -794,7 +803,7 @@ describe('4a. «ya terminó»: ni una recarga sola antes de que la persona vea l
     let enCamino = false;
     const c = await N.arrancar({ momentoSeguro: () => !enCamino, ocupado: () => enCamino });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     const tocar = N.botonDeLaFranja();
     enCamino = true;
     tocar();
@@ -831,7 +840,7 @@ describe('4b. el «no» de la base, en las tres páginas de verdad', () => {
       const N = await navegadorConOjos().enLaPagina(P.ev, P.ventana);
       P.ev("irA('credito')");
       N.mirando();
-      await N.publicar('v140');
+      await N.publicar(VERSION_NUEVA);
       const tocar = N.botonDeLaFranja();
       P.ev('enviarPedido()');
       assert.equal(P.ev('window.__pend.length'), 1, 'el pedido no salió');
@@ -882,7 +891,7 @@ describe('4b. el «no» de la base, en las tres páginas de verdad', () => {
       const N = navegadorConOjos({ campos: camposVisibles(S.ev, 'cuerpo') });
       await N.enLaPagina(S.ev, S.ctx);
       N.mirando();
-      await N.publicar('v140');
+      await N.publicar(VERSION_NUEVA);
       const tocar = N.botonDeLaFranja();
       S.elem('chTexto').value = 'Ya consigné, ¿me confirman?';
       S.ev('chatEnviar()');
@@ -914,7 +923,7 @@ describe('4b. el «no» de la base, en las tres páginas de verdad', () => {
     const N = navegadorConOjos({ campos: camposVisibles(P.ev, 'cuerpo') });
     await N.enLaPagina(P.ev, P.ctx);
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.equal(P.ev('nuncaSeguroPC()'), true, 'la calculadora no quedó movida: la prueba no prueba el caso');
     return { P, N };
   }
@@ -1009,7 +1018,7 @@ describe('5a. el controlador: lo que la persona mandó y terminó sin nadie mira
     const v = { enCamino: false };
     const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
     v.enCamino = true;
     await c.volverAMirar();           // la página: escrituraEnCamino → avisarQueEmpieza
@@ -1053,7 +1062,7 @@ describe('5a. el controlador: lo que la persona mandó y terminó sin nadie mira
     let enCamino = false;
     const c = await N.arrancar({ momentoSeguro: () => !enCamino, ocupado: () => enCamino });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     enCamino = true;                  // sin volverAMirar: una página que se olvidó de avisar
     await N.ocultar();
     enCamino = false;
@@ -1075,7 +1084,7 @@ describe('5a. el controlador: lo que la persona mandó y terminó sin nadie mira
     await c.revisar();                // terminó allá; no hay nada que actualizar aún
     assert.equal(N.st.recargas, 0);
     await N.volver();
-    await N.publicar('v140');         // la búsqueda del regreso la encuentra
+    await N.publicar(VERSION_NUEVA);         // la búsqueda del regreso la encuentra
     assert.equal(N.st.recargas, 0, 'la versión llegó al volver y recargó encima de una respuesta que nadie había visto');
     assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
   });
@@ -1105,7 +1114,7 @@ describe('5a. el controlador: lo que la persona mandó y terminó sin nadie mira
     const v = { enCamino: true };
     const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
     await c.volverAMirar();           // marcar_acceso al abrir PlataChat: nadie lo pidió
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.equal(N.st.recargas, 0, 'recargó con algo en camino');
     v.enCamino = false;
     await c.revisar();                // termina en los 4 s del arranque
@@ -1124,7 +1133,7 @@ describe('5b. el «no» de la base sin tocar el botón, en play/ y PlataChat de 
     const N = await navegadorConOjos().enLaPagina(P.ev, P.ventana);
     P.ev("irA('credito')");
     N.mirando();                      // el toque de «Pedir»
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
     P.ev('enviarPedido()');
     await asentar(8);
@@ -1190,7 +1199,7 @@ describe('5b. el «no» de la base sin tocar el botón, en play/ y PlataChat de 
     const N = navegadorConOjos({ campos: camposVisibles(P.ev, 'cuerpo') });
     await N.enLaPagina(P.ev, P.ctx);
     N.mirando();                      // el toque de «Pedir»
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.equal(P.ev('nuncaSeguroPC()'), false, 'la calculadora quedó movida: ese caso es el de la sección 4b');
     const html = String(P.ev("$('calcSalida').innerHTML"));
     const pedir = (/onclick="(pedirPorChat\([^"]*\))"/.exec(html) || [])[1];
@@ -1248,7 +1257,7 @@ describe('6a. el controlador: la pantalla que se apaga sola no es «la vio»', (
     const v = { enCamino: false };
     const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
     N.mirando();                      // el toque de «Pedir»
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     v.enCamino = true;
     await c.volverAMirar();           // la página: empieza la escritura
     N.st.t += 20000;                  // red lenta: 20 s con «Enviando…»
@@ -1280,7 +1289,7 @@ describe('6a. el controlador: la pantalla que se apaga sola no es «la vio»', (
     const v = { enCamino: false };
     const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     v.enCamino = true;
     await c.volverAMirar();
     N.mirando();                      // toca la pantalla con «Enviando…»
@@ -1338,7 +1347,7 @@ describe('6a. el controlador: la pantalla que se apaga sola no es «la vio»', (
     const v = { enCamino: false };
     const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
     N.mirando();
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     const tocar = N.botonDeLaFranja();
     v.enCamino = true;
     tocar();
@@ -1362,7 +1371,7 @@ describe('6b. play/ y PlataChat de verdad: el «no» llega, el teléfono en la m
     const N = await navegadorConOjos().enLaPagina(P.ev, P.ventana);
     P.ev("irA('credito')");
     N.mirando();                      // el toque de «Pedir»
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     P.ev('enviarPedido()');
     await asentar(8);
     assert.equal(P.ev('window.__pend.length'), 1, 'el pedido no salió');
@@ -1390,7 +1399,7 @@ describe('6b. play/ y PlataChat de verdad: el «no» llega, el teléfono en la m
     const N = navegadorConOjos({ campos: camposVisibles(P.ev, 'cuerpo') });
     await N.enLaPagina(P.ev, P.ctx);
     N.mirando();                      // el toque de «Pedir»
-    await N.publicar('v140');
+    await N.publicar(VERSION_NUEVA);
     assert.equal(P.ev('nuncaSeguroPC()'), false, 'la calculadora quedó movida: ese caso es el de la sección 4b');
     const html = String(P.ev("$('calcSalida').innerHTML"));
     const pedir = (/onclick="(pedirPorChat\([^"]*\))"/.exec(html) || [])[1];

@@ -142,10 +142,11 @@ describe('1. «Chat»: el nombre, el comentario del CSS, lo que no se promete, s
     assert.doesNotMatch(lamina, /te avis|tiempo real|al instante|notificaci/i, 'la lámina promete un aviso que el código no manda');
   });
 
-  test('la página carga app/chat-vivo.js, sw.js lo precarga, y el CACHE sigue en v139 (lo sube la integración del 30-oct)', () => {
+  test('la página carga app/chat-vivo.js, sw.js lo precarga, y el CACHE es el de la integración del 30-oct (v140)', () => {
     assert.match(SOCIO, /<script src="chat-vivo\.js"><\/script>/);
     assert.match(SW, /'app\/chat-vivo\.js'/, 'un service worker sin el archivo en su lista lo serviría como página HTML (la lección de la v18)');
-    assert.match(SW, /const CACHE = 'tugarantia-v139'/, 'chat-1 no sube el CACHE: lo hace quien integra el lote del 30-oct');
+    /* 30-oct-2026 — la integración del lote del viernes subió el CACHE a v140. */
+    assert.match(SW, /const CACHE = 'tugarantia-v140'/, 'chat-1 sale en v140: el CACHE lo subió la integración del 30-oct');
   });
 });
 
