@@ -177,6 +177,29 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         Superfinanciera, su fuente y su fecha arriba
                         (consultada el 22-oct-2026). Para ponerla al día se
                         cambia solo este archivo.
+  fondos-pension.js     Los cinco fondos de pensiones (28-oct-2026) con su
+                        página OFICIAL y cómo se pide en cada uno la historia
+                        laboral (al correo con la cédula, o entrando con su
+                        usuario), «No sé» (el RUAF, para mirarlo uno mismo) y
+                        «Nunca he cotizado», con las reglas de combinación de
+                        la base (Colpensiones con UN fondo privado). Fuente y
+                        fecha arriba; para ponerla al día se cambia solo este
+                        archivo. Nuevo en v141, sin ?v=.
+  historia-laboral.js   «Tu fondo de pensiones» (28-oct-2026): la MISMA
+                        pantalla para el paso opcional del registro (play/) y
+                        la tarjeta «Tu historia laboral» de la app
+                        (socio.html). La autorización aparte y sin marcar (su
+                        versión, 2026-11-03, es la fecha de la política), los
+                        fondos, el botón a la página oficial en otra pestaña,
+                        y las tres formas: 📄 PDF, 🖼️ hasta 5 pantallazos
+                        (achicados en el teléfono si pesan) y 📋 Pegar
+                        (portapapeles o el recuadro de mantener presionado).
+                        El tipo sale de los primeros bytes. Sin cuenta, lo
+                        escogido espera como el borrador y los archivos en
+                        IndexedDB como las fotos; al abrir la cuenta pasan a
+                        la cola de ESA cuenta y suben con su sesión. No lee el
+                        PDF ni «verifica con el fondo». Nuevo en v141, sin ?v=.
+                        Pruebas: pruebas/el-fondo-de-pensiones*.test.js.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
                         divulgación del crédito y el borrado de cuenta.
@@ -311,6 +334,15 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         pruebas/agregar-prospectos.test.js,
                         el-gerente-agrega.test.js, joan-ve-lo-del-equipo.test.js
                         y el-gerente-descarga-su-base.test.js.
+  historia-laboral-crm.js  «📄 Fondo de pensiones» en el CRM de Joan
+                        (28-oct-2026): la línea de 📥 Registrados, el bloque de
+                        «👁 Ver datos» y de la ficha, y abrir UN archivo que
+                        escribió un desconocido: el tipo por sus bytes (y el
+                        de la base), un Blob con ese tipo forzado, el PDF en
+                        otra pestaña por un enlace de un solo uso y la imagen
+                        en grande aquí. Todo con la clave de Joan; el modo
+                        equipo no pinta nada. Nuevo en v141, sin ?v=.
+                        Pruebas: pruebas/el-fondo-de-pensiones-crm.test.js.
   nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el
                         22-oct-2026, se empareja sola en cada computador: solo
                         pregunta si la nube tiene OTRA cartera. Lo distinto queda
@@ -486,6 +518,23 @@ base/
                                   por gerente activo. Pruebas:
                                   pruebas/el-gerente-agrega-postgres.test.js y
                                   el-gerente-agrega-sql.test.js.
+  20261103_el_fondo_de_pensiones.sql  La historia laboral del fondo de
+                                  pensiones, opcional (28-oct-2026): la
+                                  autorización aparte y el fondo
+                                  (pension_autorizaciones) y los archivos
+                                  (pension_archivos: PDF, JPG, PNG o WEBP por
+                                  sus bytes, 3 MB, 2 PDF y 5 imágenes, 12 MB
+                                  por persona), con RLS y cerradas. El cliente,
+                                  con su sesión: autorizar, subir, ver lo suyo
+                                  sin contenido, quitar y retirar. Joan, con su
+                                  clave: resumen, detalle, UN archivo, borrar.
+                                  Ninguna función del equipo la lee. No se borra
+                                  sola (decisión de Joan): se va al retirarla,
+                                  al borrarla Joan y con la cuenta (disparador
+                                  en auth.users). Exige el 22d (paso 0). Va
+                                  ANTES de publicar v141. SIN APLICAR. Termina
+                                  con su tabla: 9 renglones en true. Pruebas:
+                                  pruebas/el-fondo-de-pensiones-postgres.test.js.
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.
@@ -500,6 +549,14 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         celular: su dueño es el intento hasta que lo hay (ver
                         pruebas/la-cedula-primero.test.js). PlataChat usa este
                         mismo registro con ?marca=platachat.
+                        (28-oct-2026) «Tu fondo de pensiones», opcional, va
+                        después de «De qué vives» (son 11 pasos), con «Lo hago
+                        después» arriba; no en PlataChat. Lo escogido
+                        sobrevive a irse al correo y volver; los archivos
+                        siguen la regla de las fotos; al abrir la cuenta suben
+                        con su sesión y #avisoPension lo dice
+                        (app/historia-laboral.js;
+                        pruebas/el-fondo-de-pensiones-registro.test.js).
                         (21-oct-2026) Lo IMPRESO en la cédula también llena
                         «Revisa tus datos»: la fecha de expedición, y el número
                         y los nombres si el código de barras no se lee
