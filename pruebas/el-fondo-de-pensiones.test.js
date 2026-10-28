@@ -132,8 +132,45 @@ describe('los textos: la autorización dice lo que la ley pide, y nada que el c�
     ['NEXECO S.A.S.', 'historia laboral', 'nombre de mi fondo de pensiones', 'Para revisar dónde trabajo y cuánto cotizo',
      'Es opcional', 'aparte de la autorización general', 'Nunca me piden la clave de mi fondo',
      'Se guarda mientras tenga cuenta en Tu Garantía', 'la ve solo quien dirige el negocio', 'no el resto del equipo',
-     'desde mi cuenta en la app', 'pedir por el chat que la borren', 'incapacidades o licencias, no se usan para nada']
+     'desde mi cuenta en la app', 'pedir por el chat que la borren',
+     /* 28-oct-2026 (arreglo de los leves, P5) — lo de la salud, como de verdad pasa. */
+     'incapacidades o licencias, que son datos de salud, quedan guardadas con él, pero no se usan para nada',
+     'no estoy obligado a darlas', 'en un pantallazo las puedo tapar']
       .forEach(p => assert.ok(todo.indexOf(p) >= 0, 'la autorización no dice «' + p + '»'));
+  });
+  /* 28-oct-2026 (arreglo de los leves, P4, P5 y P8) — LOS TEXTOS LEGALES NO SE
+     CONTRADICEN NI CALLAN. La política (punto 2) y los términos decían que
+     cada dato sube la garantía, y la historia laboral no la sube; la tarjeta
+     decía «tu garantía sale de tus pagos», falso para quien se acaba de
+     registrar; la casilla y la política callaban que las incapacidades y
+     licencias se guardan con el documento; y la política, que vale para
+     PlataChat, describía un paso que PlataChat no tiene. Con los textos de
+     antes, esto falla. */
+  test('la política, los términos y la tarjeta dicen lo mismo de la garantía, la salud y PlataChat', () => {
+    const visible = h => h.replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ');
+    const vis = f => visible(fs.readFileSync(path.join(RAIZ, 'legal', f), 'utf8'));
+    const P = vis('privacidad.html'), T = vis('terminos.html');
+    /* La garantía: donde se dice que cada dato la sube, se dice la excepción. */
+    assert.match(P, /cada dato que nos das la sube \(salvo tu historia laboral del fondo de pensiones, que no la cambia/,
+      'la política dice que cada dato sube la garantía, sin la excepción de la historia laboral');
+    assert.match(T, /Cada dato que entregas te sube esa cifra \(salvo la historia laboral de tu fondo de pensiones, que es opcional y no la cambia\)/,
+      'los términos dicen que cada dato sube la garantía, sin la excepción de la historia laboral');
+    assert.equal(HL.TEXTOS.introCuenta.slice(-'No cambia tu garantía.'.length), 'No cambia tu garantía.');
+    assert.equal(/sale de tus pagos/.test(HL.TEXTOS.introCuenta), false, 'la tarjeta dice que la garantía sale de los pagos: falso para quien recién se registra');
+    /* Los términos cambiaron: su fecha y su lista lo dicen (la regla de responsable-nexeco). */
+    assert.match(T, /Última actualización: 3 de noviembre de 2026/);
+    assert.match(T, /Lo que cambió el 3 de noviembre de 2026: La historia laboral de tu fondo de pensiones, que puedes darnos si quieres, no sube la garantía que te prestamos/);
+    /* La salud: se guarda con el documento, no se usa, no es obligatoria, y se puede tapar. */
+    const pension = visible(fs.readFileSync(path.join(RAIZ, 'legal', 'privacidad.html'), 'utf8')
+      .split('<h3 id="pension">')[1].split('<section id="sensibles">')[0]);
+    ['Si trae incapacidades o licencias, que son datos de salud, quedan guardadas con el documento, pero no las usamos para nada',
+     'No estás obligado a darlas: si nos mandas pantallazos, puedes taparlas']
+      .forEach(t => assert.ok(pension.indexOf(t) >= 0, 'la política no dice «' + t + '»'));
+    [pension, HL.TEXTOS.autorizacionDetalle].forEach(t => assert.equal(/no se guardan|no las guardamos/.test(t), false, 'promete que no se guardan'));
+    /* PlataChat: el paso es solo de Tu Garantía, y se dice. */
+    assert.match(pension, /es solo de Tu Garantía/);
+    assert.match(pension, /PlataChat no te la pide/);
+    assert.match(P, /Lo que cambió el 3 de noviembre de 2026: En Tu Garantía \(PlataChat no la pide\) puedes darnos/);
   });
   test('ninguna pantalla dice «verificado», ni promete que se borra a los 30 días, ni que sube la garantía', () => {
     const pantallas = JSON.stringify([HL.TEXTOS, HL.MOTIVOS, FP.FONDOS, FP.OTRAS]);

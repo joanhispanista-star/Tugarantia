@@ -147,8 +147,12 @@
   var TEXTOS = {
     intro: 'Opcional. Tu historia laboral es el documento de tu fondo de pensiones que dice dónde has trabajado y cuánto ' +
       'has cotizado. Si nos la das, la miramos al revisar tu solicitud. Si no, tu registro sigue igual.',
+    /* 28-oct-2026 (arreglo de los leves, P4) — decía «No cambia tu garantía:
+       tu garantía sale de tus pagos», y para quien se acaba de registrar es
+       falso: toda su garantía es la prestada por sus datos (legal/terminos.html,
+       «La que te prestamos nosotros»). Lo verdadero es lo primero, solo. */
     introCuenta: 'Opcional. El documento de tu fondo de pensiones que dice dónde has trabajado y cuánto has cotizado. ' +
-      'Si nos lo das, lo miramos al revisar tus solicitudes. No cambia tu garantía: tu garantía sale de tus pagos.',
+      'Si nos lo das, lo miramos al revisar tus solicitudes. No cambia tu garantía.',
     autorizacion: 'Autorizo a NEXECO S.A.S. (Tu Garantía) a recibir y guardar mi historia laboral y el nombre de mi fondo de pensiones.',
     /* Lo que la ley pide decir al pedirla (Ley 1581, arts. 9 y 12; Decreto
        1377, arts. 5 y 7): para qué, que es opcional, cuánto se guarda, quién
@@ -156,11 +160,19 @@
        Joan (pension_archivo pide su clave), se guarda mientras haya cuenta (no
        caduca), se quita desde la app (pension_retirar) o por el chat
        (pension_borrar, desde el CRM). */
+    /* 28-oct-2026 (arreglo de los leves, P5) — LAS INCAPACIDADES Y LICENCIAS,
+       COMO DE VERDAD PASA. Decía solo «no se usan para nada», y el documento
+       se guarda ENTERO (pension_archivos.datos, sin recorte ni fecha): si las
+       trae, quedan guardadas con él, y guardar ya es tratar el dato (Ley 1581,
+       art. 3 lit. g). Son datos de salud: sensibles, y nadie está obligado a
+       darlos (art. 6 lit. a). Joan decidió no esperar al abogado para esto: el
+       texto tiene que ser verdadero, no prometer que no se guardan. */
     autorizacionDetalle: 'Para revisar dónde trabajo y cuánto cotizo cuando evalúen mis solicitudes de crédito. Es opcional y ' +
       'aparte de la autorización general: sin ella todo sigue igual. Nunca me piden la clave de mi fondo. Se guarda mientras ' +
       'tenga cuenta en Tu Garantía; la ve solo quien dirige el negocio, no el resto del equipo. Puedo quitarla cuando quiera ' +
-      'desde mi cuenta en la app, o pedir por el chat que la borren. Si el documento trae incapacidades o licencias, no se ' +
-      'usan para nada.',
+      'desde mi cuenta en la app, o pedir por el chat que la borren. Si el documento trae incapacidades o licencias, que son ' +
+      'datos de salud, quedan guardadas con él, pero no se usan para nada; no estoy obligado a darlas, y en un pantallazo ' +
+      'las puedo tapar.',
     preguntaFondo: '¿En qué fondo estás?',
     ayudaFondo: 'Si cotizas en Colpensiones y en un fondo privado, marca los dos.',
     afuera: 'Se abre en otra pestaña, en la página oficial. Nunca te pedimos la clave de tu fondo.',

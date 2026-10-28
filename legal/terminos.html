@@ -100,7 +100,7 @@ section li{margin-bottom:var(--e2)}
 
 <div class="cab"><div class="wrap">
   <h1>Las reglas, sin letra chica</h1>
-  <p>Términos y condiciones del servicio · Última actualización: 15 de octubre de 2026</p>
+  <p>Términos y condiciones del servicio · Última actualización: 3 de noviembre de 2026</p>
 </div></div>
 
 <main><div class="wrap">
@@ -349,9 +349,13 @@ section li{margin-bottom:var(--e2)}
       baja.</p>
 
     <h3>La que te prestamos nosotros</h3>
+    <!-- 28-oct-2026 (arreglo de los leves, P4) — la historia laboral del fondo de pensiones
+         (opcional, desde el 3-nov) NO sube la garantía prestada: no entra en datosKycDe
+         (app/puente.js). «Cada dato que entregas te sube esa cifra» decía lo contrario. -->
     <p>Al abrir tu cuenta te prestamos hasta <b>$100.000</b> de garantía, según los datos que nos
-      des, para que puedas arrancar sin historial. Cada dato que entregas te sube esa cifra; con
-      todos completos llegas a los $100.000 exactos.</p>
+      des, para que puedas arrancar sin historial. Cada dato que entregas te sube esa cifra (salvo
+      la historia laboral de tu fondo de pensiones, que es opcional y no la cambia); con todos
+      completos llegas a los $100.000 exactos.</p>
     <p>Y si traes gente, te sumamos <b>$5.000</b> por cada persona que invites, desde el momento
       en que esa persona pague un crédito. Antes de eso no suma nada, y no hay límite de cuántas
       puedes traer.</p>
@@ -444,6 +448,18 @@ section li{margin-bottom:var(--e2)}
       <b>Los créditos que ya tienes no cambian.</b> Un crédito se rige por las reglas que estaban
       vigentes el día que lo pediste y por las condiciones que aceptaste. Un cambio nunca te sube
       el costo de algo que ya te entregamos.
+    </div>
+    <!-- 28-oct-2026 (arreglo de los leves, P4) — la fecha de arriba se mueve con el cambio y
+         la lista lo dice (la regla de pruebas/responsable-nexeco.test.js: ninguna fecha sin su
+         lista, ningún cambio sin su fecha). Es la fecha de PUBLICACIÓN del lote del fondo de
+         pensiones, la misma de legal/privacidad.html: si el lote sale otro día, se mueven
+         juntas. -->
+    <div class="nota azul">
+      <b>Lo que cambió el 3 de noviembre de 2026:</b>
+      <ul>
+        <li>La historia laboral de tu fondo de pensiones, que puedes darnos si quieres, no sube la
+          garantía que te prestamos (punto 6): es opcional y aparte. Lo demás no cambió.</li>
+      </ul>
     </div>
     <div class="nota azul">
       <b>Lo que cambió el 15 de octubre de 2026:</b>
