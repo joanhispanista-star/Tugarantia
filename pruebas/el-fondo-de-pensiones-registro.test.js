@@ -194,13 +194,13 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     const P = B.abrir();
     const llamadas = B.nube(P);
     B.mariaHastaElPermiso(P, false);
-    escoger(P, ['nunca']);
+    escoger(P, ['porvenir']);
     B.tocar(P, 'Abrir mi cuenta');
     await B.asentar(30);
     const l = llamadas();
-    assert.ok(l.some(x => /pension_autorizar/.test(x.url) && x.cuerpo.p_fondos[0] === 'nunca'));
+    assert.ok(l.some(x => /pension_autorizar/.test(x.url) && x.cuerpo.p_fondos[0] === 'porvenir'));
     assert.equal(l.some(x => /pension_subir/.test(x.url)), false);
-    assert.match(avisoPension(P), /Guardamos tu autorización y tu fondo/);
+    assert.match(avisoPension(P), /Guardamos tu autorización y tu fondo \(Porvenir\)\./);
     /* «súbela desde tu cuenta», con el camino al lado: el Perfil de ESTA
        cuenta, nunca un enlace al quincenal (la frontera de Play). */
     const h = P.ev("document.getElementById('avisoPension').innerHTML");
@@ -209,6 +209,22 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     P.ev('abrirHistoriaLaboralEnPerfil()');
     await B.asentar(20);
     assert.equal(P.ev('VISTA + "/" + TAB'), 'cuenta/perfil');
+  });
+
+  /* 28-oct-2026 (arreglo de los leves, P2) — a quien dijo «Nunca he cotizado»
+     la cuenta abierta le decía «Guardamos tu autorización y tu fondo… súbela
+     desde tu cuenta», con el enlace al Perfil: no tiene historia laboral que
+     subir. Con el código de antes esto falla. */
+  test('dijo «Nunca he cotizado»: la cuenta abierta lo dice así, sin pedirle que suba nada ni mandarlo al Perfil', async () => {
+    const P = B.abrir();
+    const llamadas = B.nube(P);
+    B.mariaHastaElPermiso(P, false);
+    escoger(P, ['nunca']);
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    assert.ok(llamadas().some(x => /pension_autorizar/.test(x.url) && x.cuerpo.p_fondos[0] === 'nunca'));
+    assert.match(avisoPension(P), /Guardamos tu autorización y que nunca has cotizado\. No tienes que subirnos nada\./);
+    assert.equal(/tu fondo|súbela|Subirla desde tu Perfil/.test(avisoPension(P)), false, avisoPension(P));
   });
 
   test('sin la autorización, nada del fondo sale (ni lo escogido sin marcar la casilla)', async () => {

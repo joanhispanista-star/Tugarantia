@@ -883,6 +883,9 @@
           });
         }, Promise.resolve());
       }).then(function () {
+        /* 28-oct-2026 (arreglo de los leves, P2) — y con qué fondos quedó (la
+           base pudo no aceptarlos): el aviso dice lo que pasó con ellos. */
+        res.fondos = (c.fondos || []).slice();
         return g.guardarCola(cel, null).then(function () { return res; });
       }, function (e) {
         var st = e && e.status, m = e && e.motivo;
@@ -908,7 +911,7 @@
           esc(motivoEnPalabras(r.rechazados[0].motivo === 'demasiados' ? 'demasiados' : r.rechazados[0].motivo)) : '';
       if (r.subidos) return { clase: 'verde', html: '<b>Tu historia laboral llegó</b> (' + esc(resumenDe(r.subidos, r)) + ').' + malos };
       if (r.rechazados.length) return { clase: 'ambar', html: '<b>Tu historia laboral no entró.</b>' + malos };
-      return { clase: 'verde', html: '<b>Guardamos tu autorización y tu fondo.</b> Cuando tengas tu historia laboral, súbela desde tu cuenta en la app.' };
+      return { clase: 'verde', html: guardamosSinArchivos(r.fondos) };
     }
     if (r.estado === 'apagado') return { clase: 'ambar', html: '<b>Tu historia laboral se quedó en este teléfono:</b> esta parte todavía no está encendida en nuestro sistema. ' + quedan };
     if (r.estado === 'freno') return { clase: 'ambar', html: '<b>Tu historia laboral no alcanzó a subir</b> por demasiados intentos seguidos. ' + quedan };
@@ -918,6 +921,19 @@
     return { clase: 'ambar', html: '<b>Tu historia laboral no alcanzó a subir.</b> ' + quedan };
   }
   function resumenDe(n, r) { return n === r.total ? (n === 1 ? '1 archivo' : n + ' archivos') : n + ' de ' + r.total + ' archivos'; }
+  /* 28-oct-2026 (arreglo de los leves, P2) — LO QUE SE GUARDÓ SIN ARCHIVOS,
+     DICHO COMO FUE. Decía «Guardamos tu autorización y tu fondo» aunque no
+     hubiera escogido fondo, y también a quien dijo «Nunca he cotizado», con
+     «súbela desde tu cuenta» de remate: a quien nunca cotizó no hay historia
+     laboral que pedirle. */
+  function guardamosSinArchivos(fondos) {
+    var f = fondos || [], FP = F();
+    var despues = ' Cuando tengas tu historia laboral, súbela desde tu cuenta en la app.';
+    if (f[0] === 'nunca') return '<b>Guardamos tu autorización y que nunca has cotizado.</b> No tienes que subirnos nada.';
+    if (f[0] === 'no_se') return '<b>Guardamos tu autorización.</b> Cuando sepas en qué fondo estás y tengas tu historia laboral, súbela desde tu cuenta en la app.';
+    if (!f.length || !FP) return '<b>Guardamos tu autorización.</b>' + despues;
+    return '<b>Guardamos tu autorización y ' + (f.length > 1 ? 'tus fondos' : 'tu fondo') + ' (' + esc(FP.nombres(f)) + ').</b>' + despues;
+  }
 
   /* ------------------------------------------------- la llamada con un token */
   /** Para la app (socio.html): {url, anon, token}. Rechaza con {status}. */
@@ -1012,7 +1028,11 @@
     return antesDeIrteHTML(fondos, modo) + (fondos || []).map(function (c) {
       var f = FP.porCodigo(c); if (!f) return '';
       if (!f.regimen) {
-        return '<div class="hl-como" data-hl-como="' + esc(c) + '"><div class="sub" style="margin:0">' + esc(f.texto) + '</div>' +
+        /* 28-oct-2026 (arreglo de los leves, P2) — en la cuenta, su texto de
+           cuenta: «sigue con tu registro» no tiene sentido para quien ya lo
+           terminó. */
+        var texto = (modo !== 'registro' && f.textoCuenta) || f.texto;
+        return '<div class="hl-como" data-hl-como="' + esc(c) + '"><div class="sub" style="margin:0">' + esc(texto) + '</div>' +
           (f.url ? '<a class="btn sec sm" href="' + esc(f.url) + '" target="_blank" rel="noopener noreferrer">Abrir el RUAF ↗</a>' +
                    '<div class="ayuda">' + esc(f.dominio) + ', del Ministerio de Salud. Es para que lo mires tú.</div>' : '') + '</div>';
       }

@@ -104,13 +104,17 @@
       notaCrm: 'Su portal la muestra en pantalla (la guía oficial no dice cómo bajarla): lo normal es que lleguen pantallazos. Arriba sale el saldo: no lo pedimos y no se usa. Y ahí el afiliado puede editar y agregar periodos (quedan como solicitud): un pantallazo puede traer cifras que escribió él.' }
   ];
 
-  /* Las dos que no son un fondo: van solas, nunca con otra. */
+  /* Las dos que no son un fondo: van solas, nunca con otra.
+     28-oct-2026 (arreglo de los leves, P2) — `textoCuenta`: lo que se dice en
+     la tarjeta de la cuenta, donde ya no hay registro que seguir. «Nunca he
+     cotizado» le decía «sigue con tu registro» a quien ya tiene cuenta. */
   var OTRAS = [
     { codigo: 'no_se', nombre: 'No sé en cuál estoy',
       texto: 'Lo dice tu desprendible de pago o tu planilla de seguridad social. También lo puedes consultar tú en el RUAF del Ministerio de Salud: míralo y vuelve aquí a marcar tu fondo. No nos subas nada del RUAF.',
       url: 'https://ruaf.sispro.gov.co/', dominio: 'ruaf.sispro.gov.co' },
     { codigo: 'nunca', nombre: 'Nunca he cotizado',
-      texto: 'No pasa nada: sigue con tu registro. Tu solicitud sigue igual.' }
+      texto: 'No pasa nada: sigue con tu registro. Tu solicitud sigue igual.',
+      textoCuenta: 'No pasa nada: no tienes que subirnos nada. Tus solicitudes siguen igual.' }
   ];
 
   var TODOS = FONDOS.concat(OTRAS);

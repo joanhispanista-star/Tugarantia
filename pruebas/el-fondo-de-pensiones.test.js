@@ -561,7 +561,36 @@ describe('la subida de la cola, con la sesión de la cuenta', () => {
     const t = await preparar([]);
     const r = await HL.subirCola(t.g, '3001112233', () => Promise.resolve({ ok: true }));
     assert.deepEqual([r.estado, r.subidos], ['ok', 0]);
-    assert.match(HL.avisoDeLaCola(r).html, /Guardamos tu autorización y tu fondo/);
+    assert.match(HL.avisoDeLaCola(r).html, /Guardamos tu autorización y tu fondo \(Porvenir\)\./);
+  });
+  /* 28-oct-2026 (arreglo de los leves, P2) — decía «Guardamos tu autorización
+     y tu fondo» aunque no hubiera fondo, y también a quien dijo «Nunca he
+     cotizado», con «súbela desde tu cuenta» de remate. Con el código de antes
+     las cuatro primeras fallan. */
+  test('lo que se guardó sin archivos se dice como fue: sin fondo, «No sé», «Nunca he cotizado», uno o dos fondos', async () => {
+    const aviso = fondos => HL.avisoDeLaCola({ estado: 'ok', subidos: 0, rechazados: [], total: 0, pendientes: 0, fondos }).html.replace(/<[^>]+>/g, '');
+    const sin = aviso([]);
+    assert.equal(/tu fondo|tus fondos/.test(sin), false, 'sin fondo, dice que guardó su fondo: ' + sin);
+    assert.match(sin, /^Guardamos tu autorización\. Cuando tengas tu historia laboral, súbela desde tu cuenta en la app\.$/);
+    const nunca = aviso(['nunca']);
+    assert.match(nunca, /^Guardamos tu autorización y que nunca has cotizado\. No tienes que subirnos nada\.$/);
+    assert.equal(/súbela|tu fondo/.test(nunca), false, 'a quien nunca cotizó le pide subir su historia laboral: ' + nunca);
+    const noSe = aviso(['no_se']);
+    assert.equal(/tu fondo \(|tus fondos/.test(noSe), false, noSe);
+    assert.match(noSe, /Cuando sepas en qué fondo estás/);
+    assert.match(aviso(['colpensiones', 'porvenir']), /Guardamos tu autorización y tus fondos \(Colpensiones y Porvenir\)\./);
+    /* Y lo que manda es lo que quedó en la base: si no aceptó los fondos, se autorizó sin fondo. */
+    const t = await preparar([]);
+    const r = await HL.subirCola(t.g, '3001112233', (fn, c) => Promise.resolve(c.p_fondos && c.p_fondos.length ? { ok: false, motivo: 'fondos' } : { ok: true }));
+    assert.deepEqual(r.fondos, []);
+    assert.equal(/tu fondo/.test(HL.avisoDeLaCola(r).html), false);
+  });
+  test('«Nunca he cotizado» en la cuenta no le dice a nadie «sigue con tu registro»', () => {
+    const como = modo => HL.pantallaHTML({ modo, aut: { version: '2026-11-03' }, fondos: ['nunca'], pidio: {}, archivos: [] })
+      .match(/data-hl-como="nunca"[\s\S]*?<\/div>/)[0];
+    assert.match(como('registro'), /sigue con tu registro/);
+    assert.equal(/registro/.test(como('cuenta')), false, 'la tarjeta de la cuenta habla de un registro que ya terminó');
+    assert.match(como('cuenta'), /No pasa nada: no tienes que subirnos nada\. Tus solicitudes siguen igual\./);
   });
   test('la señal se cae a mitad: lo que subió no se repite, lo demás espera', async () => {
     const t = await preparar([A('pdf', '%PDF-a'), A('pdf', '%PDF-b')]);

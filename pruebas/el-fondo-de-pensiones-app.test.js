@@ -140,6 +140,19 @@ describe('lo que hace, con su sesión', () => {
     assert.equal(A.elem('hlRetirar').classList.contains('oculto'), false, 'autorizó en la app y no ve cómo retirarla');
   });
 
+  /* 28-oct-2026 (arreglo de los leves, P2) — «Nunca he cotizado» mostraba en
+     la tarjeta «sigue con tu registro» a quien ya tiene cuenta. */
+  test('«Nunca he cotizado» en la tarjeta dice lo de la cuenta, no «sigue con tu registro»', async () => {
+    const A = abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, red: nube({
+      autorizacion: { fondos: ['nunca'], version: '2026-11-03', recibida_en: '2026-11-03T14:00:00Z', revocada_en: null } }) });
+    await asentar(30);
+    A.elem('hlAbrir')._oyentes.click[0]();
+    await asentar(5);
+    const t = plano(A.elem('hlCuerpo').innerHTML);
+    assert.match(t, /No pasa nada: no tienes que subirnos nada\. Tus solicitudes siguen igual\./);
+    assert.equal(/sigue con tu registro/.test(t), false, 'la tarjeta le habla a quien ya tiene cuenta de un registro que terminó');
+  });
+
   test('escoger el fondo lo guarda (y Colpensiones con un privado); lo que ya subió se ve con su fecha y se puede quitar', async () => {
     const A = abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, red: nube({
       autorizacion: { fondos: ['colpensiones'], version: '2026-11-03', recibida_en: '2026-11-03T14:00:00Z', revocada_en: null },
