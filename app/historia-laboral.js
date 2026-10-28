@@ -959,7 +959,11 @@
       caja.innerHTML = '<div class="card" id="hlTarjeta"><h3 class="tit">📄 Tu historia laboral <span class="muted" style="font-weight:400">· opcional</span></h3>' +
         '<p class="sub" id="hlLinea">' + esc(linea) + '</p>' +
         (vm.abierta ? '<div id="hlCuerpo"></div>' +
-          (vm.aut ? '<button type="button" class="btn sec sm" style="margin-top:var(--e4)" id="hlRetirar">Retirar mi autorización y borrar mi historia laboral</button>' : '')
+          /* Siempre en la tarjeta abierta, escondido sin autorización: quien la
+             da aquí mismo tiene que ver YA cómo retirarla (pintarLinea lo
+             muestra), no al volver a abrir la tarjeta. */
+          '<button type="button" class="btn sec sm' + (vm.aut ? '' : ' oculto') + '" style="margin-top:var(--e4)" id="hlRetirar">' +
+            'Retirar mi autorización y borrar mi historia laboral</button>'
           : (vm.cargando ? '' : '<button type="button" class="btn sec sm" style="margin-top:var(--e3)" id="hlAbrir">' + (n ? 'Ver o cambiar' : 'Subirla') + '</button>')) +
         '</div>';
       var b = porId('hlAbrir');

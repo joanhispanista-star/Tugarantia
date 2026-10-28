@@ -115,6 +115,11 @@ describe('lo que hace, con su sesión', () => {
     assert.equal(aut.cuerpo.p_version, '2026-11-03');
     assert.equal(aut.cab.Authorization, 'Bearer token-de-ana');
     assert.match(A.elem('hlCuerpo').innerHTML, /data-hl="fondo" value="colpensiones"/, 'con la autorización no apareció la lista de fondos');
+    /* Y la salida, YA: la casilla promete «puedo quitarla cuando quiera». El
+       botón ya estaba en la tarjeta abierta (escondido), y al autorizar se ve. */
+    assert.match(A.elem('hlCuenta').innerHTML, /<button type="button" class="btn sec sm oculto"[^>]*id="hlRetirar">/,
+      'la tarjeta abierta sin autorización no trae el botón de retirar: al autorizar aquí no aparecería');
+    assert.equal(A.elem('hlRetirar').classList.contains('oculto'), false, 'autorizó en la app y no ve cómo retirarla');
   });
 
   test('escoger el fondo lo guarda (y Colpensiones con un privado); lo que ya subió se ve con su fecha y se puede quitar', async () => {
