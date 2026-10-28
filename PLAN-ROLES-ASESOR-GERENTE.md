@@ -290,9 +290,11 @@ agregar prospecto manual, y podamos poner el nombre y el teléfono u otra
 información adicional y que podamos con facilidad nosotros mismos gestionar o
 que se los podamos asignar a otros del equipo».*
 
-**Estado:** construido y probado en la rama; **no aplicado en producción**. Va
-con `base/20261027_el_gerente_agrega.sql`, que Joan corre como paso **2.4-bis**
-de la receta, después del 2.4 (22d) y de noche.
+**Estado (28-oct):** integrado con chat-1 en la rama `publicar-30` (v140), para
+publicar el viernes 30; el SQL **no está aplicado en producción**. Va con
+`base/20261027_el_gerente_agrega.sql`, que Joan corre como paso **2.4-bis** de la
+receta del 30-oct, de noche y antes de subir la web. El 2.4 (22d) que exige ya
+está: lo aplicó Claude el 28-oct, a pedido de Joan.
 
 ### Lo que puede el gerente
 - **«＋ Agregar prospectos»** en su menú (justo debajo de «📋 Mi base», se ve sin
@@ -437,7 +439,8 @@ de Joan. Los botones pasan solo ids o dígitos (`idDeBoton`), y la base limpia e
 nombre al entrar (disparador en `registros`).
 
 ### Lo que falta, y es de Joan
-1. Correr el 2.4 (22d) y ponerle la clave a su equipo.
+1. Ponerle la clave a su equipo. El 2.4 (22d) ya está aplicado (28-oct): hasta
+   tener su clave, nadie del equipo entra al Panel, William incluido.
 2. El acuerdo de encargado NEXECO–William, firmado y anotado.
 3. La respuesta del abogado (finalidad en la política, RNE de la Ley 2300, qué
    sirve como prueba). Hasta entonces, William no sube bases reales.
