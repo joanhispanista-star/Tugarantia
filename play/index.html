@@ -3237,10 +3237,14 @@ function guardaderoPension() {
   return HL_GUARDADERO;
 }
 function pasoPension() { return '<div id="hlPaso"></div>'; }
+/* El paso montado (su controlador): siguientePaso le pregunta si se puede
+   seguir (28-oct-2026, arreglo de los leves, P10). */
+var PASO_PENSION = null;
 function montarPasoPension() {
   var g = guardaderoPension(), caja = $('hlPaso');
+  PASO_PENSION = null;
   if (!g || !caja) return;
-  HL.pasoDelRegistro(caja, {
+  PASO_PENSION = HL.pasoDelRegistro(caja, {
     guardadero: g, intento: asegurarIntento(), celular: String(REGISTRO.celular || ''), perdidos: PENSION_PERDIDOS,
     despues: pensionDespues
   });
@@ -3668,8 +3672,14 @@ function siguientePaso() {
     return pintarRegistro(PASO + 1);
   }
   /* 28-oct-2026 — TU FONDO DE PENSIONES es opcional: «Continuar» pasa
-     siempre, con o sin historia laboral (lo escogido ya quedó guardado). */
-  if (p.id === 'pension') return pintarRegistro(PASO + 1);
+     siempre, con o sin historia laboral (lo escogido ya quedó guardado).
+     28-oct-2026 (arreglo de los leves, P10) — menos con algo PEGADO que
+     espera su «¿Es tu historia laboral?»: «Continuar» lo dejaba atrás sin
+     decir nada. Se le pregunta (el paso lo dice debajo de la pregunta). */
+  if (p.id === 'pension') {
+    if (PASO_PENSION && PASO_PENSION.puedeSeguir && !PASO_PENSION.puedeSeguir()) return;
+    return pintarRegistro(PASO + 1);
+  }
   /* 22-oct-2026 — ¿DÓNDE TE ENVIAMOS LA PLATA? Al menos una, bien escrita y
      a su nombre (CP.revisarCuentasDelRegistro). Sin las reglas, se sigue: el
      paso ya dijo que se le pregunta por el chat. */

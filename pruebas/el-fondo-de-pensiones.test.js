@@ -164,6 +164,12 @@ describe('los textos: la autorización dice lo que la ley pide, y nada que el c�
     assert.match(con, /data-hl="fondo" value="porvenir" checked/);
     assert.match(con, /href="https:\/\/www\.porvenir\.com\.co\/[^"]+" target="_blank" rel="noopener noreferrer"/);
     ['📄 Subir el PDF', '🖼️ Subir pantallazos', '📋 Pegar'].forEach(b => assert.ok(con.indexOf(b) >= 0, 'falta «' + b + '»'));
+    /* 28-oct-2026 (arreglo de los leves, P11) — y cómo pasar el PDF del correo
+       al teléfono, que nada decía: en el registro y en la cuenta. */
+    [con, HL.pantallaHTML({ modo: 'cuenta', aut: { version: '2026-11-03' }, fondos: ['colpensiones'], pidio: {}, archivos: [] })].forEach(h =>
+      assert.match(h.replace(/<[^>]+>/g, ' '), /¿Te llegó al correo\? Ábrelo en este mismo teléfono, descarga el PDF \(en iPhone: «Guardar en Archivos»\) y escógelo con «📄 Subir el PDF»\./,
+        'el paso no dice cómo pasar el PDF del correo al teléfono'));
+    assert.ok(con.indexOf('id="hlDelCorreo"') < con.indexOf('id="hlBotonPdf"'), 'la línea del correo no va antes del botón');
     assert.match(con, /accept="application\/pdf,\.pdf"/);
     assert.match(con, /accept="image\/png,image\/jpeg,image\/webp" multiple/);
     assert.equal(/capture=/.test(con), false, 'el PDF y los pantallazos se escogen, no se toman con la cámara');
@@ -494,8 +500,46 @@ describe('«📋 Pegar» enseña lo copiado y pregunta antes de guardarlo', () =
     const toque = que => oyentes.click.forEach(f => f({ target: { closest: () => ({ getAttribute: k => (k === 'data-hl' ? que : null) }) } }));
     const pegarEnElRecuadro = f => oyentes.paste.forEach(o => o({ target: { closest: () => ({}) }, preventDefault() {},
       clipboardData: { items: [{ kind: 'file', type: f.type, getAsFile: () => f }], files: [], getData: () => '' } }));
-    return { caja, toque, pegarEnElRecuadro };
+    /* Escoger archivos en el selector del teléfono (el <input type=file>). */
+    const escoger = files => oyentes.change.forEach(f => f({ target: { getAttribute: k => (k === 'data-hl' ? 'archivo' : null), files, value: '' } }));
+    return { caja, toque, pegarEnElRecuadro, escoger };
   }
+  /* 28-oct-2026 (arreglo de los leves, P10) — con la pregunta abierta,
+     «Continuar» pasaba de paso y escoger un PDF o un pantallazo la cerraba:
+     lo pegado se perdía sin una palabra. Ahora la pregunta espera, y
+     «Continuar» se la recuerda. Con el código de antes, escoger el PDF tira lo
+     pegado y puedeSeguir no existe: esto falla. */
+  test('lo pegado sin contestar no se pierde callado: escoger un archivo no lo tira, y «Continuar» pregunta antes de seguir', async () => {
+    const t = telefono();
+    const e = t.g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('2026-11-03T15:00:00Z'); e.fondos = ['porvenir']; t.g.guardarEstado(e);
+    const antes = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { read: () => Promise.resolve([{ types: ['image/png'],
+      getType: () => Promise.resolve(new Blob([COPIADO], { type: 'image/png' })) }]) } });
+    try {
+      const { caja, toque, escoger } = cajaDeMentira();
+      const ctl = HL.pasoDelRegistro(caja, { guardadero: t.g, intento: 'i1', celular: '3001112233', ahora: () => t.reloj.t });
+      const pregunta = () => /id="hlPegado"/.test(caja.innerHTML);
+      const guardados = async () => (await t.g.archivos('i1', '3001112233')).lista;
+      toque('pegar');
+      assert.ok(await hasta(pregunta, 2000), 'lo pegado no se enseñó');
+      /* Escoge el PDF con la pregunta abierta: el PDF entra, y la pregunta sigue ahí. */
+      escoger([new Blob([Buffer.from(PDF, 'binary')], { type: 'application/pdf' })]);
+      assert.ok(await hasta(() => /id="hlLista"[\s\S]*📄 PDF/.test(caja.innerHTML), 2000), 'el PDF no entró');
+      assert.ok(pregunta(), 'escoger un archivo tiró lo pegado sin decir nada');
+      assert.deepEqual((await guardados()).map(x => x.tipo), ['pdf'], 'lo pegado entró sin su «Sí»');
+      /* «Continuar» con la pregunta abierta: no sigue, y lo dice debajo de la pregunta. */
+      assert.equal(ctl.puedeSeguir(), false, '«Continuar» deja atrás lo pegado sin preguntar');
+      const t1 = caja.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+      assert.ok(t1.indexOf(HL.TEXTOS.pegadoPendiente) > 0, 'no le dice por qué no sigue');
+      assert.ok(caja.innerHTML.indexOf('id="hlPegado"') < caja.innerHTML.indexOf('id="hlAviso"'), 'el aviso no va debajo de la pregunta');
+      /* Contestó: ya puede seguir. */
+      toque('pegado-no');
+      assert.ok(await hasta(() => !pregunta(), 200));
+      assert.equal(ctl.puedeSeguir(), true);
+    } finally {
+      if (antes) Object.defineProperty(navigator, 'clipboard', antes); else delete navigator.clipboard;
+    }
+  });
   test('en el registro: el botón y el recuadro enseñan lo copiado; solo «Sí, guardarla» lo deja en el teléfono', async () => {
     const t = telefono();
     const e = t.g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('2026-11-03T15:00:00Z'); e.fondos = ['porvenir']; t.g.guardarEstado(e);

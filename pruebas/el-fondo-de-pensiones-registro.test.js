@@ -76,6 +76,23 @@ describe('dónde va, y que nunca frena el registro', () => {
     assert.equal(B.pasoActual(R), 'cobro');
   });
 
+  /* 28-oct-2026 (arreglo de los leves, P10) — «Continuar» con lo pegado
+     esperando su «¿Es tu historia laboral?» pasaba al paso 9 sin decir nada, y
+     lo pegado se perdía. Con el código de antes, esto pasa a 'cobro'. */
+  test('«Continuar» con algo pegado sin contestar no pasa de paso: se queda y lo pregunta', () => {
+    const P = enElPaso();
+    escoger(P, ['porvenir']);
+    P.ev("pintarRegistro(indiceDe('pension'))");
+    P.ev("PASO_PENSION.vm.pegado = { listos: [{ tipo: 'png', bytes: 10, base64: 'iVBORw0KGgo=', sha256: '' }], malos: [] }; PASO_PENSION.pintar();");
+    P.ev('siguientePaso()');
+    assert.equal(B.pasoActual(P), 'pension', '«Continuar» dejó atrás lo pegado sin preguntar');
+    assert.ok(hl(P).indexOf('Antes de seguir: ¿lo que pegaste es tu historia laboral?') >= 0, 'no le dice por qué no sigue');
+    /* Ya contestó (o no había nada pegado): pasa como siempre. */
+    P.ev('PASO_PENSION.vm.pegado = null;');
+    P.ev('siguientePaso()');
+    assert.equal(B.pasoActual(P), 'cobro');
+  });
+
   test('con la autorización y el fondo: sus pasos y el botón a la página OFICIAL, en otra pestaña', async () => {
     const P = enElPaso();
     escoger(P, ['colpensiones', 'porvenir']);

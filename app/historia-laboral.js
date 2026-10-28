@@ -182,12 +182,23 @@
     subela: 'Cuando la tengas, súbela',
     ayudaFormas: 'El PDF es lo mejor: es el documento tal como te lo mandó tu fondo. Si no, pantallazos donde se lean tu ' +
       'nombre, tus semanas y tus empleadores.',
+    /* 28-oct-2026 (arreglo de los leves, P11) — EL PASO DEL CORREO AL
+       TELÉFONO, que es lo más difícil: Colpensiones, Porvenir y Protección la
+       mandan al correo, y «📄 Subir el PDF» abre el selector de archivos, donde
+       un adjunto que no se descargó no aparece (en iPhone hay que tocar
+       «Guardar en Archivos»). Nada lo decía: quien no lo sabía salía a
+       buscarlo con el reloj de la cámara corriendo, o mandaba pantallazos. */
+    delCorreo: '¿Te llegó al correo? Ábrelo en este mismo teléfono, descarga el PDF (en iPhone: «Guardar en Archivos») y ' +
+      'escógelo con «📄 Subir el PDF».',
     zonaPegar: 'Mantén presionado aquí y toca «Pegar»',
     /* Lo pegado, antes de guardarlo (ver «LO PEGADO SE MUESTRA» arriba). */
     pegadoPregunta: '¿Es tu historia laboral?',
     pegadoAyuda: 'Esto es lo que copiaste. No lo guardamos hasta que toques «Sí, guardarla».',
     pegadoAyudaCuenta: 'Esto es lo que copiaste. No lo subimos hasta que toques «Sí, subirla».',
     pegadoNo: 'Listo: no guardamos lo que copiaste.',
+    /* 28-oct-2026 (arreglo de los leves, P10) — «Continuar» con la pregunta
+       abierta: se le pregunta, en vez de seguir y perderlo callado. */
+    pegadoPendiente: 'Antes de seguir: ¿lo que pegaste es tu historia laboral? Toca «Sí, guardarla» o «No, no es esta».',
     /* 28-oct-2026 (arreglo, ronda 1) — decía «Quedan guardados en este
        teléfono» a secas, y con la vuelta de la cámara no es verdad: si la
        persona sale más del rato y el teléfono cierra la página, se borran. */
@@ -1075,6 +1086,7 @@
   function formasHTML(vm) {
     return '<div class="grupo-tit">' + esc(TEXTOS.subela) + '</div>' +
       '<div class="ayuda">' + esc(TEXTOS.ayudaFormas) + '</div>' +
+      '<div class="ayuda" id="hlDelCorreo">' + esc(TEXTOS.delCorreo) + '</div>' +
       '<div class="hl-formas">' +
         '<label class="btn sec sm hl-forma" id="hlBotonPdf">📄 Subir el PDF' +
           '<input type="file" class="hl-archivo" accept="application/pdf,.pdf" data-hl="archivo"' + (vm.ocupado ? ' disabled' : '') + '></label>' +
@@ -1216,12 +1228,15 @@
       else decir('');
     };
     /* Lo que la persona ESCOGIÓ en el selector del teléfono (ahí lo vio): se
-       prepara y se guarda de una vez. Se dice lo que pasó con cada uno. Lo que
-       estuviera pegado y sin contestar se descarta: nada entra sin su «Sí». */
+       prepara y se guarda de una vez. Se dice lo que pasó con cada uno.
+       28-oct-2026 (arreglo de los leves, P10) — lo que estuviera pegado y sin
+       contestar SE QUEDA esperando su «Sí» o su «No», a la vista. Se
+       descartaba aquí sin decir nada: quien pegó y vio su imagen creía que
+       había quedado, y se enteraba al abrir la cuenta por el número de
+       archivos. Nada entra sin su «Sí», y nada se pierde sin su «No». */
     var agregarTodos = function (blobs) {
       var lista = Array.prototype.slice.call(blobs || []);
       if (!lista.length) return Promise.resolve();
-      vm.pegado = null;
       vm.aviso = lista.length > 1 ? 'Preparando tus ' + lista.length + ' archivos…' : 'Preparando tu archivo…'; vm.avisoClase = '';
       return trabajar(prepararTodos(lista).then(function (r) { return guardarTodos(r.listos, r.malos); }))
         .then(decirMalos, function (e) { decir(motivoEnPalabras((e && e.motivo) || 'sin_red')); });
@@ -1378,6 +1393,20 @@
       despues: function () { e.despues = true; guardar(); if (o.despues) o.despues(); }
     };
     var ctl = controlar(caja, vm, h);
+    /* 28-oct-2026 (arreglo de los leves, P10) — ¿se puede seguir? No con lo
+       pegado esperando respuesta: «Continuar» lo dejaba atrás sin decir nada.
+       Se dice debajo de la pregunta, y se lleva la pantalla hasta ella. La
+       página lo pregunta antes de pasar de paso (siguientePaso, en play/). */
+    ctl.puedeSeguir = function () {
+      if (!(vm.pegado && vm.pegado.listos && vm.pegado.listos.length)) return true;
+      ctl.decir(TEXTOS.pegadoPendiente, 'ambar');
+      try {
+        var d = caja.ownerDocument || (typeof document !== 'undefined' ? document : null);
+        var p = d && d.getElementById ? d.getElementById('hlPegado') : null;
+        if (p && p.scrollIntoView) p.scrollIntoView({ block: 'center' });
+      } catch (e) {}
+      return false;
+    };
     ctl.pintar();
     h.leer().then(ctl.pintar, ctl.pintar);
     return ctl;
