@@ -947,6 +947,8 @@
       return { ok: false, motivo: st === 404 ? 'apagado' : (st === 401 || st === 403 || (e && e.sinSesion)) ? 'sesion' : 'sin_red' };
     };
     var cuerpoCaja = null;
+    /* Por id y no buscando dentro de la caja: hay una sola tarjeta por pantalla. */
+    var porId = function (id) { var d = caja.ownerDocument || (typeof document !== 'undefined' ? document : null); return d && d.getElementById ? d.getElementById(id) : null; };
     var pintarTarjeta = function () {
       if (vm.apagado) { caja.innerHTML = ''; return; }
       var n = vm.archivos.length;
@@ -958,11 +960,11 @@
           (vm.aut ? '<button type="button" class="btn sec sm" style="margin-top:var(--e4)" id="hlRetirar">Retirar mi autorización y borrar mi historia laboral</button>' : '')
           : (vm.cargando ? '' : '<button type="button" class="btn sec sm" style="margin-top:var(--e3)" id="hlAbrir">' + (n ? 'Ver o cambiar' : 'Subirla') + '</button>')) +
         '</div>';
-      var b = caja.querySelector('#hlAbrir');
+      var b = porId('hlAbrir');
       if (b) b.addEventListener('click', function () { vm.abierta = true; pintarTarjeta(); });
-      var r = caja.querySelector('#hlRetirar');
+      var r = porId('hlRetirar');
       if (r) r.addEventListener('click', retirar);
-      cuerpoCaja = caja.querySelector('#hlCuerpo');
+      cuerpoCaja = porId('hlCuerpo');
       if (cuerpoCaja) { ctl = controlar(cuerpoCaja, vm, h); ctl.pintar(); }
     };
     var leer = function () {
@@ -1011,9 +1013,9 @@
       alPintar: function () { pintarLinea(); }
     };
     var pintarLinea = function () {
-      var l = caja.querySelector('#hlLinea'), n = vm.archivos.length;
+      var l = porId('hlLinea'), n = vm.archivos.length;
       if (l) l.textContent = n ? 'Ya nos diste ' + resumen(vm.archivos) + '.' : (vm.aut ? 'Ya nos diste tu autorización. Falta tu historia laboral.' : 'Todavía no nos la das.');
-      var r = caja.querySelector('#hlRetirar');
+      var r = porId('hlRetirar');
       if (r) r.classList[vm.aut ? 'remove' : 'add']('oculto');
     };
     ponerEstilo(caja.ownerDocument || (typeof document !== 'undefined' ? document : null));

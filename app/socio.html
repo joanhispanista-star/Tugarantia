@@ -901,8 +901,10 @@ details.plegado>summary{padding:0 var(--e4)}
    26-oct-2026: chat-1. «Chat (n)» en la barra de abajo, que late en toda la
    app; la conversación abierta se mueve sola; manda fotos; y contesta en la
    pestaña donde le escribieron (app/chat-vivo.js, nuevo: ya en la precarga).
-   Sale con el CACHE v140, junto con el gerente que agrega. */
-var VERSION_APP = '2026-10-26';
+   Sale con el CACHE v140, junto con el gerente que agrega.
+   28-oct-2026: «Tu historia laboral», la tarjeta para quien dejó el fondo de
+   pensiones para después en el registro (app/historia-laboral.js, nuevo). */
+var VERSION_APP = '2026-10-28';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
@@ -982,6 +984,12 @@ setTimeout(function () {
 <!-- 21-oct-2026 — instalarla paso a paso (la tarjeta de Entrar, de la espera y
      del final de Inicio). Si no llega, no hay tarjeta y la app sigue igual. -->
 <script src="instalar.js"></script>
+<!-- 28-oct-2026 — «Tu historia laboral»: la tarjeta para quien dejó el fondo de
+     pensiones para después en el registro (o quiere cambiarlo). La lista de
+     fondos y la pantalla son las mismas del registro (play/). Nuevos: sin
+     versión en la dirección. Si no llegan, no hay tarjeta y la app sigue igual. -->
+<script src="fondos-pension.js"></script>
+<script src="historia-laboral.js"></script>
 <!-- 23-oct-2026 — la calculadora del pedido, primera tarjeta de Entrar (ver
      calculadoraDeEntrar): la misma de play/ y de la portada del sitio, con la
      misma dirección versionada que la precarga de sw.js. creditos.js es la
@@ -1467,6 +1475,9 @@ function pintarSinJuntar(estado) {
       '<p class="sub">' + esc(t.texto) + '</p>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="cargarCuenta()">Volver a mirar</button>' +
     '</div>' +
+    /* 28-oct-2026 — mientras espera la respuesta: es justo cuando sirve subir
+       la historia laboral que dejó para después (ver TU HISTORIA LABORAL). */
+    '<div id="hlCuenta"></div>' +
     (arriba ? '' : instalar) +
     (conChat ? vistaChat() : '') +
     '<div class="pie">Entraste con el ' + esc(U && U.telefonoBonito ? U.telefonoBonito(SESION && SESION.celular) : '') + '.<br>' +
@@ -1475,7 +1486,37 @@ function pintarSinJuntar(estado) {
       enlacesLegales() + selloDeVersion() + '</div>';
   mostrar('pEntrar');
   if (conChat) arrancarChat();
+  montarHistoriaLaboral();   // 28-oct-2026
   avisarQueEsMomento();   // 21-oct-2026 — la cuenta sin juntar es el inicio de quien se registró
+}
+
+/* ===========================================================================
+ * TU HISTORIA LABORAL — 28 de octubre de 2026
+ *
+ * Joan: «quiero que sea opcional en la mitad del proceso de registro», y el
+ * «Lo hago después» del registro tiene que existir de verdad: es esta
+ * tarjeta, en Inicio y en la espera de quien todavía no está junto a su
+ * historial. Aquí ya hay sesión, así que cada archivo sube en el momento
+ * (pension_subir), la autorización se guarda al marcarla y el fondo al
+ * escogerlo (pension_autorizar). Desde aquí también se quita un archivo y se
+ * RETIRA la autorización con todo lo subido (pension_retirar): la casilla del
+ * registro promete «puedo quitarla cuando quiera desde mi cuenta en la app».
+ * La pantalla y sus reglas son las del registro (app/historia-laboral.js).
+ * Si la base todavía no tiene las funciones (404), la tarjeta no aparece: no
+ * se ofrece lo que no va a funcionar. Sin sesión (el «👁 Ver la app como la
+ * ve él» de Joan, un enlace) tampoco.
+ * ======================================================================== */
+var HL = window.HistoriaLaboral || null;
+var HL_APAGADO = false;   // la base contestó 404: no se vuelve a ofrecer en esta visita
+function montarHistoriaLaboral() {
+  var caja = $('hlCuenta');
+  if (!caja) return;
+  if (!HL || HL_APAGADO || !SESION || !SESION.access_token) { caja.innerHTML = ''; return; }
+  HL.tarjetaDeCuenta(caja, {
+    credenciales: cfgChat,          // {url, anon, token} con la sesión renovada si hace falta
+    escritura: escrituraEnCamino,   // «se actualiza sola» no recarga encima de una subida
+    alApagado: function () { HL_APAGADO = true; }
+  });
 }
 
 /* ================= LA PANTALLA DE ENTRAR =================
@@ -1954,6 +1995,7 @@ function irA(tab) {
      tab === 'chat' ? vistaChat() : vistaHistorial()) + '</div>';
   if (tab === 'calc') sincronizarCalc();
   if (tab === 'chat') arrancarChat();
+  if (tab === 'inicio') montarHistoriaLaboral();   // 28-oct-2026
   window.scrollTo(0, 0);
   avisarQueEsMomento();   // 21-oct-2026 — Inicio, Historial y Garantía son de la lista
 }
@@ -2118,6 +2160,10 @@ function vistaInicio() {
        '<div class="muted" style="font-size:13px;margin-top:var(--e2)">' + textoProximoNivel() + '</div>' +
        '</div>';
 
+  /* 28-oct-2026 — su historia laboral, opcional (ver TU HISTORIA LABORAL):
+     debajo de lo que vino a mirar, y solo con su sesión. La llena
+     montarHistoriaLaboral cuando ya está en la pantalla. */
+  if (S.origen === 'nube' && SESION && SESION.access_token) h += '<div id="hlCuenta"></div>';
   h += tarjetaComunidad();
   /* 21-oct-2026 — instalarla, AL FINAL y nunca encima de la cuota: en cada
      pantalla manda UNA cifra (ver arriba), y una tarjeta de instalar no puede
