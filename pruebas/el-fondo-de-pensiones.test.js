@@ -31,7 +31,17 @@ const HL = require('../app/historia-laboral.js');
 const bytes = s => new Uint8Array(Buffer.from(s, 'binary'));
 const blob = s => new Blob([Buffer.from(s, 'binary')]);
 const PDF = '%PDF-1.4\n% de mentira\n%%EOF\n';
-const PNG = '\x89PNG\r\n\x1a\n' + 'IHDR de mentira';
+/* 28-oct-2026 (arreglo de los leves, P3) — las imágenes de mentira llevan su
+   estructura de verdad (bloques de PNG, segmentos de JPEG, trozos de WEBP bien
+   formados): desde hoy se leen por dentro para quitarles los metadatos, y una
+   que no se deja leer no se guarda. Los CRC van en cero: nadie los mira. */
+const trozoPng = (tipo, datos) => {
+  const d = Buffer.from(datos, 'binary'), l = Buffer.alloc(4); l.writeUInt32BE(d.length);
+  return Buffer.concat([l, Buffer.from(tipo, 'binary'), d, Buffer.alloc(4)]);
+};
+const pngDe = (...trozos) => Buffer.concat([Buffer.from('\x89PNG\r\n\x1a\n', 'binary'), ...trozos.map(t => Buffer.from(t, 'binary'))]);
+const IHDR = trozoPng('IHDR', '\0\0\0\x10\0\0\0\x10\x08\x02\0\0\0');
+const PNG = pngDe(IHDR, trozoPng('IDAT', 'pixeles de mentira'), trozoPng('IEND', '')).toString('binary');
 
 describe('la lista de fondos', () => {
   test('los cinco fondos y las dos opciones, con la fecha en que se consultaron', () => {
@@ -233,6 +243,106 @@ describe('el tipo sale de los primeros bytes, como en la base', () => {
   });
 });
 
+/* 28-oct-2026 (arreglo de los leves, P3) — TODA IMAGEN SE GUARDA SIN SUS
+   METADATOS. Solo las de más de 1 MB pasaban por el lienzo: una foto de 200
+   KB subía con su EXIF, que trae dónde se tomó (casi siempre la casa) y el
+   modelo del teléfono. Con el código de antes, el JPEG chico de abajo sale de
+   prepararArchivo con «GPSLatitude» y «SM-A146M» adentro, y esta prueba falla. */
+describe('las imágenes se guardan sin sus metadatos, pesen lo que pesen', () => {
+  const seg = (m, datos) => {
+    const d = Buffer.from(datos, 'binary'), l = Buffer.alloc(2); l.writeUInt16BE(d.length + 2);
+    return Buffer.concat([Buffer.from([0xff, m]), l, d]);
+  };
+  /* Una foto de cámara de mentira: su EXIF (con la orientación, si se pide),
+     XMP, un perfil de color, MPF, IPTC, un comentario, la imagen, y el video
+     de una «foto en movimiento» pegado después del final. */
+  const jpegDe = orientacion => Buffer.concat([
+    Buffer.from([0xff, 0xd8]),
+    seg(0xe0, 'JFIF\0\x01\x01\0\0\x01\0\x01\0\0'),
+    seg(0xe1, 'Exif\0\0' + 'II*\0\x08\0\0\0' + (orientacion
+      ? '\x01\0' + '\x12\x01\x03\0\x01\0\0\0' + String.fromCharCode(orientacion) + '\0\0\0' + '\0\0\0\0'
+      : '\0\0\0\0\0\0') + ' GPSLatitude 4.6097 GPSLongitude -74.0817 Make samsung Model SM-A146M'),
+    seg(0xe1, 'http://ns.adobe.com/xap/1.0/\0<x:xmpmeta><exif:GPSLatitude>4,36.58N</exif:GPSLatitude></x:xmpmeta>'),
+    seg(0xe2, 'ICC_PROFILE\0\x01\x01perfil de color'),
+    seg(0xe2, 'MPF\0otras fotos'),
+    seg(0xed, 'Photoshop 3.0\0IPTC de mentira'),
+    seg(0xfe, 'comentario: casa de Maria'),
+    seg(0xdb, '\0' + 'Q'.repeat(64)),
+    seg(0xc0, '\x08\0\x10\0\x10\x01\x01\x11\0'),
+    seg(0xc4, '\0' + 'H'.repeat(20)),
+    seg(0xda, '\x01\x01\0\0\x3f\0'),
+    Buffer.from('DATOS\xff\x00COMPRIMIDOS\xff\xd0SIGUEN', 'binary'),
+    Buffer.from([0xff, 0xd9]),
+    Buffer.from('MotionPhoto_Data ftypmp42 el video de la foto en movimiento', 'binary')
+  ]);
+  const tiene = (b, t) => Buffer.from(b).includes(Buffer.from(t, 'binary'));
+  const PRIVADO = ['Exif', 'GPSLatitude', 'SM-A146M', 'samsung', 'xmpmeta', 'MPF', 'Photoshop', 'casa de Maria', 'MotionPhoto', 'ftyp'];
+
+  test('un JPEG chico con GPS y el modelo del teléfono se guarda SIN ellos; la imagen y su color se quedan', async () => {
+    const J = jpegDe();
+    assert.ok(J.length < HL.LIMITES.achicarDesde, 'la muestra tiene que ser de las que NO pasan por el lienzo');
+    const r = await HL.prepararArchivo(new Blob([J]));
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(r.archivo.tipo, 'jpg');
+    const guardado = Buffer.from(r.archivo.base64, 'base64');
+    PRIVADO.forEach(t => assert.equal(tiene(guardado, t), false, 'lo que se guarda trae «' + t + '»'));
+    ['JFIF', 'ICC_PROFILE', 'Q'.repeat(64), 'DATOS\xff\x00COMPRIMIDOS\xff\xd0SIGUEN'].forEach(t =>
+      assert.ok(tiene(guardado, t), 'se perdió una parte de la imagen: «' + t.slice(0, 20) + '»'));
+    assert.deepEqual([...guardado.subarray(0, 2)], [0xff, 0xd8]);
+    assert.deepEqual([...guardado.subarray(-2)], [0xff, 0xd9], 'no termina en el final de la imagen');
+    assert.equal(r.archivo.bytes, guardado.length);
+    assert.equal(r.archivo.sha256, require('node:crypto').createHash('sha256').update(guardado).digest('hex'), 'la huella no es la de lo que se guarda');
+  });
+
+  test('la foto que viene de lado según su EXIF va por el lienzo (la dibuja derecha); sin lienzo, igual sale limpia', async () => {
+    assert.equal(HL.orientacionJpeg(new Uint8Array(jpegDe(6))), 6);
+    assert.equal(HL.orientacionJpeg(new Uint8Array(jpegDe())), 1);
+    assert.equal(HL.orientacionJpeg(new Uint8Array(Buffer.from(PNG, 'binary'))), 1);
+    const r = await HL.prepararArchivo(new Blob([jpegDe(6)]));   // en Node no hay lienzo
+    assert.equal(r.ok, true);
+    PRIVADO.forEach(t => assert.equal(tiene(Buffer.from(r.archivo.base64, 'base64'), t), false, '«' + t + '»'));
+  });
+
+  test('PNG: solo los bloques que dibujan la imagen y su color; fuera eXIf, tEXt, iTXt, tIME y lo de después', async () => {
+    const P = pngDe(IHDR, trozoPng('tEXt', 'Comment\0GPS 4.6097 -74.0817'), trozoPng('eXIf', 'MM\0*\0\0\0\x08 SM-A146M'),
+      trozoPng('iTXt', 'XML:com.adobe.xmp\0\0\0\0\0<x:xmpmeta>Screenshot</x:xmpmeta>'), trozoPng('tIME', '\x07\xea\x0a\x1c\x0c\0\0'),
+      trozoPng('pHYs', '\0\0\x0b\x13\0\0\x0b\x13\x01'), trozoPng('IDAT', 'pixeles'), trozoPng('IEND', ''), 'basura de despues');
+    const r = await HL.prepararArchivo(new Blob([P]));
+    assert.equal(r.ok, true, JSON.stringify(r));
+    const g = Buffer.from(r.archivo.base64, 'base64');
+    ['GPS', 'SM-A146M', 'xmpmeta', 'tEXt', 'eXIf', 'iTXt', 'tIME', 'basura'].forEach(t => assert.equal(tiene(g, t), false, '«' + t + '»'));
+    ['IHDR', 'pHYs', 'IDATpixeles', 'IEND'].forEach(t => assert.ok(tiene(g, t), 'se perdió «' + t + '»'));
+    /* El que no trae nada sale idéntico: el texto de un pantallazo no se toca. */
+    assert.equal((await HL.prepararArchivo(blob(PNG))).archivo.base64, Buffer.from(PNG, 'binary').toString('base64'));
+  });
+
+  test('WEBP: fuera los trozos EXIF y XMP y sus marcas en VP8X; el tamaño del RIFF se rehace', () => {
+    const trozo = (cc, datos) => {
+      const d = Buffer.from(datos, 'binary'), l = Buffer.alloc(4); l.writeUInt32LE(d.length);
+      return Buffer.concat([Buffer.from(cc, 'binary'), l, d, Buffer.alloc(d.length % 2)]);
+    };
+    const cuerpo = Buffer.concat([Buffer.from('WEBP'), trozo('VP8X', '\x1c\0\0\0\x0f\0\0\x0f\0\0'), trozo('VP8L', 'pixeles webp'),
+      trozo('EXIF', 'MM\0* GPS 4.6097 SM-A146M'), trozo('XMP ', '<x:xmpmeta/>')]);
+    const l = Buffer.alloc(4); l.writeUInt32LE(cuerpo.length);
+    const W = Buffer.concat([Buffer.from('RIFF'), l, cuerpo]);
+    assert.equal(HL.tipoPorBytes(new Uint8Array(W)), 'webp');
+    const g = Buffer.from(HL.limpiarMetadatos(new Uint8Array(W), 'webp'));
+    ['GPS', 'SM-A146M', 'EXIF', 'XMP ', 'xmpmeta'].forEach(t => assert.equal(tiene(g, t), false, '«' + t + '»'));
+    assert.ok(tiene(g, 'VP8X') && tiene(g, 'VP8L') && tiene(g, 'pixeles webp'), 'se perdió la imagen');
+    assert.equal(g.readUInt32LE(4), g.length - 8, 'el tamaño del RIFF no es el de lo que queda');
+    assert.equal(g[20], 0x10, 'VP8X sigue diciendo que trae EXIF o XMP (o perdió la transparencia)');
+  });
+
+  test('la imagen que no se deja leer por dentro, sin lienzo, NO se guarda (nunca sale con lo que traía)', async () => {
+    const r = await HL.prepararArchivo(blob('\x89PNG\r\n\x1a\nesto no son bloques de PNG GPS 4.6097'));
+    assert.equal(r.ok, false);
+    assert.equal(r.motivo, 'lectura');
+    assert.equal(HL.limpiarMetadatos(new Uint8Array(Buffer.from('\xff\xd8\xff\xe1\x00', 'binary')), 'jpg'), null);
+    /* El PDF no se toca: es el documento del fondo, y sus huellas dicen si alguien lo volvió a guardar. */
+    assert.equal((await HL.prepararArchivo(blob(PDF))).archivo.base64, Buffer.from(PDF, 'binary').toString('base64'));
+  });
+});
+
 /* Un teléfono de mentira: localStorage y un reloj; sin IndexedDB (la memoria
    de la página), que es justo el caso que la pantalla tiene que decir. */
 function telefono(t0) {
@@ -323,7 +433,7 @@ describe('el guardadero del registro', () => {
    dejaba el archivo en el teléfono y esta prueba falla. */
 describe('«📋 Pegar» enseña lo copiado y pregunta antes de guardarlo', () => {
   const { hasta } = require('./esperar.js');
-  const COPIADO = Buffer.from('\x89PNG\r\n\x1a\nFOTO PRIVADA DE UN CHAT', 'binary');
+  const COPIADO = pngDe(IHDR, trozoPng('IDAT', 'FOTO PRIVADA DE UN CHAT'), trozoPng('IEND', ''));
   function cajaDeMentira() {
     const oyentes = {};
     const caja = { innerHTML: '', contains: () => true, querySelectorAll: () => [],

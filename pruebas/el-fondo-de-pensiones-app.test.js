@@ -54,8 +54,15 @@ function nube(o) {
   };
 }
 const pension = A => A.llamadas.filter(l => /rpc\/pension_/.test(l.url));
-const cambio = (A, que, valor) => A.elem('hlCuerpo')._oyentes.change.forEach(f => f({ target: {
-  getAttribute: k => (k === 'data-hl' ? que : null), checked: valor === true, value: valor, files: [] } }));
+const cambio = (A, que, valor, archivos) => A.elem('hlCuerpo')._oyentes.change.forEach(f => f({ target: {
+  getAttribute: k => (k === 'data-hl' ? que : null), checked: valor === true, value: valor, files: archivos || [] } }));
+/* Un PNG con sus bloques bien formados (los CRC en cero: nadie los mira). */
+const trozoPng = (tipo, datos) => {
+  const d = Buffer.from(datos, 'binary'), l = Buffer.alloc(4); l.writeUInt32BE(d.length);
+  return Buffer.concat([l, Buffer.from(tipo, 'binary'), d, Buffer.alloc(4)]);
+};
+const pngDe = pixeles => Buffer.concat([Buffer.from('\x89PNG\r\n\x1a\n', 'binary'), trozoPng('IHDR', '\0\0\0\x10\0\0\0\x10\x08\x02\0\0\0'),
+  trozoPng('IDAT', pixeles), trozoPng('IEND', '')]);
 
 describe('dónde aparece', () => {
   test('en la espera (todavía no está junto a su historial), con «Subirla»; pide lo suyo con SU sesión', async () => {
@@ -156,7 +163,9 @@ describe('lo que hace, con su sesión', () => {
      borrado, y la persona ni la había visto. Con el código de antes, el
      primer toque ya llamaba a pension_subir y esta prueba falla. */
   test('«📋 Pegar» enseña lo copiado y pregunta: nada sube sin el «Sí», y lo que sube se ve en la lista', async () => {
-    const COPIADO = Buffer.from('\x89PNG\r\n\x1a\nFOTO PRIVADA DE UN CHAT', 'binary');
+    /* Un PNG con sus bloques bien formados: desde el arreglo de los leves (P3)
+       se lee por dentro para quitarle los metadatos. */
+    const COPIADO = pngDe('FOTO PRIVADA DE UN CHAT');
     const A = abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, red: nube({
       autorizacion: { fondos: ['porvenir'], version: '2026-11-03', recibida_en: '2026-11-03T14:00:00Z', revocada_en: null } }),
       navegador: { clipboard: { read: () => Promise.resolve([{ types: ['image/png'],
@@ -190,6 +199,28 @@ describe('lo que hace, con su sesión', () => {
     assert.equal(subidas()[0].cab.Authorization, 'Bearer token-de-ana');
     assert.match(cuerpo.innerHTML, /<img class="hl-mini" data-hl-mini="lista:900" alt="">/, 'la lista no enseña lo que acaba de subir');
     assert.equal(A.elem('hlLinea').textContent, 'Ya nos diste 1 pantallazo.');
+  });
+
+  /* 28-oct-2026 (arreglo de los leves, P3) — en la cuenta, igual que en el
+     registro: la foto chica sube SIN su EXIF. Con el código de antes, a
+     pension_subir llegaban «GPSLatitude» y el modelo del teléfono. */
+  test('una foto chica escogida en la tarjeta sube SIN su EXIF (ni dónde se tomó ni el modelo del teléfono)', async () => {
+    const seg = (m, d) => { const b = Buffer.from(d, 'binary'), l = Buffer.alloc(2); l.writeUInt16BE(b.length + 2); return Buffer.concat([Buffer.from([0xff, m]), l, b]); };
+    const FOTO = Buffer.concat([Buffer.from([0xff, 0xd8]), seg(0xe0, 'JFIF\0\x01\x01\0\0\x01\0\x01\0\0'),
+      seg(0xe1, 'Exif\0\0II*\0\x08\0\0\0\0\0\0\0\0\0 GPSLatitude 4.6097 Model SM-A146M'),
+      seg(0xdb, '\0' + 'Q'.repeat(64)), seg(0xc0, '\x08\0\x10\0\x10\x01\x01\x11\0'), seg(0xda, '\x01\x01\0\0\x3f\0'),
+      Buffer.from('LA HOJA IMPRESA', 'binary'), Buffer.from([0xff, 0xd9])]);
+    const A = abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, red: nube({
+      autorizacion: { fondos: ['porvenir'], version: '2026-11-03', recibida_en: '2026-11-03T14:00:00Z', revocada_en: null } }) });
+    await asentar(30);
+    A.elem('hlAbrir')._oyentes.click[0]();
+    await asentar(5);
+    cambio(A, 'archivo', '', [new Blob([FOTO], { type: 'image/jpeg' })]);
+    assert.ok(await hasta(() => pension(A).some(l => /pension_subir$/.test(l.url)), 2000), 'la foto no subió');
+    const subida = Buffer.from(pension(A).find(l => /pension_subir$/.test(l.url)).cuerpo.p_archivo, 'base64');
+    assert.equal(subida.includes('GPSLatitude'), false, 'la foto subió con dónde se tomó');
+    assert.equal(subida.includes('SM-A146M'), false, 'la foto subió con el modelo del teléfono');
+    assert.ok(subida.includes('LA HOJA IMPRESA'), 'se perdió la imagen');
   });
 
   test('RETIRAR la autorización (Ley 1581): un toque, y se borra todo lo subido', async () => {

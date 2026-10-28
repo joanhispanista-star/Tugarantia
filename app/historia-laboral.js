@@ -28,6 +28,9 @@
  *     (el 🖼 lleva su selector de emoji, U+FE0F: sin él, muchos teléfonos lo
  *     dibujan como un signo gris de texto, y en los avisos se lee raro).
  *     (JPEG, hasta 2.000 px de lado: el texto se sigue leyendo) antes de subir.
+ *     Y toda imagen, pese lo que pese, sale SIN sus metadatos (el EXIF trae
+ *     dónde se tomó y el modelo del teléfono): ver «los metadatos de una
+ *     imagen» (28-oct-2026, arreglo de los leves).
  *   · 📋 Pegar — para quien COPIÓ el pantallazo. Primero se intenta leer lo
  *     copiado (navigator.clipboard.read, que en iPhone muestra su botón
  *     «Pegar» y en Android puede pedir permiso); si el teléfono no deja o no
@@ -283,6 +286,162 @@
 
   function armarAutorizacion(momento) { return { version: VERSION_AUTORIZACION, momento: String(momento || '') }; }
 
+  /* -------------------------------------------- los metadatos de una imagen */
+  /* 28-oct-2026 (arreglo de los leves, P3) — TODA IMAGEN SALE SIN SUS
+     METADATOS, PESE LO QUE PESE. Solo las de más de 1 MB pasaban por el lienzo
+     (que no copia nada de eso): una foto de 1 MB o menos subía tal cual, con
+     su EXIF, que trae las coordenadas de donde se tomó —casi siempre la casa—
+     y el modelo del teléfono. Visto en Node con un JPEG de 200 KB con
+     «GPSLatitude» y «SM-A146M»: los dos llegaban intactos a lo que se guarda.
+     La política dice que la ubicación va con su propia autorización (punto
+     3); esta habría sido otra, sin ella y sin decirlo.
+     Se quitan aquí, byte a byte y sin volver a comprimir (el texto de un
+     pantallazo se queda nítido), en el registro y en la cuenta:
+       · JPEG: APP1 (EXIF y XMP), APP3 a APP13 y APP15 (IPTC, Photoshop, los
+         de cada fabricante), el APP2 que no es el perfil de color (MPF: las
+         otras fotos de una «foto en movimiento»), los comentarios, y todo lo
+         que venga después del final de la imagen (ahí Samsung y Google pegan
+         el video de la foto en movimiento y sus datos). Se quedan APP0
+         (JFIF), el perfil de color (ICC) y APP14 (Adobe): sin ellos los
+         colores pueden salir cambiados, y no dicen nada de nadie.
+       · PNG: solo los bloques que dibujan la imagen y los de color y
+         transparencia; fuera eXIf, tEXt, zTXt, iTXt, tIME y cualquier otro.
+       · WEBP: fuera los bloques EXIF y «XMP », y sus marcas en VP8X.
+     Si la imagen no se deja leer así, null: quien llama la pasa por el
+     lienzo, y si tampoco se puede NO se guarda (nunca sale con lo que
+     traía). El PDF no se toca: es el documento tal como lo mandó el fondo, y
+     sus huellas técnicas son las que dicen si alguien lo volvió a guardar. */
+  function empiezaCon(b, desde, t) {
+    if (desde < 0 || desde + t.length > b.length) return false;
+    for (var i = 0; i < t.length; i++) if (b[desde + i] !== t.charCodeAt(i)) return false;
+    return true;
+  }
+  function unir(partes) {
+    var n = 0, k = 0;
+    partes.forEach(function (p) { n += p.length; });
+    var out = new Uint8Array(n);
+    partes.forEach(function (p) { out.set(p, k); k += p.length; });
+    return out;
+  }
+  /* Un segmento de un JPEG que se va (m: su marcador; seg: desde su largo). */
+  function seVaDelJpeg(m, seg) {
+    if (m === 0xfe) return true;                           // COM: un comentario
+    if (m < 0xe0 || m > 0xef) return false;               // no es un APPn: es la imagen
+    if (m === 0xe0 || m === 0xee) return false;           // JFIF y Adobe
+    if (m === 0xe2) return !empiezaCon(seg, 2, 'ICC_PROFILE\u0000');
+    return true;
+  }
+  function limpiarJpeg(b) {
+    var n = b.length, partes = [b.subarray(0, 2)], i = 2;
+    if (n < 4 || b[0] !== 0xff || b[1] !== 0xd8) return null;
+    while (i < n) {
+      if (b[i] !== 0xff) return null;
+      while (i < n && b[i] === 0xff) i++;                  // bytes de relleno
+      if (i >= n) return null;
+      var m = b[i++];
+      if (m === 0xd9) { partes.push(new Uint8Array([0xff, 0xd9])); return unir(partes); }   // el final: lo de después se va
+      if ((m >= 0xd0 && m <= 0xd7) || m === 0x01) { partes.push(new Uint8Array([0xff, m])); continue; }
+      if (i + 2 > n) return null;
+      var fin = i + ((b[i] << 8) | b[i + 1]);
+      if (fin < i + 2 || fin > n) return null;
+      if (m === 0xda) {
+        /* Los datos de la imagen van hasta el siguiente marcador que no sea
+           un byte relleno (FF 00) ni un reinicio (FF D0-D7). */
+        var j = fin;
+        while (j < n) {
+          if (b[j] !== 0xff) { j++; continue; }
+          var k = j + 1;
+          while (k < n && b[k] === 0xff) k++;
+          if (k >= n) return null;
+          if (b[k] === 0x00 || (b[k] >= 0xd0 && b[k] <= 0xd7)) { j = k + 1; continue; }
+          break;
+        }
+        partes.push(new Uint8Array([0xff, m]), b.subarray(i, j));
+        i = j;
+        continue;
+      }
+      var seg = b.subarray(i, fin);
+      if (!seVaDelJpeg(m, seg)) partes.push(new Uint8Array([0xff, m]), seg);
+      i = fin;
+    }
+    return null;                                           // sin final: no se deja leer
+  }
+  var PNG_QUEDAN = ['IHDR', 'PLTE', 'IDAT', 'IEND', 'tRNS', 'cHRM', 'gAMA', 'iCCP', 'sBIT', 'sRGB', 'bKGD', 'pHYs'];
+  function limpiarPng(b) {
+    var n = b.length, i = 8, partes = [b.subarray(0, 8)];
+    while (i + 12 <= n) {
+      var largo = b[i] * 0x1000000 + ((b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]);
+      var tipo = String.fromCharCode(b[i + 4], b[i + 5], b[i + 6], b[i + 7]);
+      var fin = i + 12 + largo;
+      if (fin > n) return null;
+      if (PNG_QUEDAN.indexOf(tipo) >= 0) partes.push(b.subarray(i, fin));
+      i = fin;
+      if (tipo === 'IEND') return unir(partes);          // y lo de después se va
+    }
+    return null;
+  }
+  function limpiarWebp(b) {
+    var u32 = function (p) { return (b[p] | (b[p + 1] << 8) | (b[p + 2] << 16)) + b[p + 3] * 0x1000000; };
+    if (b.length < 12) return null;
+    var fin = Math.min(b.length, 8 + u32(4)), i = 12, trozos = [], total = 4;
+    while (i + 8 <= fin) {
+      var cc = String.fromCharCode(b[i], b[i + 1], b[i + 2], b[i + 3]), tam = u32(i + 4);
+      var hasta = Math.min(fin, i + 8 + tam + (tam & 1));
+      if (i + 8 + tam > fin) return null;
+      if (cc !== 'EXIF' && cc !== 'XMP ') { trozos.push({ cc: cc, d: b.subarray(i, hasta) }); total += hasta - i; }
+      i = hasta;
+    }
+    if (!trozos.length) return null;
+    var out = new Uint8Array(8 + total), p = 12;
+    out.set(b.subarray(0, 4), 0); out.set(b.subarray(8, 12), 8);
+    out[4] = total & 0xff; out[5] = (total >>> 8) & 0xff; out[6] = (total >>> 16) & 0xff; out[7] = (total >>> 24) & 0xff;
+    trozos.forEach(function (t) {
+      out.set(t.d, p);
+      if (t.cc === 'VP8X' && t.d.length > 8) out[p + 8] &= ~0x0c;   // sin las marcas de EXIF (0x08) y XMP (0x04)
+      p += t.d.length;
+    });
+    return out;
+  }
+  /** Los bytes de la imagen sin sus metadatos; null si no se deja leer. */
+  function limpiarMetadatos(u8, tipo) {
+    try {
+      if (tipo === 'jpg') return limpiarJpeg(u8);
+      if (tipo === 'png') return limpiarPng(u8);
+      if (tipo === 'webp') return limpiarWebp(u8);
+    } catch (e) { /* null */ }
+    return null;
+  }
+  /* La orientación que dice el EXIF de un JPEG (1 si no dice). Una foto de
+     cámara puede venir de lado con «gírala al mostrarla» en el EXIF: quitarle
+     el EXIF la dejaría de lado, así que esa va por el lienzo, que la dibuja
+     derecha (y tampoco copia el EXIF). */
+  function orientacionJpeg(b) {
+    try {
+      if (!b || b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) return 1;
+      var i = 2;
+      while (i + 4 <= b.length && b[i] === 0xff) {
+        var m = b[i + 1];
+        if (m === 0xff) { i++; continue; }
+        if (m === 0xda || m === 0xd9) break;
+        var largo = (b[i + 2] << 8) | b[i + 3];
+        if (largo < 2) break;
+        if (m === 0xe1 && empiezaCon(b, i + 4, 'Exif\u0000\u0000')) {
+          var t = i + 10, le = b[t] === 0x49, tope = i + 2 + largo;
+          var u16 = function (p) { return le ? (b[p] | (b[p + 1] << 8)) : ((b[p] << 8) | b[p + 1]); };
+          var u32 = function (p) { return le ? (u16(p) + u16(p + 2) * 0x10000) : (u16(p) * 0x10000 + u16(p + 2)); };
+          var ifd = t + u32(t + 4), cuantos = u16(ifd);
+          for (var k = 0; k < cuantos && ifd + 2 + k * 12 + 12 <= tope; k++) {
+            var e = ifd + 2 + k * 12;
+            if (u16(e) === 0x0112) { var o = u16(e + 8); return (o >= 1 && o <= 8) ? o : 1; }
+          }
+          return 1;
+        }
+        i += 2 + largo;
+      }
+    } catch (e) { /* 1 */ }
+    return 1;
+  }
+
   /* ------------------------------------------ preparar un archivo escogido */
   function leerBytes(blob) {
     if (blob && typeof blob.arrayBuffer === 'function') {
@@ -350,7 +509,8 @@
    * Del archivo que escogió (o pegó) a lo que sube: {tipo, bytes, base64,
    * sha256}. El tipo sale de sus primeros bytes, como en la base; lo que diga
    * el teléfono (el nombre, el tipo MIME) no cuenta. Un pantallazo de más de
-   * 1 MB se achica; un PDF se sube tal cual.
+   * 1 MB se achica; un PDF se sube tal cual. Toda imagen sale sin sus
+   * metadatos (limpiarMetadatos), y la que no se deja limpiar no sale.
    * @returns Promise<{ok, archivo, motivo}>
    */
   function prepararArchivo(blob) {
@@ -367,12 +527,21 @@
         if (u8.length > LIMITES.bytes) return { ok: false, motivo: 'muy_grande' };
         return listo(tipo, u8);
       }
-      if (u8.length <= LIMITES.achicarDesde) return listo(tipo, u8);
+      /* 28-oct-2026 (arreglo de los leves, P3) — antes, la de 1 MB o menos
+         subía tal cual, con su EXIF. Ahora sale limpia (limpiarMetadatos); por
+         el lienzo van la pesada, la que viene de lado según su EXIF y la que
+         no se deja limpiar byte a byte. Lo que sale del lienzo también se
+         limpia: no debería traer nada, y así no depende del navegador. */
+      var limpio = limpiarMetadatos(u8, tipo);
+      var deLado = tipo === 'jpg' && orientacionJpeg(u8) > 1;
+      if (limpio && !deLado && limpio.length <= LIMITES.achicarDesde) return listo(tipo, limpio);
       return achicar(blob).then(function (chico) {
         var t2 = chico && tipoPorBytes(chico);
-        if (chico && t2 && chico.length < u8.length) return listo(t2, chico);
-        if (u8.length <= LIMITES.bytes) return listo(tipo, u8);
-        return { ok: false, motivo: 'muy_grande' };
+        var c2 = t2 ? limpiarMetadatos(chico, t2) : null;
+        if (c2 && (deLado || !limpio || c2.length < limpio.length) && c2.length <= LIMITES.bytes) return listo(t2, c2);
+        if (limpio && limpio.length <= LIMITES.bytes) return listo(tipo, limpio);
+        /* Sin lienzo y sin poder limpiarla, no se guarda: nunca con lo que traía. */
+        return { ok: false, motivo: limpio ? 'muy_grande' : 'lectura' };
       });
     }, function () { return { ok: false, motivo: 'lectura' }; });
     function listo(tipo, u8) {
@@ -1256,6 +1425,8 @@
     resumen: resumen,
     revisarNuevo: revisarNuevo,
     armarAutorizacion: armarAutorizacion,
+    limpiarMetadatos: limpiarMetadatos,
+    orientacionJpeg: orientacionJpeg,
     prepararArchivo: prepararArchivo,
     leerPortapapeles: leerPortapapeles,
     blobsDePegar: blobsDePegar,
