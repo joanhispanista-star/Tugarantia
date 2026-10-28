@@ -142,7 +142,10 @@ function nube(P) {
       var h = (op && op.headers) || {};
       var metodo = (op && op.method) || 'GET';
       window.__llamadas.push({ url: u, metodo: metodo, cuerpo: c, auth: String(h.Authorization || '') });
-      var R = function (r, ok, st) { return { ok: ok !== false, status: st || (ok === false ? 400 : 200), json: function () { return Promise.resolve(r); } }; };
+      /* 28-oct-2026 — también text(): app/historia-laboral.js lee así la
+         respuesta (un cuerpo vacío no es un error). */
+      var R = function (r, ok, st) { return { ok: ok !== false, status: st || (ok === false ? 400 : 200), json: function () { return Promise.resolve(r); },
+        text: function () { return Promise.resolve(r == null ? '' : JSON.stringify(r)); } }; };
       var contestar = function () {
         for (var i = 0; i < window.__resp.length; i++) if (window.__resp[i][0].test(u)) return R(window.__resp[i][1]);
         var tok = function (correo) { return { access_token: 'tok-' + correo + '-' + window.__llamadas.length, refresh_token: 'ref', expires_in: 3600,
@@ -167,6 +170,8 @@ function nube(P) {
         if (/registro_archivos_guardar/.test(u)) return R({ ok: true, guardados: Object.keys((c && c.p_archivos) || {}) });
         if (/registro_vivo_publicar/.test(u)) return R({ ok: true, testigo: 'tst' });
         if (/rpc\\/mi_cuenta/.test(u)) return R({ ok: true, vinculada: false });
+        /* 28-oct-2026 — la tarjeta «Tu historia laboral» del Perfil: sin nada guardado. */
+        if (/rpc\\/pension_mia/.test(u)) return R({ ok: true, autorizacion: null, archivos: [] });
         return R({ ok: true });
       };
       if (window.__colgar && window.__colgar.test(u)) {

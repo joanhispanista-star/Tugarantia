@@ -3276,17 +3276,70 @@ function subirLaHistoriaLaboralYDecirlo() {
   }).then(function (r) {
     if (!r || SESION !== ses) return;
     var a = HL.avisoDeLaCola(r);
-    pintarAvisoPension(a.html, a.clase);
+    pintarAvisoPension(a.html, a.clase, r.estado !== 'apagado');
   }, function () {});
 }
-function pintarAvisoPension(html, clase) {
+function pintarAvisoPension(html, clase, conCamino) {
   var a = $('avisoPension');
-  /* Cuando el texto la manda a la app, el enlace va al lado: «desde tu cuenta
-     en la app» sin un camino sería una promesa que no se encuentra (la app
-     toma la sesión de esta pestaña). */
-  var ir = /en la app/.test(String(html || '')) && MARCA !== 'platachat'
-    ? ' <a href="../app/socio.html">Abrir mi cuenta en la app</a>' : '';
+  /* Cuando el texto la manda a su cuenta, el camino va al lado: «súbela desde
+     tu cuenta» sin camino sería una promesa que no se encuentra. Es el Perfil
+     de ESTA cuenta (la tarjeta «Tu historia laboral», abajo), y NUNCA un
+     enlace a app/socio.html: play/ no enlaza al quincenal (la frontera de
+     Play, pruebas/motor.test.js). Con la base sin las funciones (404) no hay
+     camino: la tarjeta tampoco aparece, y el enlace llevaría a nada. */
+  var ir = conCamino && !HL_APAGADO_PLAY && /desde tu cuenta/.test(String(html || '')) && MARCA !== 'platachat'
+    ? ' <a href="#" onclick="abrirHistoriaLaboralEnPerfil();return false">Subirla desde tu Perfil</a>' : '';
   if (a) a.innerHTML = html ? '<div class="card"><div class="aviso' + (clase ? ' ' + clase : '') + '" role="status">' + html + ir + '</div></div>' : '';
+}
+/* «Tu historia laboral» en el Perfil de la cuenta de play/: la MISMA tarjeta
+   de app/socio.html (app/historia-laboral.js), con la sesión de esta cuenta.
+   Quien se registra aquí y se queda aquí también tiene su «después», y su
+   «puedo quitarla cuando quiera desde mi cuenta». Si la base no tiene las
+   funciones (404), no aparece. */
+var HL_APAGADO_PLAY = false;
+/* La tarjeta montada, con la sesión que la montó. La lámina del Perfil se
+   repinta sola al llegar mi_cuenta y mi_registro (cargarFicha,
+   preguntarMiRegistro), justo después de abrir la cuenta, que es cuando se
+   llega aquí desde «Subirla desde tu Perfil»: montarla otra vez cerraba la
+   tarjeta debajo del dedo de quien ya estaba escogiendo su fondo o su
+   archivo. Con la MISMA sesión vuelve el MISMO nodo, con lo que estaba
+   haciendo; y si estaba cerrada, se vuelve a mirar (la subida de la cola del
+   registro pudo terminar mientras tanto). */
+var HL_TARJETA_PLAY = null;
+function abrirHistoriaLaboralEnPerfil() {
+  if (!SESION || !SESION.access_token) return;
+  if (VISTA !== 'cuenta') pintarCuenta();
+  irA('perfil');
+  /* irA sube al principio del Perfil, y la tarjeta está abajo, después de la
+     contraseña: quien tocó el enlace llega a ella, no a buscarla. */
+  var c = $('hlCuenta');
+  if (c && c.scrollIntoView) c.scrollIntoView({ block: 'center' });
+}
+function montarHistoriaLaboralEnPerfil() {
+  var caja = $('hlCuenta');
+  if (!caja) return;
+  if (!HL || !window.FondosPension || MARCA === 'platachat' || HL_APAGADO_PLAY || !SESION || !SESION.access_token) { caja.innerHTML = ''; HL_TARJETA_PLAY = null; return; }
+  var ses = SESION, ya = HL_TARJETA_PLAY;
+  if (ya && ya.ses === ses && ya.nodo !== caja && caja.parentNode) {
+    caja.parentNode.replaceChild(ya.nodo, caja);
+    var vm = ya.tarjeta && ya.tarjeta.vm;
+    if (vm && !vm.abierta && !vm.cargando && !vm.apagado) ya.tarjeta.recargar().then(null, function () { /* se queda lo que decía */ });
+    return;
+  }
+  HL_TARJETA_PLAY = { ses: ses, nodo: caja, tarjeta: null };
+  HL_TARJETA_PLAY.tarjeta = HL.tarjetaDeCuenta(caja, {
+    /* Con el token de la sesión que la abrió; si ya es otra, sin sesión. */
+    credenciales: function () {
+      return Promise.resolve(SESION === ses && ses.access_token ? { url: CFG.url, anon: CFG.anon, token: ses.access_token } : null);
+    },
+    /* Por el fetch de ESTA página, el mismo de rpcConToken, y no por el que
+       el módulo encuentre a mano: en el navegador es el mismo, pero en el
+       banco de pruebas (que carga los módulos con require) el del módulo es
+       el de Node, y una prueba del Perfil llamaba a la base de verdad. */
+    fetch: function (u, op) { return fetch(u, op); },
+    escritura: escrituraEnCamino,
+    alApagado: function () { HL_APAGADO_PLAY = true; }
+  });
 }
 
 function pasoPermiso() {
@@ -12548,6 +12601,7 @@ function pintarLamina() {
     abrirCanal(CANAL);
   } else {
     l.innerHTML = laminaPerfil();
+    montarHistoriaLaboralEnPerfil();   // 28-oct-2026
   }
 }
 
@@ -13247,6 +13301,8 @@ function laminaPerfil() {
     '</div>' +
     tarjetaCambiarClave() +
     tarjetaTuHistorial() +
+    /* 28-oct-2026 — su historia laboral, opcional (montarHistoriaLaboralEnPerfil). */
+    (HL ? '<div id="hlCuenta"></div>' : '') +
     '<div class="card">' +
       '<button class="btn sec" onclick="salirDeCuenta()">Salir</button>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarBorrar()">' +

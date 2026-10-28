@@ -195,8 +195,14 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     assert.ok(l.some(x => /pension_autorizar/.test(x.url) && x.cuerpo.p_fondos[0] === 'nunca'));
     assert.equal(l.some(x => /pension_subir/.test(x.url)), false);
     assert.match(avisoPension(P), /Guardamos tu autorización y tu fondo/);
-    /* «súbela desde tu cuenta en la app», con el camino al lado. */
-    assert.match(P.ev("document.getElementById('avisoPension').innerHTML"), /<a href="\.\.\/app\/socio\.html">Abrir mi cuenta en la app<\/a>/);
+    /* «súbela desde tu cuenta», con el camino al lado: el Perfil de ESTA
+       cuenta, nunca un enlace al quincenal (la frontera de Play). */
+    const h = P.ev("document.getElementById('avisoPension').innerHTML");
+    assert.match(h, /onclick="abrirHistoriaLaboralEnPerfil\(\);return false">Subirla desde tu Perfil<\/a>/);
+    assert.equal(/socio\.html/.test(h), false, 'play/ enlaza a la app del quincenal');
+    P.ev('abrirHistoriaLaboralEnPerfil()');
+    await B.asentar(20);
+    assert.equal(P.ev('VISTA + "/" + TAB'), 'cuenta/perfil');
   });
 
   test('sin la autorización, nada del fondo sale (ni lo escogido sin marcar la casilla)', async () => {
@@ -222,6 +228,9 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     B.tocar(P, 'Abrir mi cuenta');
     await B.asentar(30);
     assert.match(avisoPension(P), /todavía no está encendida/);
+    /* Y sin el camino al Perfil: con la base así, la tarjeta tampoco aparece. */
+    assert.equal(/Subirla desde tu Perfil/.test(P.ev("document.getElementById('avisoPension').innerHTML")), false,
+      'ofrece un camino que no lleva a nada');
     P.ev("guardaderoPension().cola('" + B.CEL_MARIA + "').then(function (c) { window.__cola = c; })");
     await B.asentar(5);
     assert.ok(P.ev('!!window.__cola'), 'la historia laboral se perdió con la base sin la migración');
@@ -231,6 +240,23 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     await B.asentar(30);
     assert.ok(JSON.parse(P.ev('JSON.stringify(window.__llamadas.map(function (x) { return x.url; }))')).some(u => /pension_subir/.test(u)));
     assert.match(avisoPension(P), /Tu historia laboral llegó/);
+  });
+
+  test('el «después» existe también aquí: el Perfil de la cuenta de play/ trae «Tu historia laboral», con la sesión de ESA cuenta', async () => {
+    const P = B.abrir();
+    const llamadas = B.nube(P);
+    B.mariaHastaElPermiso(P, false);
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    P.ev("pintarCuenta(); irA('perfil')");
+    await B.asentar(30);
+    assert.match(P.ev('laminaPerfil()'), /<div id="hlCuenta"><\/div>/, 'el Perfil no trae el lugar de la tarjeta');
+    const mia = llamadas().filter(x => /rpc\/pension_mia/.test(x.url));
+    assert.ok(mia.length >= 1, 'el Perfil no preguntó por la historia laboral');
+    assert.match(mia[0].auth, /^Bearer tok-573001112233@tugarantia\.net-/, 'no preguntó con la sesión de la cuenta');
+    assert.match(B.texto(P.ev("document.getElementById('hlCuenta').innerHTML")), /Tu historia laboral · opcional/);
+    /* Y en PlataChat, ni el lugar. */
+    assert.equal(B.abrir({ search: '?marca=platachat' }).ev("SESION = { access_token: 't', user: { email: '573001112233@tugarantia.net' } }; montarHistoriaLaboralEnPerfil(); document.getElementById('hlCuenta').innerHTML"), '');
   });
 
   test('«Tu autorización» dice que la app recibe solo los archivos que la persona escoja', () => {

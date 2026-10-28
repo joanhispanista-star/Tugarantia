@@ -188,8 +188,9 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
   historia-laboral.js   «Tu fondo de pensiones» (28-oct-2026): la MISMA
                         pantalla para el paso opcional del registro (play/) y
                         la tarjeta «Tu historia laboral» de la app
-                        (socio.html). La autorización aparte y sin marcar (su
-                        versión, 2026-11-03, es la fecha de la política), los
+                        (socio.html) y del Perfil de play/. La autorización
+                        aparte y sin marcar (su versión, 2026-11-03, es la
+                        fecha de la política), los
                         fondos, el botón a la página oficial en otra pestaña,
                         y las tres formas: 📄 PDF, 🖼️ hasta 5 pantallazos
                         (achicados en el teléfono si pesan) y 📋 Pegar
@@ -554,7 +555,10 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         después» arriba; no en PlataChat. Lo escogido
                         sobrevive a irse al correo y volver; los archivos
                         siguen la regla de las fotos; al abrir la cuenta suben
-                        con su sesión y #avisoPension lo dice
+                        con su sesión y #avisoPension lo dice. El «después»
+                        es la tarjeta «Tu historia laboral» del Perfil de
+                        esta misma cuenta («Subirla desde tu Perfil»), nunca
+                        un enlace a app/socio.html (la frontera de Play)
                         (app/historia-laboral.js;
                         pruebas/el-fondo-de-pensiones-registro.test.js).
                         (21-oct-2026) Lo IMPRESO en la cédula también llena
