@@ -341,7 +341,10 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         y el-gerente-descarga-su-base.test.js.
   historia-laboral-crm.js  «📄 Fondo de pensiones» en el CRM de Joan
                         (28-oct-2026): la línea de 📥 Registrados, el bloque de
-                        «👁 Ver datos» y de la ficha, y abrir UN archivo que
+                        «👁 Ver datos» y de la ficha (solo la que vino de un
+                        registro o lo tiene cruzado: se busca por celular, y
+                        un celular compartido no es la misma persona; la
+                        misma reja de las fotos), y abrir UN archivo que
                         escribió un desconocido: el tipo por sus bytes (y el
                         de la base), un Blob con ese tipo forzado, el PDF en
                         otra pestaña por un enlace de un solo uso y la imagen
