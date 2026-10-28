@@ -204,6 +204,17 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         IndexedDB como las fotos; al abrir la cuenta pasan a
                         la cola de ESA cuenta y suben con su sesión. No lee el
                         PDF ni «verifica con el fondo». Nuevo en v141, sin ?v=.
+                        (28-oct, arreglo de los leves) Toda imagen sale SIN
+                        sus metadatos (EXIF con el GPS, XMP, lo pegado tras
+                        el final), pese lo que pese; la que no se deja
+                        limpiar no se guarda. Lo vencido que espera en el
+                        teléfono se barre al abrir play/ y la app (barrer),
+                        y retirar la autorización borra la cola de esa
+                        cuenta. Cambiar de fondo en la tarjeta no vuelve a
+                        firmar (va sin versión). Lo pegado sin contestar no
+                        se pierde callado (puedeSeguir), el paso dice cómo
+                        traer el PDF del correo, y dondeDespues dice dónde
+                        queda el «después».
                         Pruebas: pruebas/el-fondo-de-pensiones*.test.js.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
@@ -350,6 +361,12 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         otra pestaña por un enlace de un solo uso y la imagen
                         en grande aquí. Todo con la clave de Joan; el modo
                         equipo no pinta nada. Nuevo en v141, sin ?v=.
+                        (28-oct, arreglo de los leves) 📥 Registrados dice
+                        en una línea cuánto ocupan las historias laborales
+                        desde el 80 % del tope del cortacircuito (o que se
+                        llenó), y debajo de la bandeja lista las de quien ya
+                        no está en ella (descartado o atendido), con su
+                        «📄 Ver» y su «🗑»; el ✕ avisa que no las borra.
                         Pruebas: pruebas/el-fondo-de-pensiones-crm.test.js.
   nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el
                         22-oct-2026, se empareja sola en cada computador: solo
@@ -545,7 +562,11 @@ base/
                                   al borrarla Joan y con la cuenta (disparador
                                   en auth.users). Exige el 22d (paso 0). Va
                                   ANTES de publicar v141. SIN APLICAR. Termina
-                                  con su tabla: 10 renglones en true. Pruebas:
+                                  con su tabla: 10 renglones en true. Sin
+                                  versión, pension_autorizar solo cambia el
+                                  fondo de una autorización vigente (cambiar
+                                  de fondo no es firmar); pension_resumen
+                                  dice lo ocupado y el tope. Pruebas:
                                   pruebas/el-fondo-de-pensiones-postgres.test.js.
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
@@ -574,7 +595,12 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         con su sesión y #avisoPension lo dice. El «después»
                         es la tarjeta «Tu historia laboral» del Perfil de
                         esta misma cuenta («Subirla desde tu Perfil»), nunca
-                        un enlace a app/socio.html (la frontera de Play)
+                        un enlace a app/socio.html (la frontera de Play);
+                        «Lo hago después» y la cuenta recién abierta de quien
+                        saltó el paso lo dicen en una línea. Si la base no
+                        tiene la historia laboral (pension_mia contesta 404
+                        a la llave pública), el paso se quita y nada promete
+                        la tarjeta
                         (app/historia-laboral.js;
                         pruebas/el-fondo-de-pensiones-registro.test.js).
                         (21-oct-2026) Lo IMPRESO en la cédula también llena
