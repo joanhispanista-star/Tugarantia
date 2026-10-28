@@ -430,6 +430,38 @@ describe('la subida de la cola, con la sesión de la cuenta', () => {
     const r3 = await HL.subirCola(t2.g, '3001112233', () => Promise.reject(Object.assign(new Error('http 401'), { status: 401 })));
     assert.equal(r3.estado, 'sesion');
   });
+  /* 28-oct-2026 (arreglo, ronda 2) — el cortacircuito de pension_subir
+     (base/20261103, el reparto de los 500 MB) contesta «lleno». Ese archivo
+     no tiene nada malo y la base puede volver a tener espacio: no se tira,
+     espera en la cola como con el freno. Y la pantalla dice lo que pasó: con
+     el código de antes caía en 'sin_red' («no alcanzó a subir»), culpando a
+     la señal, y la app decía «No pudimos guardar ese archivo». */
+  test('la base llena (el cortacircuito): no se pierde nada, espera en la cola, y se dice sin culpar a la señal', async () => {
+    const t = await preparar([A('pdf', '%PDF-a'), A('png', '\x89PNG\r\n\x1a\nb')]);
+    const r = await HL.subirCola(t.g, '3001112233', fn => Promise.resolve(fn === 'pension_subir' ? { ok: false, motivo: 'lleno' } : { ok: true }));
+    assert.deepEqual([r.estado, r.subidos, r.rechazados.length, r.pendientes], ['lleno', 0, 0, 2]);
+    const c = await t.g.cola('3001112233');
+    assert.equal(c && c.archivos.length, 2, 'con la base llena, la cola tiró los archivos');
+    assert.equal(c.autorizada, true);
+    const a = HL.avisoDeLaCola(r);
+    assert.equal(a.clase, 'ambar');
+    assert.match(a.html, /se quedó en este teléfono:<\/b> ahora mismo no podemos recibir más historias laborales\. Es opcional: tu cuenta sigue igual\./);
+    assert.match(a.html, /Lo volvemos a intentar cuando entres a tu cuenta/);
+    assert.equal(/alcanzó a subir|conexión|señal/.test(a.html), false, 'culpa a la señal de lo que es la base llena');
+    /* En la app, lo mismo con sus palabras; y nunca «mándala por el chat»: allá no la cubren estas reglas. */
+    const m = HL.motivoEnPalabras('lleno');
+    assert.equal(m, HL.MOTIVOS.lleno);
+    assert.match(m, /no podemos recibir más historias laborales\. Es opcional: tu cuenta y tus solicitudes siguen igual/);
+    assert.equal(/chat|conexión|internet/.test(m), false);
+  });
+  test('cada «no» que contesta pension_subir tiene sus palabras en la pantalla (ninguno cae en el genérico)', () => {
+    const sql = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'base', '20261103_el_fondo_de_pensiones.sql'), 'utf8')
+      .replace(/--[^\n]*/g, '');
+    const cuerpo = sql.split(/create or replace function public\.pension_subir/)[1].split(/create or replace function/)[0];
+    const motivos = [...new Set([...cuerpo.matchAll(/'motivo', '([a-z_]+)'/g)].map(x => x[1]))];
+    assert.ok(motivos.includes('lleno') && motivos.includes('sin_espacio'), 'no leí los motivos de pension_subir: ' + motivos);
+    motivos.forEach(k => assert.ok(HL.MOTIVOS[k], 'la base contesta «' + k + '» y la pantalla no tiene cómo decirlo'));
+  });
   test('si la base no aceptara los fondos, autoriza sin fondo en vez de reintentar hasta que caduque', async () => {
     const t = await preparar([]);
     const pedidos = [];

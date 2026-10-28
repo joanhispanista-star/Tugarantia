@@ -205,6 +205,13 @@
     sesion: 'Se cerró tu sesión. Entra otra vez y vuelve a intentar.',
     sin_red: 'No hay conexión. Revisa tu internet y vuelve a intentar.',
     apagado: 'Esta parte todavía no está encendida en nuestro sistema. Inténtalo más tarde.',
+    /* 28-oct-2026 (arreglo, ronda 2) — el cortacircuito de pension_subir:
+       el espacio de las historias laborales se llenó (ver el encabezado de
+       base/20261103_el_fondo_de_pensiones.sql). No es culpa de su archivo
+       ni de su señal. Y no se le ofrece mandarla por el chat: allá no la
+       cubren las reglas de esta (su autorización aparte, que la vea solo
+       Joan, que se borre al retirarla). */
+    lleno: 'Ahora mismo no podemos recibir más historias laborales. Es opcional: tu cuenta y tus solicitudes siguen igual. Inténtalo más tarde.',
     fondos: 'Esa combinación de fondos no la podemos guardar: marca uno, o Colpensiones y un fondo privado.',
     pegar_vacio: 'No encontramos un pantallazo copiado. Cópialo primero (en tu galería: Compartir → Copiar) y vuelve a tocar «📋 Pegar», o usa «🖼️ Subir pantallazos».',
     pegar_negado: 'Tu teléfono no nos dejó leer lo que copiaste. Mantén presionado el recuadro de abajo y toca «Pegar», o usa «🖼️ Subir pantallazos».',
@@ -609,7 +616,12 @@
    * uno en uno: si la señal se cae a mitad, lo que ya subió no se repite (la
    * base tampoco duplica: mismo sha256).
    * @returns Promise<{estado, subidos, rechazados, total, pendientes}> —
-   *   estado: 'nada' | 'ok' | 'apagado' | 'sesion' | 'freno' | 'sin_red'.
+   *   estado: 'nada' | 'ok' | 'apagado' | 'sesion' | 'freno' | 'lleno' | 'sin_red'.
+   * 28-oct-2026 (arreglo, ronda 2) — 'lleno' es el cortacircuito de la base
+   * (el espacio de las historias laborales se llenó). NO es un rechazo final:
+   * el archivo no tiene nada malo y la base puede volver a tener espacio, así
+   * que se queda en la cola como con el freno. Antes caía en 'sin_red' y la
+   * pantalla culpaba a la señal.
    */
   function subirCola(g, cel, llamar) {
     return g.cola(cel).then(function (c) {
@@ -645,7 +657,7 @@
         var st = e && e.status, m = e && e.motivo;
         res.estado = st === 404 ? 'apagado'
           : (st === 401 || st === 403 || m === 'sin_sesion' || (e && e.sinSesion)) ? 'sesion'
-          : m === 'freno' ? 'freno' : 'sin_red';
+          : m === 'freno' ? 'freno' : m === 'lleno' ? 'lleno' : 'sin_red';
         res.pendientes = c.archivos.length;
         return res;
       });
@@ -665,6 +677,7 @@
     }
     if (r.estado === 'apagado') return { clase: 'ambar', html: '<b>Tu historia laboral se quedó en este teléfono:</b> esta parte todavía no está encendida en nuestro sistema. ' + quedan };
     if (r.estado === 'freno') return { clase: 'ambar', html: '<b>Tu historia laboral no alcanzó a subir</b> por demasiados intentos seguidos. ' + quedan };
+    if (r.estado === 'lleno') return { clase: 'ambar', html: '<b>Tu historia laboral se quedó en este teléfono:</b> ahora mismo no podemos recibir más historias laborales. Es opcional: tu cuenta sigue igual. ' + quedan };
     return { clase: 'ambar', html: '<b>Tu historia laboral no alcanzó a subir.</b> ' + quedan };
   }
   function resumenDe(n, r) { return n === r.total ? (n === 1 ? '1 archivo' : n + ' archivos') : n + ' de ' + r.total + ' archivos'; }

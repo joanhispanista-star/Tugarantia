@@ -63,6 +63,35 @@
 -- un HTML o cualquier otra cosa no entra. El tamaño se mira antes de
 -- decodificar. Y el freno de siempre: 30 escrituras cada 15 minutos por cuenta.
 --
+-- Y EL CORTACIRCUITO (28-oct-2026, arreglo, ronda 2). Todos los topes de
+-- arriba son POR PERSONA, y un tope por persona protege de UNA persona. El
+-- registro está abierto (cualquiera abre cuenta con un celular inventado), y
+-- unas 24 cuentas con su tope lleno pasaban los ~280 MB que el reparto deja
+-- libres: probado en un PostgreSQL local, 104 archivos de 3 MB y ningún
+-- rechazo. Pasados los 500 MB del plan gratis la base ENTERA queda de solo
+-- lectura: no se desembolsa, no se registra un pago, no se contesta el chat.
+-- Es la regla de la casa para las tablas de archivos (20260922j, 20260922s):
+-- tope por persona MÁS cortacircuito con pg_total_relation_size. El reparto
+-- de los 500 MB queda así:
+--
+--   · chat_fotos        150 MB  (20260922j)
+--   · fotos_equipo       50 MB  (20260922s)
+--   · pension_archivos   50 MB  (este archivo)
+--   · registro_en_vivo   20 MB
+--   ---------------------------------------------------------------
+--   quedan ~230 MB para lo que no se puede parar nunca: los créditos, los
+--   pagos y las fichas.
+--
+-- 50 MB, porque con lo normal (un PDF, o unos pocos pantallazos que el
+-- teléfono achica antes de subir) son del orden de cien personas —estimado:
+-- todavía no hay muestras reales—, y con el tope de 12 MB lleno, cuatro.
+-- Cuando se llena, el cliente lee que ahora no podemos recibirla (es
+-- opcional: su cuenta sigue igual), y lo que esperaba en su teléfono sigue en
+-- la cola hasta el día siguiente, reintentándose cada vez que entra a su
+-- cuenta. Lo arregla Joan: más espacio en Supabase, o borrar lo que ya no
+-- sirve; borrar filas no siempre achica la tabla, así que después va
+-- `vacuum full public.pension_archivos;`, sola en su propia consulta.
+--
 -- LO QUE NO HACE: no lee el PDF, no lo «verifica con el fondo» (ningún fondo
 -- tiene cómo: ver la investigación del 28-oct) y no le suma garantía a nadie.
 -- Lo mira Joan.
@@ -272,6 +301,14 @@ begin
   end if;
   if total + octet_length(datos) > 12582912 then
     return jsonb_build_object('ok', false, 'motivo', 'sin_espacio');
+  end if;
+
+  -- EL CORTACIRCUITO: el TOTAL, que ningún tope de arriba mira (ver el
+  -- encabezado: el reparto de los 500 MB). Va justo antes de escribir y
+  -- después de «ya estaba»: un reintento de lo que YA entró no es escritura
+  -- nueva, y contestarle «no podemos recibirlo» sería mentirle.
+  if pg_total_relation_size('public.pension_archivos') > 50 * 1024 * 1024 then
+    return jsonb_build_object('ok', false, 'motivo', 'lleno');
   end if;
 
   insert into public.pension_archivos (celular, tipo, datos, bytes, sha256)
@@ -530,9 +567,10 @@ drop table if exists pg_temp.pension_prueba;
 create temporary table pension_prueba (paso text primary key, ok boolean);
 do $prueba$
 declare
-  v_cel text := '3009991103';
-  j     jsonb;
-  pdf   text := encode(convert_to('%PDF-1.4 prueba de la migracion', 'UTF8'), 'base64');
+  v_cel   text := '3009991103';
+  j       jsonb;
+  v_lleno boolean := false;
+  pdf     text := encode(convert_to('%PDF-1.4 prueba de la migracion', 'UTF8'), 'base64');
 begin
   if exists (select 1 from public.pension_autorizaciones where celular = v_cel)
      or exists (select 1 from public.pension_archivos where celular = v_cel) then
@@ -562,10 +600,14 @@ begin
   j := public.pension_subir(repeat('A', 4500001));
   insert into pension_prueba values ('enorme', j ->> 'motivo' = 'muy_grande');
   j := public.pension_subir(pdf);
-  insert into pension_prueba values ('pdf', (j ->> 'ok')::boolean and j ->> 'tipo' = 'pdf');
+  -- Si este archivo se vuelve a correr con la tabla ya por encima de su
+  -- trozo, el cortacircuito contesta «lleno» y no escribe: eso TAMBIÉN es lo
+  -- que tiene que hacer, y la comprobación no debe salir en false por ello.
+  v_lleno := coalesce(j ->> 'motivo', '') = 'lleno' and pg_total_relation_size('public.pension_archivos') > 50 * 1024 * 1024;
+  insert into pension_prueba values ('pdf', ((j ->> 'ok')::boolean and j ->> 'tipo' = 'pdf') or v_lleno);
   -- Y se borra todo, también el freno.
   j := public.pension_retirar();
-  insert into pension_prueba values ('retirar', (j ->> 'borrados')::int = 1
+  insert into pension_prueba values ('retirar', (j ->> 'borrados')::int = (case when v_lleno then 0 else 1 end)
     and not exists (select 1 from public.pension_archivos where celular = v_cel));
   delete from public.pension_autorizaciones where celular = v_cel;
   delete from public.intentos_fallidos where cedula = 'hl:' || v_cel;
@@ -616,10 +658,17 @@ union all
 select 7, 'al borrar una cuenta de acceso se borra su historia laboral (el disparador existe)',
        exists (select 1 from pg_trigger t where not t.tgisinternal and t.tgname = 'pension_al_borrar_la_cuenta')
 union all
+-- 28-oct-2026 (arreglo, ronda 2) — coalesce: bool_and SALTA los null, y un
+-- paso cuya respuesta no traía «motivo» (por ejemplo, si algo entrara sin
+-- sesión) quedaba en null y la fila salía en true sin haberlo visto.
 select 8, 'la prueba llamando: sin sesión, sin autorización, SVG, HTML y archivo enorme no entran; un PDF sí; retirar lo borra',
-       (select count(*) = 9 and bool_and(ok) from pension_prueba)
+       (select count(*) = 9 and bool_and(coalesce(ok, false)) from pension_prueba)
 union all
 select 9, 'la prueba no dejó nada',
        not exists (select 1 from public.pension_autorizaciones where celular = '3009991103')
        and not exists (select 1 from public.pension_archivos where celular = '3009991103')
+union all
+select 10, 'subir tiene su cortacircuito: pasados 50 MB en pension_archivos no escribe nada (el reparto de los 500 MB)',
+       pg_get_functiondef('public.pension_subir(text)'::regprocedure)
+         like '%if pg_total_relation_size(''public.pension_archivos'') > 50 * 1024 * 1024 then%return jsonb_build_object(''ok'', false, ''motivo'', ''lleno'');%insert into public.pension_archivos%'
 order by 1;

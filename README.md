@@ -529,7 +529,11 @@ base/
                                   (pension_autorizaciones) y los archivos
                                   (pension_archivos: PDF, JPG, PNG o WEBP por
                                   sus bytes, 3 MB, 2 PDF y 5 imágenes, 12 MB
-                                  por persona), con RLS y cerradas. El cliente,
+                                  por persona, y un cortacircuito: pasados 50
+                                  MB en total no entra nada más, «lleno»; es
+                                  su trozo del reparto de los 500 MB del plan
+                                  gratis, escrito en su encabezado), con RLS y
+                                  cerradas. El cliente,
                                   con su sesión: autorizar, subir, ver lo suyo
                                   sin contenido, quitar y retirar. Joan, con su
                                   clave: resumen, detalle, UN archivo, borrar.
@@ -538,7 +542,7 @@ base/
                                   al borrarla Joan y con la cuenta (disparador
                                   en auth.users). Exige el 22d (paso 0). Va
                                   ANTES de publicar v141. SIN APLICAR. Termina
-                                  con su tabla: 9 renglones en true. Pruebas:
+                                  con su tabla: 10 renglones en true. Pruebas:
                                   pruebas/el-fondo-de-pensiones-postgres.test.js.
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en

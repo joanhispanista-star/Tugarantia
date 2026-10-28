@@ -71,6 +71,19 @@ describe('el archivo de la migración', () => {
   test('termina en la tabla de comprobaciones que Joan ve', () => {
     assert.match(codigo, /select 1 as n, '[^']+' as comprobacion,/);
     assert.match(codigo, /order by 1;\s*$/);
+    /* bool_and salta los null: un paso de la prueba que no se pudo mirar no puede contar como bueno. */
+    assert.match(codigo, /bool_and\(coalesce\(ok, false\)\) from pension_prueba/);
+  });
+  /* 28-oct-2026 (arreglo, ronda 2) — el cortacircuito, como en chat_fotos y
+     fotos_equipo: mira el TOTAL, justo antes de escribir y después de «ya
+     estaba» (un reintento de lo que ya entró no es escritura nueva). */
+  test('subir lleva su cortacircuito: el total de pension_archivos, antes de escribir y después de «ya estaba»', () => {
+    const subir = codigo.split(/create or replace function public\.pension_subir/)[1].split(/create or replace function/)[0];
+    const corte = subir.indexOf("if pg_total_relation_size('public.pension_archivos') > 50 * 1024 * 1024 then");
+    assert.ok(corte > 0, 'pension_subir no mira el total de la tabla');
+    assert.match(subir.slice(corte), /^[^;]*then\s*return jsonb_build_object\('ok', false, 'motivo', 'lleno'\);/);
+    assert.ok(corte < subir.indexOf('insert into public.pension_archivos'), 'el cortacircuito va después de escribir');
+    assert.ok(corte > subir.indexOf("'ya_estaba', true"), 'el reintento de lo que ya entró recibiría «lleno»');
   });
 });
 
@@ -165,7 +178,7 @@ describe('el fondo de pensiones, en un PostgreSQL de verdad', { skip: !BIN && 's
       const r = archivo(path.join(RAIZ, 'base', NOMBRE), true);
       assert.equal(r.status, 0, 'la migración no corrió limpia la vez ' + i + ': ' + r.stderr);
       const comp = r.stdout.trim().split(/\r?\n/).filter(l => /^\d+\|.*\|[tf]?$/.test(l));
-      assert.equal(comp.length, 9, 'la tabla de comprobaciones no salió entera: ' + r.stdout);
+      assert.equal(comp.length, 10, 'la tabla de comprobaciones no salió entera: ' + r.stdout);
       comp.forEach(l => assert.match(l, /\|t$/, 'una comprobación salió en false: ' + l));
     });
   });
@@ -376,5 +389,41 @@ describe('el fondo de pensiones, en un PostgreSQL de verdad', { skip: !BIN && 's
     sql('delete from auth.users where id = ' + uid(PEDRO));
     assert.equal(filas(PEDRO), '0');
     assert.equal(sql("select count(*) from public.pension_autorizaciones where celular = '" + PEDRO + "'"), '0');
+  });
+
+  /* 28-oct-2026 (arreglo, ronda 2) — EL CORTACIRCUITO. Los topes de
+     pension_subir eran todos POR PERSONA (2 PDF, 5 imágenes, 12 MB), y el
+     registro está abierto: cualquiera abre cuentas con celulares inventados.
+     Los refutadores lo probaron en un PostgreSQL local: 26 cuentas, 104
+     archivos de 3 MB, 0 rechazos, 323 MB, y la cuenta 27 todavía entraba. En
+     el plan gratis (500 MB) eso deja la base ENTERA de solo lectura. Aquí,
+     lo que dejarían unas cinco cuentas inventadas con su tope lleno: 51 MB de
+     bytes al azar (no se comprimen, como un JPG de verdad). Con el código de
+     antes, el segundo archivo de Ana entra y esta prueba falla. */
+  test('ATAQUE: cuentas inventadas no llenan la base — pasado su trozo de 50 MB, pension_subir dice «lleno» y no escribe', () => {
+    const ANA = '3002223344';
+    cuenta(ANA, {});
+    limpiarFreno(ANA);
+    assert.equal(autorizar(ANA, ['colpensiones']).ok, true);
+    assert.equal(subir(ANA, PDF).ok, true, 'con espacio, su PDF no entró');
+    sql(`insert into public.pension_archivos (celular, tipo, datos, bytes, sha256)
+         select '32099900' || lpad(i::text, 2, '0'), 'jpg', x.d, octet_length(x.d), encode(sha256(x.d), 'hex')
+           from generate_series(1, 17) i,
+                lateral (select decode('ffd8ff', 'hex') || string_agg(extensions.gen_random_bytes(1024), ''::bytea) as d
+                           from generate_series(1, 3071) g where i > 0) x`);
+    const tam = Number(sql("select pg_total_relation_size('public.pension_archivos')"));
+    assert.ok(tam > 50 * 1024 * 1024, 'la prueba no pasó de 50 MB: ' + tam);
+    const r = subir(ANA, PNG);
+    assert.deepEqual([r.ok, r.motivo], [false, 'lleno'], 'con la tabla por encima de su trozo, entró: ' + JSON.stringify(r));
+    assert.equal(filas(ANA), '1', 'con la tabla llena, se escribió');
+    /* Lo que YA entró no es escritura nueva: el reintento con la señal floja dice la verdad. */
+    const re = subir(ANA, PDF);
+    assert.deepEqual([re.ok, re.ya_estaba], [true, true], JSON.stringify(re));
+    /* Y no es un callejón: borrado lo que sobraba y limpiada la tabla, vuelve a entrar. */
+    sql("delete from public.pension_archivos where celular like '32099900%'");
+    sql('vacuum full public.pension_archivos');
+    assert.equal(subir(ANA, PNG).ok, true, 'liberado el espacio, sigue diciendo «lleno»');
+    sql("delete from public.pension_archivos where celular = '" + ANA + "'");
+    limpiarFreno(ANA);
   });
 });
