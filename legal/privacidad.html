@@ -114,10 +114,28 @@ td.ob{white-space:nowrap;color:var(--gris)}
 <div class="cab"><div class="wrap">
   <h1>Qué hacemos con tus datos</h1>
   <p>Política de tratamiento de datos personales · Ley 1581 de 2012 y Decreto 1377 de 2013<br>
-     Última actualización: 27 de octubre de 2026</p>
+     Última actualización: 3 de noviembre de 2026</p>
 </div></div>
 
 <main><div class="wrap">
+
+  <!-- 28-oct-2026 — LA VERSIÓN DEL 3-NOV: LA HISTORIA LABORAL, OPCIONAL Y APARTE.
+       El dueño (28-oct): que el cliente pueda dar, si quiere, la historia laboral de su fondo de
+       pensiones —el PDF, pantallazos o pegándola— en un paso opcional del registro o desde la
+       app, que no se borre a los 30 días y que él la vea cuando quiera. Es un uso NUEVO de un
+       dato semiprivado (T-729 de 2002), así que va con su PROPIA autorización, aparte y sin
+       marcar (app/historia-laboral.js, VERSION_AUTORIZACION = '2026-11-03', la fecha de esta
+       versión): a quien no la da no le cambia nada, y por eso VERSION_AUTORIZACION de
+       app/cuenta.js y app/socio.html (la general) NO sube y «Lo que cambió» lo dice.
+       Lo que la sección «pension» promete, y dónde se cumple: solo la ve quien dirige el
+       negocio (las funciones de la base piden la clave de sincronización; ninguna del equipo la
+       devuelve), se guarda mientras haya cuenta (no caduca), se quita desde la app
+       (pension_retirar) o la borra el dueño si se le pide (pension_borrar), y se va con la cuenta
+       (el disparador sobre auth.users). Todo en base/20261103_el_fondo_de_pensiones.sql.
+       La fecha es la de PUBLICACIÓN (regla del 15-oct): si el lote sale otro día, se mueve
+       aquí, en «Lo que cambió», en «rige desde» y en VERSION_AUTORIZACION de
+       app/historia-laboral.js (pruebas/el-fondo-de-pensiones.test.js las amarra). PENDIENTE:
+       que el abogado apruebe este texto y el de la casilla antes de publicar. -->
 
   <!-- 23-oct-2026 — LA VERSIÓN DEL 27-OCT: DOS CAMBIOS, UNA FECHA.
        · La foto de la cara (punto 3): el programa del celular ubica también los OJOS y los
@@ -274,6 +292,7 @@ td.ob{white-space:nowrap;color:var(--gris)}
           <tr><td><b>Dónde trabajas, tu cargo y cuánto llevas ahí</b></td><td>Dar contexto al ingreso que declaras.</td><td class="ob">No</td></tr>
           <tr><td><b>Dos referencias: su nombre, qué son tuyos y su celular</b></td><td>Saber, al evaluar tu solicitud, que hay gente que te conoce. Lee la nota de abajo.</td><td class="ob">Sí</td></tr>
           <tr><td><b>La foto de tu cédula, la de tu cara y la ubicación de tu celular</b></td><td>Confirmar que eres tú. Son datos sensibles y van con su propia autorización, aparte de la general: están explicados en el <a href="#sensibles">punto 3</a>.</td><td class="ob">No</td></tr>
+          <tr><td><b>Tu historia laboral del fondo de pensiones y en qué fondo estás</b></td><td>Mirar dónde trabajas y cuánto cotizas cuando evaluamos tus solicitudes. Va con su propia autorización, aparte de la general: está explicada <a href="#pension">aquí abajo</a>.</td><td class="ob">No</td></tr>
           <tr><td><b>Dónde recibes la plata: tu Nequi, tu Daviplata, tu llave Bre-B o tu cuenta de banco (banco, tipo y número)</b></td><td>Enviarte el dinero y recibir tus pagos.</td><td class="ob">Sí, al menos una</td></tr>
           <tr><td><b>Lo que pides y lo que pactamos</b> (montos, fechas, propuestas, pagos)</td><td>Es tu historial: lo que pediste, lo que te propusimos, lo que aceptaste y lo que pagaste, y la garantía que eso te deja.</td><td class="ob">Sale del uso</td></tr>
           <tr><td><b>La constancia de las condiciones que aceptas</b></td><td>Cuando aceptas una propuesta en la app, guardamos una copia de «Las condiciones de este crédito» tal como las viste, con la fecha, la hora, la cuenta desde la que las aceptaste y los datos técnicos de esa conexión (IP y aparato). Es la prueba de lo que pactamos, para ti y para nosotros.</td><td class="ob">Sí, si aceptas</td></tr>
@@ -296,6 +315,33 @@ td.ob{white-space:nowrap;color:var(--gris)}
       para cobrarte</b> —la Ley 2300 de 2023 no lo permite— y nunca les contamos nada de tu
       crédito.
     </div>
+
+    <h3 id="pension">Tu historia laboral del fondo de pensiones (opcional)</h3>
+    <p>Tu historia laboral es el documento de tu fondo de pensiones que dice dónde has trabajado,
+      cuánto te han cotizado y cuántas semanas llevas. <b>Darla es opcional</b>: te la pedimos en
+      un paso del registro que puedes saltar («Lo hago después»), y la puedes dar después desde tu
+      cuenta en la app. Si no la das, tu registro y tu solicitud siguen igual.</p>
+    <ul>
+      <li><b>Para qué:</b> para que quien evalúa tus solicitudes pueda mirar dónde trabajas y cuánto
+        cotizas. La mira una persona: ningún programa la lee ni la califica, y no cambia tu
+        garantía. Los fondos no tienen cómo confirmarnos que el documento es auténtico, así que
+        tampoco decimos que lo «verificamos».</li>
+      <li><b>Con tu autorización aparte:</b> es una casilla que nunca viene marcada: la marcas tú
+        si quieres darla. Guardamos qué versión del texto aceptaste y cuándo.</li>
+      <li><b>Cómo:</b> te mostramos cómo pedirla a tu fondo y te llevamos a su página oficial, en
+        otra pestaña. Nunca te pedimos la clave de tu fondo ni entramos por ti. Nos la das como
+        PDF, como pantallazos (hasta cinco) o pegándola; solo recibimos los archivos que tú
+        escojas.</li>
+      <li><b>Qué guardamos:</b> los archivos tal como los subes (si un pantallazo pesa mucho, tu
+        celular lo achica antes de enviarlo), el fondo que nos dijiste y la constancia de tu
+        autorización. El documento trae los nombres de tus empleadores y lo que te han
+        cotizado. Si trae incapacidades o licencias, no las usamos para nada: son datos de
+        salud. No te pedimos el extracto con tu saldo.</li>
+      <li><b>Quién la ve:</b> solo quien dirige el negocio. Tu asesor y el resto del equipo no.</li>
+      <li><b>Cuánto tiempo:</b> mientras tengas cuenta en Tu Garantía. La puedes quitar cuando
+        quieras desde tu cuenta en la app (con eso retiras también la autorización), o pedirnos
+        por el chat que la borremos; y se borra si se borra tu cuenta.</li>
+    </ul>
   </section>
 
   <section id="sensibles">
@@ -410,6 +456,9 @@ td.ob{white-space:nowrap;color:var(--gris)}
       <li>Gestionar el cobro si te atrasas, respetando la Ley 2300 de 2023 en horarios, canales
         y trato.</li>
       <li>Cumplir con las obligaciones legales y contables que nos correspondan.</li>
+      <!-- 28-oct-2026 — el uso nuevo, y solo para quien da su autorización aparte. -->
+      <li>Solo si nos das esa autorización aparte: mirar tu historia laboral del fondo de pensiones
+        cuando evaluamos tus solicitudes (punto 2).</li>
     </ol>
     <p><b>Para nada más.</b> No vendemos tus datos, no los cedemos a terceros con fines
       comerciales, no te mandamos publicidad de otros, y no los usamos para hacer perfiles ni
@@ -440,7 +489,8 @@ td.ob{white-space:nowrap;color:var(--gris)}
     <p class="sub">Aparte de eso, tus datos solo los ve el equipo que maneja el negocio: quien lo
       dirige y, si te asignamos uno, tu asesor (que además puede ver tu avance mientras te
       registras, si tu celular ya está entre sus clientes). Ningún otro cliente puede ver los
-      tuyos: para entrar a tu cuenta hacen falta tu celular y tu contraseña.</p>
+      tuyos: para entrar a tu cuenta hacen falta tu celular y tu contraseña. Tu historia laboral del
+      fondo de pensiones, si nos la das, la ve solo quien dirige el negocio.</p>
   </section>
 
   <section id="cuanto">
@@ -452,6 +502,9 @@ td.ob{white-space:nowrap;color:var(--gris)}
       borramos el resto — y te decimos exactamente qué guardamos y por qué.</p>
     <p>Eso incluye <b>la conversación del chat</b>: cuando pides que se borre lo tuyo, se borra
       completa, no se archiva en otro lado.</p>
+    <p>Tu <b>historia laboral del fondo de pensiones</b>, si nos la das, se guarda mientras tengas
+      cuenta con nosotros. Se borra cuando la quitas desde tu cuenta en la app, cuando nos pides que
+      la borremos o cuando se borra tu cuenta.</p>
   </section>
 
   <section id="derechos">
@@ -502,6 +555,17 @@ td.ob{white-space:nowrap;color:var(--gris)}
          no cambió: es lo que deja quieta la autorización (punto 10, y el comentario de
          arriba de la página). -->
     <div class="nota azul">
+      <b>Lo que cambió el 3 de noviembre de 2026:</b>
+      <ul>
+        <li>Puedes darnos, si quieres, tu historia laboral del fondo de pensiones: como PDF, como
+          pantallazos o pegándola, en un paso del registro que puedes saltar o desde tu cuenta en la
+          app. Es opcional, va con su propia autorización, la ve solo quien dirige el negocio, se
+          guarda mientras tengas cuenta y la puedes quitar cuando quieras (punto 2).</li>
+        <li>Para qué usamos tus datos no cambió para quien no da esa autorización: mirar tu historia
+          laboral es un uso aparte, que solo aplica si nos la das (punto 4).</li>
+      </ul>
+    </div>
+    <div class="nota azul">
       <b>Lo que cambió el 27 de octubre de 2026:</b>
       <ul>
         <li>Te preguntamos dónde recibes la plata: tu Nequi, tu Daviplata, tu llave Bre-B o tu
@@ -545,9 +609,9 @@ td.ob{white-space:nowrap;color:var(--gris)}
         <li>A tus referencias no las llamamos para cobrarte (punto 2).</li>
       </ul>
     </div>
-    <p class="sub">Esta versión rige desde el 27 de octubre de 2026; la anterior rigió desde el
-      19 de octubre de 2026, la de antes desde el 15 de octubre de 2026, y la primera, desde el
-      4 de agosto de 2026. Esta política se rige
+    <p class="sub">Esta versión rige desde el 3 de noviembre de 2026; la anterior rigió desde el
+      27 de octubre de 2026, otra desde el 19 de octubre de 2026, otra desde el 15 de octubre de
+      2026, y la primera, desde el 4 de agosto de 2026. Esta política se rige
       por las leyes de la República de Colombia.</p>
   </section>
 

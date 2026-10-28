@@ -160,7 +160,9 @@ describe('y el tratamiento de datos está declarado (Ley 1581)', () => {
     /* 19-oct-2026 — y otra vez: la cédula primero y el modelo del teléfono. */
     /* 23-oct-2026 — y otra vez, para el 27 (el día que sale): los ojos en la
        foto de la cara y dónde recibes la plata. */
-    assert.match(PRIV, /Última actualización: 27 de octubre de 2026/,
+    /* 28-oct-2026 — y otra vez, para el 3-nov: la historia laboral del fondo
+       de pensiones, opcional y con su propia autorización. */
+    assert.match(PRIV, /Última actualización: 3 de noviembre de 2026/,
       'se cambió la política y no se movió la fecha');
   });
 });
