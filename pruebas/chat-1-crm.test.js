@@ -769,8 +769,10 @@ describe('7. honestidad, y sin el módulo el CRM anda como antes', () => {
     const lista = SW.slice(SW.indexOf('const ARCHIVOS = ['), SW.indexOf('].map(f => BASE + f)'));
     assert.ok(lista.indexOf("'app/chat-vivo.js'") >= 0, 'sw.js no precarga app/chat-vivo.js: la primera vez sin señal, sin reloj');
     /* 30-oct-2026 — la integración del lote del viernes subió el CACHE a v140
-       (chat-1 sale ahí, con el gerente agrega). */
-    assert.match(SW, /const CACHE = 'tugarantia-v140';/, 'chat-1 sale en v140: el CACHE lo subió la integración del 30-oct');
+       (chat-1 sale ahí, con el gerente agrega). 28-oct-2026 — y el que sigue
+       (el fondo de pensiones) lo sube otra vez: lo que importa es que no baje
+       de v140, no el número exacto, que se mueve con cada lote. */
+    assert.ok(Number((/const CACHE = 'tugarantia-v(\d+)';/.exec(SW) || [])[1]) >= 140, 'chat-1 sale en v140: el CACHE no puede ser anterior');
     assert.ok(fs.existsSync(path.join(RAIZ, 'app', 'chat-vivo.js')));
     /* Y las páginas siguen pidiendo app/chat.js como antes: chat-1 no lo tocó,
        así que ninguna tiene que subir su ?v= (eso lo vigila

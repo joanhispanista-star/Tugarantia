@@ -348,9 +348,11 @@ const conVersion = f => comoArchivo(f) + (f.indexOf('?') >= 0 ? f.slice(f.indexO
 
 describe('4 · La precarga de sw.js tiene todo lo nuevo del lote, y nada que no exista', () => {
 
-  test('CACHE es tugarantia-v140 y cada entrada de ARCHIVOS existe', () => {
+  test('CACHE es tugarantia-v140 o posterior, y cada entrada de ARCHIVOS existe', () => {
     const { sw, lista } = precarga();
-    assert.match(sw, /const CACHE = 'tugarantia-v140';/);
+    /* 28-oct-2026 — el lote del fondo de pensiones lo subió a v141: lo que
+       este lote necesita es no bajar de v140. */
+    assert.ok(Number((/const CACHE = 'tugarantia-v(\d+)';/.exec(sw) || [])[1]) >= 140, 'el CACHE bajó de v140');
     assert.ok(lista.length > 50, 'no leí la lista entera');
     const faltan = lista.map(comoArchivo).filter(f => !fs.existsSync(path.join(RAIZ, f)));
     assert.deepEqual(faltan, [], 'la precarga pide archivos que no existen');

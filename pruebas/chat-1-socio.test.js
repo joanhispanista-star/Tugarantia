@@ -145,8 +145,9 @@ describe('1. «Chat»: el nombre, el comentario del CSS, lo que no se promete, s
   test('la página carga app/chat-vivo.js, sw.js lo precarga, y el CACHE es el de la integración del 30-oct (v140)', () => {
     assert.match(SOCIO, /<script src="chat-vivo\.js"><\/script>/);
     assert.match(SW, /'app\/chat-vivo\.js'/, 'un service worker sin el archivo en su lista lo serviría como página HTML (la lección de la v18)');
-    /* 30-oct-2026 — la integración del lote del viernes subió el CACHE a v140. */
-    assert.match(SW, /const CACHE = 'tugarantia-v140'/, 'chat-1 sale en v140: el CACHE lo subió la integración del 30-oct');
+    /* 30-oct-2026 — la integración del lote del viernes subió el CACHE a v140.
+       28-oct-2026 — y el lote siguiente lo sube otra vez: que no baje de v140. */
+    assert.ok(Number((/const CACHE = 'tugarantia-v(\d+)'/.exec(SW) || [])[1]) >= 140, 'chat-1 sale en v140: el CACHE no puede ser anterior');
   });
 });
 

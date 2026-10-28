@@ -1950,7 +1950,21 @@
    se revalida con un 304 en vez de bajarse entero. Cambian páginas
    (panel/crm.html, panel/espejo.html y app/socio.html), y VERSION_SITIO sube
    a v140 en las cinco que se actualizan solas. */
-const CACHE = 'tugarantia-v140';
+/* v141 — el lote que sigue al del viernes 30-oct: «TU FONDO DE PENSIONES».
+   El paso opcional del registro (play/), la tarjeta «Tu historia laboral» de
+   la app (app/socio.html), «📄 Fondo de pensiones» en el CRM (panel/crm.html)
+   y la política (legal/privacidad.html). Entran TRES archivos nuevos a la
+   precarga, SIN versión en la dirección (son nuevos: no hay copia vieja con
+   la que mezclarse, y las páginas los piden fuera del guardián: si no
+   llegan, el paso, la tarjeta y el bloque del CRM no aparecen y todo sigue
+   como antes): app/fondos-pension.js, app/historia-laboral.js y
+   panel/historia-laboral-crm.js. app/cumplimiento.js sí cambia (lo que la
+   app recoge y lo que se borra con la cuenta), así que pasa a ?v=141 en
+   play/index.html, en play/borrar-cuenta.html y aquí. La base va ANTES:
+   base/20261103_el_fondo_de_pensiones.sql (sin ella, lo que el cliente
+   sube se queda en su teléfono y la pantalla lo dice). VERSION_SITIO sube a
+   v141 en las cinco páginas que se actualizan solas. */
+const CACHE = 'tugarantia-v141';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
