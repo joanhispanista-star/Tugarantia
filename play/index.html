@@ -3281,7 +3281,12 @@ function subirLaHistoriaLaboralYDecirlo() {
 }
 function pintarAvisoPension(html, clase) {
   var a = $('avisoPension');
-  if (a) a.innerHTML = html ? '<div class="card"><div class="aviso' + (clase ? ' ' + clase : '') + '" role="status">' + html + '</div></div>' : '';
+  /* Cuando el texto la manda a la app, el enlace va al lado: «desde tu cuenta
+     en la app» sin un camino sería una promesa que no se encuentra (la app
+     toma la sesión de esta pestaña). */
+  var ir = /en la app/.test(String(html || '')) && MARCA !== 'platachat'
+    ? ' <a href="../app/socio.html">Abrir mi cuenta en la app</a>' : '';
+  if (a) a.innerHTML = html ? '<div class="card"><div class="aviso' + (clase ? ' ' + clase : '') + '" role="status">' + html + ir + '</div></div>' : '';
 }
 
 function pasoPermiso() {

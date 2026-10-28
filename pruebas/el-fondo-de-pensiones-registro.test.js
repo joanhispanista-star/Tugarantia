@@ -195,6 +195,8 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     assert.ok(l.some(x => /pension_autorizar/.test(x.url) && x.cuerpo.p_fondos[0] === 'nunca'));
     assert.equal(l.some(x => /pension_subir/.test(x.url)), false);
     assert.match(avisoPension(P), /Guardamos tu autorización y tu fondo/);
+    /* «súbela desde tu cuenta en la app», con el camino al lado. */
+    assert.match(P.ev("document.getElementById('avisoPension').innerHTML"), /<a href="\.\.\/app\/socio\.html">Abrir mi cuenta en la app<\/a>/);
   });
 
   test('sin la autorización, nada del fondo sale (ni lo escogido sin marcar la casilla)', async () => {

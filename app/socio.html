@@ -1511,7 +1511,9 @@ var HL_APAGADO = false;   // la base contestó 404: no se vuelve a ofrecer en es
 function montarHistoriaLaboral() {
   var caja = $('hlCuenta');
   if (!caja) return;
-  if (!HL || HL_APAGADO || !SESION || !SESION.access_token) { caja.innerHTML = ''; return; }
+  /* Sin la lista de fondos (un service worker que trajo uno y no el otro) la
+     tarjeta quedaría a medias: no se pinta. */
+  if (!HL || !window.FondosPension || HL_APAGADO || !SESION || !SESION.access_token) { caja.innerHTML = ''; return; }
   HL.tarjetaDeCuenta(caja, {
     credenciales: cfgChat,          // {url, anon, token} con la sesión renovada si hace falta
     escritura: escrituraEnCamino,   // «se actualiza sola» no recarga encima de una subida
