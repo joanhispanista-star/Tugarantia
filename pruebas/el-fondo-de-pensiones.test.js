@@ -62,6 +62,33 @@ describe('la lista de fondos', () => {
       assert.ok(f.pasos.some(p => /no nos la des nunca/.test(p)), f.nombre + ' no dice que su clave no se nos da'));
   });
 
+  /* 28-oct-2026 (arreglo, ronda 2) — SKANDIA: LO QUE ENSEÑA SU GUÍA OFICIAL.
+     El paso decía «Busca «Historia laboral» y descárgala», y eso no lo había
+     visto nadie: la guía de Skandia (como-consultar-tu-historia-laboral.pdf,
+     la que enlaza la página que abre el botón) la muestra EN PANTALLA, con
+     «Tu saldo» arriba y periodos que el afiliado puede editar, y en sus cinco
+     páginas no dice cómo descargarla. Quien no encontraba la descarga
+     mandaba pantallazos con su saldo, que la política dice que no pedimos.
+     Con el texto de antes, esta prueba falla. */
+  test('Skandia: el paso dice lo que enseña su guía (en pantalla), no ordena una descarga sin confirmar, y pide dejar el saldo por fuera', () => {
+    const s = FP.porCodigo('skandia');
+    const pasos = s.pasos.join(' ');
+    assert.equal(/descárgala/i.test(pasos), false, 'el paso ordena descargar una historia laboral que la guía oficial no enseña a descargar');
+    assert.match(pasos, /«Historia Laboral»: ahí la ves en pantalla/, 'no dice que la historia laboral se ve en pantalla');
+    assert.match(pasos, /Si te deja bajarla en PDF/, 'el PDF no va como condición');
+    assert.match(pasos, /deja por fuera tu saldo: no lo necesitamos/, 'no dice que el saldo se deja por fuera del pantallazo');
+    assert.match(pasos, /tal como sale, sin editar nada/, 'no dice que no edite los periodos antes del pantallazo');
+    assert.match(s.nota, /Sami/, 'el WhatsApp no dice con quién ni qué opción');
+    /* Y Joan, al mirarla en el CRM, lee lo mismo: el saldo no se usa y las cifras pueden ser del afiliado. */
+    assert.match(s.notaCrm, /saldo: no lo pedimos y no se usa/);
+    assert.match(s.notaCrm, /editar y agregar periodos/);
+    const HC = require('../panel/historia-laboral-crm.js');
+    const bloque = HC.bloque({ ok: true, celular: '3001112233', archivos: [],
+      autorizacion: { fondos: ['skandia'], version: '2026-11-03', autorizada_en: '2026-11-03T15:00:00Z', revocada_en: null } })
+      .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    assert.match(bloque, /Skandia: .*saldo: no lo pedimos y no se usa/, 'la nota de Skandia no llega al CRM de Joan');
+  });
+
   test('las reglas de combinación son las de la base: «No sé» y «Nunca» solos; Colpensiones con UN privado', () => {
     assert.equal(FP.revisar(['colpensiones', 'porvenir']).ok, true);
     assert.equal(FP.revisar([]).ok, true);

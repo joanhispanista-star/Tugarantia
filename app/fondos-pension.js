@@ -80,13 +80,28 @@
               'En Pensiones Obligatorias → «Historia Laboral», descárgala en PDF.'],
       nota: 'Si te deja escoger, descárgala en PDF y no en Excel.',
       notaCrm: 'También se baja en Excel, que se edita en segundos: vale el PDF.' },
+    /* 28-oct-2026 (arreglo, ronda 2) — decía «Busca «Historia laboral» y
+       descárgala», y esa descarga no la había visto nadie (pensiones.md la
+       dejó sin confirmar). La guía oficial de Skandia
+       (como-consultar-tu-historia-laboral.pdf, la que enlaza la página que
+       abre el botón) la muestra EN PANTALLA: «Tu saldo» arriba, y periodos
+       que el afiliado puede editar y agregar. En sus cinco páginas no dice
+       cómo descargarla, y la página misma (leída el 28-oct) habla de «ver tu
+       historia laboral». Quien no encontraba la descarga se quedaba sin
+       camino, o mandaba pantallazos con su saldo, que la política dice que
+       no pedimos. Ahora el paso dice lo que se sabe: se ve en pantalla; si
+       hay cómo bajarla en PDF, mejor; si no, pantallazos tal como salen y SIN
+       el saldo. El WhatsApp sí está en su página oficial (asesoría
+       pensional): «Sami», opción 1, «Solicitar certificados/Historia Laboral
+       - Semanas»; cómo entrega el documento no lo dice. */
     { codigo: 'skandia', nombre: 'Skandia', regimen: 'afp', como: 'usuario',
       url: 'https://www.skandia.co/fondo-pensiones-obligatorias/historia-laboral',
       dominio: 'skandia.co',
       pasos: ['Entra al Portal de Clientes con tu usuario y tu contraseña de Skandia. Esa contraseña es tuya y de tu fondo: no nos la des nunca.',
-              'Busca «Historia laboral» y descárgala.'],
-      nota: 'También la puedes pedir por el WhatsApp de Skandia: el número está en su página.',
-      notaCrm: 'En su portal el afiliado puede editar y agregar periodos (quedan como solicitud): un pantallazo puede traer cifras que escribió él.' }
+              'Escoge tu contrato de Pensión Obligatoria y toca «Historia Laboral»: ahí la ves en pantalla.',
+              'Si te deja bajarla en PDF, súbela así. Si no, tómale pantallazos tal como sale, sin editar nada, y deja por fuera tu saldo: no lo necesitamos.'],
+      nota: 'También la puedes pedir por el WhatsApp de Skandia: escríbele a Sami y escoge «Solicitar certificados/Historia Laboral - Semanas». El número está en su página de asesoría pensional.',
+      notaCrm: 'Su portal la muestra en pantalla (la guía oficial no dice cómo bajarla): lo normal es que lleguen pantallazos. Arriba sale el saldo: no lo pedimos y no se usa. Y ahí el afiliado puede editar y agregar periodos (quedan como solicitud): un pantallazo puede traer cifras que escribió él.' }
   ];
 
   /* Las dos que no son un fondo: van solas, nunca con otra. */
