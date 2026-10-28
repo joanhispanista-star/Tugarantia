@@ -157,6 +157,19 @@ end $$;
 -- teléfono en cuanto la persona marca la casilla (en la app) o al abrir su
 -- cuenta (en el registro). Volver a llamarla cambia el fondo y guarda la
 -- constancia anterior en el historial (sin el fondo: minimización).
+--
+-- 28-oct-2026 (arreglo de los leves, P6) — CAMBIAR DE FONDO NO ES FIRMAR.
+-- La tarjeta de la app llamaba aquí con la versión del texto del CÓDIGO cada
+-- vez que se marcaba o desmarcaba un fondo, y esto pisaba version, momento y
+-- recibida_en: el CRM decía «Autorizó el…» con la hora del último cambio de
+-- fondo. Hoy no hace daño (hay una sola versión), pero el día que el texto
+-- cambie, cambiar de fondo con la casilla ya marcada anotaría que la persona
+-- aceptó un texto que nunca marcó: lo mismo que una casilla premarcada.
+-- Ahora, SIN versión (p_version null) no hay firma: solo cambia el fondo de
+-- una autorización vigente, y la versión, el momento, la hora de la base y
+-- el historial se quedan como estaban. Si no hay autorización vigente,
+-- «sin_autorizacion»: cambiar de fondo nunca autoriza, ni vuelve a dar una
+-- autorización retirada. Con versión, es la casilla: firma como siempre.
 create or replace function public.pension_autorizar(p_fondos text[], p_version text, p_momento text default null)
 returns jsonb
 language plpgsql
@@ -175,8 +188,8 @@ begin
     perform pg_sleep(0.3);
     return jsonb_build_object('ok', false, 'motivo', 'sin_sesion');
   end if;
-  v := btrim(coalesce(p_version, ''));
-  if v !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+  v := nullif(btrim(coalesce(p_version, '')), '');   -- null: solo cambia el fondo (ver arriba)
+  if v is not null and v !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
     return jsonb_build_object('ok', false, 'motivo', 'version');
   end if;
   select coalesce(array_agg(distinct x order by x), '{}') into f
@@ -200,6 +213,14 @@ begin
   perform public.anotar_fallo('hl:' || cel);
 
   select * into ant from public.pension_autorizaciones where celular = cel;
+  -- Sin versión: el fondo de una autorización vigente, y nada más.
+  if v is null then
+    if not found or ant.revocada_en is not null then
+      return jsonb_build_object('ok', false, 'motivo', 'sin_autorizacion');
+    end if;
+    update public.pension_autorizaciones set fondos = f where celular = cel;
+    return jsonb_build_object('ok', true, 'fondos', to_jsonb(f), 'version', ant.version);
+  end if;
   if found then
     update public.pension_autorizaciones
        set historial = (case when jsonb_array_length(historial) >= 20

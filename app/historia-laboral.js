@@ -1346,9 +1346,20 @@
         vm.archivos = j.archivos || [];
       }, function (e) { vm.cargando = false; var m = deError(e).motivo; if (m === 'apagado') vm.apagado = true; throw { motivo: m }; });
     };
+    /* La casilla: esto SÍ es firmar, con la versión del texto que se ve. */
     var autorizarCon = function (fondos) {
       return llamar('pension_autorizar', { p_fondos: fondos, p_version: VERSION_AUTORIZACION,
                                           p_momento: new Date(ahora()).toISOString() }, true)
+        .then(function (j) { return (j && j.ok === true) ? { ok: true } : { ok: false, motivo: (j && j.motivo) || 'sin_red' }; }, deError);
+    };
+    /* 28-oct-2026 (arreglo de los leves, P6) — CAMBIAR DE FONDO NO ES FIRMAR.
+       Iba por autorizarCon, con la versión del texto del código: la base pisaba
+       la versión y la hora de la constancia en cada toque de un fondo, y el
+       día que el texto cambie habría anotado que la persona aceptó uno que
+       nunca marcó. Sin versión, la base solo cambia el fondo (ver
+       pension_autorizar en base/20261103_el_fondo_de_pensiones.sql). */
+    var cambiarFondos = function (fondos) {
+      return llamar('pension_autorizar', { p_fondos: fondos, p_version: null, p_momento: null }, true)
         .then(function (j) { return (j && j.ok === true) ? { ok: true } : { ok: false, motivo: (j && j.motivo) || 'sin_red' }; }, deError);
     };
     var retirar = function () {
@@ -1371,7 +1382,7 @@
       fondo: function (c) {
         var FP = F(); if (!FP) return null;
         var nuevos = FP.alternar(vm.fondos, c);
-        return autorizarCon(nuevos).then(function (r) { if (r.ok) vm.fondos = nuevos; return r; });
+        return cambiarFondos(nuevos).then(function (r) { if (r.ok) vm.fondos = nuevos; return r; });
       },
       abrio: function (c) { vm.pidio[c] = new Date(ahora()).toISOString(); },
       agregar: function (a) {

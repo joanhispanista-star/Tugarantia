@@ -342,6 +342,46 @@ describe('el fondo de pensiones, en un PostgreSQL de verdad', { skip: !BIN && 's
     assert.equal(/skandia|colpensiones/.test(JSON.stringify(h)), false, 'el historial guarda el fondo');
   });
 
+  /* 28-oct-2026 (arreglo de los leves, P6) — CAMBIAR DE FONDO NO ES FIRMAR.
+     La tarjeta de la app llamaba pension_autorizar con la versión del texto
+     del código en cada toque de un fondo, y la base pisaba la versión, el
+     momento y la hora de la constancia: el día que el texto cambie, cambiar de
+     fondo anotaría que la persona aceptó un texto que nunca marcó. Sin versión
+     solo cambia el fondo. Con el SQL de antes, la llamada sin versión contesta
+     «version» y esta prueba falla. */
+  test('CAMBIAR DE FONDO NO ES FIRMAR: sin versión solo cambia el fondo; la constancia se queda, y una retirada no vuelve', () => {
+    const LUZ = '3007778899', NADIE = '3007778800';
+    cuenta(LUZ, {}); cuenta(NADIE, {});
+    limpiarFreno(LUZ); limpiarFreno(NADIE);
+    assert.equal(autorizar(LUZ, ['porvenir']).ok, true);
+    /* La constancia en un momento fijo del pasado: si algo la pisa, se nota. */
+    sql("update public.pension_autorizaciones set recibida_en = '2026-11-03 10:00:00+00', momento = 'la hora de su telefono' where celular = '" + LUZ + "'");
+    const constancia = () => sql("select version || '|' || coalesce(momento, '') || '|' || to_char(recibida_en at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS')" +
+      " || '|' || jsonb_array_length(historial) || '|' || (revocada_en is null) from public.pension_autorizaciones where celular = '" + LUZ + "'");
+    const antes = constancia();
+    assert.equal(antes, '2026-11-03|la hora de su telefono|2026-11-03 10:00:00|0|true');
+    const r = jsonComo(LUZ, "public.pension_autorizar(array['colpensiones','skandia']::text[], null, null)");
+    assert.deepEqual([r.ok, r.fondos, r.version], [true, ['colpensiones', 'skandia'], '2026-11-03'], JSON.stringify(r));
+    assert.equal(constancia(), antes, 'cambiar de fondo pisó la constancia de la autorización');
+    assert.equal(sql("select array_to_string(fondos, ',') from public.pension_autorizaciones where celular = '" + LUZ + "'"), 'colpensiones,skandia');
+    /* Las reglas de los fondos valen igual sin versión. */
+    assert.equal(jsonComo(LUZ, "public.pension_autorizar(array['porvenir','proteccion']::text[], null, null)").motivo, 'fondos');
+    /* Con versión es la casilla: esa sí firma (la constancia anterior va al historial). */
+    assert.equal(autorizar(LUZ, ['colpensiones']).ok, true);
+    assert.notEqual(constancia(), antes, 'marcar la casilla de nuevo no firmó');
+    /* Retirada, cambiar de fondo NO la vuelve a dar. */
+    jsonComo(LUZ, 'public.pension_retirar()');
+    const x = jsonComo(LUZ, "public.pension_autorizar(array['porvenir']::text[], null, null)");
+    assert.deepEqual([x.ok, x.motivo], [false, 'sin_autorizacion'], JSON.stringify(x));
+    assert.equal(sql("select (revocada_en is not null) || '|' || cardinality(fondos) from public.pension_autorizaciones where celular = '" + LUZ + "'"), 'true|0',
+      'cambiar de fondo devolvió una autorización retirada');
+    /* Y quien nunca autorizó tampoco queda autorizado por escoger un fondo. */
+    assert.equal(jsonComo(NADIE, "public.pension_autorizar(array['porvenir']::text[], null, null)").motivo, 'sin_autorizacion');
+    assert.equal(sql("select count(*) from public.pension_autorizaciones where celular = '" + NADIE + "'"), '0');
+    sql("delete from public.pension_autorizaciones where celular in ('" + LUZ + "', '" + NADIE + "')");
+    limpiarFreno(LUZ); limpiarFreno(NADIE);
+  });
+
   test('el freno: 30 escrituras cada 15 minutos por cuenta', () => {
     limpiarFreno(PEDRO);
     let ultimo = null;

@@ -36,6 +36,12 @@ function nube(o) {
     if (/rpc\/pension_/.test(url) && o.apagado) return { status: 404, cuerpo: { message: 'no existe' } };
     if (/rpc\/pension_mia$/.test(url)) return { status: 200, cuerpo: mia };
     if (/rpc\/pension_autorizar$/.test(url)) {
+      /* Como la base (P6): sin versión solo cambia el fondo de una autorización vigente. */
+      if (cuerpo.p_version == null) {
+        if (!mia.autorizacion || mia.autorizacion.revocada_en) return { status: 200, cuerpo: { ok: false, motivo: 'sin_autorizacion' } };
+        mia.autorizacion.fondos = cuerpo.p_fondos;
+        return { status: 200, cuerpo: { ok: true, fondos: cuerpo.p_fondos, version: mia.autorizacion.version } };
+      }
       mia.autorizacion = { fondos: cuerpo.p_fondos, version: cuerpo.p_version, recibida_en: '2026-11-03T15:00:00Z', revocada_en: null };
       return { status: 200, cuerpo: { ok: true, fondos: cuerpo.p_fondos } };
     }
@@ -147,6 +153,12 @@ describe('lo que hace, con su sesión', () => {
     await asentar(20);
     const aut = pension(A).filter(l => /pension_autorizar$/.test(l.url)).pop();
     assert.deepEqual(aut.cuerpo.p_fondos, ['colpensiones', 'porvenir']);
+    /* 28-oct-2026 (arreglo de los leves, P6) — CAMBIAR DE FONDO NO ES FIRMAR:
+       sin versión ni momento, la base no pisa la constancia. Con el código de
+       antes salía con la versión del texto del código, y esto falla. */
+    assert.equal(aut.cuerpo.p_version, null, 'cambiar de fondo volvió a firmar la autorización con la versión del código');
+    assert.equal(aut.cuerpo.p_momento, null);
+    assert.match(A.elem('hlCuerpo').innerHTML, /data-hl="fondo" value="porvenir" checked/, 'el fondo no quedó marcado');
     /* El toque en «Quitar»: el banco no tiene DOM, así que se le da al oyente
        de la caja un botón de mentira con sus atributos. */
     A.elem('hlCuerpo').contains = () => true;
