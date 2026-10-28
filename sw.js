@@ -2083,7 +2083,9 @@ const ARCHIVOS = [
      play/index.html y app/escaner-cedula.js: quien integra sube el CACHE. */
   'app/escaner-captura.js',
   'app/creditos.js',
-  'app/cumplimiento.js?v=139',
+  /* 28-oct-2026 — ?v=141: cambió lo que la app recoge y lo que se borra con
+     la cuenta (la historia laboral). */
+  'app/cumplimiento.js?v=141',
   /* 14-sep-2026 — lo que play/ carga desde que es la puerta unica. ficha.js lee
      el paquete del socio y motor.js cotiza el credito con garantia; los dos ya
      estaban arriba o entran aqui, y ninguno se duplica en la lista porque el
@@ -2157,7 +2159,15 @@ const ARCHIVOS = [
      el paso se salta y se acepta como antes. Tienen que llegar JUNTO con las
      páginas que los llaman: el número de CACHE lo sube quien publica. */
   'app/bancos-colombia.js',
-  'app/cuentas-pago.js'
+  'app/cuentas-pago.js',
+  /* 28-oct-2026 — v141, «Tu fondo de pensiones»: la lista de fondos y la
+     pantalla que comparten play/ (el paso del registro) y app/socio.html (la
+     tarjeta), y lo del CRM. Nuevos: sin versión en la dirección. Cada página
+     se protege sola si no llegan (el paso, la tarjeta y el bloque no
+     aparecen). Tienen que llegar JUNTO con las páginas que los llaman. */
+  'app/fondos-pension.js',
+  'app/historia-laboral.js',
+  'panel/historia-laboral-crm.js'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {

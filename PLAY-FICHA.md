@@ -92,11 +92,18 @@ ficha en la consola. Julio fue 28,79% y agosto 29,66%: se mueve de verdad.
 SDK de medición. **Todos se recogen del propio usuario**: ninguno se infiere ni se toma
 del dispositivo.
 
+### Archivos y documentos · Archivos y documentos
+
+| Dato | ¿Obligatorio? | Para qué |
+|---|---|---|
+| Tu historia laboral del fondo de pensiones (el PDF) | No | Mirar dónde trabajas y cuánto cotizas cuando evaluamos tus solicitudes. *Opcional y con su propia autorización, aparte de la general. Solo el archivo que la persona escoge con el selector del teléfono: la app no pide permiso de almacenamiento ni abre la galería por su cuenta. La ve solo quien dirige el negocio, se guarda mientras la persona tenga cuenta y la puede quitar desde la app.* |
+
 ### Fotos y videos · Fotos
 
 | Dato | ¿Obligatorio? | Para qué |
 |---|---|---|
 | Foto de tu rostro | No | Confirmar que la cédula es tuya. *Se guarda la FOTO y nada más. En el teléfono no se genera ninguna plantilla biométrica: el óvalo es un asistente de encuadre, y para tomarla sola un detector de caras corre dentro del teléfono; dónde ve la cara no se guarda ni sale de él. Después, en el computador de quien revisa el registro, se saca de la foto una plantilla para medir el parecido con la cédula, y se descarta al terminar: no se guarda en ningún lado.* |
+| Pantallazos de tu historia laboral del fondo de pensiones | No | Mirar dónde trabajas y cuánto cotizas cuando evaluamos tus solicitudes. *Lo mismo que el PDF, si la persona prefiere pantallazos (hasta cinco) o pegarlos: solo los que escoge. Si pesan mucho, el teléfono los achica antes de enviarlos.* |
 
 ### Información de la app y rendimiento · Otros datos de la app
 
@@ -174,6 +181,7 @@ del dispositivo.
 | Tu cargo | No | Da contexto al ingreso que declaras. Opcional. |
 | Qué es tuyo (mamá, amigo, compañero…) | Sí | Un familiar y un compañero de trabajo no dan la misma información. |
 | Qué es tuyo (mamá, amigo, compañero…) | Sí | Dos referencias del mismo hogar no son dos: conviene que una sea de fuera. |
+| En qué fondo de pensiones estás | No | Saber a qué fondo pedirle tu historia laboral, y mirarla cuando evaluamos tus solicitudes. *Con la misma autorización aparte de la historia laboral.* |
 
 ### Información personal · Otros documentos de identificación
 
@@ -195,7 +203,7 @@ del dispositivo.
 - Contactos
 - Mensajes SMS o de otras apps
 - Registro de llamadas
-- Archivos, música o fotos de la galería
+- Archivos de audio (grabaciones de voz o música)
 - Actividad de navegación
 - Identificadores de publicidad
 - Rendimiento de la app o registros de fallos
@@ -218,6 +226,7 @@ Plazo: máximo 15 días.
 - Los datos de tu empleo y tus ingresos.
 - Tus referencias personales.
 - Las fotos de tu cédula y tu selfie, si las diste.
+- Tu historia laboral del fondo de pensiones y el fondo que nos dijiste, si nos los diste.
 
 **Se conserva, y por qué:**
 

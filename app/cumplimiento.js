@@ -154,6 +154,26 @@
       categoria: 'Información financiera · Información de pago del usuario',
       obligatorio: true, proposito: 'Enviarte el dinero de cada crédito, solo a cuentas a tu nombre.',
       nota: 'Al menos una al registrarte; al aceptar cada crédito te preguntamos a qué cuenta se consigna. No se publica en el acompañamiento del registro ni viaja dentro de la sesión guardada en el teléfono.' },
+    /* 28-oct-2026 — LA HISTORIA LABORAL DEL FONDO DE PENSIONES (el paso
+       opcional del registro y la tarjeta de la app, app/historia-laboral.js):
+       el PDF o los pantallazos que la persona ESCOGE con el selector del
+       teléfono, y en qué fondo dijo estar. Hasta hoy NO_RECOGE decía «Archivos,
+       música o fotos de la galería»: desde hoy la app sí recibe archivos y
+       fotos, los que la persona escoge, y se declaran aquí. Lo que sigue
+       siendo verdad (no pide permiso de almacenamiento ni abre la galería por
+       su cuenta) lo dice la nota. Opcional, con su propia autorización. */
+    { id: 'historia_laboral', etiqueta: 'Tu historia laboral del fondo de pensiones (el PDF)',
+      categoria: 'Archivos y documentos · Archivos y documentos',
+      obligatorio: false, proposito: 'Mirar dónde trabajas y cuánto cotizas cuando evaluamos tus solicitudes.',
+      nota: 'Opcional y con su propia autorización, aparte de la general. Solo el archivo que la persona escoge con el selector del teléfono: la app no pide permiso de almacenamiento ni abre la galería por su cuenta. La ve solo quien dirige el negocio, se guarda mientras la persona tenga cuenta y la puede quitar desde la app.' },
+    { id: 'historia_laboral_pantallazos', etiqueta: 'Pantallazos de tu historia laboral del fondo de pensiones',
+      categoria: 'Fotos y videos · Fotos',
+      obligatorio: false, proposito: 'Mirar dónde trabajas y cuánto cotizas cuando evaluamos tus solicitudes.',
+      nota: 'Lo mismo que el PDF, si la persona prefiere pantallazos (hasta cinco) o pegarlos: solo los que escoge. Si pesan mucho, el teléfono los achica antes de enviarlos.' },
+    { id: 'fondo_pension', etiqueta: 'En qué fondo de pensiones estás',
+      categoria: 'Información personal · Otra información',
+      obligatorio: false, proposito: 'Saber a qué fondo pedirle tu historia laboral, y mirarla cuando evaluamos tus solicitudes.',
+      nota: 'Con la misma autorización aparte de la historia laboral.' },
     { id: 'historial_credito', etiqueta: 'Tus créditos y tus pagos',
       categoria: 'Información financiera · Historial de compras',
       obligatorio: true, proposito: 'Es tu historial: lo que pediste, lo que pagaste y cuándo.',
@@ -220,7 +240,11 @@
     'Contactos',
     'Mensajes SMS o de otras apps',
     'Registro de llamadas',
-    'Archivos, música o fotos de la galería',
+    /* 28-oct-2026 — decía «Archivos, música o fotos de la galería». Desde la
+       historia laboral la app SÍ recibe archivos y fotos —solo los que la
+       persona escoge— y están declarados arriba (FUERA_DEL_FORMULARIO). Lo
+       que sigue sin recoger es el audio. */
+    'Archivos de audio (grabaciones de voz o música)',
     'Actividad de navegación',
     'Identificadores de publicidad',
     'Rendimiento de la app o registros de fallos',
@@ -555,7 +579,10 @@
       'Tu celular, tu correo y tu dirección.',
       'Los datos de tu empleo y tus ingresos.',
       'Tus referencias personales.',
-      'Las fotos de tu cédula y tu selfie, si las diste.'
+      'Las fotos de tu cédula y tu selfie, si las diste.',
+      /* 28-oct-2026 — y la historia laboral: se borra con la cuenta (el
+         disparador de base/20261103_el_fondo_de_pensiones.sql). */
+      'Tu historia laboral del fondo de pensiones y el fondo que nos dijiste, si nos los diste.'
     ],
     se_conserva: [
       { que: 'Los créditos que ya te desembolsamos y sus pagos',
