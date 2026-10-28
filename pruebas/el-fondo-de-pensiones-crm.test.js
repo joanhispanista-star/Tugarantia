@@ -91,6 +91,85 @@ describe('lo que Joan ve', () => {
     assert.deepEqual(llamadas(P, 'pension_de')[0].args, { p_clave: 'clave-larga-de-prueba', p_celular: CEL });
   });
 
+  /* 28-oct-2026 (arreglo, ronda 1) — LA FICHA, donde Joan pidió verla. Le
+     preguntaba a la nube con s.celular, y una ficha no tiene ese campo: guarda
+     el número en `telefono` (guardarCliente, fichaDesdeRegistro). Preguntaba
+     por un celular vacío y no pintaba nada, sin error. Y como abrirle la ficha
+     desde Registrados deja el registro «atendido», Joan se quedaba sin ningún
+     lugar del CRM donde verla. Con el código de antes, esta prueba falla. */
+  test('LA FICHA: la que nació de un registro (guarda `telefono`) trae «📄 Fondo de pensiones» con sus «📄 Ver»; con un cruce vivo, la del registro cruzado', async () => {
+    const porCelular = a => (a.p_celular === CEL ? DETALLE : { ok: true, celular: a.p_celular, autorizacion: null, archivos: [] });
+    const conFicha = socio => {
+      const P = joan({ pension_de: porCelular, archivos_de_registro: { fotos: {}, huella: null } });
+      P.cargarCartera({ socios: [Object.assign({ numero: 1, cedula: '52123456', gestiones: [] }, socio)], prestamos: [] });
+      return P;
+    };
+    /* Lo que deja «＋ Abrirle la ficha» y guardar: el número va en `telefono`. */
+    const P = conFicha({ id: 'C1', nombre: 'Maria Prueba', telefono: '300 111 2233', origen: 'registro_abierto' });
+    P.ev('verCliente("C1")');
+    await asentar(20);
+    assert.deepEqual(llamadas(P, 'pension_de').map(x => x.args), [{ p_clave: 'clave-larga-de-prueba', p_celular: CEL }],
+      'la ficha no le preguntó a la nube por el celular de su registro');
+    assert.match(P.elems.mBody.innerHTML, /<div id="fichaPension"><\/div>/);
+    const t = plano(P.elems.fichaPension.innerHTML);
+    assert.match(t, /📄 Fondo de pensiones/);
+    assert.match(t, /Dijo que está en Colpensiones y Porvenir/);
+    assert.match(P.elems.fichaPension.innerHTML, /data-pension-archivo="11"/);
+    assert.match(P.elems.fichaPension.innerHTML, /data-pension-archivo="12"/);
+    /* Ana ya tenía ficha con otro número, y Joan la cruzó con el registro de CEL. */
+    const Q = conFicha({ id: 'C2', nombre: 'Ana', telefono: '3159990000',
+      cruces: [{ fecha: '2026-11-03', registro_id: '7', origen: 'registro_abierto', celular: CEL, verificado: false, campos: [],
+                 previo: { vinculacion: null, referencia: null, puso: [] } }] });
+    Q.ev('verCliente("C2")');
+    await asentar(20);
+    assert.deepEqual(llamadas(Q, 'pension_de').map(x => x.args.p_celular), [CEL], 'con el cruce vivo no buscó la del registro cruzado');
+    assert.match(plano(Q.elems.fichaPension.innerHTML), /Dijo que está en Colpensiones y Porvenir/);
+    /* Quien vino de un registro y no la dio no ocupa sitio en la ficha. */
+    const R = conFicha({ id: 'C3', nombre: 'Beto', telefono: '3205550000', origen: 'registro_abierto' });
+    R.ev('verCliente("C3")');
+    await asentar(20);
+    assert.deepEqual(llamadas(R, 'pension_de').map(x => x.args.p_celular), ['3205550000']);
+    assert.equal(R.elems.fichaPension.innerHTML, '');
+  });
+
+  /* 28-oct-2026 (arreglo, ronda 2) — UN CELULAR NO ES UNA PERSONA. La ronda 1
+     le preguntó a la nube por el celular de TODA ficha, y la historia laboral
+     se busca solo por celular. Ana es clienta vieja: sin registro ni cruce, y
+     su ficha guarda el número con que OTRA persona se registró y subió su
+     historia laboral (un teléfono compartido, como «Ana Comparte» y «Beto
+     Comparte»). Su ficha pintaba «Dijo que está en…» con los archivos del otro
+     como si fueran de ella, y «🗑 Borrar su historia laboral» apuntando a lo
+     del otro. Es la misma reja que ya tienen las fotos del registro
+     (traerFotosTardias exige vieneDeRegistro). Con el código de la ronda 1,
+     esta prueba falla. */
+  test('LA FICHA de quien NO vino de un registro no pinta la historia laboral de otro que usó su mismo celular', async () => {
+    const conFicha = socio => {
+      const P = joan({ pension_de: a => (a.p_celular === CEL ? DETALLE : { ok: true, celular: a.p_celular, autorizacion: null, archivos: [] }),
+                       archivos_de_registro: { fotos: {}, huella: null } });
+      P.cargarCartera({ socios: [Object.assign({ numero: 1, cedula: '79000111', gestiones: [] }, socio)], prestamos: [] });
+      return P;
+    };
+    /* Ana: su ficha, a mano, con el celular del registro de otra persona. */
+    const P = conFicha({ id: 'C5', nombre: 'Ana Comparte', telefono: '300 111 2233' });
+    assert.equal(P.ev('vieneDeRegistro(DB.socios[0])'), false, 'la prueba no prueba nada: la ficha de Ana parece venir de un registro');
+    P.ev('verCliente("C5")');
+    await asentar(20);
+    assert.deepEqual(llamadas(P, 'pension_de'), [], 'la ficha de Ana le preguntó a la nube por la historia laboral de quien se registró con su número');
+    /* (la caja de mentira nace cuando alguien la busca: si nadie la buscó, nadie la llenó) */
+    const caja = (X, id) => (X.elems[id] ? X.elems[id].innerHTML : '');
+    assert.match(P.elems.mBody.innerHTML, /<div id="fichaPension"><\/div>/);
+    assert.equal(caja(P, 'fichaPension'), '', 'la ficha de Ana pinta la historia laboral de otra persona');
+    assert.equal(/data-pension-borrar/.test(P.elems.mBody.innerHTML + caja(P, 'fichaPension')), false, 'en la ficha de Ana se puede borrar lo de otra persona');
+    /* Un cruce DESHECHO tampoco cuenta: deshacerlo fue decir que ese registro era de otra persona. */
+    const Q = conFicha({ id: 'C6', nombre: 'Ana Comparte', telefono: '3159990000',
+      cruces: [{ fecha: '2026-11-03', registro_id: '7', origen: 'registro_abierto', celular: CEL, verificado: false, campos: [],
+                 previo: { vinculacion: null, referencia: null, puso: [] }, deshecho: '2026-11-04' }] });
+    Q.ev('verCliente("C6")');
+    await asentar(20);
+    assert.deepEqual(llamadas(Q, 'pension_de'), [], 'con el cruce deshecho buscó la historia laboral del registro que no era suyo');
+    assert.equal(caja(Q, 'fichaPension'), '');
+  });
+
   test('la base sin la migración: dice que falta correrla, no que no la dio', async () => {
     const P = joan({ pension_de: { falla: 'Tu base todavía no tiene «pension_de». Vuelve a correr base/supabase.sql completo en el SQL Editor.' } });
     P.ev('document.getElementById("x").innerHTML = ""; pintarPension("3001112233", "x", {})');

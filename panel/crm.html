@@ -5882,8 +5882,24 @@ function verCliente(id){
   _fichaVista=s.id;
   try { traerFotosTardias(s); } catch(e){}
   /* 28-oct-2026 — y su historia laboral del fondo de pensiones, si la dio
-     (ver 📄 FONDO DE PENSIONES). Quien no la dio no ocupa sitio en la ficha. */
-  try { pintarPension(s.celular,'fichaPension',{siVacio:false}); } catch(e){}
+     (ver 📄 FONDO DE PENSIONES). Quien no la dio no ocupa sitio en la ficha.
+     28-oct-2026 (arreglo, ronda 1) — por celularDeFotosDe(s): el celular de
+     su registro (el del cruce vivo, o el de la ficha), que es el de la cuenta
+     que subió la historia laboral. Decía s.celular, y una ficha no lo tiene
+     (guarda `telefono`): preguntaba por un celular vacío y no pintaba nada,
+     sin error. Como abrirle la ficha desde Registrados deja el registro
+     «atendido» y fuera de la bandeja, Joan se quedaba sin ningún lugar del
+     CRM donde verla, ni lo que el cliente subiera después desde su cuenta.
+     28-oct-2026 (arreglo, ronda 2) — Y SOLO SI LA FICHA VIENE DE UN REGISTRO
+     (vieneDeRegistro), la misma reja de sus fotos (traerFotosTardias). La
+     historia laboral se busca por celular, y un celular no es una persona: la
+     ficha de una clienta vieja, sin registro ni cruce vivo, con el número que
+     OTRA persona usó para registrarse (un teléfono compartido), pintaba la
+     historia laboral del otro como suya, con «🗑 Borrar su historia laboral»
+     apuntando a lo del otro. Si esa cuenta sí es de ella, «🔗 Cruzar» las une
+     y desde ahí se ve. Lo de esa cuenta no se pierde: sale en su registro
+     (📥 Registrados) y en la ficha que nació de él. */
+  if(vieneDeRegistro(s)){ try { pintarPension(celularDeFotosDe(s),'fichaPension',{siVacio:false}); } catch(e){} }
 }
 
 /* ==========================================================================
