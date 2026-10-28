@@ -132,6 +132,38 @@ describe('los textos: la autorización dice lo que la ley pide, y nada que el c�
     assert.equal(/capture=/.test(con), false, 'el PDF y los pantallazos se escogen, no se toman con la cámara');
     assert.equal(/svg|text\/html/.test(con.match(/accept="[^"]*"/g).join(' ')), false);
   });
+  /* 28-oct-2026 (arreglo, ronda 1) — El paso manda a la persona a la página
+     de su fondo y a su correo, y decía «vuelve a esta pestaña» DEBAJO de los
+     botones, sin más. Visto en Chrome sin ventana: volver a los 15 minutos
+     con la pestaña recargada borraba la cédula y la selfie (la regla de la
+     vuelta de la cámara) y la mandaba al «Paso 1 de 11». La regla se queda;
+     lo que cambia es que se dice ANTES de irse, con sus minutos. */
+  test('el registro avisa ANTES del primer botón que saca de la página: los minutos de la regla de la cámara, qué se borra y el camino que no pierde nada', () => {
+    const min = require('../app/escaner-cedula.js').MINUTOS_VUELTA_DE_LA_CAMARA;
+    const reg = f => HL.pantallaHTML({ modo: 'registro', aut: { version: '2026-11-03' }, fondos: f, pidio: {}, archivos: [] });
+    const plano = h => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const h = reg(['colpensiones', 'porvenir']);
+    const aviso = h.indexOf('id="hlAntesDeIrte"');
+    assert.ok(aviso > 0 && aviso < h.indexOf('data-hl="abrir"'), 'el aviso no va antes del primer «Abrir la página»');
+    const t = plano(h);
+    assert.ok(t.indexOf('vuelve en menos de ' + min + ' minutos') >= 0, 'no dice los minutos de la regla');
+    assert.equal(HL.minutosFuera(), min, 'el aviso no lee los minutos de la regla que borra');
+    assert.match(t, /por seguridad se borran de él las fotos de tu cédula y de tu cara, y tendrás que volver a tomarlas/);
+    assert.match(t, /Si tarda en llegarte, no la esperes: sigue con tu registro y súbela después desde tu cuenta en la app/);
+    /* «No sé» también saca de la página (el RUAF): el aviso va, sin lo de subirla. */
+    const r = reg(['no_se']);
+    assert.ok(r.indexOf('id="hlAntesDeIrte"') >= 0 && r.indexOf('id="hlAntesDeIrte"') < r.indexOf('Abrir el RUAF'), 'sin aviso antes del RUAF');
+    assert.equal(/súbela aquí/.test(r.match(/id="hlAntesDeIrte"[\s\S]*?<\/div>/)[0]), false);
+    /* «Nunca he cotizado» no saca a nadie; en la app ya hay cuenta y nada se borra por salir. */
+    assert.equal(reg(['nunca']).indexOf('hlAntesDeIrte'), -1);
+    assert.equal(HL.pantallaHTML({ modo: 'cuenta', aut: { version: '2026-11-03' }, fondos: ['porvenir'], pidio: {}, archivos: [] })
+      .indexOf('hlAntesDeIrte'), -1);
+    /* Y la lista del registro no promete que se quedan en el teléfono pase lo que pase. */
+    const l = plano(HL.pantallaHTML({ modo: 'registro', aut: { version: '2026-11-03' }, fondos: ['porvenir'], pidio: {},
+      archivos: [{ id: 'a', tipo: 'pdf', bytes: 10 }] }));
+    assert.ok(l.indexOf('Si sales de esta página más de ' + min + ' minutos y el teléfono la cierra, se borran') >= 0,
+      'la lista promete que se quedan sin decir cuándo se borran');
+  });
 });
 
 describe('el tipo sale de los primeros bytes, como en la base', () => {
@@ -253,6 +285,68 @@ describe('el guardadero del registro', () => {
     assert.equal(await t.g.cola('3009998877'), null, 'otra cuenta ve la cola');
     t.reloj.t += 25 * 3600e3;
     assert.equal(await t.g.cola('3001112233'), null, 'la cola no caducó al día');
+  });
+});
+
+/* 28-oct-2026 (arreglo, ronda 1) — «📋 Pegar» guardaba lo que hubiera en el
+   portapapeles en el mismo toque, sin enseñarlo (una foto de un chat quedaba
+   como «Pantallazo»). Quien escoge un archivo lo ve en el selector del
+   teléfono; quien pega, no. El paso de verdad (pasoDelRegistro) en una caja de
+   mentira que guarda sus oyentes: con el código de antes, el primer toque ya
+   dejaba el archivo en el teléfono y esta prueba falla. */
+describe('«📋 Pegar» enseña lo copiado y pregunta antes de guardarlo', () => {
+  const { hasta } = require('./esperar.js');
+  const COPIADO = Buffer.from('\x89PNG\r\n\x1a\nFOTO PRIVADA DE UN CHAT', 'binary');
+  function cajaDeMentira() {
+    const oyentes = {};
+    const caja = { innerHTML: '', contains: () => true, querySelectorAll: () => [],
+      addEventListener: (t, f) => { (oyentes[t] = oyentes[t] || []).push(f); },
+      ownerDocument: { getElementById: () => null, createElement: () => ({}), head: { appendChild() {} } } };
+    const toque = que => oyentes.click.forEach(f => f({ target: { closest: () => ({ getAttribute: k => (k === 'data-hl' ? que : null) }) } }));
+    const pegarEnElRecuadro = f => oyentes.paste.forEach(o => o({ target: { closest: () => ({}) }, preventDefault() {},
+      clipboardData: { items: [{ kind: 'file', type: f.type, getAsFile: () => f }], files: [], getData: () => '' } }));
+    return { caja, toque, pegarEnElRecuadro };
+  }
+  test('en el registro: el botón y el recuadro enseñan lo copiado; solo «Sí, guardarla» lo deja en el teléfono', async () => {
+    const t = telefono();
+    const e = t.g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('2026-11-03T15:00:00Z'); e.fondos = ['porvenir']; t.g.guardarEstado(e);
+    const antes = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { read: () => Promise.resolve([{ types: ['image/png'],
+      getType: () => Promise.resolve(new Blob([COPIADO], { type: 'image/png' })) }]) } });
+    try {
+      const { caja, toque, pegarEnElRecuadro } = cajaDeMentira();
+      HL.pasoDelRegistro(caja, { guardadero: t.g, intento: 'i1', celular: '3001112233', ahora: () => t.reloj.t });
+      const guardados = async () => (await t.g.archivos('i1', '3001112233')).lista;
+      const pregunta = () => /id="hlPegado"/.test(caja.innerHTML);
+      toque('pegar');
+      /* Lo que pase primero: la pregunta, o la lista con lo ya guardado. */
+      await hasta(() => pregunta() || /id="hlLista"/.test(caja.innerHTML), 2000);
+      assert.equal((await guardados()).length, 0, 'un toque en «Pegar» guardó lo copiado sin preguntar');
+      assert.ok(pregunta(), 'lo pegado no se enseñó');
+      assert.match(caja.innerHTML, /<img class="hl-vista" data-hl-mini="pegado:0" alt="Lo que copiaste">/);
+      assert.match(caja.innerHTML, /¿Es tu historia laboral\?/);
+      assert.match(caja.innerHTML, /data-hl="pegado-si"[^>]*>Sí, guardarla</);
+      assert.match(caja.innerHTML, /data-hl="pegado-no"[^>]*>No, no es esta</);
+      /* «No»: nada se guarda, y se dice. */
+      toque('pegado-no');
+      assert.ok(await hasta(() => !pregunta(), 200));
+      assert.equal((await guardados()).length, 0, '«No» guardó lo copiado');
+      assert.match(caja.innerHTML, /Listo: no guardamos lo que copiaste\./);
+      /* El recuadro de mantener presionado también pregunta. */
+      pegarEnElRecuadro(new File([COPIADO], 'image.png', { type: 'image/png' }));
+      await hasta(() => pregunta() || /id="hlLista"/.test(caja.innerHTML), 2000);
+      assert.equal((await guardados()).length, 0, 'lo pegado en el recuadro se guardó sin preguntar');
+      assert.ok(pregunta(), 'lo pegado en el recuadro no se enseñó');
+      /* «Sí»: ahora sí, y la lista lo enseña con su miniatura. */
+      toque('pegado-si');
+      assert.ok(await hasta(() => !pregunta() && /id="hlLista"/.test(caja.innerHTML), 2000), '«Sí» no lo guardó');
+      const l = await guardados();
+      assert.equal(l.length, 1);
+      assert.equal(l[0].base64, COPIADO.toString('base64'));
+      assert.match(caja.innerHTML, new RegExp('<img class="hl-mini" data-hl-mini="lista:' + l[0].id + '"'), 'la lista no enseña lo guardado');
+    } finally {
+      if (antes) Object.defineProperty(navigator, 'clipboard', antes); else delete navigator.clipboard;
+    }
   });
 });
 

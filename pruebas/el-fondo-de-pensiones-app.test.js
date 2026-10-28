@@ -15,7 +15,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const { abrirSocio } = require('./banco-socio.js');
-const { asentar } = require('./esperar.js');
+const { asentar, hasta } = require('./esperar.js');
 
 const AHORA = Date.parse('2026-11-03T15:00:00Z');
 const SESION = JSON.stringify({ access_token: 'token-de-ana', refresh_token: 'r', expira_en: AHORA + 3600000, celular: '3001112222' });
@@ -45,6 +45,11 @@ function nube(o) {
       return { status: 200, cuerpo: { ok: true, borrados: n } };
     }
     if (/rpc\/pension_quitar$/.test(url)) { mia.archivos = mia.archivos.filter(a => a.id !== cuerpo.p_id); return { status: 200, cuerpo: { ok: true, borrados: 1 } }; }
+    if (/rpc\/pension_subir$/.test(url)) {
+      const id = 900 + mia.archivos.length, n = Buffer.from(cuerpo.p_archivo, 'base64').length;
+      mia.archivos.push({ id, tipo: 'png', bytes: n, creado_en: '2026-11-03T15:01:00Z' });
+      return { status: 200, cuerpo: { ok: true, id, tipo: 'png', bytes: n } };
+    }
     return { status: 404, cuerpo: {} };
   };
 }
@@ -143,6 +148,48 @@ describe('lo que hace, con su sesión', () => {
     const q = pension(A).find(l => /pension_quitar$/.test(l.url));
     assert.ok(q, 'quitar no salió');
     assert.equal(q.cuerpo.p_id, 41);
+  });
+
+  /* 28-oct-2026 (arreglo, ronda 1) — «📋 Pegar» subía lo que hubiera en el
+     portapapeles en el MISMO toque, sin enseñarlo, y la lista lo llamaba
+     «Pantallazo · 1 KB»: la foto de un chat quedaba en la base sin fecha de
+     borrado, y la persona ni la había visto. Con el código de antes, el
+     primer toque ya llamaba a pension_subir y esta prueba falla. */
+  test('«📋 Pegar» enseña lo copiado y pregunta: nada sube sin el «Sí», y lo que sube se ve en la lista', async () => {
+    const COPIADO = Buffer.from('\x89PNG\r\n\x1a\nFOTO PRIVADA DE UN CHAT', 'binary');
+    const A = abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, red: nube({
+      autorizacion: { fondos: ['porvenir'], version: '2026-11-03', recibida_en: '2026-11-03T14:00:00Z', revocada_en: null } }),
+      navegador: { clipboard: { read: () => Promise.resolve([{ types: ['image/png'],
+        getType: () => Promise.resolve(new Blob([COPIADO], { type: 'image/png' })) }]) } } });
+    await asentar(30);
+    A.elem('hlAbrir')._oyentes.click[0]();
+    await asentar(5);
+    const cuerpo = A.elem('hlCuerpo');
+    cuerpo.contains = () => true;
+    const toque = que => cuerpo._oyentes.click.forEach(f => f({ target: { closest: () => ({ getAttribute: k => (k === 'data-hl' ? que : null) }) } }));
+    const subidas = () => pension(A).filter(l => /pension_subir$/.test(l.url));
+    const pregunta = () => /id="hlPegado"/.test(cuerpo.innerHTML);
+    toque('pegar');
+    await hasta(() => pregunta() || subidas().length > 0, 2000);
+    assert.equal(subidas().length, 0, 'un toque en «Pegar» subió lo que había en el portapapeles sin enseñarlo ni preguntar');
+    assert.ok(pregunta(), 'lo pegado no se enseñó');
+    assert.match(cuerpo.innerHTML, /<img class="hl-vista" data-hl-mini="pegado:0" alt="Lo que copiaste">/);
+    assert.match(plano(cuerpo.innerHTML), /¿Es tu historia laboral\? Esto es lo que copiaste\. No lo subimos hasta que toques «Sí, subirla»\./);
+    /* «No, no es esta»: no sube nada. */
+    toque('pegado-no');
+    await asentar(10);
+    assert.equal(subidas().length, 0, '«No» subió lo pegado');
+    assert.equal(pregunta(), false);
+    assert.match(plano(cuerpo.innerHTML), /Listo: no guardamos lo que copiaste\./);
+    /* «Sí, subirla»: sube eso, con SU sesión, y la lista lo enseña. */
+    toque('pegar');
+    assert.ok(await hasta(pregunta, 2000));
+    toque('pegado-si');
+    assert.ok(await hasta(() => subidas().length === 1 && /id="hlLista"/.test(cuerpo.innerHTML), 2000), 'el «Sí» no subió lo pegado');
+    assert.equal(subidas()[0].cuerpo.p_archivo, COPIADO.toString('base64'));
+    assert.equal(subidas()[0].cab.Authorization, 'Bearer token-de-ana');
+    assert.match(cuerpo.innerHTML, /<img class="hl-mini" data-hl-mini="lista:900" alt="">/, 'la lista no enseña lo que acaba de subir');
+    assert.equal(A.elem('hlLinea').textContent, 'Ya nos diste 1 pantallazo.');
   });
 
   test('RETIRAR la autorización (Ley 1581): un toque, y se borra todo lo subido', async () => {

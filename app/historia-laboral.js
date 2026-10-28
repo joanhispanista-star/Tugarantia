@@ -34,6 +34,17 @@
  *     lo tiene, aparece un recuadro donde se mantiene presionado → «Pegar».
  *     Si tampoco, se dice y se ofrece subir. Copiar un PDF casi ningún
  *     teléfono lo deja: «Pegar» es en la práctica para pantallazos.
+ *     28-oct-2026 (arreglo, ronda 1) — LO PEGADO SE MUESTRA Y SE PREGUNTA
+ *     ANTES DE GUARDARLO. Un toque en «Pegar» subía lo que hubiera en el
+ *     portapapeles —la foto de un chat, un comprobante— sin enseñarlo, y la
+ *     lista y el CRM lo llamaban «Pantallazo». Quien escoge un archivo lo ve
+ *     en el selector del teléfono; quien pega no veía nada, y la política
+ *     promete «solo recibimos los archivos que tú escojas». Ahora lo copiado
+ *     se ve (la imagen, o el nombre y el tamaño del PDF) con «¿Es tu historia
+ *     laboral?», y solo «Sí» lo guarda o lo sube. La lista también lo enseña:
+ *     la miniatura de cada pantallazo y el nombre de cada archivo que se
+ *     tengan en el teléfono (en la app, los que subió en esta visita: la base
+ *     no devuelve el contenido, ver pension_mia).
  *
  * LO QUE NO HACE, Y POR ESO NINGÚN TEXTO LO DICE: no lee el documento, no lo
  * «verifica con el fondo» (ningún fondo tiene cómo), no pide nunca la clave
@@ -53,6 +64,18 @@
  *     la memoria de la página, y la pantalla lo dice.
  *   · Al abrir la cuenta pasan a la COLA de esa cuenta (su celular), y solo la
  *     sesión de esa cuenta los sube. Ningún otro registro la toca.
+ *   · 28-oct-2026 (arreglo, ronda 1) — EL PASO MANDA A LA PERSONA AFUERA, Y
+ *     AFUERA CORRE EL RELOJ DE LA CÁMARA. Al volver, la página se rige por la
+ *     regla de las fotos (app/escaner-cedula.js, MINUTOS_VUELTA_DE_LA_CAMARA):
+ *     si el teléfono la cerró y pasó más de ese rato, se borran la cédula, la
+ *     selfie y lo escogido aquí, y el registro vuelve al paso 1. Visto en
+ *     Chrome sin ventana: irse al correo como decía el paso y volver a los 15
+ *     minutos era volver a escanear la cédula, y nada lo había dicho antes.
+ *     La regla NO se afloja por esto (protege el teléfono prestado: la
+ *     decisión del 20-oct); el aviso va ANTES de los botones que sacan de la
+ *     página, con los minutos de la regla misma (minutosFuera), y ofrece el
+ *     camino que no pierde nada: seguir con el registro y subirla después
+ *     desde la cuenta.
  * ==========================================================================*/
 
 (function (raiz, fabrica) {
@@ -95,6 +118,22 @@
     return (typeof globalThis !== 'undefined' && globalThis.FondosPension) || null;
   }
 
+  /* 28-oct-2026 (arreglo, ronda 1) — Cuántos minutos puede estar la persona
+     fuera de la página sin perder la cédula: los de la regla que lo decide al
+     abrir (app/escaner-cedula.js, MINUTOS_VUELTA_DE_LA_CAMARA), leídos de
+     allá para que el aviso no diga un número y la regla aplique otro. Con un
+     escaner-cedula.js viejo sin el dato, 10: el de la regla desde el 20-oct. */
+  function minutosFuera() {
+    var E = null;
+    if (typeof module === 'object' && module.exports && typeof require === 'function') {
+      try { E = require('./escaner-cedula.js'); } catch (e) { /* sigue */ }
+    }
+    E = E || (typeof globalThis !== 'undefined' && globalThis.EscanerCedula) || null;
+    var m = E ? Number(E.MINUTOS_VUELTA_DE_LA_CAMARA) : 0;
+    return m > 0 ? m : 10;
+  }
+  function conMinutos(t) { return String(t).replace('{min}', String(minutosFuera())); }
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
@@ -122,13 +161,28 @@
     preguntaFondo: '¿En qué fondo estás?',
     ayudaFondo: 'Si cotizas en Colpensiones y en un fondo privado, marca los dos.',
     afuera: 'Se abre en otra pestaña, en la página oficial. Nunca te pedimos la clave de tu fondo.',
-    volver: 'Cuando te llegue el correo, vuelve a esta pestaña de Tu Garantía y súbela aquí. Si tarda, sigue con tu ' +
-      'registro: la puedes subir después desde tu cuenta en la app.',
+    /* 28-oct-2026 (arreglo, ronda 1) — antes de los botones que sacan de la
+       página, y no después: ver «EL PASO MANDA A LA PERSONA AFUERA» arriba.
+       {min} son los minutos de la regla (minutosFuera). */
+    antesDeIrte: 'Antes de irte: vuelve en menos de {min} minutos.',
+    antesDeIrteDetalle: 'Si pasas más rato fuera y el teléfono cierra esta página, por seguridad se borran de él las ' +
+      'fotos de tu cédula y de tu cara, y tendrás que volver a tomarlas.',
+    volver: 'Cuando tengas tu historia laboral, vuelve a esta pestaña de Tu Garantía y súbela aquí. Si tarda en llegarte, ' +
+      'no la esperes: sigue con tu registro y súbela después desde tu cuenta en la app.',
     subela: 'Cuando la tengas, súbela',
     ayudaFormas: 'El PDF es lo mejor: es el documento tal como te lo mandó tu fondo. Si no, pantallazos donde se lean tu ' +
       'nombre, tus semanas y tus empleadores.',
     zonaPegar: 'Mantén presionado aquí y toca «Pegar»',
-    quedanAqui: 'Quedan guardados en este teléfono y suben con tu registro cuando toques «Abrir mi cuenta».',
+    /* Lo pegado, antes de guardarlo (ver «LO PEGADO SE MUESTRA» arriba). */
+    pegadoPregunta: '¿Es tu historia laboral?',
+    pegadoAyuda: 'Esto es lo que copiaste. No lo guardamos hasta que toques «Sí, guardarla».',
+    pegadoAyudaCuenta: 'Esto es lo que copiaste. No lo subimos hasta que toques «Sí, subirla».',
+    pegadoNo: 'Listo: no guardamos lo que copiaste.',
+    /* 28-oct-2026 (arreglo, ronda 1) — decía «Quedan guardados en este
+       teléfono» a secas, y con la vuelta de la cámara no es verdad: si la
+       persona sale más del rato y el teléfono cierra la página, se borran. */
+    quedanAqui: 'Quedan en este teléfono y suben con tu registro cuando toques «Abrir mi cuenta». Si sales de esta página ' +
+      'más de {min} minutos y el teléfono la cierra, se borran, como las fotos de tu cédula.',
     soloMemoria: 'Este teléfono no deja guardarlos: si la página se cierra antes de abrir tu cuenta, tendrás que escogerlos otra vez.',
     perdidos: 'Los archivos que habías escogido se borraron de este teléfono porque pasó un rato desde que saliste de la ' +
       'página: escógelos otra vez.'
@@ -294,6 +348,10 @@
    */
   function prepararArchivo(blob) {
     if (!blob) return Promise.resolve({ ok: false, motivo: 'vacio' });
+    /* 28-oct-2026 (arreglo, ronda 1) — el nombre, SOLO para enseñárselo a la
+       persona en su lista y al pegar («¿Es este?»): no sube (pension_subir
+       recibe el archivo y nada más) ni decide el tipo. */
+    var nombre = (blob && typeof blob.name === 'string') ? blob.name.slice(0, 120) : '';
     return leerBytes(blob).then(function (u8) {
       if (!u8 || !u8.length) return { ok: false, motivo: 'vacio' };
       var tipo = tipoPorBytes(u8);
@@ -312,7 +370,7 @@
     }, function () { return { ok: false, motivo: 'lectura' }; });
     function listo(tipo, u8) {
       return sha256Hex(u8).then(function (h) {
-        return { ok: true, archivo: { tipo: tipo, bytes: u8.length, base64: base64DeBytes(u8), sha256: h } };
+        return { ok: true, archivo: { tipo: tipo, bytes: u8.length, base64: base64DeBytes(u8), sha256: h, nombre: nombre } };
       });
     }
   }
@@ -482,7 +540,7 @@
           if (!rv.ok) return rv;
           if (r.lista.some(function (x) { return x.base64 === a.base64; })) return { ok: false, motivo: 'repetido' };
           var item = { id: ahora().toString(36) + Math.random().toString(36).slice(2, 8), tipo: a.tipo, bytes: a.bytes,
-                       base64: a.base64, sha256: a.sha256 || '', t: ahora() };
+                       base64: a.base64, sha256: a.sha256 || '', nombre: String(a.nombre || '').slice(0, 120), t: ahora() };
           var lista = r.lista.concat([item]);
           contar(intento, celular, lista.length);
           return escribir('reg', { intento: String(intento), celular: String(celular), t: ahora(), archivos: lista })
@@ -643,7 +701,16 @@
     '.hl-pegar:focus{border-color:var(--azul-texto)}' +
     '.hl-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--linea);font-size:14px}' +
     '.hl-item .btn{width:auto;flex:none;padding:8px 12px}' +
-    '.hl-despues{margin-top:var(--e3)}';
+    '.hl-despues{margin-top:var(--e3)}' +
+    /* 28-oct-2026 (arreglo, ronda 1) — lo pegado antes de guardarlo, y las
+       miniaturas de la lista. */
+    '.hl-que{display:flex;align-items:center;gap:10px;min-width:0}' +
+    '.hl-que span{overflow-wrap:anywhere}' +
+    '.hl-mini{width:44px;height:44px;flex:none;object-fit:cover;border:1px solid var(--linea);border-radius:8px;background:var(--papel)}' +
+    '.hl-pegado{margin-top:var(--e3);padding:var(--e3);border:2px solid var(--azul-texto);border-radius:14px;background:var(--azul-tinte)}' +
+    '.hl-vista{display:block;max-width:100%;max-height:320px;margin:var(--e2) auto 0;object-fit:contain;border:1px solid var(--linea);' +
+      'border-radius:10px;background:var(--papel)}' +
+    '.hl-pdf{margin-top:var(--e2);font-size:14px;font-weight:600;overflow-wrap:anywhere}';
   function ponerEstilo(d) {
     try {
       if (!d || !d.getElementById || d.getElementById('hlEstilo')) return;
@@ -692,7 +759,7 @@
      dentro de la app, y la dirección sale solo de la lista. */
   function comoHTML(fondos, pidio, ahoraMs, modo) {
     var FP = F(); if (!FP) return '';
-    return (fondos || []).map(function (c) {
+    return antesDeIrteHTML(fondos, modo) + (fondos || []).map(function (c) {
       var f = FP.porCodigo(c); if (!f) return '';
       if (!f.regimen) {
         return '<div class="hl-como" data-hl-como="' + esc(c) + '"><div class="sub" style="margin:0">' + esc(f.texto) + '</div>' +
@@ -709,8 +776,24 @@
                  'Abrir la página de ' + esc(f.nombre) + ' ↗</a>' +
                '<div class="ayuda">' + esc(f.dominio) + '. ' + esc(TEXTOS.afuera) + '</div>' : '') +
         abrio + '</div>';
-    }).join('') + ((fondos || []).some(function (c) { return FP.esFondo(c) && FP.porCodigo(c).como === 'correo'; }) && modo === 'registro'
-      ? '<div class="ayuda" style="margin-top:var(--e3)">' + esc(TEXTOS.volver) + '</div>' : '');
+    }).join('');
+  }
+  /* 28-oct-2026 (arreglo, ronda 1) — EL AVISO VA ANTES DE IRSE. Decía «Cuando
+     te llegue el correo, vuelve a esta pestaña…» DEBAJO de los botones, y sin
+     decir que pasados unos minutos fuera la página se lleva la cédula y la
+     selfie (ver «EL PASO MANDA A LA PERSONA AFUERA» arriba). Ahora va encima
+     del primer botón que saca de la página —el de un fondo o el del RUAF—,
+     con los minutos de la regla. Solo en el registro: en la app ya hay
+     cuenta, y nada se borra por salir. */
+  function antesDeIrteHTML(fondos, modo) {
+    var FP = F();
+    if (!FP || modo !== 'registro') return '';
+    var l = fondos || [];
+    var sale = l.some(function (c) { var f = FP.porCodigo(c); return !!(f && (f.regimen ? FP.urlOficial(c) : f.url)); });
+    if (!sale) return '';
+    var deUnFondo = l.some(function (c) { return FP.esFondo(c) && !!FP.urlOficial(c); });
+    return '<div class="aviso ambar" id="hlAntesDeIrte" role="note"><b>' + esc(conMinutos(TEXTOS.antesDeIrte)) + '</b> ' +
+      esc(TEXTOS.antesDeIrteDetalle) + (deUnFondo ? ' ' + esc(TEXTOS.volver) : '') + '</div>';
   }
   function formasHTML(vm) {
     return '<div class="grupo-tit">' + esc(TEXTOS.subela) + '</div>' +
@@ -723,18 +806,64 @@
         '<button type="button" class="btn sec sm" id="hlBotonPegar" data-hl="pegar"' + (vm.ocupado ? ' disabled' : '') + '>📋 Pegar</button>' +
       '</div>' +
       '<div class="hl-pegar' + (vm.pegando ? '' : ' oculto') + '" id="hlPegar" contenteditable="true" data-hl="zona" role="textbox" ' +
-        'aria-label="' + esc(TEXTOS.zonaPegar) + '" inputmode="none">' + esc(TEXTOS.zonaPegar) + '</div>';
+        'aria-label="' + esc(TEXTOS.zonaPegar) + '" inputmode="none">' + esc(TEXTOS.zonaPegar) + '</div>' +
+      pegadoHTML(vm);
+  }
+  /* 28-oct-2026 (arreglo, ronda 1) — LO PEGADO, ANTES DE GUARDARLO: la imagen
+     (o el nombre y el tamaño del PDF) y «¿Es tu historia laboral?». La imagen
+     NO va en el texto del atributo: el <img> lleva solo su clave, y ponerVistas
+     le asigna el src como propiedad después de pintar (la lección de
+     fotoSegura en el CRM), con el tipo que dijeron sus bytes. */
+  function pegadoHTML(vm) {
+    var p = vm.pegado;
+    if (!p || !p.listos || !p.listos.length) return '';
+    var cuenta = vm.modo !== 'registro', dis = vm.ocupado ? ' disabled' : '';
+    return '<div class="hl-pegado" id="hlPegado" role="group" aria-label="Lo que copiaste"><b>' + esc(TEXTOS.pegadoPregunta) + '</b>' +
+      '<div class="ayuda">' + esc(cuenta ? TEXTOS.pegadoAyudaCuenta : TEXTOS.pegadoAyuda) + '</div>' +
+      p.listos.map(function (a, i) {
+        return a.tipo === 'pdf'
+          ? '<div class="hl-pdf">📄 ' + esc(nombreDeTipo('pdf')) + (a.nombre ? ' · ' + esc(a.nombre) : '') + ' · ' + esc(tamanoEnPalabras(a.bytes)) + '</div>'
+          : '<img class="hl-vista" data-hl-mini="pegado:' + i + '" alt="Lo que copiaste">';
+      }).join('') +
+      '<div class="hl-formas">' +
+        '<button type="button" class="btn sm" id="hlPegadoSi" data-hl="pegado-si"' + dis + '>' + (cuenta ? 'Sí, subirla' : 'Sí, guardarla') + '</button>' +
+        '<button type="button" class="btn sec sm" id="hlPegadoNo" data-hl="pegado-no"' + dis + '>No, no es esta</button>' +
+      '</div></div>';
+  }
+  /* Lo que se puede enseñar de un archivo de la lista: en el registro, todo
+     (está en el teléfono); en la app, lo que se subió en esta visita
+     (vm.vistas): la base no devuelve el contenido (pension_mia). */
+  function vistaDe(vm, a) {
+    var x = (a && a.base64) ? a : (vm.vistas && a && vm.vistas[String(a.id)]) || null;
+    return { imagen: !!(x && x.base64 && x.tipo !== 'pdf' && TIPO_MIME[x.tipo]), nombre: (x && x.nombre) || '', x: x };
   }
   function listaHTML(vm) {
     var l = vm.archivos || [];
     if (!l.length) return '';
     return '<div class="hl-lista" id="hlLista" style="margin-top:var(--e3)">' + l.map(function (a) {
       var cuando = a.creado_en ? ' · subido el ' + fechaCorta(a.creado_en) : '';
-      return '<div class="hl-item"><span>' + (a.tipo === 'pdf' ? '📄 ' : '🖼️ ') + esc(nombreDeTipo(a.tipo)) + ' · ' +
-        esc(tamanoEnPalabras(a.bytes)) + esc(cuando) + '</span>' +
+      var v = vistaDe(vm, a);
+      return '<div class="hl-item"><span class="hl-que">' +
+        (v.imagen ? '<img class="hl-mini" data-hl-mini="lista:' + esc(a.id) + '" alt="">' : '') +
+        '<span>' + (a.tipo === 'pdf' ? '📄 ' : '🖼️ ') + esc(nombreDeTipo(a.tipo)) + (v.nombre ? ' · ' + esc(v.nombre) : '') + ' · ' +
+        esc(tamanoEnPalabras(a.bytes)) + esc(cuando) + '</span></span>' +
         '<button type="button" class="btn sec sm" data-hl="quitar" data-id="' + esc(a.id) + '"' + (vm.ocupado ? ' disabled' : '') + '>Quitar</button></div>';
     }).join('') + '</div>' +
-    (vm.modo === 'registro' ? '<div class="ayuda">' + esc(vm.soloMemoria ? TEXTOS.soloMemoria : TEXTOS.quedanAqui) + '</div>' : '');
+    (vm.modo === 'registro' ? '<div class="ayuda">' + esc(vm.soloMemoria ? TEXTOS.soloMemoria : conMinutos(TEXTOS.quedanAqui)) + '</div>' : '');
+  }
+  /* La dirección de la imagen de una clave de ponerVistas: data: con el tipo
+     MIME que dicen sus primeros bytes (jpg, png o webp), nunca otro. */
+  function urlDeVista(vm, clave) {
+    var k = String(clave || ''), i = k.indexOf(':'), que = k.slice(0, i), id = k.slice(i + 1), x = null;
+    if (que === 'pegado') x = vm.pegado && vm.pegado.listos && vm.pegado.listos[Number(id)];
+    else if (que === 'lista') {
+      var a = (vm.archivos || []).filter(function (y) { return y && String(y.id) === id; })[0];
+      x = a ? vistaDe(vm, a).x : null;
+    }
+    if (!x || !x.base64) return '';
+    var t = tipoPorBytes(bytesDeBase64(String(x.base64).slice(0, 24)));
+    if (!t || t === 'pdf' || t !== x.tipo) return '';
+    return 'data:' + TIPO_MIME[t] + ';base64,' + x.base64;
   }
   function avisoHTML(vm) {
     return '<div class="aviso' + (vm.avisoClase ? ' ' + vm.avisoClase : '') + (vm.aviso ? '' : ' oculto') + '" id="hlAviso" role="status">' +
@@ -764,9 +893,19 @@
   function controlar(caja, vm, h) {
     var d = caja.ownerDocument || (typeof document !== 'undefined' ? document : null);
     ponerEstilo(d);
+    /* Las imágenes (lo pegado y las miniaturas de la lista) se ponen después
+       de pintar, como propiedad del <img>: ver pegadoHTML. */
+    var ponerVistas = function () {
+      if (!caja.querySelectorAll) return;
+      Array.prototype.forEach.call(caja.querySelectorAll('img[data-hl-mini]') || [], function (im) {
+        var u = urlDeVista(vm, im.getAttribute('data-hl-mini'));
+        if (u) im.src = u;
+      });
+    };
     var pintar = function () {
       vm.ahora = h.ahora ? h.ahora() : Date.now();
       caja.innerHTML = pantallaHTML(vm);
+      try { ponerVistas(); } catch (e) {}
       if (h.alPintar) { try { h.alPintar(); } catch (e) {} }
     };
     var decir = function (m, clase) { vm.aviso = m || ''; vm.avisoClase = clase || (m ? 'ambar' : ''); pintar(); };
@@ -775,25 +914,53 @@
       var fin = function () { vm.ocupado = false; };
       return Promise.resolve(p).then(function (x) { fin(); return x; }, function (e) { fin(); throw e; });
     };
-    /* Los archivos de una vez, en orden: preparar (el tipo por sus bytes, el
-       achique) y guardar o subir. Se dice lo que pasó con cada uno. */
+    /* Preparar, en orden (el tipo por sus bytes, el achique), SIN guardar
+       nada todavía: {listos, malos}. */
+    var prepararTodos = function (lista) {
+      var listos = [], malos = [];
+      return lista.reduce(function (p, b) {
+        return p.then(function () {
+          return prepararArchivo(b).then(function (r) { if (r.ok) listos.push(r.archivo); else malos.push(r.motivo); });
+        });
+      }, Promise.resolve()).then(function () { return { listos: listos, malos: malos }; });
+    };
+    /* Guardar (registro) o subir (app) lo ya preparado, de uno en uno, y
+       volver a mirar la lista. Devuelve los motivos de lo que no entró. */
+    var guardarTodos = function (listos, malos) {
+      var m = (malos || []).slice();
+      return listos.reduce(function (p, a) {
+        return p.then(function () {
+          return Promise.resolve(h.agregar(a)).then(function (x) { if (!x || x.ok !== true) m.push((x && x.motivo) || 'rechazo'); });
+        });
+      }, Promise.resolve()).then(function () { return h.leer(); }).then(function () { return m; });
+    };
+    var decirMalos = function (malos) {
+      if (malos.length) decir(motivoEnPalabras(malos[0]) + (malos.length > 1 ? ' (y ' + (malos.length - 1) + ' más)' : ''));
+      else decir('');
+    };
+    /* Lo que la persona ESCOGIÓ en el selector del teléfono (ahí lo vio): se
+       prepara y se guarda de una vez. Se dice lo que pasó con cada uno. Lo que
+       estuviera pegado y sin contestar se descarta: nada entra sin su «Sí». */
     var agregarTodos = function (blobs) {
       var lista = Array.prototype.slice.call(blobs || []);
       if (!lista.length) return Promise.resolve();
+      vm.pegado = null;
       vm.aviso = lista.length > 1 ? 'Preparando tus ' + lista.length + ' archivos…' : 'Preparando tu archivo…'; vm.avisoClase = '';
-      var malos = [];
-      return trabajar(lista.reduce(function (p, b) {
-        return p.then(function () {
-          return prepararArchivo(b).then(function (r) {
-            if (!r.ok) { malos.push(r.motivo); return; }
-            return Promise.resolve(h.agregar(r.archivo)).then(function (x) { if (!x || x.ok !== true) malos.push((x && x.motivo) || 'rechazo'); });
-          });
-        });
-      }, Promise.resolve()).then(function () { return h.leer(); }))
-        .then(function () {
-          if (malos.length) decir(motivoEnPalabras(malos[0]) + (malos.length > 1 ? ' (y ' + (malos.length - 1) + ' más)' : ''));
-          else decir('');
-        }, function (e) { decir(motivoEnPalabras((e && e.motivo) || 'sin_red')); });
+      return trabajar(prepararTodos(lista).then(function (r) { return guardarTodos(r.listos, r.malos); }))
+        .then(decirMalos, function (e) { decir(motivoEnPalabras((e && e.motivo) || 'sin_red')); });
+    };
+    /* 28-oct-2026 (arreglo, ronda 1) — Lo PEGADO no se guarda: se prepara y
+       se enseña (pegadoHTML), y espera el «Sí» de la persona (pegado-si). */
+    var mostrarPegado = function (blobs) {
+      var lista = Array.prototype.slice.call(blobs || []);
+      if (!lista.length) return Promise.resolve();
+      vm.pegando = false; vm.pegado = null;
+      vm.aviso = 'Mirando lo que copiaste…'; vm.avisoClase = 'info';
+      return trabajar(prepararTodos(lista)).then(function (r) {
+        if (!r.listos.length) { decirMalos(r.malos.length ? r.malos : ['pegar_vacio']); return; }
+        vm.pegado = r;
+        decir('');
+      }, function () { decir(motivoEnPalabras('lectura')); });
     };
     caja.addEventListener('click', function (ev) {
       var t = ev.target && ev.target.closest ? ev.target.closest('[data-hl]') : null;
@@ -817,13 +984,25 @@
         return;
       }
       if (que === 'pegar') {
+        vm.pegado = null;
         decir('Mirando lo que copiaste…', 'info');
         leerPortapapeles().then(function (r) {
-          if (r.ok && r.blobs.length) { vm.pegando = false; return agregarTodos(r.blobs); }
+          if (r.ok && r.blobs.length) return mostrarPegado(r.blobs);
           vm.pegando = true;
           decir(motivoEnPalabras(r.motivo));
         });
+        return;
       }
+      /* La respuesta a «¿Es tu historia laboral?»: solo el «Sí» guarda. */
+      if (que === 'pegado-si') {
+        var p = vm.pegado; vm.pegado = null;
+        if (!p || !p.listos || !p.listos.length) { decir(''); return; }
+        vm.aviso = p.listos.length > 1 ? 'Guardando tus ' + p.listos.length + ' archivos…' : 'Guardando tu archivo…'; vm.avisoClase = '';
+        trabajar(guardarTodos(p.listos, p.malos))
+          .then(decirMalos, function (e) { decir(motivoEnPalabras((e && e.motivo) || 'sin_red')); });
+        return;
+      }
+      if (que === 'pegado-no') { vm.pegado = null; decir(TEXTOS.pegadoNo, 'info'); }
     });
     caja.addEventListener('change', function (ev) {
       var t = ev.target;
@@ -831,6 +1010,7 @@
       var que = t.getAttribute('data-hl');
       if (que === 'aut') {
         var si = !!t.checked;
+        if (!si) vm.pegado = null;   // sin autorización no queda nada pegado esperando
         Promise.resolve(h.autorizar(si)).then(function (r) {
           if (r && r.ok === false) { decir(motivoEnPalabras(r.motivo)); return; }
           return Promise.resolve(h.leer()).then(function () { decir(''); });
@@ -852,13 +1032,14 @@
     });
     /* El recuadro de mantener presionado → «Pegar». El evento trae el archivo;
        nada se escribe en el recuadro. Si el teléfono pega una <img> en vez de
-       dar el archivo, se toma de ahí. */
+       dar el archivo, se toma de ahí. Como el botón, se enseña y se pregunta
+       (mostrarPegado): nada se guarda sin el «Sí». */
     caja.addEventListener('paste', function (ev) {
       var t = ev.target;
       if (!t || !t.closest || !t.closest('[data-hl="zona"]')) return;
       var r = blobsDePegar(ev);
       try { ev.preventDefault(); } catch (e) {}
-      if (r.blobs.length) { vm.pegando = false; agregarTodos(r.blobs); }
+      if (r.blobs.length) mostrarPegado(r.blobs);
       else decir(motivoEnPalabras(r.texto ? 'pegar_texto' : 'pegar_vacio'));
     });
     caja.addEventListener('input', function (ev) {
@@ -872,7 +1053,7 @@
         ? Promise.resolve(new Blob([bytesDeBase64(src)]))
         : (/^blob:/i.test(src) && typeof fetch === 'function') ? fetch(src).then(function (r) { return r.blob(); }) : null;
       if (!pedido) return decir(motivoEnPalabras('pegar_vacio'));
-      pedido.then(function (b) { vm.pegando = false; return agregarTodos([b]); }, function () { decir(motivoEnPalabras('pegar_vacio')); });
+      pedido.then(function (b) { return mostrarPegado([b]); }, function () { decir(motivoEnPalabras('pegar_vacio')); });
     });
     return { pintar: pintar, decir: decir, vm: vm };
   }
@@ -888,7 +1069,7 @@
     var ahora = typeof o.ahora === 'function' ? o.ahora : function () { return Date.now(); };
     var e = g.estado(intento, cel);
     var vm = { modo: 'registro', aut: e.aut, fondos: e.fondos.slice(), pidio: Object.assign({}, e.pidio), archivos: [],
-               aviso: '', avisoClase: '', pegando: false, ocupado: false, soloMemoria: false, perdidos: !!o.perdidos };
+               aviso: '', avisoClase: '', pegando: false, pegado: null, ocupado: false, soloMemoria: false, perdidos: !!o.perdidos };
     /* Se relee antes de escribir: la cuenta de archivos (archivos_n) la lleva
        el guardadero, y un objeto viejo la pisaría. */
     var guardar = function () {
@@ -937,7 +1118,7 @@
     var ahora = typeof o.ahora === 'function' ? o.ahora : function () { return Date.now(); };
     var escritura = typeof o.escritura === 'function' ? o.escritura : function (p) { return p; };
     var vm = { modo: 'cuenta', aut: null, fondos: [], pidio: {}, archivos: [], aviso: '', avisoClase: '', pegando: false,
-               ocupado: false, abierta: !!o.abierta, cargando: true };
+               pegado: null, vistas: {}, ocupado: false, abierta: !!o.abierta, cargando: true };
     var llamar = function (fn, cuerpo, escribe) {
       var p = Promise.resolve(o.credenciales ? o.credenciales() : null).then(function (cfg) {
         return llamarConToken(cfg, fn, cuerpo, o.fetch);
@@ -991,7 +1172,7 @@
     var retirar = function () {
       var preguntar = o.confirmar || function (t) { return typeof confirm === 'function' ? confirm(t) : true; };
       if (!preguntar('Vamos a borrar tu historia laboral y tu fondo, y a quitar tu autorización. ¿Seguimos?')) return;
-      llamar('pension_retirar', {}, true).then(function () { return leer(); })
+      llamar('pension_retirar', {}, true).then(function () { vm.vistas = {}; vm.pegado = null; return leer(); })
         .then(function () { vm.aviso = 'Listo: borramos tu historia laboral y quitamos tu autorización.'; vm.avisoClase = 'verde'; pintarTarjeta(); },
               function (e) { vm.aviso = motivoEnPalabras(deError(e).motivo || (e && e.motivo)); vm.avisoClase = 'ambar'; pintarTarjeta(); });
     };
@@ -1013,7 +1194,15 @@
       abrio: function (c) { vm.pidio[c] = new Date(ahora()).toISOString(); },
       agregar: function (a) {
         return llamar('pension_subir', { p_archivo: a.base64 }, true)
-          .then(function (j) { return (j && j.ok === true) ? { ok: true } : { ok: false, motivo: (j && j.motivo) || 'rechazo' }; }, deError);
+          .then(function (j) {
+            if (!(j && j.ok === true)) return { ok: false, motivo: (j && j.motivo) || 'rechazo' };
+            /* 28-oct-2026 (arreglo, ronda 1) — lo que acaba de subir se sigue
+               viendo en su lista (miniatura, nombre) mientras esté aquí: la
+               base no devuelve el contenido, y sin esto la lista solo decía
+               «Pantallazo · 96 KB». */
+            if (j.id != null) vm.vistas[String(j.id)] = { tipo: a.tipo, base64: a.tipo === 'pdf' ? '' : a.base64, nombre: a.nombre || '' };
+            return { ok: true };
+          }, deError);
       },
       quitar: function (id) { return llamar('pension_quitar', { p_id: Number(id) }, true); },
       alPintar: function () { pintarLinea(); }
@@ -1041,6 +1230,7 @@
     HORAS_ARCHIVOS: HORAS_ARCHIVOS,
     DIAS_ESTADO: DIAS_ESTADO,
     LLAVE_ESTADO: LLAVE_ESTADO,
+    minutosFuera: minutosFuera,
     TEXTOS: TEXTOS,
     MOTIVOS: MOTIVOS,
     TIPO_MIME: TIPO_MIME,

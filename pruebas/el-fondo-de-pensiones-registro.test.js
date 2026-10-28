@@ -87,6 +87,12 @@ describe('dónde va, y que nunca frena el registro', () => {
     assert.match(h, /href="https:\/\/www\.porvenir\.com\.co\/web\/certificados-y-extractos\/certificado-de-historia-laboral" target="_blank"/);
     assert.match(hl(P), /Abrir la página de Porvenir/);
     assert.match(hl(P), /vuelve a esta pestaña de Tu Garantía/);
+    /* 28-oct-2026 (arreglo, ronda 1) — y ANTES de irse sabe cuánto puede
+       tardar: pasado ese rato con la página cerrada, la regla de la vuelta de
+       la cámara le borra la cédula y la selfie (ver el-fondo-de-pensiones.test.js). */
+    assert.ok(h.indexOf('id="hlAntesDeIrte"') > 0 && h.indexOf('id="hlAntesDeIrte"') < h.indexOf('data-hl="abrir"'),
+      'el aviso de los minutos no va antes de «Abrir la página»');
+    assert.match(hl(P), new RegExp('vuelve en menos de ' + P.ev('EC.MINUTOS_VUELTA_DE_LA_CAMARA') + ' minutos'));
     ['📄 Subir el PDF', '🖼️ Subir pantallazos', '📋 Pegar'].forEach(b => assert.ok(hl(P).indexOf(b) >= 0, 'falta ' + b));
   });
 });

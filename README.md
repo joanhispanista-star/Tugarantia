@@ -194,7 +194,11 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         fondos, el botón a la página oficial en otra pestaña,
                         y las tres formas: 📄 PDF, 🖼️ hasta 5 pantallazos
                         (achicados en el teléfono si pesan) y 📋 Pegar
-                        (portapapeles o el recuadro de mantener presionado).
+                        (portapapeles o el recuadro de mantener presionado),
+                        que ENSEÑA lo copiado y pregunta «¿Es tu historia
+                        laboral?»: nada pegado se guarda sin el «Sí». La
+                        lista enseña la miniatura y el nombre de lo que está
+                        en el teléfono (en la app, de lo subido en esa visita).
                         El tipo sale de los primeros bytes. Sin cuenta, lo
                         escogido espera como el borrador y los archivos en
                         IndexedDB como las fotos; al abrir la cuenta pasan a
@@ -554,7 +558,12 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         después de «De qué vives» (son 11 pasos), con «Lo hago
                         después» arriba; no en PlataChat. Lo escogido
                         sobrevive a irse al correo y volver; los archivos
-                        siguen la regla de las fotos; al abrir la cuenta suben
+                        siguen la regla de las fotos, y ANTES del primer botón
+                        que saca de la página el paso dice cuántos minutos
+                        puede estar fuera (los de la vuelta de la cámara:
+                        pasados, con la página cerrada, se borran la cédula y
+                        la selfie) y el camino que no pierde nada: seguir y
+                        subirla desde la cuenta; al abrir la cuenta suben
                         con su sesión y #avisoPension lo dice. El «después»
                         es la tarjeta «Tu historia laboral» del Perfil de
                         esta misma cuenta («Subirla desde tu Perfil»), nunca
