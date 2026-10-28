@@ -116,7 +116,13 @@ function generar(fecha) {
   w(d.texto);
   w('');
   w('LO QUE ESTA APP NO TE PIDE');
-  w('No accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a tu ubicación, ni a las fotos de tu galería. Solo la cámara, y solo en el momento de tomar una foto.');
+  /* 28-oct-2026 (arreglo de los leves, P9) — decía «ni a tu ubicación… Solo
+     la cámara», y es falso dos veces: desde el 8-sep la app pide la ubicación
+     una vez si se autoriza, y desde el lote del fondo de pensiones recibe los
+     archivos que la persona escoge (la historia laboral), que esta misma
+     ficha declara más abajo («Archivos y documentos», «Pantallazos»). Dice
+     ahora lo mismo que el paso «Tu autorización» de play/. */
+  w('No accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a las fotos de tu galería. Solo usa la cámara en el momento de tomar una foto, tu ubicación una sola vez si la autorizas, y los archivos que tú mismo escojas si nos das tu historia laboral del fondo de pensiones.');
   w('');
   w('TUS DATOS SON TUYOS');
   w('Puedes pedirnos que te digamos qué tenemos tuyo, que lo corrijamos o que lo borremos, cuando quieras y desde la misma app. Ley 1581 de 2012.');

@@ -56,7 +56,7 @@ DIVULGACIÓN DEL CRÉDITO
 Crédito de libre inversión en cuotas mensuales. Plazo mínimo: 3 meses. Plazo máximo: 6 meses. Tasa efectiva anual máxima: 23,99%. Ejemplo: por $500.000 a 6 meses pagas 6 cuotas de $88.683, para un total de $532.100 ($500.000 de capital y $32.100 de costo). Sin cuotas de manejo, sin seguros y sin cargos adicionales: el costo mostrado es el costo total. Tasa máxima legal vigente en Colombia: 28,59%.
 
 LO QUE ESTA APP NO TE PIDE
-No accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a tu ubicación, ni a las fotos de tu galería. Solo la cámara, y solo en el momento de tomar una foto.
+No accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a las fotos de tu galería. Solo usa la cámara en el momento de tomar una foto, tu ubicación una sola vez si la autorizas, y los archivos que tú mismo escojas si nos das tu historia laboral del fondo de pensiones.
 
 TUS DATOS SON TUYOS
 Puedes pedirnos que te digamos qué tenemos tuyo, que lo corrijamos o que lo borremos, cuando quieras y desde la misma app. Ley 1581 de 2012.

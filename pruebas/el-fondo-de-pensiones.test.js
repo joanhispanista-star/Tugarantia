@@ -192,6 +192,28 @@ describe('los textos: la autorización dice lo que la ley pide, y nada que el c�
     assert.equal(/sube tu garant|suma garant|más garant/i.test(pantallas), false, 'promete garantía que el motor no da');
     assert.match(HL.TEXTOS.introCuenta, /No cambia tu garantía/);
   });
+  /* 28-oct-2026 (arreglo de los leves, P9) — la ficha de Play (PLAY-FICHA.md,
+     que sale de herramientas/ficha-play.js) decía «ni a tu ubicación… Solo la
+     cámara» al lado de su propia declaración de la ubicación (desde el 8-sep)
+     y de los archivos y pantallazos de la historia laboral. Play está
+     descartado como canal, pero es la fuente de la ficha si se retoma, y una
+     ficha que no coincide con lo que la app hace es motivo de suspensión. Con
+     el texto de antes esto falla. */
+  test('la ficha de Play no dice que la app no pide lo que la misma ficha declara (la ubicación, los archivos)', () => {
+    const K = require('../app/cumplimiento.js');
+    const { generar } = require('../herramientas/ficha-play.js');
+    const f = generar('2026-10-01');
+    const bloque = f.split('LO QUE ESTA APP NO TE PIDE\n')[1].split('\n')[0];
+    const recoge = K.datosQueRecoge().map(d => d.id);
+    assert.ok(recoge.includes('ubicacion') && recoge.includes('historia_laboral'), 'la prueba no prueba nada: la ficha ya no declara esto');
+    assert.equal(/ni a tu ubicación/.test(bloque), false, 'dice que no accede a la ubicación, y la declara');
+    assert.equal(/Solo la cámara, y solo/.test(bloque), false, 'dice «solo la cámara», y declara archivos y pantallazos');
+    /* Lo mismo que dice play/ en «Tu autorización» (lo mira
+       el-fondo-de-pensiones-registro.test.js en la pantalla). */
+    assert.match(bloque, /tu ubicación una sola vez si la autorizas, y los archivos que tú mismo escojas si nos das tu historia laboral/);
+    assert.ok(fs.readFileSync(path.join(RAIZ, 'PLAY-FICHA.md'), 'utf8').indexOf(bloque) >= 0, 'PLAY-FICHA.md no está regenerado: node herramientas/ficha-play.js 2026-10-01');
+  });
+
   test('la casilla nace SIN marcar (Decreto 1377, art. 7): solo sale marcada si ya la dio', () => {
     assert.equal(/checked/.test(HL.autorizacionHTML(false)), false);
     assert.match(HL.autorizacionHTML(true), /checked/);
