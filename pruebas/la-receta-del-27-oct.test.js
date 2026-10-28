@@ -86,8 +86,26 @@ describe('la receta del 27-oct dice lo que hay en base/', {
   test('control: hay SQL pendientes para el 27 (los cuatro del 22-oct, al menos)', () => {
     const p = pendientes();
     assert.ok(p.length >= 4, 'esperaba al menos los cuatro del 22-oct y hay: ' + p.join(', '));
-    assert.equal(p[p.length - 1], '20261022d_el_equipo_con_la_clave_de_joan.sql',
-      'el último pendiente ya no es el del equipo: la receta lo manda al final porque es el que deja a todos afuera');
+    /* 27-oct-2026 — EL GERENTE AGREGA. El del equipo sigue siendo el último de
+       los que dejan a alguien afuera; después va 20261027 (el 2.4-bis), que lo
+       EXIGE: se para en su paso 0 si falta 22d. */
+    assert.equal(p[p.length - 1], '20261027_el_gerente_agrega.sql',
+      'el último pendiente ya no es el del gerente que agrega (2.4-bis)');
+    assert.ok(p.indexOf('20261022d_el_equipo_con_la_clave_de_joan.sql') === p.length - 2,
+      'el del equipo ya no va justo antes del 2.4-bis');
+    const sql27 = fs.readFileSync(path.join(RAIZ, 'base', '20261027_el_gerente_agrega.sql'), 'utf8');
+    assert.match(sql27, /to_regprocedure\('public\.celular_del_equipo_de_sesion\(\)'\) is null/, 'el 2.4-bis no exige el 2.4');
+  });
+
+  test('el 2.4-bis dice que va después del 2.4, de noche, y con 12 filas en true', () => {
+    const s = seccionDe(leerReceta(), '20261027_el_gerente_agrega.sql');
+    assert.ok(s, 'la receta no tiene la sección del 2.4-bis (base/20261027_el_gerente_agrega.sql): pégala de RECETA-2.4-bis.md');
+    assert.match(s, /2\.4-bis/);
+    assert.match(s, /de noche/i, 'no dice que se corre de noche (crea índices: mientras tanto nadie termina su registro)');
+    /* 27-oct-2026, ronda 2 — 12: la fecha de Bogotá y el borrado en la copia del Panel. */
+    assert.match(s, /12\s+filas/, 'la receta no dice las 12 filas en true del 2.4-bis: pega otra vez RECETA-2.4-bis.md');
+    assert.match(s, /equipo_acuerdo_firmado/, 'no dice cómo anotar el acuerdo del gerente');
+    assert.match(s, /recarga el CRM/i, 'no dice que recargue el CRM del computador');
   });
 
   test('nombra cada SQL pendiente en un encabezado, en el orden en que se corren', () => {

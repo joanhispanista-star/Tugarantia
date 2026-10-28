@@ -99,15 +99,27 @@ const MIGRACION = f => /^\d{8}.*\.sql$/.test(f);
 
 describe('2 · Los cuatro SQL del 22-oct, en el orden en que Joan los corre', () => {
 
-  test('el orden alfabético de base/ es el orden en que se corren, y el del equipo es el último', () => {
+  test('el orden alfabético de base/ es el orden en que se corren; el del equipo es el último del 22-oct, y lo que viene después lo exige', () => {
     /* Antes: 20261022_destino, 20261022_la_foto, 20261022b_el_equipo,
        20261022b_las_cuentas. El del equipo caía antes que el de las cuentas, y
        los dos «b» no decían cuál iba primero. */
     const base = fs.readdirSync(path.join(RAIZ, 'base')).filter(MIGRACION).sort();
     assert.deepEqual(base.filter(f => /^20261022/.test(f)), DEL_22,
       'los SQL del 22-oct no están en el orden en que se corren (la_foto, destino, cuentas, equipo)');
-    assert.equal(base[base.length - 1], DEL_22[3],
-      'hay una migración después de la del equipo: la del equipo deja a todos afuera y va al final');
+    /* 27-oct-2026 — EL GERENTE AGREGA (20261027) va DESPUÉS del equipo, y a
+       propósito: usa gerente_de_sesion con la clave de Joan. «22d es la última»
+       pasa a «22d es la última del 22-oct, y cada migración posterior para en
+       su paso 0 si falta 22d»: así ninguna puede correr antes por error y
+       abrir algo con una sesión creada desde play/. */
+    const despues = base.slice(base.indexOf(DEL_22[3]) + 1);
+    despues.forEach(f => {
+      const t = fs.readFileSync(path.join(RAIZ, 'base', f), 'utf8').replace(/--[^\n]*/g, '');
+      const paso0 = t.slice(0, t.indexOf('end $$;') + 7);
+      assert.match(paso0, /to_regprocedure\('public\.celular_del_equipo_de_sesion\(\)'\) is null[\s\S]*?raise exception/,
+        f + ' viene después de la del equipo y no se para en su paso 0 si falta 22d');
+      assert.ok(t.indexOf('do $$') >= 0 && t.indexOf('do $$') < t.search(/create (table|or replace function|index|trigger)/),
+        f + ': crea algo antes de su paso 0');
+    });
   });
 
   test('nadie nombra los SQL por su nombre viejo (salvo para decir cómo se llamaban)', () => {

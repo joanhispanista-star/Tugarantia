@@ -1990,6 +1990,10 @@ const ARCHIVOS = [
   'panel/gerente-vende.js',
   /* 19-oct-2026 — «🔑 Mi contraseña» del equipo: crm.html la carga con <script src>. Ver la nota de v138. */
   'panel/mi-clave.js',
+  /* 27-oct-2026 — «el gerente agrega»: las reglas de agregar gente (columnas
+     extra, limpieza, tandas). crm.html la pide con ?v= y firma al llegar. El
+     CACHE no se toca aquí: lo sube a v140 el integrador del viernes 30, con chat-1. */
+  'panel/agregar-prospectos.js?v=139',
   'panel/tanda.js',
   /* 2-oct-2026 — «Tu gente», los referidos del espejo. Ver la nota de v124. */
   'app/gente.js',

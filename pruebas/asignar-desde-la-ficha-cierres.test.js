@@ -224,7 +224,10 @@ describe('3 · lo que ve quien lo recibe, dicho sin «nunca la cédula»', () =>
       assert.doesNotMatch(textos[k], /Nunca la cédula/, k + ' promete lo que «🪪 Ver su ficha» no cumple');
       assert.match(textos[k], VERDAD, k + ' no dice que ve su cédula, su dirección, sus cuentas y sus fotos');
     });
-    assert.match(textos.asignarProspecto, /su nombre, su celular y en qué va/);
+    /* 27-oct-2026 (el gerente agrega, revisión) — de un prospecto viaja también
+       lo que Joan anotó de él; con el SQL sin correr (404) vuelve a decir lo de antes.
+       Ronda 4 — «tal como está escrito»: son textos libres y viajan como vienen. */
+    assert.match(textos.asignarProspecto, /su nombre, su celular, en qué va y lo que anotaste de él, tal como está escrito: la información adicional, de dónde salió, si autorizó y, de las columnas de su base, solo ciudad, monto que pide, ocupación o negocio, cómo llegó y observación/);
     assert.match(textos.asignarCliente, /cuánto debe y cuándo paga/);
   });
 });
