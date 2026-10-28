@@ -69,8 +69,15 @@
 -- ===========================================================================
 
 -- ====== 0. LO QUE TIENE QUE EXISTIR ANTES ======
+-- Como todo lo que va después de 20261022d (la regla de
+-- pruebas/el-lote-del-27-junto.test.js): si esa no está, se para aquí. Este
+-- archivo no la usa —sus funciones son del cliente y de Joan, ninguna del
+-- equipo—, pero correrlo antes por error diría que el orden no importa.
 do $$
 begin
+  if to_regprocedure('public.celular_del_equipo_de_sesion()') is null then
+    raise exception 'Primero corre base/20261022d_el_equipo_con_la_clave_de_joan.sql y base/20261027_el_gerente_agrega.sql. Este archivo va después. No se tocó nada.';
+  end if;
   if to_regprocedure('public.celular_de_sesion()') is null
      or to_regprocedure('public.clave_ok(text)') is null
      or to_regprocedure('public.solo_digitos(text)') is null
