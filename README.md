@@ -42,9 +42,39 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         la misma de play/ y de la portada) con el mismo traspaso
                         a play/#registro; y el atajo #calc del ícono lleva a la
                         pestaña Calculadora.
+                        Desde el 26-oct-2026 (chat-1) la pestaña «Mensajes» se
+                        llama «Chat» y trae «Chat (n)»: el número de lo que le
+                        falta por leer late cada 20 s en TODA la app (a la
+                        vista; escondida solo cuenta, cada minuto, y nunca pide
+                        el hilo); la conversación abierta se mueve sola cada
+                        8 s con app/chat-vivo.js (solo lo nuevo, sin tocar el
+                        cuadro de texto ni arrastrar a quien lee arriba); se
+                        mandan fotos (chat_foto_sesion, comprimidas) y se abre
+                        la grande; y contesta en el canal del último mensaje
+                        RECIBIDO, no siempre en «servicio» (si no, la
+                        contestación de Joan en Cobranzas contaba como contacto
+                        nuevo para la Ley 2300). Un envío fallido deja el texto
+                        y lo dice al lado del cuadro. Con la app cerrada no
+                        llega nada, y la pantalla no lo promete. Pruebas:
+                        pruebas/chat-1-socio.test.js.
   sesion-socio.js       La puerta: entrar, la sesión, mi_cuenta, «Olvidé mi
                         contraseña» y cambiarla. Sin DOM, probada en node.
   ver-como.js           El pase de un uso de «👁 Ver la app como la ve él» (CRM).
+  chat-vivo.js          Los relojes del chat (26-oct-2026, chat-1): la
+                        conversación abierta se mueve sola cada 8 s (solo a la
+                        vista: lo que se pide queda «visto»), la bandeja cada
+                        45 s a la vista y cada minuto escondida (solo las
+                        listas), los dos se detienen con la clave rechazada, y
+                        junta mensajes por id sin repintar el cuadro de texto
+                        ni arrastrar la pantalla de quien lee arriba. Lo cargan
+                        LAS TRES pantallas (CRM, espejo y la app del socio,
+                        26-oct) con el mismo contrato (la cabecera del archivo
+                        lo documenta); pruebas/las-tres-pantallas-el-mismo-
+                        reloj.test.js vigila que ninguna se descuelgue. La
+                        prueba de Joan del jue 29-oct, paso a paso y con lo
+                        que debe ver, está en RECETA-CHAT-1.md (no va al repo).
+                        Sin HTML y sin llamadas a la nube: cada página pasa su
+                        `pedir`. Pruebas: pruebas/chat-vivo.test.js.
   motor.js              El motor del producto de HOY (quincenal y con garantía).
   creditos.js           El catálogo del producto a 6 meses, pensado para Play
                         (canal descartado el 18-ago — ver play/ abajo). Aparte
@@ -180,6 +210,19 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
 
 panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna parte.
   crm.html              Socios, créditos, cobros, invitaciones, plantillas.
+                        Desde el 26-oct-2026 (chat-1) «💬 Mensajes» se llama
+                        «💬 Chat», en el CRM de Joan y en el del equipo: el
+                        equipo aparece solo (sin ↻), arriba «Clientes (n) ·
+                        Equipo (n)» con buscador por nombre, el número de la
+                        barra y el título de la pestaña del navegador suman
+                        los dos, la conversación abierta se mueve sola cada
+                        8 s (clientes y equipo; el asesor, con su pestaña
+                        abierta), con el CRM en otra pestaña se revisa la
+                        lista cada minuto (globo y toque corto solo si llegó
+                        algo, con interruptor), «📷» al cliente desde el
+                        computador, y Cobranzas fuera del horario de la Ley
+                        2300 —festivos incluidos— avisa y no envía. Pruebas:
+                        pruebas/chat-1-crm.test.js.
                         Desde el 23-oct-2026, «👤 Asignar a…» en la ficha de
                         cada cliente, en cada fila de Clientes y de Bases y en
                         el cuadro de editar o agregar un cliente (con quién lo
@@ -232,6 +275,26 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         se publica debajo, y con el PIN siguen como estaban.
                         Con la puerta encima, Escape (en el campo del PIN o en
                         la página) ya no cierra el cuadro de debajo.
+  espejo.html           El Panel en el bolsillo: la cartera en el celular de Joan
+                        (cobrar, prestar, registrados, el chat). Desde el
+                        26-oct-2026 (chat-1) «Mensajes» se llama «Chat» y trae
+                        Clientes · Equipo (el equipo con las funciones que la
+                        base ya tenía: equipo_chat_conversaciones, equipo_chat_de,
+                        equipo_chat_responder, equipo_foto_*); el número de la
+                        barra suma los dos; la conversación se abre a PANTALLA
+                        COMPLETA (← y el gesto de atrás de Android vuelven a la
+                        lista: entra con history.pushState) y se mueve sola cada
+                        8 s con app/chat-vivo.js (solo lo nuevo, solo la caja del
+                        hilo, nunca escondida, se para al cerrar); si falla un
+                        envío, el texto sigue en el cuadro y se dice al lado; el
+                        hilo del equipo con texto y foto; «💬 Escribirle por la
+                        app» en la ficha (al hilo de la ficha en la nube); y la
+                        foto al cliente ya no dice «No pude mandarla» después de
+                        mandarla (llamaba a traerHilo(), que no existía). Sin
+                        candado de Cobranzas en el celular: contesta sin canal y
+                        la base elige; chat-2 lo pone en la base. Sin
+                        app/chat-vivo.js abre una vez y lo dice. Pruebas:
+                        pruebas/chat-1-espejo.test.js.
   una-puerta.js         Las palabras del toque «¿Es la misma persona?» (juntar la
                         cuenta de un cliente antiguo), compartidas con espejo.html.
   nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el

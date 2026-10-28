@@ -1955,6 +1955,12 @@ const ARCHIVOS = [
   /* El chat: lo comparten la app del socio, el CRM y el espejo, igual que el
      motor y el puente. Es la razón de que este service worker viva en la raíz. */
   'app/chat.js',
+  /* 26-oct-2026 — chat-1: los relojes del chat (el hilo abierto, la bandeja
+     escondida) y cómo juntar mensajes por id. Lo carga crm.html con
+     <script src>; el espejo y la app del socio lo usan con el mismo
+     contrato. NUEVO: sin versión en la dirección, no hay copia vieja con la
+     que mezclarse. El CACHE lo sube quien integra el lote del 30-oct. */
+  'app/chat-vivo.js',
   /* 7-oct-2026 — la puerta unica de la app del socio. Ver la nota de v132. */
   'app/sesion-socio.js?v=139',
   'app/ver-como.js',

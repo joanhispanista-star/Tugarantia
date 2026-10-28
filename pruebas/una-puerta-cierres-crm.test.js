@@ -440,7 +440,10 @@ describe('textos y relojes', () => {
     P.ctx.setInterval = () => { puestos++; return 7; };
     P.ctx.clearInterval = () => { quitados++; };
     P.ev('render()'); P.ev('render()'); P.ev('render()');
-    assert.equal(puestos, 1, 'cada repintada vuelve a empezar la cuenta de 45 s');
+    /* 26-oct-2026 — chat-1: son DOS relojes (45 s a la vista y 60 s escondido,
+       app/chat-vivo.js), armados UNA sola vez: tres repintadas siguen siendo
+       dos relojes y ninguno quitado. */
+    assert.equal(puestos, 2, 'cada repintada vuelve a empezar la cuenta de 45 s (o faltan los dos relojes)');
     assert.equal(quitados, 0);
   });
 });

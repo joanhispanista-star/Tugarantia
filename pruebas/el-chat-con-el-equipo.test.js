@@ -155,7 +155,8 @@ describe('las dos pantallas', () => {
   });
 
   test('y el mapa del menú la conoce, o el botón no se enciende', () => {
-    assert.match(CRM, /whatsapp: 'Mi WhatsApp', jefe: 'Mensajes'/,
+    /* 26-oct-2026 — chat-1: la entrada se llama «Chat». */
+    assert.match(CRM, /whatsapp: 'Mi WhatsApp', jefe: 'Chat'/,
       'la entrada nueva hereda el fallo del mapa: el menú se apaga entero');
   });
 
