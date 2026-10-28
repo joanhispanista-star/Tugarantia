@@ -2380,6 +2380,7 @@ function pintarRegistro(paso) {
   /* 28-oct-2026 — el paso del fondo de pensiones se arma ya pintado: escucha
      sus propios toques (app/historia-laboral.js). */
   if (p.id === 'pension') montarPasoPension();
+  probarPensionEnLaBase();   // 28-oct-2026 (arreglo de los leves, P13): una vez por visita
   if (p.id === 'rostro' && autorizoEsteIntento() && !hayFotoLista('selfie')) setTimeout(iniciarEscaner, 50);
   /* 19-oct-2026 — LA UBICACIÓN, EN EL PASO DEL ROSTRO Y NO EN EL PRIMERO. Con
      la cédula primero, lo primero que habría visto el cliente eran dos
@@ -3269,6 +3270,42 @@ function soltarArchivosDePension() {
   var g = guardaderoPension();
   if (g) { try { g.soltarArchivos(); } catch (e) {} }
 }
+/* 28-oct-2026 (arreglo de los leves, P13) — ¿LA BASE TIENE LA HISTORIA
+   LABORAL? El paso aparecía siempre que llegaran sus dos .js, sin preguntarle
+   a la base. Si v141 sale antes que base/20261103_el_fondo_de_pensiones.sql
+   (o se olvida el «Reload schema»), el paso prometía «suben con tu registro»
+   y el aviso «súbela desde tu cuenta», y ninguna de las dos cosas existía: la
+   tarjeta de la cuenta se esconde con la base así. En este proyecto ya hubo
+   migraciones que nunca llegaron a producción y nadie se enteró.
+   Se pregunta UNA vez por visita, al pintar el registro (no a cada visitante
+   de la portada): pension_mia con la llave pública, sin sesión. Si la
+   función existe, la base contesta que no le deja (401); si no existe, 404.
+   Solo un 404 apaga el paso: sin red, o con cualquier otra respuesta, se
+   sigue como antes (el paso funciona sin red y espera en el teléfono).
+   Apagado, el paso SE QUITA del registro (son 10), lo escogido en él se
+   olvida, y ni la pista de «Lo hago después» ni la tarjeta del Perfil
+   aparecen (HL_APAGADO_PLAY): no se promete lo que no existe. */
+var PENSION_PROBADA = false;
+function probarPensionEnLaBase() {
+  if (PENSION_PROBADA || indiceDe('pension') < 0 || !CFG || !CFG.url || !CFG.anon) return;
+  PENSION_PROBADA = true;
+  var p = null;
+  try {
+    p = fetch(String(CFG.url).replace(/\/+$/, '') + '/rest/v1/rpc/pension_mia', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon }, body: '{}' });
+  } catch (e) { return; }
+  Promise.resolve(p).then(function (r) { if (r && r.status === 404) apagarPasoPension(); }, function () {});
+}
+function apagarPasoPension() {
+  HL_APAGADO_PLAY = true;
+  var i = indiceDe('pension');
+  if (i < 0) return;
+  olvidarPension();   // lo escogido ahí no va a subir a ninguna parte
+  PASOS.splice(i, 1);
+  if (VISTA !== 'registro') return;
+  if (PASO > i) PASO--;                       // el mismo paso, con un número menos
+  else if (PASO === i) pintarRegistro(PASO);  // estaba en él: pasa al que seguía
+}
 function olvidarPension() {
   PENSION_PERDIDOS = false;
   var g = guardaderoPension();
@@ -3281,6 +3318,9 @@ function encolarLaHistoriaLaboral(cel) {
   var g = guardaderoPension();
   PENSION_SALTADA = false;
   if (!g || MARCA === 'platachat') return;
+  /* Con la base sin la historia laboral (ver probarPensionEnLaBase) no se
+     encola nada: no hay adónde subirlo. */
+  if (HL_APAGADO_PLAY) { try { g.olvidar(); } catch (e) {} return; }
   try {
     /* 28-oct-2026 (arreglo de los leves, P1) — ¿saltó el paso? Se mira ANTES
        de encolar, que se lleva lo escogido del registro. */

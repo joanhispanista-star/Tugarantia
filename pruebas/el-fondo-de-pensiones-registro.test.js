@@ -329,6 +329,66 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     assert.match(avisoPension(P), /Tu historia laboral llegó/);
   });
 
+  /* 28-oct-2026 (arreglo de los leves, P13) — el paso aparecía siempre que
+     llegaran sus .js, sin preguntarle a la base: con v141 publicada antes que
+     la migración, prometía «suben con tu registro» y «súbela desde tu cuenta»,
+     y nada de eso existía. Ahora el registro pregunta UNA vez (pension_mia con
+     la llave pública: 401 si existe, 404 si no) y con 404 el paso se va. Con
+     el código de antes no se pregunta nada y el paso se queda: esto falla. */
+  const NO_EXISTE = "function (u) { window.__preguntas = (window.__preguntas || []).concat([{ u: String(u), auth: String(((arguments[1] || {}).headers || {}).Authorization || '') }]);" +
+    " return Promise.resolve({ ok: false, status: 404, json: function () { return Promise.resolve({}); }, text: function () { return Promise.resolve(''); } }); }";
+  test('la base sin la migración: el registro lo pregunta una vez y, con 404, el paso no aparece y nada promete la tarjeta', async () => {
+    const P = enElPaso();
+    escoger(P, ['porvenir'], [UN_PDF]);
+    P.ev('fetch = ' + NO_EXISTE + '; PENSION_PROBADA = false; probarPensionEnLaBase();');
+    await B.asentar(10);
+    const q = JSON.parse(P.ev('JSON.stringify(window.__preguntas || [])'));
+    assert.equal(q.length, 1, 'no le preguntó a la base (o le preguntó más de una vez)');
+    assert.match(q[0].u, /\/rest\/v1\/rpc\/pension_mia$/);
+    assert.equal(q[0].auth, 'Bearer ' + P.ev('CFG.anon'), 'preguntó con algo que no es la llave pública');
+    assert.equal(P.ev("indiceDe('pension')"), -1, 'con la base sin la historia laboral, el paso sigue en el registro');
+    assert.equal(B.pasoActual(P), 'cobro', 'estaba en el paso del fondo: tenía que pasar al que seguía');
+    assert.match(B.texto(B.cuerpo(P)), /Paso 8 de 10/);
+    assert.equal(P.ev("localStorage.getItem('play_pension')"), null, 'lo escogido se quedó para subir a ninguna parte');
+    assert.equal(P.ev('pistaDespuesHTML()'), '', 'la pista de «Lo hago después» promete una tarjeta que no aparece');
+    /* Una sola pregunta por visita, aunque se pinten más pasos. */
+    P.ev("pintarRegistro(indiceDe('referencias'))");
+    await B.asentar(5);
+    assert.equal(JSON.parse(P.ev('JSON.stringify(window.__preguntas)')).length, 1);
+  });
+
+  test('con la base sin la migración, «Tu cuenta quedó creada» no dice nada del fondo ni manda al Perfil', async () => {
+    const P = B.abrir();
+    const llamadas = B.nube(P);
+    P.ev('window.__nube = fetch; fetch = function (u, op) { if (/rpc\\/pension_/.test(String(u))) return (' + NO_EXISTE + ')(u, op); return window.__nube(u, op); };');
+    P.ev('PENSION_PROBADA = false; probarPensionEnLaBase();');
+    await B.asentar(10);
+    B.mariaHastaElPermiso(P, false);
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    assert.equal(P.ev('VISTA'), 'listo', 'María no abrió su cuenta');
+    assert.ok(llamadas().some(x => /auth\/v1\/signup/.test(x.url)), 'la cuenta no se creó en la nube');
+    assert.equal(avisoPension(P), '', 'con la base sin la historia laboral, la cuenta nueva habla de ella: ' + avisoPension(P));
+    /* Lo único que preguntó del fondo fue la pregunta del registro: nada que subir. */
+    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__preguntas.map(function (x) { return x.u.replace(/^.*rpc\\//, ""); }))')), ['pension_mia'],
+      'intentó autorizar o subir algo a una base que no lo tiene');
+  });
+
+  test('con la función en la base (401 sin sesión) o sin red, el paso se queda', async () => {
+    const con = respuesta => {
+      const P = enElPaso();
+      P.ev('fetch = function () { return ' + respuesta + '; }; PENSION_PROBADA = false; probarPensionEnLaBase();');
+      return P;
+    };
+    const A = con("Promise.resolve({ ok: false, status: 401, json: function () { return Promise.resolve({}); } })");
+    const R = con("Promise.reject(new Error('sin red'))");
+    await B.asentar(10);
+    [A, R].forEach(P => {
+      assert.ok(P.ev("indiceDe('pension')") >= 0, 'quitó el paso sin que la base dijera que no lo tiene');
+      assert.equal(B.pasoActual(P), 'pension');
+    });
+  });
+
   test('el «después» existe también aquí: el Perfil de la cuenta de play/ trae «Tu historia laboral», con la sesión de ESA cuenta', async () => {
     const P = B.abrir();
     const llamadas = B.nube(P);

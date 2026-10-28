@@ -931,7 +931,11 @@
       if (r.rechazados.length) return { clase: 'ambar', html: '<b>Tu historia laboral no entró.</b>' + malos };
       return { clase: 'verde', html: guardamosSinArchivos(r.fondos) };
     }
-    if (r.estado === 'apagado') return { clase: 'ambar', html: '<b>Tu historia laboral se quedó en este teléfono:</b> esta parte todavía no está encendida en nuestro sistema. ' + quedan };
+    /* 28-oct-2026 (arreglo de los leves, P13) — sin «súbela desde tu cuenta»:
+       con la base así, la tarjeta de la cuenta tampoco aparece. Y lo que de
+       verdad pasa con lo que espera: se reintenta hasta mañana y se borra. */
+    if (r.estado === 'apagado') return { clase: 'ambar', html: '<b>Tu historia laboral se quedó en este teléfono:</b> esta parte todavía no está encendida en nuestro sistema. ' +
+      'Lo volvemos a intentar cuando entres a tu cuenta en este teléfono, hasta mañana; después se borra de este teléfono.' };
     if (r.estado === 'freno') return { clase: 'ambar', html: '<b>Tu historia laboral no alcanzó a subir</b> por demasiados intentos seguidos. ' + quedan };
     if (r.estado === 'lleno') return { clase: 'ambar', html: '<b>Tu historia laboral se quedó en este teléfono:</b> ahora mismo no podemos recibir más historias laborales. Es opcional: tu cuenta sigue igual. ' + quedan };
     /* 28-oct-2026 (arreglo de los leves, P7) — sin «Lo volvemos a intentar»: no se va a intentar. */

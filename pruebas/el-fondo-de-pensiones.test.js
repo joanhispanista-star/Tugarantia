@@ -662,6 +662,10 @@ describe('la subida de la cola, con la sesión de la cuenta', () => {
     assert.equal(r2.estado, 'apagado');
     assert.ok(await t2.g.cola('3001112233'), 'con la base sin la migración, la cola se perdió');
     assert.match(HL.avisoDeLaCola(r2).html, /todavía no está encendida/);
+    /* 28-oct-2026 (arreglo de los leves, P13) — y sin mandarla a una tarjeta
+       que con la base así no aparece; dice lo que de verdad pasa después. */
+    assert.equal(/desde tu cuenta|súbela/.test(HL.avisoDeLaCola(r2).html), false, 'promete la tarjeta de la cuenta, que con la base sin la migración no aparece');
+    assert.match(HL.avisoDeLaCola(r2).html, /hasta mañana; después se borra de este teléfono\./);
     const r3 = await HL.subirCola(t2.g, '3001112233', () => Promise.reject(Object.assign(new Error('http 401'), { status: 401 })));
     assert.equal(r3.estado, 'sesion');
   });
