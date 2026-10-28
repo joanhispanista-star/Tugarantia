@@ -172,6 +172,13 @@
       'fotos de tu cédula y de tu cara, y tendrás que volver a tomarlas.',
     volver: 'Cuando tengas tu historia laboral, vuelve a esta pestaña de Tu Garantía y súbela aquí. Si tarda en llegarte, ' +
       'no la esperes: sigue con tu registro y súbela después desde tu cuenta en la app.',
+    /* 28-oct-2026 (arreglo de los leves, P1) — DÓNDE QUEDA EL «DESPUÉS». «Lo
+       hago después» no lo decía en ninguna parte: la tarjeta está al fondo del
+       Perfil de la cuenta de play/ (debajo de la contraseña) y en Inicio de la
+       app instalada (app/socio.html). Lo dice el registro al tocarlo, y la
+       pantalla de la cuenta recién abierta si saltó el paso. Sin enlace a la
+       app: play/ no enlaza al quincenal (la frontera de Play). */
+    dondeDespues: 'La subes cuando quieras desde tu cuenta: Perfil → «📄 Tu historia laboral» (en la app instalada, en Inicio).',
     subela: 'Cuando la tengas, súbela',
     ayudaFormas: 'El PDF es lo mejor: es el documento tal como te lo mandó tu fondo. Si no, pantallazos donde se lean tu ' +
       'nombre, tus semanas y tus empleadores.',

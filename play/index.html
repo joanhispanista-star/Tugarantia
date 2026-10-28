@@ -2341,12 +2341,17 @@ function pintarRegistro(paso) {
      datos»), y un tercero que hace lo mismo que el segundo con otro nombre
      solo hace dudar. */
   var conContinuar = !(p.id === 'documento' && !autorizoEsteIntento());
+  /* 28-oct-2026 (arreglo de los leves, P1) — la línea de «Lo hago después»,
+     una vez, en el paso al que lleva (ver pensionDespues). */
+  var pista = (PISTA_DESPUES && p.id !== 'pension') ? pistaDespuesHTML() : '';
+  PISTA_DESPUES = false;
 
   $('cuerpo').innerHTML =
     '<div class="card">' +
       '<div class="etq">Paso ' + (PASO + 1) + ' de ' + PASOS.length + '</div>' +
       barra +
       '<h3 class="tit" style="margin-top:var(--e3)">' + esc(titulo) + '</h3>' +
+      pista +
       cuerpo +
       /* 8-oct-2026 — aquí iba la tarjeta «¿quieres que un asesor te
          acompañe?», en CADA paso. Joan la quitó: el acompañamiento ya no se
@@ -3237,9 +3242,24 @@ function montarPasoPension() {
   if (!g || !caja) return;
   HL.pasoDelRegistro(caja, {
     guardadero: g, intento: asegurarIntento(), celular: String(REGISTRO.celular || ''), perdidos: PENSION_PERDIDOS,
-    despues: function () { if (!viajando()) pintarRegistro(PASO + 1); }
+    despues: pensionDespues
   });
   PENSION_PERDIDOS = false;   // se dijo una vez
+}
+/* 28-oct-2026 (arreglo de los leves, P1) — «LO HAGO DESPUÉS» DICE DÓNDE
+   QUEDA EL DESPUÉS. Pasaba al paso siguiente sin una palabra: el «desde tu
+   cuenta» solo estaba en la letra chica de la autorización, que quien salta
+   no marca, y la tarjeta vive al fondo del Perfil. Ahora el paso siguiente
+   abre con una línea que dice dónde (HL.TEXTOS.dondeDespues), una sola vez. */
+var PISTA_DESPUES = false;
+function pensionDespues() {
+  if (viajando()) return;
+  PISTA_DESPUES = true;
+  pintarRegistro(PASO + 1);
+}
+function pistaDespuesHTML() {
+  if (!HL || HL_APAGADO_PLAY) return '';
+  return '<div class="aviso info" id="pistaPension" role="status"><b>Lo dejaste para después.</b> ' + esc(HL.TEXTOS.dondeDespues) + '</div>';
 }
 function soltarArchivosDePension() {
   var g = guardaderoPension();
@@ -3255,10 +3275,25 @@ function olvidarPension() {
    memoria: el intento sale de ahí. */
 function encolarLaHistoriaLaboral(cel) {
   var g = guardaderoPension();
+  PENSION_SALTADA = false;
   if (!g || MARCA === 'platachat') return;
   try {
+    /* 28-oct-2026 (arreglo de los leves, P1) — ¿saltó el paso? Se mira ANTES
+       de encolar, que se lleva lo escogido del registro. */
+    var lo = g.estado(String(REGISTRO.intento || ''), String(cel || ''));
+    PENSION_SALTADA = !(lo && lo.aut && lo.aut.version) && indiceDe('pension') >= 0;
     PENSION_ENCOLADA = g.encolar(String(REGISTRO.intento || ''), String(cel || '')).then(null, function () { return false; });
   } catch (e) { PENSION_ENCOLADA = null; }
+}
+/* 28-oct-2026 (arreglo de los leves, P1) — QUIEN SALTÓ EL PASO SABE DÓNDE
+   QUEDA. En «Tu cuenta quedó creada» no había ni una línea del fondo para
+   quien no autorizó: la misma pista de «Lo hago después», con el camino al
+   Perfil al lado (pintarAvisoPension lo pone). No sale si la base no tiene
+   la historia laboral (la tarjeta tampoco aparece) ni en PlataChat. */
+var PENSION_SALTADA = false;
+function pintarPistaDeLaCuentaNueva() {
+  if (!PENSION_SALTADA || !HL || HL_APAGADO_PLAY || MARCA === 'platachat') return;
+  pintarAvisoPension('<b>Tu historia laboral es opcional.</b> ' + esc(HL.TEXTOS.dondeDespues), 'info', true);
 }
 /* La sube con la sesión de la cuenta abierta y dice en #avisoPension qué
    pasó. Suelta (rpcSesion con su último argumento): lo que anota es de la
@@ -5222,6 +5257,7 @@ function pintarRegistrado() {
     tarjetaPedir('pedirPrimerCredito()', 'Tu crédito') +
     '<div class="card"><button class="btn sec" onclick="pintarCuenta()">Ir a mi cuenta</button></div>' +
     pie();
+  pintarPistaDeLaCuentaNueva();   // 28-oct-2026 (arreglo de los leves, P1)
   window.scrollTo(0, 0);
 }
 

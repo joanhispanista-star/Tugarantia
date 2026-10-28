@@ -236,7 +236,55 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     await B.asentar(30);
     assert.equal(P.ev('VISTA'), 'listo');
     assert.equal(llamadas().some(x => /pension_/.test(x.url)), false, 'salió algo del fondo sin la autorización');
-    assert.equal(avisoPension(P), '');
+    /* 28-oct-2026 (arreglo de los leves, P1) — antes la caja quedaba vacía; ahora
+       dice dónde queda el «después», y nada de lo que no pasó (ni «llegó» ni
+       «Guardamos»). */
+    assert.equal(/llegó|Guardamos|subiendo/i.test(avisoPension(P)), false, avisoPension(P));
+    assert.match(avisoPension(P), /Tu historia laboral es opcional\./);
+  });
+
+  /* 28-oct-2026 (arreglo de los leves, P1) — «LO HAGO DESPUÉS» DICE DÓNDE
+     QUEDA EL DESPUÉS. Pasaba al paso siguiente sin una palabra, y la cuenta
+     recién abierta tampoco decía nada del fondo a quien lo saltó: la tarjeta
+     está al fondo del Perfil, debajo de la contraseña. Con el código de antes
+     no hay línea y estas dos fallan. */
+  test('al tocar «Lo hago después», el paso siguiente abre con una línea que dice dónde subirla; una sola vez', () => {
+    const P = enElPaso();
+    P.ev('pensionDespues()');
+    assert.equal(B.pasoActual(P), 'cobro');
+    const t = B.texto(B.cuerpo(P));
+    assert.match(t, /Lo dejaste para después\. La subes cuando quieras desde tu cuenta: Perfil → «📄 Tu historia laboral» \(en la app instalada, en Inicio\)\./);
+    assert.ok(B.cuerpo(P).indexOf('id="pistaPension"') < B.cuerpo(P).indexOf('id="btnSeguir"'), 'la línea no va arriba');
+    assert.equal(/socio\.html/.test(B.cuerpo(P)), false, 'play/ enlaza al quincenal');
+    /* Una sola vez: al repintar, o al llegar con «Continuar», ya no está. */
+    P.ev('pintarRegistro(PASO)');
+    assert.equal(/Lo dejaste para después/.test(B.cuerpo(P)), false, 'la línea se quedó pegada');
+    const Q = enElPaso();
+    Q.ev('siguientePaso()');
+    assert.equal(B.pasoActual(Q), 'cobro');
+    assert.equal(/Lo dejaste para después/.test(B.cuerpo(Q)), false, '«Continuar» no es «Lo hago después»');
+  });
+
+  test('saltó el paso: «Tu cuenta quedó creada» trae la misma pista, con el camino al Perfil; quien sí autorizó, no', async () => {
+    const P = B.abrir();
+    B.nube(P);
+    B.mariaHastaElPermiso(P, false);
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    assert.equal(P.ev('VISTA'), 'listo');
+    assert.match(avisoPension(P), /Tu historia laboral es opcional\. La subes cuando quieras desde tu cuenta: Perfil → «📄 Tu historia laboral»/);
+    const h = P.ev("document.getElementById('avisoPension').innerHTML");
+    assert.match(h, /onclick="abrirHistoriaLaboralEnPerfil\(\);return false">Subirla desde tu Perfil<\/a>/);
+    assert.equal(/socio\.html/.test(h), false, 'play/ enlaza al quincenal');
+    /* Quien autorizó y escogió su fondo lee lo que pasó con eso, no la pista. */
+    const Q = B.abrir();
+    B.nube(Q);
+    B.mariaHastaElPermiso(Q, false);
+    escoger(Q, ['porvenir']);
+    B.tocar(Q, 'Abrir mi cuenta');
+    await B.asentar(30);
+    assert.equal(/es opcional/.test(avisoPension(Q)), false, avisoPension(Q));
+    assert.match(avisoPension(Q), /Guardamos tu autorización y tu fondo/);
   });
 
   test('la base sin la migración (404): se queda en el teléfono y se dice; entrar a la cuenta lo reintenta', async () => {
