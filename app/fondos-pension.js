@@ -72,7 +72,12 @@
               'Toca «Generar certificados» y escoge Pensión obligatoria → «Constancia de Historia Laboral».',
               'Escoge cómo recibirla: te llega al correo que les diste.'],
       nota: '',
-      notaCrm: 'Según fuentes de 2017, el PDF puede abrir con la cédula como contraseña: sin confirmar.' },
+      /* 28-oct-2026 (arreglo de los leves, P15) — decía «Según fuentes de
+         2017», y pensiones.md cita dos: Semana (2017) y Rankia (actualizado
+         el 15-jun-2026). Las dos son de segunda mano; la página oficial no lo
+         dice. */
+      notaCrm: 'Según dos fuentes de segunda mano (Semana, 2017, y Rankia, actualizada en junio de 2026), el PDF abre con ' +
+        'la cédula como contraseña; la página de Protección no lo dice.' },
     { codigo: 'colfondos', nombre: 'Colfondos', regimen: 'afp', como: 'usuario',
       url: 'https://www.colfondos.com.co/dxp/acceso-de-usuarios',
       dominio: 'colfondos.com.co',

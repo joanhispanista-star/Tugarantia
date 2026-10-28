@@ -99,6 +99,19 @@ describe('la lista de fondos', () => {
     assert.match(bloque, /Skandia: .*saldo: no lo pedimos y no se usa/, 'la nota de Skandia no llega al CRM de Joan');
   });
 
+  /* 28-oct-2026 (arreglo de los leves, P15) — la nota de Protección decía
+     «Según fuentes de 2017», y la investigación del 28-oct (pensiones.md, §2.0
+     y §2.3) cita dos: Semana (2017) y Rankia (actualizado el 15-jun-2026),
+     ninguna oficial. Joan decide con esa nota cuánto creerle al PDF. Con el
+     texto de antes esto falla. */
+  test('la nota de Protección para Joan dice lo que dice la investigación: dos fuentes de segunda mano, 2017 y 2026', () => {
+    const n = FP.porCodigo('proteccion').notaCrm;
+    assert.equal(/Según fuentes de 2017/.test(n), false, 'la nota sigue citando solo 2017');
+    assert.match(n, /Semana, 2017/);
+    assert.match(n, /Rankia, actualizada en junio de 2026/);
+    assert.match(n, /la página de Protección no lo dice/);
+  });
+
   test('las reglas de combinación son las de la base: «No sé» y «Nunca» solos; Colpensiones con UN privado', () => {
     assert.equal(FP.revisar(['colpensiones', 'porvenir']).ok, true);
     assert.equal(FP.revisar([]).ok, true);
