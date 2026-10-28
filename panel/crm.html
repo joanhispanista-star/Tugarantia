@@ -718,6 +718,10 @@
         <div id="regEnVivo"></div></div>
       <div class="card"><div class="card-h"><h3>📥 Quién pidió entrar</h3><span class="tag">Al abrirles la ficha y darles su primer crédito pasan a Clientes</span></div>
         <div id="tblRegistros"></div></div>
+      <!-- 28-oct-2026 (arreglo de los leves, P12) — las historias laborales de quien ya no
+           está en la bandeja (descartado, o atendido sin ficha que la pinte): ver
+           renderPensionesFuera. Vacío si no hay ninguna, y en el modo equipo. -->
+      <div id="regPensionesFuera"></div>
       <!-- 22-sep-2026 — aqui estaba «Cupo de bienvenida (ruleta)». Se fue con la
            ruleta: el apartado llamaba a ruleta_giros_panel, que solo vive en una
            migracion que nunca se corrio, y con la rueda fuera de la app del
@@ -10941,15 +10945,18 @@ function avisoPedidosRegistrados(){
 
 function renderRegistros(){
   const b=document.getElementById('tblRegistros'); if(!b)return;
+  /* 28-oct-2026 (arreglo de los leves, P12) — las historias laborales que ya
+     no están en la bandeja, debajo de ella, haya quien haya en la bandeja. */
+  try{ renderPensionesFuera(); }catch(e){}
   if(!sbListo()){
     b.innerHTML=`<div class="empty"><div class="ic">☁️</div><p>Esto llega por la nube.<br><span class="muted">Conéctala en Ajustes y el que se registre desde la app te aparece aquí.</span></p></div>`;
     return;
   }
   if(!_registros.length){
-    b.innerHTML=`<div class="empty"><div class="ic">📭</div><p>Nadie esperando.<br><span class="muted">Toca “↻ Traer de la nube” para volver a mirar.</span></p></div>`;
+    b.innerHTML=`${avisoEspacioPension()}<div class="empty"><div class="ic">📭</div><p>Nadie esperando.<br><span class="muted">Toca “↻ Traer de la nube” para volver a mirar.</span></p></div>`;
     return;
   }
-  b.innerHTML=`${avisoPedidosRegistrados()}<div class="muted" style="padding:10px 14px 0;font-size:12px">Si alguien no aparece marcado como cliente tuyo, no quiere decir que sea nuevo: una ficha vieja sin cédula y con el número cambiado no se parece a nada. Búscalo por nombre en Clientes antes de abrirle una ficha.</div>
+  b.innerHTML=`${avisoEspacioPension()}${avisoPedidosRegistrados()}<div class="muted" style="padding:10px 14px 0;font-size:12px">Si alguien no aparece marcado como cliente tuyo, no quiere decir que sea nuevo: una ficha vieja sin cédula y con el número cambiado no se parece a nada. Búscalo por nombre en Clientes antes de abrirle una ficha.</div>
   <table><thead><tr><th>Quién</th><th>Origen</th><th>Cédula</th><th>Celular</th><th>Cuándo</th><th></th></tr></thead><tbody>${
     _registros.map(r=>{
       /* El chip cuenta de dónde vino: los de la app publicable se registraron
@@ -11164,13 +11171,43 @@ function verDatosRegistro(id){
  * lleva sola si se borra la cuenta de acceso.
  * ======================================================================== */
 let _pensiones=null;
+/* 28-oct-2026 (arreglo de los leves, P14) — cuánto ocupan las historias
+   laborales y el tope del cortacircuito (pension_resumen): ver
+   avisoEspacioPension. */
+let _pensionEspacio=null;
 function enModoEquipoPension(){ try{ return !!CARTERA_EQUIPO; }catch(e){ return false; } }
 function pensionCRM(){ return (!enModoEquipoPension()&&window.HistoriaLaboralCRM)?window.HistoriaLaboralCRM:null; }
 /* Llega DESPUÉS de la lista, como traerQuienVe: sin la función en la nube, la
    bandeja se ve igual, sin las líneas del fondo. */
 function traerPensiones(){
   const H=pensionCRM(); if(!H||!sbListo()) return;
-  H.resumen(rpc,sbCfg().clave).then(m=>{ _pensiones=m; renderRegistros(); }).catch(()=>{ _pensiones=null; });
+  H.resumen(rpc,sbCfg().clave).then(r=>{ _pensiones=r.porCelular; _pensionEspacio=r.espacio; renderRegistros(); })
+    .catch(()=>{ _pensiones=null; _pensionEspacio=null; });
+}
+/* 28-oct-2026 (arreglo de los leves, P14) — EL CORTACIRCUITO DE LOS 50 MB, A
+   LA VISTA. Cuando saltaba, el cliente leía «ahora mismo no podemos recibir
+   más historias laborales» y Joan no se enteraba. Desde el 80 %, una línea
+   arriba de la bandeja (vacía o no) dice cuánto va y qué hacer. */
+function avisoEspacioPension(){
+  /* En un try: renderRegistros puede correr antes de que esta parte del
+     script declare _pensionEspacio (render() al arrancar), y un adorno no
+     puede tumbar la bandeja. */
+  try{
+    const H=pensionCRM(); if(!H||!_pensionEspacio||!H.avisoEspacio) return '';
+    return H.avisoEspacio(_pensionEspacio);
+  }catch(e){ return ''; }
+}
+/* 28-oct-2026 (arreglo de los leves, P12) — LAS HISTORIAS LABORALES QUE YA NO
+   ESTÁN EN LA BANDEJA. Registrados lista solo los «nuevo»: la de quien Joan
+   descartó (✕), o atendió sin una ficha que la pinte, seguía guardada y no
+   había dónde verla ni borrarla. Joan decidió tenerla «cuando quiera»: van
+   aquí, debajo de la bandeja, por celular y con su «📄 Ver» (que trae el
+   «🗑 Borrar»). Solo en el modo de Joan. */
+function renderPensionesFuera(){
+  const c=document.getElementById('regPensionesFuera'); if(!c) return;
+  const H=pensionCRM();
+  if(!H||!_pensiones||!H.fueraDeLaBandeja){ c.innerHTML=''; return; }
+  c.innerHTML=H.fueraDeLaBandeja(_pensiones,_registros.map(r=>r.telefono));
 }
 function chipPension(r){
   const H=pensionCRM(); if(!H||!_pensiones) return '';
@@ -20969,7 +21006,16 @@ function otraPersona(idReg){ cerrarModal(); fichaDesdeRegistro(idReg); }
 
 function descartarRegistro(id){
   const r=_registros.find(x=>String(x.id)===String(id)); if(!r)return;
-  if(!confirm('Descartar la solicitud de entrada de '+(r.nombre||'esta persona')+'?\n\nDeja de aparecer acá. No le abre cuenta a nadie.'))return;
+  /* 28-oct-2026 (arreglo de los leves, P12) — si subió su historia laboral,
+     el ✕ no la borra (su cuenta sigue, y la autorización también): se dice, y
+     dónde se sigue viendo (renderPensionesFuera) y cómo borrarla. */
+  let pension='';
+  try{
+    const H=pensionCRM(), p=H&&_pensiones?_pensiones[telDiez(r.telefono)]:null;
+    if(p&&((Number(p.pdf)||0)+(Number(p.imagenes)||0))>0)
+      pension='\n\nSu historia laboral del fondo de pensiones NO se borra con esto: la sigues viendo debajo de la bandeja, en «📄 Historias laborales fuera de esta bandeja», y desde «Ver» la puedes borrar.';
+  }catch(e){}
+  if(!confirm('Descartar la solicitud de entrada de '+(r.nombre||'esta persona')+'?\n\nDeja de aparecer acá. No le abre cuenta a nadie.'+pension))return;
   marcarRegistro(id,'descartado');
 }
 /* Sale de la bandeja acá y en la nube. Si la nube falla vuelve a aparecer en el

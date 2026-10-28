@@ -85,6 +85,18 @@ describe('el archivo de la migración', () => {
     assert.ok(corte < subir.indexOf('insert into public.pension_archivos'), 'el cortacircuito va después de escribir');
     assert.ok(corte > subir.indexOf("'ya_estaba', true"), 'el reintento de lo que ya entró recibiría «lleno»');
   });
+  /* 28-oct-2026 (arreglo de los leves, P14) — el resumen de Joan trae lo
+     ocupado con EL MISMO tope del cortacircuito: si uno se mueve sin el otro,
+     Joan leería «va en 80 %» de un tope que no es el que corta. */
+  test('el resumen de Joan dice cuánto va ocupado, con el mismo tope del cortacircuito', () => {
+    const tope = s => (s.match(/pg_total_relation_size\('public\.pension_archivos'\)[^;]*?(\d+ \* 1024 \* 1024)/) || [])[1];
+    const subir = codigo.split(/create or replace function public\.pension_subir/)[1].split(/create or replace function/)[0];
+    const resumen = codigo.split(/create or replace function public\.pension_resumen/)[1].split(/create or replace function/)[0];
+    assert.match(resumen, /'espacio', jsonb_build_object\('ocupado', pg_total_relation_size\('public\.pension_archivos'\), 'tope', \d+ \* 1024 \* 1024\)/,
+      'pension_resumen no dice cuánto va ocupado');
+    assert.ok(tope(subir), 'no encontré el tope de pension_subir');
+    assert.equal(tope(resumen), tope(subir), 'el resumen y el cortacircuito tienen topes distintos');
+  });
 });
 
 describe('el fondo de pensiones, en un PostgreSQL de verdad', { skip: !BIN && 'sin TG_PG_BIN no hay PostgreSQL a mano' }, () => {
@@ -222,6 +234,10 @@ describe('el fondo de pensiones, en un PostgreSQL de verdad', { skip: !BIN && 's
     assert.equal(yo.imagenes, 3);
     assert.deepEqual(yo.fondos, ['colpensiones', 'porvenir']);
     assert.equal(/base64|JVBER/.test(JSON.stringify(r)), false, 'el resumen trae contenido');
+    /* 28-oct-2026 (arreglo de los leves, P14) — y cuánto va ocupado, de verdad. */
+    assert.equal(r.espacio.tope, 50 * 1024 * 1024);
+    assert.equal(r.espacio.ocupado, Number(sql("select pg_total_relation_size('public.pension_archivos')")), 'lo ocupado no es lo de la tabla');
+    assert.ok(r.espacio.ocupado > 0);
     const d = comoAnon("public.pension_de('" + CLAVE + "', '+57 300 111 2233')");
     assert.equal(d.archivos.length, 4);
     assert.equal(/base64/.test(JSON.stringify(d)), false);

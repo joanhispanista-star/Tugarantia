@@ -84,12 +84,17 @@
   }
 
   /* ---------------------------------------------------------- las llamadas */
-  /** Todos los que tienen algo, sin ningún archivo: {celular → persona}. */
+  /**
+   * Todos los que tienen algo, sin ningún archivo: {porCelular: {celular →
+   * persona}, espacio: {ocupado, tope} | null}.
+   * 28-oct-2026 (arreglo de los leves, P14) — y el espacio: cuánto ocupan ya
+   * las historias laborales y el tope del cortacircuito (avisoEspacio).
+   */
   function resumen(rpc, clave) {
     return rpc('pension_resumen', { p_clave: clave }).then(function (j) {
-      var m = {};
+      var m = {}, e = j && j.espacio;
       ((j && j.personas) || []).forEach(function (p) { if (p && p.celular) m[diez(p.celular)] = p; });
-      return m;
+      return { porCelular: m, espacio: (e && Number(e.tope) > 0) ? { ocupado: Number(e.ocupado) || 0, tope: Number(e.tope) } : null };
     });
   }
   function de(rpc, clave, celular) { return rpc('pension_de', { p_clave: clave, p_celular: diez(celular) }); }
@@ -134,6 +139,53 @@
       '<span class="muted" style="font-size:12px">' + esc(nombresDeFondos(p.fondos)) + ' · ' + esc(que.join(' y ')) +
       (p.ultimo ? ' · subido el ' + esc(fecha(p.ultimo)) : '') + '</span></div>';
   }
+  function bonito(t) { var d = diez(t); return d.length === 10 ? d.slice(0, 3) + ' ' + d.slice(3, 6) + ' ' + d.slice(6) : d; }
+  function mb(n) { return (Math.round((Number(n) || 0) / 104857.6) / 10).toString().replace('.', ','); }
+
+  /**
+   * 28-oct-2026 (arreglo de los leves, P14) — EL CORTACIRCUITO, A LA VISTA DE
+   * JOAN. Pasados los 50 MB, pension_subir contesta «lleno» y el cliente lo
+   * lee, pero Joan no se enteraba. Una línea en 📥 Registrados desde el 80 %
+   * del tope, con lo que hay que hacer. Por debajo, nada: no hay de qué
+   * preocuparse. `e` es el espacio de resumen().
+   */
+  function avisoEspacio(e) {
+    var ocupado = Number(e && e.ocupado) || 0, tope = Number(e && e.tope) || 0;
+    if (!(tope > 0) || ocupado < tope * 0.8) return '';
+    var lleno = ocupado >= tope, pct = Math.min(100, Math.round(ocupado * 100 / tope));
+    var cuanto = mb(ocupado) + ' MB de ' + mb(tope) + ' MB';
+    return '<div class="alerta ' + (lleno ? 'mal' : 'warn') + '" style="margin:10px 14px 0" data-pension-espacio="' + (lleno ? 'lleno' : 'casi') + '">' +
+      (lleno ? '⛔ <b>El espacio de las historias laborales está lleno</b> (' + cuanto + '): nadie puede subir la suya hasta que lo liberes; el registro sigue igual.'
+             : '⚠️ <b>El espacio de las historias laborales va en ' + pct + ' %</b> (' + cuanto + '): cuando se llene, nadie podrá subir la suya.') +
+      ' Para liberarlo, borra las que ya no sirvan (📄 Ver → 🗑) y corre «vacuum full public.pension_archivos;» en el SQL Editor de Supabase.</div>';
+  }
+
+  /**
+   * 28-oct-2026 (arreglo de los leves, P12) — LAS QUE YA NO ESTÁN EN LA
+   * BANDEJA. 📥 Registrados solo lista los registros «nuevo»: quien Joan
+   * descartó (✕) o atendió sin ficha que la pinte se quedaba con su historia
+   * laboral guardada y sin ningún lugar del CRM donde verla ni borrarla. Joan
+   * decidió tener acceso «cuando quiera»: aquí está, por celular (sin nombre:
+   * un celular no es una persona, y adivinarle el nombre por otra ficha podía
+   * ser el de otra), con su «📄 Ver», que trae el «🗑 Borrar». Solo quien
+   * tiene archivos; vacío si no hay nadie. `enLaBandeja`: los celulares que
+   * la bandeja ya pinta.
+   */
+  function fueraDeLaBandeja(porCelular, enLaBandeja) {
+    var ya = (enLaBandeja || []).map(diez);
+    var filas = Object.keys(porCelular || {}).map(function (k) { return porCelular[k]; })
+      .filter(function (p) {
+        return p && p.celular && ya.indexOf(diez(p.celular)) < 0 && ((Number(p.pdf) || 0) + (Number(p.imagenes) || 0)) > 0;
+      })
+      .sort(function (a, b) { return String(b.ultimo || '').localeCompare(String(a.ultimo || '')); });
+    if (!filas.length) return '';
+    return '<div class="card" id="pensionesFuera"><div class="card-h"><h3>📄 Historias laborales fuera de esta bandeja</h3>' +
+      '<span class="tag">De quienes ya atendiste o descartaste: siguen guardadas mientras tengan cuenta. Desde «Ver» las abres o las borras.</span></div>' +
+      '<div style="padding:0 14px 12px">' + filas.map(function (p) {
+        return '<div class="info-row"><span class="k">' + esc(bonito(p.celular)) + '</span><span class="vv">' + chip(p) + '</span></div>';
+      }).join('') + '</div></div>';
+  }
+
   /** El bloque de «👁 Ver datos», de la ficha y del «📄 Ver». `d` es lo de pension_de. */
   function bloque(d, opc) {
     var o = opc || {};
@@ -235,6 +287,8 @@
     traer: traer,
     abrir: abrir,
     chip: chip,
+    avisoEspacio: avisoEspacio,
+    fueraDeLaBandeja: fueraDeLaBandeja,
     bloque: bloque,
     nombresDeFondos: nombresDeFondos,
     motivoEnPalabras: motivoEnPalabras

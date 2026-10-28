@@ -170,6 +170,70 @@ describe('lo que Joan ve', () => {
     assert.equal(caja(Q, 'fichaPension'), '');
   });
 
+  /* 28-oct-2026 (arreglo de los leves, P14) — EL CORTACIRCUITO, A LA VISTA.
+     Pasados los 50 MB, pension_subir dice «lleno» y el cliente lo lee; Joan
+     no se enteraba. Ahora pension_resumen trae lo ocupado y 📥 Registrados lo
+     dice en una línea desde el 80 %, con la bandeja vacía o llena. Con el
+     código de antes no hay línea y esto falla. */
+  test('el espacio de las historias laborales: desde el 80 % 📥 Registrados lo dice en una línea; lleno, como lleno; antes, nada', async () => {
+    const MB = 1048576, tope = 50 * MB;
+    const con = (ocupado, registros) => {
+      const P = joan({ listar_registros: registros || [REGISTRO], pension_resumen: { ok: true, personas: [PERSONA], espacio: { ocupado, tope } } });
+      P.ev('traerRegistros()');
+      return P;
+    };
+    const bajo = con(39 * MB), casi = con(41 * MB), lleno = con(51 * MB), vacia = con(51 * MB, []);
+    await asentar(20);
+    assert.equal(/data-pension-espacio/.test(bajo.elems.tblRegistros.innerHTML), false, 'con espacio de sobra ya avisa');
+    assert.match(plano(casi.elems.tblRegistros.innerHTML), /⚠️ El espacio de las historias laborales va en 82 % \(41 MB de 50 MB\): cuando se llene, nadie podrá subir la suya\./);
+    assert.match(plano(lleno.elems.tblRegistros.innerHTML), /⛔ El espacio de las historias laborales está lleno \(51 MB de 50 MB\): nadie puede subir la suya/);
+    assert.match(plano(lleno.elems.tblRegistros.innerHTML), /borra las que ya no sirvan \(📄 Ver → 🗑\) y corre «vacuum full public\.pension_archivos;» en el SQL Editor/);
+    assert.match(vacia.elems.tblRegistros.innerHTML, /data-pension-espacio="lleno"/, 'con la bandeja vacía no se entera de que se llenó');
+    /* Los umbrales, en el módulo. */
+    assert.equal(H.avisoEspacio({ ocupado: tope * 0.8 - 1, tope }), '');
+    assert.match(H.avisoEspacio({ ocupado: tope * 0.8, tope }), /data-pension-espacio="casi"/);
+    assert.match(H.avisoEspacio({ ocupado: tope, tope }), /data-pension-espacio="lleno"/);
+    assert.equal(H.avisoEspacio(null), '');
+  });
+
+  /* 28-oct-2026 (arreglo de los leves, P12) — Registrados solo lista los
+     «nuevo»: descartar (✕) a quien ya subió su historia laboral la dejaba
+     guardada sin ningún lugar del CRM donde verla ni borrarla, y el aviso del
+     ✕ no lo decía. Joan decidió tener acceso «cuando quiera». Con el código de
+     antes, el aviso calla y no hay dónde verla: esto falla. */
+  test('descartar a quien subió su historia laboral lo dice, y la historia laboral sigue a la vista debajo de la bandeja, con su «📄 Ver» y su «🗑»', async () => {
+    const OTRA = { celular: '3005550000', fondos: ['skandia'], version: '2026-11-03', autorizada_en: '2026-11-01T15:00:00Z',
+      revocada_en: null, pdf: 1, imagenes: 0, ultimo: '2026-11-01T15:10:00Z' };
+    const SIN = { celular: '3006660000', fondos: ['nunca'], version: '2026-11-03', autorizada_en: '2026-11-01T15:00:00Z',
+      revocada_en: null, pdf: 0, imagenes: 0, ultimo: null };
+    const P = joan({ listar_registros: [REGISTRO], pension_resumen: { ok: true, personas: [PERSONA, OTRA, SIN] }, pension_de: DETALLE });
+    P.ev('traerRegistros()');
+    await asentar(20);
+    const fuera = () => (P.elems.regPensionesFuera ? P.elems.regPensionesFuera.innerHTML : '');
+    /* La que está en la bandeja va en su fila; la de quien ya no está, debajo; quien no subió nada, en ninguna parte. */
+    assert.match(plano(fuera()), /📄 Historias laborales fuera de esta bandeja/);
+    assert.match(fuera(), /data-pension-ver="3005550000"/);
+    assert.equal(/data-pension-ver="3001112233"/.test(fuera()), false, 'la de la bandeja sale dos veces');
+    assert.equal(/3006660000/.test(fuera()), false, 'lista a quien no subió nada');
+    P.ev("descartarRegistro('7')");
+    await asentar(10);
+    assert.match(avisos(P), /Su historia laboral del fondo de pensiones NO se borra con esto: la sigues viendo debajo de la bandeja/,
+      'el ✕ no dice qué pasa con la historia laboral');
+    assert.match(fuera(), /data-pension-ver="3001112233"/, 'descartada, su historia laboral no aparece en ningún lugar del CRM');
+    assert.match(plano(fuera()), /300 111 2233/);
+    /* Y desde ahí se ve y se borra. */
+    P.ev("verPensionRegistro('3001112233')");
+    await asentar(10);
+    assert.match(P.elems.pensionModal.innerHTML, /data-pension-archivo="11"/);
+    assert.match(P.elems.pensionModal.innerHTML, /🗑 Borrar su historia laboral/);
+    /* A quien no subió nada, el ✕ no le habla de la historia laboral. */
+    const Q = joan({ listar_registros: [Object.assign({}, REGISTRO, { id: 8, telefono: '3006660000' })], pension_resumen: { ok: true, personas: [SIN] } });
+    Q.ev('traerRegistros()');
+    await asentar(20);
+    Q.ev("descartarRegistro('8')");
+    assert.equal(/historia laboral/.test(avisos(Q)), false);
+  });
+
   test('la base sin la migración: dice que falta correrla, no que no la dio', async () => {
     const P = joan({ pension_de: { falla: 'Tu base todavía no tiene «pension_de». Vuelve a correr base/supabase.sql completo en el SQL Editor.' } });
     P.ev('document.getElementById("x").innerHTML = ""; pintarPension("3001112233", "x", {})');
@@ -180,8 +244,12 @@ describe('lo que Joan ve', () => {
   test('EL MODO EQUIPO NO VE NADA: ni la línea, ni el bloque, ni una sola llamada', async () => {
     const P = joan({ pension_resumen: { ok: true, personas: [PERSONA] }, pension_de: DETALLE });
     P.ev('CARTERA_EQUIPO = { yo: { nombre: "WILLIAN", rol: "gerente", celular: "3172862539" } }');
-    P.ev('traerPensiones(); _pensiones = ' + JSON.stringify({ [CEL]: PERSONA }));
+    P.ev('traerPensiones(); _pensiones = ' + JSON.stringify({ [CEL]: PERSONA }) + '; _pensionEspacio = { ocupado: 60000000, tope: 52428800 };');
     assert.equal(P.ev('chipPension(' + JSON.stringify(REGISTRO) + ')'), '');
+    /* 28-oct-2026 (arreglo de los leves) — ni el espacio, ni las de fuera de la bandeja. */
+    assert.equal(P.ev('avisoEspacioPension()'), '');
+    P.ev('renderPensionesFuera()');
+    assert.equal(P.elems.regPensionesFuera.innerHTML, '');
     P.ev('document.getElementById("y").innerHTML = "algo"; pintarPension("3001112233", "y", {})');
     P.ev("verPensionRegistro('3001112233'); verArchivoPension(11); borrarPensionDe('3001112233')");
     await asentar(10);

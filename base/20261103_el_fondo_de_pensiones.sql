@@ -91,6 +91,8 @@
 -- cuenta. Lo arregla Joan: más espacio en Supabase, o borrar lo que ya no
 -- sirve; borrar filas no siempre achica la tabla, así que después va
 -- `vacuum full public.pension_archivos;`, sola en su propia consulta.
+-- Joan se entera en 📥 Registrados: desde el 80 % del tope, una línea lo dice
+-- (pension_resumen devuelve lo ocupado; arreglo de los leves, P14).
 --
 -- LO QUE NO HACE: no lee el PDF, no lo «verifica con el fondo» (ningún fondo
 -- tiene cómo: ver la investigación del 28-oct) y no le suma garantía a nadie.
@@ -416,6 +418,12 @@ $$;
 
 -- 3a. Quién tiene algo, sin ningún archivo: para pintar «📄 Fondo de
 -- pensiones: Ver» en Registrados de un solo viaje.
+-- 28-oct-2026 (arreglo de los leves, P14) — Y CUÁNTO ESPACIO VA OCUPADO, con
+-- su tope: el del cortacircuito de pension_subir. Cuando saltaba, Joan no se
+-- enteraba (el cliente sí: «ahora mismo no podemos recibir más historias
+-- laborales»). 📥 Registrados lo dice en una línea desde el 80 %. El tope
+-- se escribe aquí y en pension_subir: los dos tienen que decir lo mismo (lo
+-- vigila pruebas/el-fondo-de-pensiones-postgres.test.js).
 create or replace function public.pension_resumen(p_clave text)
 returns jsonb
 language plpgsql
@@ -428,7 +436,9 @@ begin
     perform pg_sleep(1);
     raise exception 'clave de sincronización incorrecta';
   end if;
-  return jsonb_build_object('ok', true, 'personas', coalesce((
+  return jsonb_build_object('ok', true,
+    'espacio', jsonb_build_object('ocupado', pg_total_relation_size('public.pension_archivos'), 'tope', 50 * 1024 * 1024),
+    'personas', coalesce((
     select jsonb_agg(jsonb_build_object(
              'celular', a.celular, 'fondos', to_jsonb(a.fondos), 'version', a.version,
              'autorizada_en', a.recibida_en, 'revocada_en', a.revocada_en,
