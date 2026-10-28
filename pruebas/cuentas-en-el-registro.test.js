@@ -49,7 +49,13 @@ describe('el paso', () => {
   test('va después de «De qué vives» y antes de las referencias, con su pregunta', () => {
     const P = B.abrir();
     const ids = P.ev('PASOS.map(function (p) { return p.id; }).join()').split(',');
-    assert.equal(ids.indexOf('cobro'), ids.indexOf('ingresos') + 1);
+    /* 28-oct-2026 — entre «De qué vives» y la plata va solo «Tu fondo de
+       pensiones», opcional (Joan: «en la mitad del proceso de registro»); sin
+       sus archivos, van pegados como el 22-oct. */
+    assert.equal(ids.indexOf('pension'), ids.indexOf('ingresos') + 1);
+    assert.equal(ids.indexOf('cobro'), ids.indexOf('pension') + 1);
+    const sin = B.abrir({ sinPension: true }).ev('PASOS.map(function (p) { return p.id; }).join()').split(',');
+    assert.equal(sin.indexOf('cobro'), sin.indexOf('ingresos') + 1);
     assert.equal(ids.indexOf('referencias'), ids.indexOf('cobro') + 1);
     assert.ok(ids.indexOf('cobro') > ids.indexOf('entrada'), 'va antes del celular: el toque «Es este mismo celular» no tendría número');
     assert.equal(P.ev("PASOS[indiceDe('cobro')].titulo"), '¿Dónde te enviamos la plata?');

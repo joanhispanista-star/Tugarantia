@@ -112,6 +112,14 @@ function abrirPlay(opciones) {
     ctx.BancosColombia = require(path.join(RAIZ, 'app', 'bancos-colombia.js'));
     ctx.CuentasPago = require(path.join(RAIZ, 'app', 'cuentas-pago.js'));
   }
+  /* 28-oct-2026 — «Tu fondo de pensiones»: la lista de fondos y el paso.
+     `sinPension: true` simula que esos <script src> no llegaron (el paso no
+     aparece). Copia propia por banco: el paso guarda su estado en el módulo. */
+  if (!o.sinPension) {
+    ctx.FondosPension = require(path.join(RAIZ, 'app', 'fondos-pension.js'));
+    delete require.cache[require.resolve(path.join(RAIZ, 'app', 'historia-laboral.js'))];
+    ctx.HistoriaLaboral = require(path.join(RAIZ, 'app', 'historia-laboral.js'));
+  }
   /* 19-oct-2026 — el teléfono de verdad (modelo, versión, nuestra app).
      `sinAparato: true` simula que ese <script src> no llegó. */
   if (!o.sinAparato) ctx.Aparato = require(path.join(RAIZ, 'app', 'aparato.js'));

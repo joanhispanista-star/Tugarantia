@@ -446,6 +446,9 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
     /* 22-oct-2026 — dónde recibe la plata: la lista de bancos y sus reglas. */
     ctx.BancosColombia = require(path.join(RAIZ, 'app', 'bancos-colombia.js'));
     ctx.CuentasPago = require(path.join(RAIZ, 'app', 'cuentas-pago.js'));
+    /* 28-oct-2026 — «Tu fondo de pensiones»: la lista y el paso. */
+    ctx.FondosPension = require(path.join(RAIZ, 'app', 'fondos-pension.js'));
+    ctx.HistoriaLaboral = require(path.join(RAIZ, 'app', 'historia-laboral.js'));
     ctx.Aparato = require(path.join(RAIZ, 'app', 'aparato.js'));   // 19-oct-2026, el teléfono de verdad
     /* 8-oct-2026 — la calculadora del pedido y las condiciones (copia propia
        por banco: guarda el estado de la calculadora en el módulo). */

@@ -535,6 +535,14 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
      pregunta por el chat). Registrarse no puede depender de esto. -->
 <script src="../app/bancos-colombia.js"></script>
 <script src="../app/cuentas-pago.js"></script>
+<!-- 28-oct-2026 — «Tu fondo de pensiones», el paso opcional después de «De qué
+     vives»: la lista de fondos con sus páginas oficiales, y el paso con su
+     autorización aparte, lo escogido en el teléfono y la cola que sube al
+     abrir la cuenta. NO entran al guardián de abajo: si no llegan, el paso no
+     aparece y el registro sigue como antes. Son nuevos: van sin versión en la
+     dirección (no hay copia vieja con la que mezclarse). -->
+<script src="../app/fondos-pension.js"></script>
+<script src="../app/historia-laboral.js"></script>
 <!-- 19-oct-2026 — el teléfono de verdad: lo que el navegador sabe del aparato
      (modelo, versión) y si la página va dentro de nuestra app. Se manda al
      registrarse, al pedir y al aceptar, sin esperar respuesta (anotarAparato).
@@ -675,8 +683,10 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
    primera mirada): si alguien dice que tardó en tocar «Permitir» y la foto
    no se tomó sola, esta fecha dice lo mismo. Todo lo de arriba desde el
    21-oct se publica junto (el lote del 27-oct, publicar-27), así que el
-   sello es uno: el del cambio más nuevo. */
-var VERSION_PLAY = '2026-10-26';
+   sello es uno: el del cambio más nuevo.
+   28-oct-2026: «Tu fondo de pensiones», el paso opcional después de «De qué
+   vives» (app/historia-laboral.js y app/fondos-pension.js, nuevos). */
+var VERSION_PLAY = '2026-10-28';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
@@ -1244,6 +1254,7 @@ function primerPasoQueFalta() {
     if (id === 'documento') { if (!hayCedula) return i; continue; }
     if (id === 'entrada') { if (!REGISTRO.celular) return i; continue; }
     if (id === 'rostro' || id === 'permiso') continue;
+    if (id === 'pension') continue;   // 28-oct-2026 — opcional: nunca es lo que falta
     /* 22-oct-2026 — la cuenta no es un grupo de CAMPOS: la mira su regla. */
     if (id === 'cobro') { if (faltaLaCuenta()) return i; continue; }
     var ids = U.camposDelGrupo(id).map(function (c) { return c.id; });
@@ -2073,6 +2084,17 @@ var PASOS = [
   { id: 'referencias', titulo: 'Quién puede responder por ti' },
   { id: 'permiso',  titulo: 'Tu autorización' }
 ];
+/* 28-oct-2026 — TU FONDO DE PENSIONES, OPCIONAL, EN LA MITAD DEL REGISTRO.
+   Joan: «quiero que sea opcional en la mitad del proceso de registro». Va
+   después de «De qué vives» (lo que gana y dónde trabaja: la historia laboral
+   es lo que lo respalda) y antes de «¿Dónde te enviamos la plata?». Solo si
+   llegaron sus dos archivos, y no en PlataChat: Joan no lo decidió para esa
+   marca, y su registro termina en otra página, donde la cola no sube. Como
+   todo se pregunta por NOMBRE (indiceDe), quien venía a mitad de registro
+   vuelve a su paso. Ver TU FONDO DE PENSIONES, junto a pasoCobro. */
+if (window.HistoriaLaboral && window.FondosPension && MARCA !== 'platachat') {
+  PASOS.splice(indiceDe('cobro'), 0, { id: 'pension', titulo: 'Tu fondo de pensiones' });
+}
 /* El orden de antes del 19-oct, SOLO para leer un checkpoint guardado por la
    versión anterior (que guardaba el número y no el nombre). No se usa para
    nada más: quien esté a mitad de registro el día que esto se publique vuelve
@@ -2304,6 +2326,7 @@ function pintarRegistro(paso) {
   else if (p.id === 'rostro')  cuerpo = pasoRostro();
   else if (p.id === 'permiso') cuerpo = pasoPermiso();
   else if (p.id === 'cobro')   cuerpo = pasoCobro();
+  else if (p.id === 'pension') cuerpo = pasoPension();   // 28-oct-2026 — se llena abajo (montarPasoPension)
   else                         cuerpo = (p.id === 'identidad' ? notaCedulaLeida() + notaDeLaFoto() : '') + pasoCampos(p.id);
 
   /* 19-oct-2026 — «Revisa tus datos» solo si hay algo que revisar: quien tocó
@@ -2349,6 +2372,9 @@ function pintarRegistro(paso) {
      publicarAvance). En un try porque un acompañamiento que falle NO puede
      impedirle abrir su cuenta. */
   try { publicarAvance(); } catch (e) {}
+  /* 28-oct-2026 — el paso del fondo de pensiones se arma ya pintado: escucha
+     sus propios toques (app/historia-laboral.js). */
+  if (p.id === 'pension') montarPasoPension();
   if (p.id === 'rostro' && autorizoEsteIntento() && !hayFotoLista('selfie')) setTimeout(iniciarEscaner, 50);
   /* 19-oct-2026 — LA UBICACIÓN, EN EL PASO DEL ROSTRO Y NO EN EL PRIMERO. Con
      la cédula primero, lo primero que habría visto el cliente eran dos
@@ -2536,6 +2562,7 @@ function borrarTodoElRegistro() {
   olvidarAvisoVivo();
   try { localStorage.removeItem('tg_acompana'); } catch (e) {}
   olvidarCelularDelRegistro();   // 20-oct-2026, otro celular: el celular de ESTE registro se va con él
+  olvidarPension();   // 28-oct-2026 — lo del fondo de pensiones también: es de la persona anterior
   REGISTRO = {}; FOTOS = {}; CLAVE_EN_MEMORIA = ''; CLAVE_DEL_CELULAR = ''; CLAVE_DEL_INTENTO = '';
 }
 
@@ -2785,6 +2812,9 @@ function soltarLoSensibleDelRegistro() {
   FOTOS = {};
   try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
   GPS_PEDIDO = false; AVISO_UN_LADO = ''; AVISO_SIN_SELFIE = false; SELFIE_ANTERIOR = null; PERMISO_SOLTADO = false;
+  /* 28-oct-2026 — y los archivos de la historia laboral, con la misma regla;
+     lo escogido (la autorización, el fondo) se queda, como el borrador. */
+  soltarArchivosDePension();
 }
 
 /* Anota un campo del registro en cuanto se escribe. El id del elemento lleva el
@@ -3163,6 +3193,97 @@ function sinDatosDePago(d) {
   return out;
 }
 
+/* ===========================================================================
+ * TU FONDO DE PENSIONES — 28 de octubre de 2026
+ *
+ * Joan: «que el cliente autorice la verificación del fondo de pensiones, que
+ * aparezca la lista… que lo podamos redirigir a la página del fondo… que esté
+ * la opción para subir el pdf… un pantallazo… o que simplemente desde la app
+ * sea un pegar… y quiero que sea opcional en la mitad del proceso de registro».
+ *
+ * La pantalla y sus reglas viven en app/historia-laboral.js (las comparte con
+ * la app del cliente) y la lista en app/fondos-pension.js. Aquí solo se
+ * engancha al registro, y cada enganche tiene su porqué:
+ *   · lo escogido (autorización, fondo, qué página abrió) es como el
+ *     borrador: sobrevive a irse al correo y volver, y se va con «Empezar de
+ *     cero» y con otro celular (olvidarPension);
+ *   · los archivos son como las fotos: se sueltan al salir del registro
+ *     (soltarArchivosDePension, en soltarLoSensibleDelRegistro) y al volver
+ *     pasado el rato de la cámara (el arranque);
+ *   · en «Abrir mi cuenta» pasan a la cola de ESA cuenta y suben con su
+ *     sesión (encolarLaHistoriaLaboral, subirLaHistoriaLaboralYDecirlo); si
+ *     la señal se cae, se reintenta al entrar a la cuenta en este teléfono,
+ *     hasta el día siguiente. Lo que pasó se dice en #avisoPension.
+ * Nada de esto viaja en REGISTRO: ni a la bandeja (que corta a 40 pares) ni
+ * al signup.
+ * ======================================================================== */
+var HL = window.HistoriaLaboral || null;
+var HL_GUARDADERO = null;
+var PENSION_PERDIDOS = false;   // el arranque soltó archivos de este registro: el paso lo dice una vez
+var PENSION_ENCOLADA = null;    // la promesa del «Abrir mi cuenta» que pasó lo del paso a la cola
+function guardaderoPension() {
+  if (!HL) return null;
+  if (!HL_GUARDADERO) {
+    var ls = null, idb = null;
+    try { ls = window.localStorage; } catch (e) { ls = null; }
+    try { idb = window.indexedDB || null; } catch (e) { idb = null; }
+    HL_GUARDADERO = HL.guardadero({ ls: ls, idb: idb });
+  }
+  return HL_GUARDADERO;
+}
+function pasoPension() { return '<div id="hlPaso"></div>'; }
+function montarPasoPension() {
+  var g = guardaderoPension(), caja = $('hlPaso');
+  if (!g || !caja) return;
+  HL.pasoDelRegistro(caja, {
+    guardadero: g, intento: asegurarIntento(), celular: String(REGISTRO.celular || ''), perdidos: PENSION_PERDIDOS,
+    despues: function () { if (!viajando()) pintarRegistro(PASO + 1); }
+  });
+  PENSION_PERDIDOS = false;   // se dijo una vez
+}
+function soltarArchivosDePension() {
+  var g = guardaderoPension();
+  if (g) { try { g.soltarArchivos(); } catch (e) {} }
+}
+function olvidarPension() {
+  PENSION_PERDIDOS = false;
+  var g = guardaderoPension();
+  if (g) { try { g.olvidar(); } catch (e) {} }
+}
+/* «Abrir mi cuenta» salió bien: lo de ESTE registro (su intento, su celular)
+   pasa a la cola de esa cuenta. Se llama ANTES de cerrar el registro en
+   memoria: el intento sale de ahí. */
+function encolarLaHistoriaLaboral(cel) {
+  var g = guardaderoPension();
+  if (!g || MARCA === 'platachat') return;
+  try {
+    PENSION_ENCOLADA = g.encolar(String(REGISTRO.intento || ''), String(cel || '')).then(null, function () { return false; });
+  } catch (e) { PENSION_ENCOLADA = null; }
+}
+/* La sube con la sesión de la cuenta abierta y dice en #avisoPension qué
+   pasó. Suelta (rpcSesion con su último argumento): lo que anota es de la
+   cola de ESA cuenta, aunque la persona salga antes de la respuesta; lo que
+   pinta, solo si la sesión sigue siendo esa. */
+function subirLaHistoriaLaboralYDecirlo() {
+  var g = guardaderoPension();
+  if (!g || MARCA === 'platachat') return Promise.resolve();
+  var ses = SESION, cel = celularDeSesion() || (REGISTRADO && REGISTRADO.celular) || '';
+  if (!ses || !ses.access_token || !cel) return Promise.resolve();
+  return (PENSION_ENCOLADA || Promise.resolve()).then(function () { return g.cola(cel); }).then(function (c) {
+    if (!c) return null;
+    if (SESION === ses) pintarAvisoPension('<b>Subiendo tu historia laboral…</b>', '');
+    return HL.subirCola(g, cel, function (fn, cuerpo) { return rpcSesion(fn, cuerpo, ses, true); });
+  }).then(function (r) {
+    if (!r || SESION !== ses) return;
+    var a = HL.avisoDeLaCola(r);
+    pintarAvisoPension(a.html, a.clase);
+  }, function () {});
+}
+function pintarAvisoPension(html, clase) {
+  var a = $('avisoPension');
+  if (a) a.innerHTML = html ? '<div class="card"><div class="aviso' + (clase ? ' ' + clase : '') + '" role="status">' + html + '</div></div>' : '';
+}
+
 function pasoPermiso() {
   return (MARCA === 'platachat'
       /* 8-oct-2026 (segunda vuelta) — decía «quien recibe y cuida tus datos es
@@ -3196,7 +3317,10 @@ function pasoPermiso() {
       'marcarlo. La ley no permite condicionarte el servicio a que lo des.</span></span></label>' +
     '<div class="aviso" style="margin-top:var(--e4)"><b>Lo que esta app NO te pide:</b> ' +
       'no accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a tus fotos guardadas. ' +
-      'Solo la cámara en el momento de tomar la foto, y tu ubicación una sola vez, si la autorizas.</div>' +
+      'Solo la cámara en el momento de tomar la foto, tu ubicación una sola vez si la autorizas, ' +
+      /* 28-oct-2026 — y la historia laboral: el selector del teléfono le
+         entrega UN archivo que la persona escoge, sin abrirle la galería. */
+      'y los archivos que tú mismo escojas si subes tu historia laboral.</div>' +
     '<div class="ayuda" style="margin-top:var(--e3)">' +
       '<a href="../legal/privacidad.html" target="_blank" rel="noopener">Leer la política completa</a> · ' +
       '<a href="../legal/terminos.html" target="_blank" rel="noopener">Términos</a></div>' +
@@ -3246,6 +3370,9 @@ function recogerPaso() {
              claveFin: cf ? (cf.value || '') : '', claveFin2: cf2 ? (cf2.value || '') : '' };
   }
   if (p.id === 'documento' || p.id === 'rostro') return {};
+  /* 28-oct-2026 — el fondo de pensiones no tiene casillas que leer: lo
+     escogido se guarda en el teléfono en el momento de escogerlo. */
+  if (p.id === 'pension') return {};
   /* 22-oct-2026 — la cuenta: lo que muestran las casillas, como en los demás
      pasos (anotarCuenta ya lo fue guardando; esto es por si el teclado no
      disparó el último evento). */
@@ -3441,6 +3568,9 @@ function siguientePaso() {
     pedirGpsSiFalta();
     return pintarRegistro(PASO + 1);
   }
+  /* 28-oct-2026 — TU FONDO DE PENSIONES es opcional: «Continuar» pasa
+     siempre, con o sin historia laboral (lo escogido ya quedó guardado). */
+  if (p.id === 'pension') return pintarRegistro(PASO + 1);
   /* 22-oct-2026 — ¿DÓNDE TE ENVIAMOS LA PLATA? Al menos una, bien escrita y
      a su nombre (CP.revisarCuentasDelRegistro). Sin las reglas, se sigue: el
      paso ya dijo que se le pregunta por el chat. */
@@ -3734,6 +3864,7 @@ function empezarDeCeroConEsteCelular(cel) {
   FOTOS = {};
   try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
   olvidarClaveEnCurso();
+  olvidarPension();   // 28-oct-2026 — la autorización y el fondo eran de la persona anterior
   /* El permiso de publicar el avance lo dio la otra persona: este lo da
      tocando «Continuar» con el aviso a la vista (siguientePaso lo anota). */
   olvidarAvisoVivo();
@@ -4619,11 +4750,13 @@ function enviarRegistro(sensibles) {
          cuenta, con el documento de ESTE registro. Ver LA COLA DE UNA CUENTA
          YA CREADA. */
       encolarLasFotosDelRegistro(foto.celular);
+      encolarLaHistoriaLaboral(foto.celular);   // 28-oct-2026 — como las fotos: a la cola de ESTA cuenta
       /* 19-oct-2026 — ANTES de pintar: en PlataChat pintarRegistrado se lleva
          a la persona a otra página, y la llamada se iría con ella. */
       anotarAparato('registro');
       pintarRegistrado();
       subidaEnSegundoPlano();   // si falla, queda en la cola y se reintenta al abrir la cuenta
+      subirLaHistoriaLaboralYDecirlo();   // 28-oct-2026 — lo mismo, con su propia caja
       /* 20-oct-2026, revisión (F7) — y lo del registro sale de la memoria
          DESPUÉS de lo de arriba: la subida ya tomó su lote, y PlataChat ya
          tomó el nombre (si reintenta, lo lee de REGISTRADO). */
@@ -4867,9 +5000,11 @@ function entrarConLaClaveDelRegistro(err, autorizacion, foto, opc) {
         olvidarPaso(); olvidarClaveEnCurso();
         anotarCuentaCreada(foto.celular);
         encolarLasFotosDelRegistro(foto.celular);   // 20-oct-2026, rediseño (A): como en la cuenta nueva
+        encolarLaHistoriaLaboral(foto.celular);   // 28-oct-2026 — como las fotos
         anotarAparato('registro');   // 19-oct-2026: ya tenía cuenta, pero este es su registro
         pintarRegistrado();
         subidaEnSegundoPlano();   // sus fotos, que era lo que se perdía
+        subirLaHistoriaLaboralYDecirlo();
         cerrarElRegistroEnMemoria();   // 20-oct-2026, revisión (F7): como en la cuenta nueva
       });
     }, function () {
@@ -5004,6 +5139,8 @@ function pintarRegistrado() {
       /* 20-oct-2026, rediseño (V5) — y lo que pasó con sus fotos, debajo: «Listo»
          solo callaba que no habían subido (lo llena subirLaColaYDecirlo). */
       '<div id="avisoFotos"></div>' +
+      /* 28-oct-2026 — y lo que pasó con su historia laboral, si la dio. */
+      '<div id="avisoPension"></div>' +
       /* 21-sep-2026 — sin nombres propios. Joan: «no quiero que le digas al
          cliente que joan decide». Se dice lo que de verdad pasa: se revisa y
          se contesta con una propuesta. */
@@ -12268,12 +12405,16 @@ function pintarCuenta(sesion) {
   $('cuerpo').innerHTML = '<div id="tabs">' + barraPestanas() + '</div>' +
     avisoResponsablePlay() +
     '<div id="avisoFotos">' + avisoDeFotos('cuenta', '') + '</div>' +
+    '<div id="avisoPension"></div>' +
     '<div id="lamina"></div>' + pie();
   /* La ficha se pide UNA vez al abrir y se reparte a las cuatro láminas. Pedirla
      en cada pestaña sería la misma pregunta cuatro veces por visita. */
   cargarFicha();
   irA(TAB);
   subidaEnSegundoPlano();
+  /* 28-oct-2026 — la historia laboral que quedó en la cola de ESTA cuenta
+     (la señal se cayó al abrirla): se vuelve a intentar con su sesión. */
+  subirLaHistoriaLaboralYDecirlo();
   /* 19-oct-2026 — cuánto le falta por leer, ya, y cada 20 s mientras mire. */
   contarSinLeer();
   arrancarLatidoChat();
@@ -13948,6 +14089,20 @@ function avisarQueEsMomento() {
      3. EL RESTO ve la portada. */
   var sesionGuardada = leerSesionEnCurso();
   var veniaDelRegistro = hayPasoGuardado();
+  /* 28-oct-2026 — LOS ARCHIVOS DE LA HISTORIA LABORAL, CON LA REGLA DE LAS
+     FOTOS: solo sobreviven a la vuelta de la cámara. Lo escogido (la
+     autorización, el fondo, qué página abrió) se queda, como el borrador: es
+     lo que tiene que sobrevivir a irse al correo y volver. Se decide aquí,
+     antes de pintar nada, con la cuenta que lleva el teléfono (sin esperar a
+     IndexedDB). */
+  try {
+    var gp = guardaderoPension();
+    if (gp && REGISTRO.intento && REGISTRO.celular && gp.hayArchivosGuardados(REGISTRO.intento, REGISTRO.celular) &&
+        !(veniaDelRegistro && volvioDentroDelRatoDeLaCamara())) {
+      PENSION_PERDIDOS = true;
+      gp.soltarArchivos();
+    }
+  } catch (e) {}
   /* 20-oct-2026, rediseño (A) — LO SENSIBLE SOLO SOBREVIVE A LA VUELTA DE LA
      CÁMARA. Si la página vuelve sola a un paso guardado dentro del rato que
      toma ir a la cámara y volver (EC.restosEnDuda), es la misma persona y

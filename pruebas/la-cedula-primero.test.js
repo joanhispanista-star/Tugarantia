@@ -146,13 +146,14 @@ describe('1. el registro abre en la cédula, y el botón autoriza solo si lo toc
   test('EL ORDEN: la cédula, revisar los datos, el celular y la contraseña, el rostro, y lo demás igual', () => {
     const P = abrir();
     /* 22-oct-2026 — con «¿Dónde te enviamos la plata?» (cobro) después de
-       «De qué vives»: son diez. */
+       «De qué vives»: son diez. 28-oct-2026 — y «Tu fondo de pensiones»,
+       opcional, entre los dos (decisión de Joan): son once. */
     assert.equal(P.ev('PASOS.map(function (p) { return p.id; }).join()'),
-      'documento,identidad,entrada,rostro,contacto,domicilio,ingresos,cobro,referencias,permiso');
+      'documento,identidad,entrada,rostro,contacto,domicilio,ingresos,pension,cobro,referencias,permiso');
     assert.equal(P.ev('VISTA'), 'registro');
     assert.equal(pasoActual(P), 'documento', 'el registro no abre en la cédula');
     const h = cuerpo(P);
-    assert.match(h, /Paso 1 de 10[\s\S]*Tu cédula/);
+    assert.match(h, /Paso 1 de 11[\s\S]*Tu cédula/);
     assert.match(h, /Escanea tu cédula y llenamos tus datos por ti/);
     assert.equal(/id="rTel"|id="rClave"/.test(h), false, 'el primer paso volvió a pedir el celular o la contraseña');
   });

@@ -1,0 +1,336 @@
+/* ============================================================================
+ * TU FONDO DE PENSIONES: LA LISTA, LOS TEXTOS, EL GUARDADERO Y LA COLA
+ * 28 de octubre de 2026
+ *
+ *   node --test pruebas/el-fondo-de-pensiones.test.js
+ *
+ * Lo puro de app/fondos-pension.js y app/historia-laboral.js, sin navegador:
+ *   · la lista: las direcciones OFICIALES (https y del dominio de cada fondo)
+ *     y las mismas reglas de combinación que la base;
+ *   · los textos: la autorización dice lo que la ley pide decir y nada que el
+ *     código no haga (nunca «verificado», nunca «30 días»), y nace SIN marcar;
+ *   · el tipo por los primeros bytes, como la base;
+ *   · el guardadero del registro: lo escogido atado al intento y al celular,
+ *     los archivos que caducan al día, la cola de la cuenta;
+ *   · la subida de la cola: autorización primero, de uno en uno, y lo que
+ *     pasa cuando la base dice que no o la señal se cae.
+ * La base está en pruebas/el-fondo-de-pensiones-postgres.test.js; la pantalla,
+ * en pruebas/el-fondo-de-pensiones-pantallas.test.js.
+ * ==========================================================================*/
+'use strict';
+
+const { test, describe } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const RAIZ = path.join(__dirname, '..');
+const FP = require('../app/fondos-pension.js');
+const HL = require('../app/historia-laboral.js');
+
+const bytes = s => new Uint8Array(Buffer.from(s, 'binary'));
+const blob = s => new Blob([Buffer.from(s, 'binary')]);
+const PDF = '%PDF-1.4\n% de mentira\n%%EOF\n';
+const PNG = '\x89PNG\r\n\x1a\n' + 'IHDR de mentira';
+
+describe('la lista de fondos', () => {
+  test('los cinco fondos y las dos opciones, con la fecha en que se consultaron', () => {
+    assert.deepEqual(FP.FONDOS.map(f => f.codigo), ['colpensiones', 'porvenir', 'proteccion', 'colfondos', 'skandia']);
+    assert.deepEqual(FP.OTRAS.map(f => f.codigo), ['no_se', 'nunca']);
+    assert.match(FP.CONSULTADO, /^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  test('cada botón va a la página OFICIAL que leyó la investigación: https y del dominio del fondo', () => {
+    const esperadas = {
+      colpensiones: 'https://sede.colpensiones.gov.co/tramite/updInfo/55/',
+      porvenir: 'https://www.porvenir.com.co/web/certificados-y-extractos/certificado-de-historia-laboral',
+      proteccion: 'https://www.proteccion.com/portalafiliados/afiliados/certifacil',
+      colfondos: 'https://www.colfondos.com.co/dxp/acceso-de-usuarios',
+      skandia: 'https://www.skandia.co/fondo-pensiones-obligatorias/historia-laboral'
+    };
+    Object.keys(esperadas).forEach(c => assert.equal(FP.urlOficial(c), esperadas[c], c));
+    /* Lo que no está en la lista no tiene dirección (ni un dato la pone). */
+    assert.equal(FP.urlOficial('javascript:alert(1)'), '');
+    assert.equal(FP.urlOficial('no_se'), '', 'el RUAF no es un fondo: no lleva el botón del fondo');
+  });
+
+  test('los que mandan al correo con la cédula y los que piden entrar con usuario', () => {
+    const como = Object.fromEntries(FP.FONDOS.map(f => [f.codigo, f.como]));
+    assert.deepEqual(como, { colpensiones: 'correo', porvenir: 'correo', proteccion: 'correo', colfondos: 'usuario', skandia: 'usuario' });
+    /* Quien entra con su clave lee que esa clave es suya: nunca se nos da. */
+    FP.FONDOS.filter(f => f.como === 'usuario').forEach(f =>
+      assert.ok(f.pasos.some(p => /no nos la des nunca/.test(p)), f.nombre + ' no dice que su clave no se nos da'));
+  });
+
+  test('las reglas de combinación son las de la base: «No sé» y «Nunca» solos; Colpensiones con UN privado', () => {
+    assert.equal(FP.revisar(['colpensiones', 'porvenir']).ok, true);
+    assert.equal(FP.revisar([]).ok, true);
+    assert.equal(FP.revisar(['no_se', 'porvenir']).ok, false);
+    assert.equal(FP.revisar(['nunca', 'colpensiones']).ok, false);
+    assert.equal(FP.revisar(['porvenir', 'proteccion']).ok, false);
+    assert.equal(FP.revisar(['colpensiones', 'porvenir', 'skandia']).ok, false);
+    assert.equal(FP.revisar(['inventado']).ok, false);
+    /* Marcar nunca deja una combinación que no vale. */
+    let f = [];
+    f = FP.alternar(f, 'porvenir'); assert.deepEqual(f, ['porvenir']);
+    f = FP.alternar(f, 'colpensiones'); assert.deepEqual(f, ['colpensiones', 'porvenir']);
+    f = FP.alternar(f, 'skandia'); assert.deepEqual(f, ['colpensiones', 'skandia'], 'el segundo privado no reemplazó al primero');
+    f = FP.alternar(f, 'no_se'); assert.deepEqual(f, ['no_se']);
+    f = FP.alternar(f, 'colfondos'); assert.deepEqual(f, ['colfondos']);
+    f = FP.alternar(f, 'colfondos'); assert.deepEqual(f, []);
+    assert.equal(FP.nombres(['colpensiones', 'porvenir']), 'Colpensiones y Porvenir');
+  });
+
+  test('la misma lista que la base (pension_autorizar) acepta', () => {
+    const sql = fs.readFileSync(path.join(RAIZ, 'base', '20261103_el_fondo_de_pensiones.sql'), 'utf8');
+    const lista = (sql.match(/x not in \(([^)]*)\)/) || [])[1] || '';
+    assert.deepEqual(lista.match(/'(\w+)'/g).map(s => s.slice(1, -1)), FP.FONDOS.concat(FP.OTRAS).map(f => f.codigo));
+  });
+});
+
+describe('los textos: la autorización dice lo que la ley pide, y nada que el código no haga', () => {
+  const T = HL.TEXTOS;
+  const todo = [T.autorizacion, T.autorizacionDetalle, T.intro, T.introCuenta].join(' ');
+  test('para qué, que es opcional y aparte, cuánto se guarda, quién la ve y cómo se quita', () => {
+    ['NEXECO S.A.S.', 'historia laboral', 'nombre de mi fondo de pensiones', 'Para revisar dónde trabajo y cuánto cotizo',
+     'Es opcional', 'aparte de la autorización general', 'Nunca me piden la clave de mi fondo',
+     'Se guarda mientras tenga cuenta en Tu Garantía', 'la ve solo quien dirige el negocio', 'no el resto del equipo',
+     'desde mi cuenta en la app', 'pedir por el chat que la borren', 'incapacidades o licencias, no se usan para nada']
+      .forEach(p => assert.ok(todo.indexOf(p) >= 0, 'la autorización no dice «' + p + '»'));
+  });
+  test('ninguna pantalla dice «verificado», ni promete que se borra a los 30 días, ni que sube la garantía', () => {
+    const pantallas = JSON.stringify([HL.TEXTOS, HL.MOTIVOS, FP.FONDOS, FP.OTRAS]);
+    assert.equal(/verific/i.test(pantallas), false, 'una pantalla habla de verificar con el fondo');
+    assert.equal(/30 d[ií]as/.test(pantallas), false, 'dice que se borra a los 30 días: Joan decidió que no');
+    assert.equal(/sube tu garant|suma garant|más garant/i.test(pantallas), false, 'promete garantía que el motor no da');
+    assert.match(HL.TEXTOS.introCuenta, /No cambia tu garantía/);
+  });
+  test('la casilla nace SIN marcar (Decreto 1377, art. 7): solo sale marcada si ya la dio', () => {
+    assert.equal(/checked/.test(HL.autorizacionHTML(false)), false);
+    assert.match(HL.autorizacionHTML(true), /checked/);
+    assert.match(HL.autorizacionHTML(false), /Versión del 3 de noviembre de 2026/);
+    assert.match(HL.autorizacionHTML(false), /privacidad\.html#pension/);
+  });
+  test('su versión es la fecha de la política que la describe, y no es la de la autorización general', () => {
+    assert.equal(HL.VERSION_AUTORIZACION, '2026-11-03');
+    assert.notEqual(HL.VERSION_AUTORIZACION, require('../app/cuenta.js').VERSION_AUTORIZACION);
+    const P = fs.readFileSync(path.join(RAIZ, 'legal', 'privacidad.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+    assert.match(P, /id="pension"/, 'la política no tiene la sección a la que apunta la casilla');
+    assert.match(P.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '), /Lo que cambió el 3 de noviembre de 2026:/,
+      'la versión de la autorización no es la fecha de ninguna versión publicada de la política');
+  });
+  test('el paso del registro tiene «Lo hago después» a la vista, con o sin autorización', () => {
+    const sin = HL.pantallaHTML({ modo: 'registro', aut: null, fondos: [], archivos: [] });
+    const con = HL.pantallaHTML({ modo: 'registro', aut: { version: '2026-11-03' }, fondos: ['porvenir'], pidio: {}, archivos: [] });
+    [sin, con].forEach(h => assert.match(h, /data-hl="despues"[^>]*>Lo hago después</));
+    assert.equal(/data-hl="fondo"/.test(sin), false, 'sin autorización ya pregunta el fondo');
+    assert.match(con, /data-hl="fondo" value="porvenir" checked/);
+    assert.match(con, /href="https:\/\/www\.porvenir\.com\.co\/[^"]+" target="_blank" rel="noopener noreferrer"/);
+    ['📄 Subir el PDF', '🖼 Subir pantallazos', '📋 Pegar'].forEach(b => assert.ok(con.indexOf(b) >= 0, 'falta «' + b + '»'));
+    assert.match(con, /accept="application\/pdf,\.pdf"/);
+    assert.match(con, /accept="image\/png,image\/jpeg,image\/webp" multiple/);
+    assert.equal(/capture=/.test(con), false, 'el PDF y los pantallazos se escogen, no se toman con la cámara');
+    assert.equal(/svg|text\/html/.test(con.match(/accept="[^"]*"/g).join(' ')), false);
+  });
+});
+
+describe('el tipo sale de los primeros bytes, como en la base', () => {
+  test('PDF, JPG, PNG y WEBP sí; SVG, HTML, GIF, un ejecutable o un PDF con un espacio delante, no', () => {
+    assert.equal(HL.tipoPorBytes(bytes(PDF)), 'pdf');
+    assert.equal(HL.tipoPorBytes(bytes('\xff\xd8\xff\xe0JFIF')), 'jpg');
+    assert.equal(HL.tipoPorBytes(bytes(PNG)), 'png');
+    assert.equal(HL.tipoPorBytes(bytes('RIFF\x10\x00\x00\x00WEBPVP8 ')), 'webp');
+    ['<svg xmlns="http://www.w3.org/2000/svg"/>', '<!doctype html>', 'GIF89a', 'MZ\x90\x00', ' %PDF-1.4', 'RIFF\x10\x00\x00\x00WAVE', '']
+      .forEach(s => assert.equal(HL.tipoPorBytes(bytes(s)), null, JSON.stringify(s)));
+  });
+  test('prepararArchivo: el PDF tal cual, con su huella; lo demás se dice', async () => {
+    const r = await HL.prepararArchivo(blob(PDF));
+    assert.equal(r.ok, true);
+    assert.equal(r.archivo.tipo, 'pdf');
+    assert.equal(Buffer.from(r.archivo.base64, 'base64').toString('binary'), PDF);
+    assert.equal(r.archivo.sha256, require('node:crypto').createHash('sha256').update(Buffer.from(PDF, 'binary')).digest('hex'));
+    assert.equal((await HL.prepararArchivo(blob('<svg onload="x"/>'))).motivo, 'tipo_no_permitido');
+    assert.equal((await HL.prepararArchivo(blob(''))).motivo, 'vacio');
+    const grande = new Blob([Buffer.concat([Buffer.from('%PDF-'), Buffer.alloc(HL.LIMITES.bytes)])]);
+    assert.equal((await HL.prepararArchivo(grande)).motivo, 'muy_grande');
+    /* Un pantallazo chico sube tal cual (sin achicar: el texto se queda nítido). */
+    const p = await HL.prepararArchivo(blob(PNG));
+    assert.equal(p.archivo.tipo, 'png');
+    assert.equal(p.archivo.bytes, Buffer.from(PNG, 'binary').length);
+  });
+  test('los topes de la lista, antes de gastar la subida', () => {
+    const l = [{ tipo: 'pdf', bytes: 10, sha256: 'a' }, { tipo: 'pdf', bytes: 10, sha256: 'b' }];
+    assert.equal(HL.revisarNuevo(l, 'pdf', 10).motivo, 'demasiados_pdf');
+    assert.equal(HL.revisarNuevo(l, 'png', 10, 'a').motivo, 'repetido');
+    const imgs = l.concat([1, 2, 3, 4, 5].map(i => ({ tipo: 'png', bytes: 10, sha256: 'i' + i })));
+    assert.equal(HL.revisarNuevo(imgs, 'jpg', 10).motivo, 'demasiados_img');
+    assert.equal(HL.revisarNuevo([], 'pdf', HL.LIMITES.bytes + 1).motivo, 'muy_grande');
+    assert.equal(HL.revisarNuevo([{ tipo: 'png', bytes: 3e6 }, { tipo: 'png', bytes: 3e6 }, { tipo: 'png', bytes: 3e6 }, { tipo: 'png', bytes: 3e6 }],
+      'pdf', 700000).motivo, 'sin_espacio');
+    assert.equal(HL.revisarNuevo([], null, 10).motivo, 'tipo_no_permitido');
+    assert.equal(HL.tamanoEnPalabras(230 * 1024), '230 KB');
+    assert.equal(HL.tamanoEnPalabras(1.5 * 1048576), '1,5 MB');
+    assert.equal(HL.resumen([{ tipo: 'pdf' }, { tipo: 'png' }, { tipo: 'jpg' }]), '1 PDF y 2 pantallazos');
+  });
+});
+
+/* Un teléfono de mentira: localStorage y un reloj; sin IndexedDB (la memoria
+   de la página), que es justo el caso que la pantalla tiene que decir. */
+function telefono(t0) {
+  const datos = {}, reloj = { t: t0 || Date.UTC(2026, 10, 3, 15, 0, 0) };
+  const ls = { getItem: k => (k in datos ? datos[k] : null), setItem: (k, v) => { datos[k] = String(v); }, removeItem: k => { delete datos[k]; } };
+  return { datos, reloj, g: HL.guardadero({ ls, idb: null, ahora: () => reloj.t }) };
+}
+const A = (tipo, s) => ({ tipo, bytes: Buffer.from(s).length, base64: Buffer.from(s).toString('base64'), sha256: 'h-' + s });
+
+describe('el guardadero del registro', () => {
+  test('lo escogido es de ESTE registro: otro intento u otro celular empiezan en blanco', () => {
+    const { g } = telefono();
+    const e = g.estado('i1', '3001112233');
+    e.aut = HL.armarAutorizacion('2026-11-03T15:00:00Z'); e.fondos = ['porvenir']; g.guardarEstado(e);
+    assert.deepEqual(g.estado('i1', '3001112233').fondos, ['porvenir']);
+    assert.equal(g.estado('i2', '3001112233').aut, null, 'el registro de otro intento heredó la autorización');
+    assert.equal(g.estado('i1', '3009998877').aut, null, 'otro celular heredó la autorización');
+  });
+  test('sobrevive a la pestaña que se vuelve a abrir (va en el teléfono), y se va a los 7 días', () => {
+    const t = telefono();
+    const e = t.g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('x'); e.pidio = { porvenir: 'y' }; t.g.guardarEstado(e);
+    /* La «recarga»: un guardadero nuevo sobre el mismo almacén. */
+    const g2 = HL.guardadero({ ls: { getItem: k => t.datos[k] || null, setItem() {}, removeItem() {} }, idb: null, ahora: () => t.reloj.t });
+    assert.deepEqual(g2.estado('i1', '3001112233').pidio, { porvenir: 'y' });
+    t.reloj.t += 8 * 864e5;
+    assert.equal(t.g.estado('i1', '3001112233').aut, null);
+  });
+  test('los archivos: los topes, sin repetidos, quitar, y la cuenta sin esperar a IndexedDB', async () => {
+    const { g } = telefono();
+    const e = g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('x'); g.guardarEstado(e);
+    assert.equal((await g.agregar('i1', '3001112233', A('pdf', '%PDF-uno'))).ok, true);
+    assert.equal((await g.agregar('i1', '3001112233', A('pdf', '%PDF-uno'))).motivo, 'repetido');
+    assert.equal((await g.agregar('i1', '3001112233', A('pdf', '%PDF-dos'))).ok, true);
+    assert.equal((await g.agregar('i1', '3001112233', A('pdf', '%PDF-tres'))).motivo, 'demasiados_pdf');
+    assert.equal(g.hayArchivosGuardados('i1', '3001112233'), true);
+    const r = await g.archivos('i1', '3001112233');
+    assert.equal(r.lista.length, 2);
+    await g.quitar('i1', '3001112233', r.lista[0].id);
+    assert.equal((await g.archivos('i1', '3001112233')).lista.length, 1);
+    /* Otro registro no los ve. */
+    assert.equal((await g.archivos('i2', '3001112233')).lista.length, 0);
+    assert.equal(await g.soloEnMemoria(), true, 'sin IndexedDB tiene que decir que es solo memoria');
+  });
+  test('soltar los archivos (salir del registro) deja lo escogido; olvidar (empezar de cero) se lleva todo', async () => {
+    const { g } = telefono();
+    const e = g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('x'); e.fondos = ['skandia']; g.guardarEstado(e);
+    await g.agregar('i1', '3001112233', A('png', '\x89PNG\r\n\x1a\nuno'));
+    await g.soltarArchivos();
+    assert.equal((await g.archivos('i1', '3001112233')).lista.length, 0);
+    assert.equal(g.hayArchivosGuardados('i1', '3001112233'), false);
+    assert.deepEqual(g.estado('i1', '3001112233').fondos, ['skandia'], 'soltar los archivos se llevó lo escogido');
+    await g.olvidar();
+    assert.equal(g.estado('i1', '3001112233').aut, null);
+  });
+  test('los archivos caducan al día, y se dice que se perdieron', async () => {
+    const t = telefono();
+    const e = t.g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('x'); t.g.guardarEstado(e);
+    await t.g.agregar('i1', '3001112233', A('pdf', '%PDF-viejo'));
+    t.reloj.t += 25 * 3600e3;
+    const r = await t.g.archivos('i1', '3001112233');
+    assert.deepEqual([r.lista.length, r.perdidos], [0, true]);
+  });
+  test('encolar: solo con la autorización, pasa a la cola de ESA cuenta y sale del registro', async () => {
+    const t = telefono();
+    /* Sin autorización: nada a la cola, y se suelta. */
+    await t.g.agregar('i1', '3001112233', A('pdf', '%PDF-x'));
+    assert.equal(await t.g.encolar('i1', '3001112233'), false);
+    assert.equal(await t.g.cola('3001112233'), null);
+    const e = t.g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('2026-11-03T15:00:00Z'); e.fondos = ['colpensiones', 'porvenir']; t.g.guardarEstado(e);
+    await t.g.agregar('i1', '3001112233', A('pdf', '%PDF-y'));
+    assert.equal(await t.g.encolar('i1', '3001112233'), true);
+    const c = await t.g.cola('3001112233');
+    assert.deepEqual(c.fondos, ['colpensiones', 'porvenir']);
+    assert.equal(c.archivos.length, 1);
+    assert.equal(c.aut.version, HL.VERSION_AUTORIZACION);
+    assert.equal(t.g.estado('i1', '3001112233').aut, null, 'lo escogido se quedó en el registro después de abrir la cuenta');
+    assert.equal(await t.g.cola('3009998877'), null, 'otra cuenta ve la cola');
+    t.reloj.t += 25 * 3600e3;
+    assert.equal(await t.g.cola('3001112233'), null, 'la cola no caducó al día');
+  });
+});
+
+describe('la subida de la cola, con la sesión de la cuenta', () => {
+  const preparar = async archivos => {
+    const t = telefono();
+    const e = t.g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('2026-11-03T15:00:00Z'); e.fondos = ['porvenir']; t.g.guardarEstado(e);
+    for (const a of archivos) await t.g.agregar('i1', '3001112233', a);
+    await t.g.encolar('i1', '3001112233');
+    return t;
+  };
+  test('la autorización primero, después cada archivo de uno en uno; todo llegó y la cola se va', async () => {
+    const t = await preparar([A('pdf', '%PDF-a'), A('png', '\x89PNG\r\n\x1a\nb')]);
+    const llamadas = [];
+    const r = await HL.subirCola(t.g, '3001112233', (fn, c) => { llamadas.push([fn, c]); return Promise.resolve({ ok: true }); });
+    assert.deepEqual(llamadas.map(x => x[0]), ['pension_autorizar', 'pension_subir', 'pension_subir']);
+    assert.deepEqual(llamadas[0][1], { p_fondos: ['porvenir'], p_version: '2026-11-03', p_momento: '2026-11-03T15:00:00Z' });
+    assert.deepEqual([r.estado, r.subidos, r.total], ['ok', 2, 2]);
+    assert.equal(await t.g.cola('3001112233'), null);
+    assert.match(HL.avisoDeLaCola(r).html, /Tu historia laboral llegó/);
+  });
+  test('sin archivos (lo dejó para después): la autorización y el fondo llegan igual', async () => {
+    const t = await preparar([]);
+    const r = await HL.subirCola(t.g, '3001112233', () => Promise.resolve({ ok: true }));
+    assert.deepEqual([r.estado, r.subidos], ['ok', 0]);
+    assert.match(HL.avisoDeLaCola(r).html, /Guardamos tu autorización y tu fondo/);
+  });
+  test('la señal se cae a mitad: lo que subió no se repite, lo demás espera', async () => {
+    const t = await preparar([A('pdf', '%PDF-a'), A('pdf', '%PDF-b')]);
+    let n = 0;
+    const r = await HL.subirCola(t.g, '3001112233', fn => {
+      if (fn === 'pension_subir' && ++n === 2) return Promise.reject(new Error('sin señal'));
+      return Promise.resolve({ ok: true });
+    });
+    assert.deepEqual([r.estado, r.subidos, r.pendientes], ['sin_red', 1, 1]);
+    const c = await t.g.cola('3001112233');
+    assert.equal(c.archivos.length, 1);
+    assert.equal(c.autorizada, true, 'la autorización se repetiría');
+    const llamadas = [];
+    const r2 = await HL.subirCola(t.g, '3001112233', fn => { llamadas.push(fn); return Promise.resolve({ ok: true }); });
+    assert.deepEqual(llamadas, ['pension_subir']);
+    assert.equal(r2.estado, 'ok');
+  });
+  test('lo que la base no acepta no se reintenta, y se dice; sin la función (404), se queda en el teléfono', async () => {
+    const t = await preparar([A('pdf', '%PDF-a')]);
+    const r = await HL.subirCola(t.g, '3001112233', fn => Promise.resolve(fn === 'pension_subir' ? { ok: false, motivo: 'tipo_no_permitido' } : { ok: true }));
+    assert.deepEqual([r.estado, r.subidos, r.rechazados.length], ['ok', 0, 1]);
+    assert.match(HL.avisoDeLaCola(r).html, /no entró/);
+    const t2 = await preparar([A('pdf', '%PDF-a')]);
+    const r2 = await HL.subirCola(t2.g, '3001112233', () => Promise.reject(Object.assign(new Error('http 404'), { status: 404 })));
+    assert.equal(r2.estado, 'apagado');
+    assert.ok(await t2.g.cola('3001112233'), 'con la base sin la migración, la cola se perdió');
+    assert.match(HL.avisoDeLaCola(r2).html, /todavía no está encendida/);
+    const r3 = await HL.subirCola(t2.g, '3001112233', () => Promise.reject(Object.assign(new Error('http 401'), { status: 401 })));
+    assert.equal(r3.estado, 'sesion');
+  });
+  test('si la base no aceptara los fondos, autoriza sin fondo en vez de reintentar hasta que caduque', async () => {
+    const t = await preparar([]);
+    const pedidos = [];
+    const r = await HL.subirCola(t.g, '3001112233', (fn, c) => {
+      pedidos.push(c.p_fondos);
+      return Promise.resolve(c.p_fondos.length ? { ok: false, motivo: 'fondos' } : { ok: true });
+    });
+    assert.deepEqual(pedidos, [['porvenir'], []]);
+    assert.equal(r.estado, 'ok');
+  });
+});
+
+describe('la llamada con el token de la sesión (la app)', () => {
+  test('con el token de la sesión, nunca con la llave pública sola; el 404 se distingue', async () => {
+    let visto = null;
+    const f = (url, o) => { visto = { url, o }; return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('{"ok":true}') }); };
+    const j = await HL.llamarConToken({ url: 'https://x.supabase.co/', anon: 'llave', token: 'tok' }, 'pension_mia', {}, f);
+    assert.deepEqual(j, { ok: true });
+    assert.equal(visto.url, 'https://x.supabase.co/rest/v1/rpc/pension_mia');
+    assert.equal(visto.o.headers.Authorization, 'Bearer tok');
+    await assert.rejects(HL.llamarConToken({ url: 'u', anon: 'a', token: '' }, 'pension_mia', {}, f), e => e.sinSesion === true);
+    const f404 = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+    await assert.rejects(HL.llamarConToken({ url: 'u', anon: 'a', token: 't' }, 'pension_mia', {}, f404), e => e.status === 404);
+  });
+});
