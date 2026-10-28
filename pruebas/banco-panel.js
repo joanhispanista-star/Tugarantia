@@ -215,6 +215,12 @@ function abrirPanel(opciones) {
   /* 27-oct-2026 — las reglas de agregar gente (el gerente agrega), el <script
      src> nuevo de crm.html. `sinAgregar: true` simula que no llegó. */
   if (!o.sinAgregar) ctx.AgregarProspectos = require(path.join(RAIZ, 'panel', 'agregar-prospectos.js'));
+  /* 28-oct-2026 — 📄 Fondo de pensiones: la lista de fondos y lo del CRM, los
+     <script src> nuevos de crm.html. `sinPension: true` simula que no llegaron. */
+  if (!o.sinPension) {
+    ctx.FondosPension = require(path.join(RAIZ, 'app', 'fondos-pension.js'));
+    ctx.HistoriaLaboralCRM = require(path.join(RAIZ, 'panel', 'historia-laboral-crm.js'));
+  }
   /* 22-oct-2026 — la lista de bancos y las reglas de la cuenta, los <script
      src> nuevos de crm.html («💸 Consignar a: …»). `sinCuentas: true` simula
      que no llegaron. */

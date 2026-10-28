@@ -1216,6 +1216,13 @@
      que es de donde toma celularDe, nombreDe y las señales financieras. Con
      ?v=: es un .js nuevo, y firma al llegar (¿LLEGÓ LO QUE PEDÍ?). -->
 <script src="agregar-prospectos.js?v=140"></script>
+<!-- 28-oct-2026 — 📄 FONDO DE PENSIONES: lo que el cliente subió en «Tu fondo
+     de pensiones» (el registro o la app), solo para Joan (su clave). La lista
+     de fondos es la de play/ y la app; historia-laboral-crm.js abre UN archivo
+     con el tipo forzado por sus bytes. Nuevos: sin versión en la dirección, y
+     fuera del guardián: si no llegan, no se pinta nada de esto y el CRM sigue. -->
+<script src="../app/fondos-pension.js"></script>
+<script src="historia-laboral-crm.js"></script>
 <!-- Las etapas del cliente (PC, CR, CA, D-3…, M1A, M1B, M1-2). La MISMA
      tabla que usa la app del equipo: si cada pantalla la calculara por su
      cuenta, Joan y su asesor verían carteras distintas para el mismo
@@ -5844,6 +5851,7 @@ function verCliente(id){
     ${fila('Nota de riesgo (manual)',s.notaRiesgo)}
     ${gal}
     <div id="fichaFotosNube"></div>
+    <div id="fichaPension"></div>
     <div class="sub-h">Créditos · historial</div>
     ${bloqueCreditosHTML(s)}
     ${!ps.length?'<p class="muted">Sin créditos.</p>':''}
@@ -5873,6 +5881,9 @@ function verCliente(id){
   /* 22-oct-2026 (C2) — y lo que llegó a la nube DESPUÉS de crear la ficha. */
   _fichaVista=s.id;
   try { traerFotosTardias(s); } catch(e){}
+  /* 28-oct-2026 — y su historia laboral del fondo de pensiones, si la dio
+     (ver 📄 FONDO DE PENSIONES). Quien no la dio no ocupa sitio en la ficha. */
+  try { pintarPension(s.celular,'fichaPension',{siVacio:false}); } catch(e){}
 }
 
 /* ==========================================================================
@@ -10800,7 +10811,7 @@ function traerRegistros(){
   if(!sbListo()){ _registros=[]; renderRegistros(); return; }
   b.innerHTML='<div class="muted" style="padding:14px 18px">Buscando…</div>';
   rpc('listar_registros',{p_clave:sbCfg().clave,p_estado:'nuevo'})
-    .then(f=>{ _registros=Array.isArray(f)?f:[]; renderRegistros(); traerQuienVe(); })
+    .then(f=>{ _registros=Array.isArray(f)?f:[]; renderRegistros(); traerQuienVe(); traerPensiones(); })
     .catch(e=>{ b.innerHTML='<div class="alerta warn" style="margin:14px">No pude leer quién pidió entrar. '+escHTML(errNube(e))+'</div>'; });
 }
 
@@ -10941,7 +10952,7 @@ function renderRegistros(){
          ya tiene y quedan dos clientes donde hay una persona. La regla vive en
          el puente; acá solo se pinta. */
       const cand=PUENTE.candidatosDeCruce(DB,r), c0=cand[0];
-      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}${huecoUbicacion(r.huella,{registro:r},true)}${chipDelEquipo(r.telefono)}${pedidoEnRegistro(r)}${chipQuienVe(r)}${chipEquipoRegistro(r)}</td>
+      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}${huecoUbicacion(r.huella,{registro:r},true)}${chipDelEquipo(r.telefono)}${pedidoEnRegistro(r)}${chipPension(r)}${chipQuienVe(r)}${chipEquipoRegistro(r)}</td>
       <td>${abierto?'<span class="chip al-dia">📱 App</span>':'<span class="chip pagado">🎟️ '+escHTML(r.codigo||'Invitación')+'</span>'}</td>
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
@@ -11021,6 +11032,7 @@ function borrarParaProbar(celular, nombre){
     +'Se van, para siempre y sin deshacer:\n'
     +'  · su cuenta de acceso (por eso podra registrarse otra vez)\n'
     +'  · sus fotos de cedula y su selfie\n'
+    +'  · su historia laboral del fondo de pensiones, si la subio\n'
     +'  · su ficha de esta bandeja\n'
     +'  · sus solicitudes de credito, su chat y las fotos que haya mandado por el\n\n'
     +'NO se borra su ficha de cliente ni su historial de creditos: eso vive en '
@@ -11035,7 +11047,11 @@ function borrarParaProbar(celular, nombre){
   /* Y lo que ESTE navegador recuerda de su red (la ciudad por IP) se olvida con él. */
   try{ const h=(_registros.find(x=>String(x.telefono||'').replace(/\D/g,'').slice(-10)===cel)||{}).huella;
        const M=window.UbicacionIP; if(M&&M.olvidarIP&&h&&h.ip) M.olvidarIP(localStorage,h.ip); }catch(e){}
-  rpc('borrar_cuenta_de_pruebas',{p_clave:sbCfg().clave,p_celular:cel})
+  /* 28-oct-2026 — primero su historia laboral del fondo de pensiones: el
+     disparador de la base se la llevaría igual con la cuenta, pero así el
+     «Se fueron» dice cuántos archivos, en vez de suponerlo. */
+  let hp=null;
+  borrarPensionAntes(cel).then(x=>{ hp=x; return rpc('borrar_cuenta_de_pruebas',{p_clave:sbCfg().clave,p_celular:cel}); })
     .then(j=>{
       if(!j||j.ok!==true){
         return alert('No se pudo borrar.\n\n'+((j&&j.motivo)||'La nube contesto que no.')
@@ -11049,7 +11065,8 @@ function borrarParaProbar(celular, nombre){
         +'  · fichas de la bandeja: '+Number(j.registros||0)+'\n'
         +'  · solicitudes: '+Number(j.solicitudes||0)+'\n'
         +'  · mensajes del chat, con las fotos que llevaran: '+Number(j.mensajes||0)
-        +(Number(j.desvinculados||0)?'\n  · fichas de cliente desvinculadas: '+Number(j.desvinculados):''));
+        +(Number(j.desvinculados||0)?'\n  · fichas de cliente desvinculadas: '+Number(j.desvinculados):'')
+        +lineaPensionBorrada(hp));
       traerRegistros();
     })
     .catch(e=>{
@@ -11109,9 +11126,95 @@ function verDatosRegistro(id){
     +'Al abrirle la ficha se prellenan y viajan con el cliente.</div>'
     +(filas||'<div class="muted">No dejó datos además del nombre y el celular.</div>')
     +bloqueHuella(r.huella,{registro:r})
-    +'<div class="sub-h">Fotos del registro</div><div id="regFotos" class="muted">Buscando las fotos…</div>');
+    +'<div class="sub-h">Fotos del registro</div><div id="regFotos" class="muted">Buscando las fotos…</div>'
+    /* 28-oct-2026 — y su historia laboral, si la dio (ver 📄 FONDO DE PENSIONES). */
+    +'<div id="regPension"></div>');
   pintarFotosRegistro(r.telefono||r.cedula,'regFotos');
+  pintarPension(r.telefono,'regPension',{});
   resolverUbicaciones();
+}
+/* ==========================================================================
+ * 📄 FONDO DE PENSIONES — 28 de octubre de 2026
+ *
+ * Joan: «quiero que yo como dueño tenga acceso a esta información cuando
+ * quiera». Lo que el cliente subió en «Tu fondo de pensiones» (el registro o
+ * su app) se ve en 📥 Registrados («📄 Fondo de pensiones: Ver»), en «👁 Ver
+ * datos» y en la ficha. Todo con la clave de Joan (pension_resumen,
+ * pension_de, pension_archivo): el modo equipo no pinta nada, y la base
+ * tampoco se lo daría a una sesión del equipo. Las reglas de abrir un archivo
+ * que escribió un desconocido viven en panel/historia-laboral-crm.js.
+ * Borrarla: aquí («🗑 Borrar su historia laboral»), con «🧪 Borrar y repetir»
+ * y con «🚫 Borrar a alguien que lo pidió» (pension_borrar); y la base se la
+ * lleva sola si se borra la cuenta de acceso.
+ * ======================================================================== */
+let _pensiones=null;
+function enModoEquipoPension(){ try{ return !!CARTERA_EQUIPO; }catch(e){ return false; } }
+function pensionCRM(){ return (!enModoEquipoPension()&&window.HistoriaLaboralCRM)?window.HistoriaLaboralCRM:null; }
+/* Llega DESPUÉS de la lista, como traerQuienVe: sin la función en la nube, la
+   bandeja se ve igual, sin las líneas del fondo. */
+function traerPensiones(){
+  const H=pensionCRM(); if(!H||!sbListo()) return;
+  H.resumen(rpc,sbCfg().clave).then(m=>{ _pensiones=m; renderRegistros(); }).catch(()=>{ _pensiones=null; });
+}
+function chipPension(r){
+  const H=pensionCRM(); if(!H||!_pensiones) return '';
+  return H.chip(_pensiones[telDiez(r.telefono)]);
+}
+function verPensionRegistro(tel){
+  const H=pensionCRM(); if(!H) return;
+  const nombre=nombreDeRegistroPorTel(tel);
+  openModal('📄 Fondo de pensiones · '+(nombre||tel),'<div id="pensionModal" class="muted">Buscando su historia laboral…</div>');
+  pintarPension(tel,'pensionModal',{});
+}
+/* `opc.siVacio`: false en la ficha, donde quien no la dio no ocupa sitio. */
+function pintarPension(tel,cajaId,opc){
+  const H=pensionCRM(), caja=document.getElementById(cajaId); if(!caja) return;
+  const o=opc||{};
+  if(!H){ caja.innerHTML=''; return; }
+  if(!sbListo()){ caja.innerHTML=o.siVacio===false?'':'<div class="sub-h">📄 Fondo de pensiones</div><span class="muted">Vive en la nube. Conéctala en Ajustes para verla.</span>'; return; }
+  H.de(rpc,sbCfg().clave,tel).then(d=>{
+    const c=document.getElementById(cajaId); if(c) c.innerHTML=H.bloque(d,o);
+  }).catch(e=>{
+    const c=document.getElementById(cajaId); if(!c) return;
+    const m=errNube(e);
+    /* Decir qué pasó, y sobre todo qué NO: no poder preguntar no es «no la dio». */
+    c.innerHTML=/todavía no tiene/.test(m)
+      ?(o.siVacio===false?'':'<div class="sub-h">📄 Fondo de pensiones</div><div class="muted">Tu base todavía no tiene esta parte: corre base/20261103_el_fondo_de_pensiones.sql en el SQL Editor.</div>')
+      :'<div class="sub-h">📄 Fondo de pensiones</div><div class="alerta warn">No pude preguntar por su historia laboral: '+escHTML(m)+'<div class="muted" style="margin-top:4px">Eso <b>no</b> quiere decir que no la haya subido.</div></div>';
+  });
+}
+function verArchivoPension(id){
+  const H=pensionCRM(); if(!H||!sbListo()) return;
+  const caja=document.getElementById('pensionAbrir');
+  if(caja) caja.innerHTML='<span class="muted">Trayendo el archivo…</span>';
+  H.traer(rpc,sbCfg().clave,id).then(r=>{
+    if(!r.ok){ if(caja) caja.innerHTML='<div class="alerta warn">'+escHTML(H.motivoEnPalabras(r.motivo))+'</div>'; return; }
+    if(!H.abrir(r,caja,window)){ if(caja) caja.innerHTML='<div class="alerta warn">Este navegador no pudo abrirlo.</div>'; return; }
+    if(r.tipo!=='pdf'&&caja) caja.innerHTML='';
+  }).catch(e=>{ if(caja) caja.innerHTML='<div class="alerta warn">No pude traerlo: '+escHTML(errNube(e))+'</div>'; });
+}
+function borrarPensionDe(tel){
+  const H=pensionCRM(); if(!H||!sbListo()) return;
+  const quien=nombreDeRegistroPorTel(tel)||tel;
+  if(!confirm('BORRAR la historia laboral de '+quien+': sus archivos, el fondo que dijo y su autorización. Es lo que pide quien la retira por el chat. No se puede deshacer. ¿La borro?')) return;
+  H.borrar(rpc,sbCfg().clave,tel).then(j=>{
+    if(!j||j.ok!==true) return alert('No se borró: '+((j&&j.motivo)||'la nube dijo que no.'));
+    alert('Listo: borré '+Number(j.archivos||0)+' archivo(s) de su historia laboral y su autorización.');
+    cerrarModal(); traerPensiones();
+  }).catch(e=>alert('No pude borrar: '+errNube(e)));
+}
+/* Para «🧪 Borrar y repetir» y «🚫 Borrar a alguien que lo pidió». Nunca
+   rechaza: lo que pasó vuelve en lo que devuelve, y quien llama lo dice. */
+function borrarPensionAntes(cel){
+  const H=pensionCRM(); if(!H||!sbListo()) return Promise.resolve(null);
+  return H.borrar(rpc,sbCfg().clave,cel).then(j=>(j&&j.ok===true)?j:{error:(j&&j.motivo)||'la nube dijo que no'},
+    e=>({error:errNube(e),falta:/todavía no tiene/.test(errNube(e))}));
+}
+function lineaPensionBorrada(hp){
+  if(!hp) return '';
+  if(hp.falta) return '\n  · historia laboral del fondo de pensiones: tu base todavia no tiene esa parte';
+  if(hp.error) return '\n  · historia laboral del fondo de pensiones: NO se borro ('+hp.error+')';
+  return '\n  · historia laboral del fondo de pensiones: '+Number(hp.archivos||0)+' archivo(s)'+(Number(hp.autorizaciones||0)?' y su autorizacion':'');
 }
 /* 8-sep-2026 — LA HUELLA: desde qué aparato y desde qué IP se abrió la cuenta
    (lo leyó la base de la petición, no el teléfono), el punto GPS si lo
@@ -17849,7 +17952,7 @@ function suprimirDesdeBases() {
     <p class="sub">La Ley 1581 da 15 días hábiles. Se borra como prospecto, con su información adicional, sus gestiones (las del
       equipo y las tuyas), contactos y citas: de la nube (lo que subió tu equipo, lo que publicaste tú, la copia de tu Panel y las
       copias viejas que dejaron los choques entre tus aparatos) y de este computador. Queda anotado, sin el número, para que nadie
-      lo vuelva a agregar.</p>
+      lo vuelva a agregar. Si se registró y subió su historia laboral del fondo de pensiones, esa también se borra.</p>
     <div class="field"><label>Celular</label><input id="supCel" inputmode="numeric" placeholder="3001234567"></div>
     <div class="field"><label>¿Cómo lo pidió?</label><input id="supComo" placeholder="Ej: por el chat de la app el 3-nov">
       <div class="help">Queda guardado: es la prueba de que se borró porque lo pidió.</div></div>
@@ -17899,7 +18002,11 @@ function confirmarSuprimir() {
     }
     return primera;
   };
-  const listo = r => {
+  const listo = (r, hp) => {
+    const pension = !hp || hp.falta ? '' : hp.error
+      ? '\n\nSu historia laboral del fondo de pensiones NO se borró (' + hp.error + '): bórrala desde 📥 Registrados → 📄 Fondo de pensiones.'
+      : (Number(hp.archivos) || Number(hp.autorizaciones))
+        ? '\n\nTambién borré su historia laboral del fondo de pensiones: ' + Number(hp.archivos || 0) + ' archivo(s) y su autorización.' : '';
     TIENE_EQUIPO[cel] = { no_contactar: true, desde: new Date().toISOString() };
     const faltan = quedan > 0 ? '\n\nQuedan ' + quedan.toLocaleString('es-CO') + ' copias viejas de tu Panel en la nube con su número ' +
       '(de cuando chocaron dos de tus aparatos). Vuelve a tocar «🚫 Borrar a alguien que lo pidió» con el mismo celular para terminarlas.' : '';
@@ -17907,7 +18014,7 @@ function confirmarSuprimir() {
       cerrarModal();
       return alert('Es cliente: lo que la ley obliga a guardar (créditos y pagos) no se borra. Habla con el abogado antes de tocarlo. ' +
         'Sí lo anoté para que nadie lo vuelva a agregar como prospecto y, si estaba como prospecto en la copia de tu Panel en la nube, ' +
-        'lo quité de ahí (sus créditos y pagos no se tocan).' + faltan);
+        'lo quité de ahí (sus créditos y pagos no se tocan).' + pension + faltan);
     }
     const local = suprimirProspectoLocal(cel);
     cerrarModal();
@@ -17921,9 +18028,15 @@ function confirmarSuprimir() {
       '\n\nTambién la quité de la copia de tu Panel en la nube, con sus gestiones, y la nube no las vuelve a guardar aunque otro ' +
       'aparato tuyo las suba. Si tienes el Panel en otro aparato (el celular), allá sigue en tus prospectos hasta que la borres a mano.' +
       (r.registrado ? '\n\nSe registró en la app: su registro (con su cédula y fotos) no se borra desde aquí.' : '') +
-      '\n\nLo que tu equipo ya le escribió por WhatsApp queda en sus teléfonos: eso no lo borra el CRM.' + faltan);
+      '\n\nLo que tu equipo ya le escribió por WhatsApp queda en sus teléfonos: eso no lo borra el CRM.' + pension + faltan);
   };
-  return llamar().then(r => seguir(r, 1)).then(listo)
+  /* 28-oct-2026 — y su historia laboral del fondo de pensiones: ningún
+     deber de guardarla (no es un soporte del crédito), así que se va también
+     si es cliente. Lo que pasó se dice en el «Listo». */
+  let hp = null;
+  return llamar().then(r => seguir(r, 1))
+    .then(r => borrarPensionAntes(cel).then(x => { hp = x; return r; }))
+    .then(r => listo(r, hp))
     .then(() => traerSubidoPorElEquipo())
     .catch(e => {
       /* Si la primera ya entró, lo demás está borrado: se dice qué falta. */
