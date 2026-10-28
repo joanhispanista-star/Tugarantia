@@ -297,6 +297,20 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         pruebas/chat-1-espejo.test.js.
   una-puerta.js         Las palabras del toque «¿Es la misma persona?» (juntar la
                         cuenta de un cliente antiguo), compartidas con espejo.html.
+  agregar-prospectos.js Las reglas de agregar gente (27-oct-2026, «el gerente
+                        agrega»), puras y probadas en node: de un archivo solo
+                        viajan cinco columnas de lista blanca, por su nombre
+                        EXACTO (ciudad, monto que pide, ocupación o negocio,
+                        cómo llegó, observación), nunca direcciones; la
+                        limpieza del nombre y de la nota; las tandas de 200; y
+                        el CSV de «⬇ Descargar para Excel» del gerente (solo
+                        prospectos, y lo que Excel correría como fórmula sale
+                        neutralizado). crm.html lo pide con ?v= y firma al
+                        llegar; sale en v140 (30-oct). Quién puede qué, y por
+                        qué: PLAN-ROLES-ASESOR-GERENTE.md (27-oct). Pruebas:
+                        pruebas/agregar-prospectos.test.js,
+                        el-gerente-agrega.test.js, joan-ve-lo-del-equipo.test.js
+                        y el-gerente-descarga-su-base.test.js.
   nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el
                         22-oct-2026, se empareja sola en cada computador: solo
                         pregunta si la nube tiene OTRA cartera. Lo distinto queda
@@ -455,6 +469,23 @@ base/
                                   El cuadro de «Crear cuenta» dice que falta
                                   ese paso (pruebas/el-equipo-con-la-clave-de-joan).
                                   (Se llamaba 20261022b_el_equipo_con_la_clave_de_joan.sql.)
+                                  APLICADO en producción el 28-oct-2026.
+  20261027_el_gerente_agrega.sql  El gerente agrega prospectos (uno a mano o un
+                                  archivo, en tandas de 200) solo con la
+                                  autorización y dónde está su prueba, y con su
+                                  acuerdo de encargado anotado
+                                  (equipo_acuerdo_firmado, solo desde el editor);
+                                  «ya existe» sin decir de quién, con freno cada
+                                  50; Joan ve lo que sube su equipo y borra a
+                                  quien lo pida (equipo_suprimir). Seis tablas
+                                  con RLS y sin políticas. Exige el 22d (se para
+                                  en su paso 0 si falta). De noche (crea
+                                  índices) y ANTES de publicar la web: es el
+                                  2.4-bis de la receta del 30-oct. Termina con
+                                  su tabla: 12 renglones en true y, debajo, uno
+                                  por gerente activo. Pruebas:
+                                  pruebas/el-gerente-agrega-postgres.test.js y
+                                  el-gerente-agrega-sql.test.js.
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.
