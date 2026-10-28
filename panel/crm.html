@@ -155,6 +155,14 @@
   /* Cuando el mensaje NO es un rechazo sino algo que falta hacer, deja de ser
      rojo: el rojo dice «te equivocaste» y ahí nadie se equivocó. */
   .gate-err.aviso{color:var(--tinta-2);font-weight:500;text-align:left}
+  /* 28-oct-2026 — .oculto NO EXISTÍA en esta hoja (sí en espejo.html y en
+     socio.html), y el chat del equipo la usa: el recuadro de error de Joan
+     (#eqErr) se veía vacío todo el tiempo, y junto a «📷 Mandar una foto» salía
+     el control del navegador «Seleccionar archivo». El input de archivo se
+     esconde sin display:none (1 px, transparente): así .click() lo abre en
+     todo Safari, como el de «⤒ Cargar base». */
+  .oculto{display:none!important}
+  input[type=file].oculto{display:block!important;position:absolute!important;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
   .gate-err.aviso b{color:var(--laca)}
 
   /* 10-sep-2026 — EL OJO. Joan lo pidió por su nombre: una contraseña dictada
@@ -9153,6 +9161,15 @@ function reanudarRelojChat(yPreguntar){
    La regla de la casa es la misma de siempre: sin nube el Panel ANDA, avisando
    de lo que no puede hacer. Que le falte el chat no puede costarle a Joan la
    cartera, el calendario y la cola de cobro. */
+/* 28-oct-2026 — «HOY» EN LOS HILOS DEL EQUIPO. Se pasaba hoyISO() tal cual
+   («2026-10-28») y app/chat.js hace new Date(eso): una fecha SOLA se lee como
+   medianoche UTC, que en Bogotá es el 27 a las 7 p. m. Los mensajes de hoy
+   salían «28 de octubre» y los de ayer «Hoy» (lo vio el revisor del lote del
+   30, en el chat de Joan con William y en el de William con Joan). Con la hora
+   del mediodía y sin zona, la fecha se lee LOCAL; y se sigue pasando hoyISO(),
+   así las pruebas que fijan el día no dependen del reloj. app/chat.js no se
+   toca: está publicado sin ?v=. */
+function hoyLocalChat(iso){ return String(iso||'') ? String(iso).slice(0,10)+'T12:00:00' : undefined; }
 function chatListo(){ return !!(window.ChatTuGarantia && CHAT && CHAT.listaHTML); }
 
 /* Soltar la copia guardada. Se borran las cachés del sitio y se da de baja el
@@ -9294,7 +9311,7 @@ function cargarHiloEquipo(semilla){
     const caja=document.getElementById('eqHilo');
     if(!caja) return;                    /* cerró el modal mientras tanto */
     caja.innerHTML=lista.length
-      ? CHAT.hiloHTML(lista,{yo:'negocio',hoy:hoyISO(),textoVisto:'Lo vio',
+      ? CHAT.hiloHTML(lista,{yo:'negocio',hoy:hoyLocalChat(hoyISO()),textoVisto:'Lo vio',
           alVerFoto:'verFotoDelEquipo'})
       : '<div class="muted" style="padding:14px">Todavía no se han escrito. Empieza tú.</div>';
   };
@@ -14994,7 +15011,7 @@ function pintarHiloJefe(sinBajar) {
     return;
   }
   /* `yo: socio` — en este hilo el de este lado es el asesor. Ver la cabecera. */
-  caja.innerHTML = CHAT.hiloHTML(_jefeMsgs, { yo: 'socio', hoy: hoyISOCrm(),
+  caja.innerHTML = CHAT.hiloHTML(_jefeMsgs, { yo: 'socio', hoy: hoyLocalChat(hoyISOCrm()),
     textoVisto: 'Lo vio', alVerFoto: 'verFotoJefe' });
   /* `sinBajar`: el reloj del hilo decide él si baja (26-oct-2026, chat-1): si
      la persona está leyendo arriba, no se le arrastra la pantalla. */
