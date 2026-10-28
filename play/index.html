@@ -3338,7 +3338,13 @@ function montarHistoriaLaboralEnPerfil() {
        el de Node, y una prueba del Perfil llamaba a la base de verdad. */
     fetch: function (u, op) { return fetch(u, op); },
     escritura: escrituraEnCamino,
-    alApagado: function () { HL_APAGADO_PLAY = true; }
+    alApagado: function () { HL_APAGADO_PLAY = true; },
+    /* 28-oct-2026 (arreglo de los leves, P7) — retirar borra también lo que
+       de ESTA cuenta esperaba en el teléfono (la cola del registro), y el
+       aviso de arriba deja de decir «Lo volvemos a intentar». */
+    guardadero: guardaderoPension(),
+    celular: function () { var e = (ses.user && ses.user.email) || '', m = String(e).toLowerCase().match(/^57([0-9]{10})@tugarantia\.net$/); return m ? m[1] : ''; },
+    alRetirar: function () { if (SESION === ses) pintarAvisoPension(''); }
   });
 }
 
@@ -14163,6 +14169,17 @@ function avisarQueEsMomento() {
       PENSION_PERDIDOS = true;
       gp.soltarArchivos();
     }
+    /* 28-oct-2026 (arreglo de los leves, P7) — Y LO VENCIDO DE CUALQUIERA SE
+       BARRE YA. La cola de una cuenta y los archivos de un registro solo se
+       borraban si ESA cuenta (o ese registro) volvía a este teléfono: en el
+       prestado se quedaban para siempre. Como sanearColas con las fotos: todo
+       lo de más de un día se va al abrir, sea de quien sea. Si eran los de
+       ESTE registro, su paso lo dice (PENSION_PERDIDOS), como antes. */
+    if (gp) gp.barrer(REGISTRO.intento, REGISTRO.celular).then(function (r) {
+      if (!r || !r.perdidos) return;
+      PENSION_PERDIDOS = true;
+      if (VISTA === 'registro' && PASOS[PASO] && PASOS[PASO].id === 'pension') pintarRegistro(PASO);
+    }, function () {});
   } catch (e) {}
   /* 20-oct-2026, rediseño (A) — LO SENSIBLE SOLO SOBREVIVE A LA VUELTA DE LA
      CÁMARA. Si la página vuelve sola a un paso guardado dentro del rato que

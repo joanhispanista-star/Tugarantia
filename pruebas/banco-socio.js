@@ -136,6 +136,9 @@ function abrirSocio(o) {
     atob: s => Buffer.from(s, 'base64').toString('binary')
   };
   ctx.window = ctx; ctx.self = ctx; ctx.globalThis = ctx;
+  /* 28-oct-2026 — `o.indexedDB`: un IndexedDB de mentira (pruebas/idb-de-mentira.js)
+     para lo que la historia laboral deja en el teléfono. */
+  if (o.indexedDB) ctx.indexedDB = o.indexedDB;
   vm.createContext(ctx);
 
   for (const m of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)) {

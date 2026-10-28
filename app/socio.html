@@ -1508,16 +1508,44 @@ function pintarSinJuntar(estado) {
  * ======================================================================== */
 var HL = window.HistoriaLaboral || null;
 var HL_APAGADO = false;   // la base contestó 404: no se vuelve a ofrecer en esta visita
+/* 28-oct-2026 (arreglo de los leves, P7) — lo que la historia laboral deja en
+   ESTE teléfono (la cola de una cuenta cuyo registro no alcanzó a subirla, en
+   IndexedDB): el mismo guardadero de play/, que es del mismo sitio. Aquí no
+   se sube nada de eso; solo se barre lo vencido al abrir y se borra lo de la
+   cuenta que retira su autorización. */
+var HL_GUARDADERO = null;
+function guardaderoHL() {
+  if (!HL || typeof HL.guardadero !== 'function') return null;
+  if (!HL_GUARDADERO) {
+    var ls = null, idb = null;
+    try { ls = window.localStorage; } catch (e) { ls = null; }
+    try { idb = window.indexedDB || null; } catch (e) { idb = null; }
+    HL_GUARDADERO = HL.guardadero({ ls: ls, idb: idb });
+  }
+  return HL_GUARDADERO;
+}
+/* Al abrir la app: lo de más de un día, de quien sea, se va (ver barrer). Si
+   María no vuelve a play/ en el teléfono de Beto, su historia laboral no se
+   queda ahí para siempre. */
+function barrerHistoriaLaboral() {
+  var g = guardaderoHL();
+  if (!g) return;
+  try { g.barrer().then(null, function () {}); } catch (e) {}
+}
 function montarHistoriaLaboral() {
   var caja = $('hlCuenta');
   if (!caja) return;
   /* Sin la lista de fondos (un service worker que trajo uno y no el otro) la
      tarjeta quedaría a medias: no se pinta. */
   if (!HL || !window.FondosPension || HL_APAGADO || !SESION || !SESION.access_token) { caja.innerHTML = ''; return; }
+  var ses = SESION;
   HL.tarjetaDeCuenta(caja, {
     credenciales: cfgChat,          // {url, anon, token} con la sesión renovada si hace falta
     escritura: escrituraEnCamino,   // «se actualiza sola» no recarga encima de una subida
-    alApagado: function () { HL_APAGADO = true; }
+    alApagado: function () { HL_APAGADO = true; },
+    /* Retirar borra también lo de ESTA cuenta que esperaba en el teléfono. */
+    guardadero: guardaderoHL(),
+    celular: function () { return (ses && ses.celular) || ''; }
   });
 }
 
@@ -5453,6 +5481,9 @@ function avisarQueEsMomento() {
   var teniaCodigo = false;
   try { teniaCodigo = !!(SS && SS.teniaSesionVieja(localStorage)); } catch (e) { teniaCodigo = false; }
   if (SS) SS.borrarVieja(localStorage);
+  /* 28-oct-2026 (arreglo de los leves, P7) — lo vencido de la historia
+     laboral se barre al abrir, entre quien entre (ver barrerHistoriaLaboral). */
+  barrerHistoriaLaboral();
 
   var delEnlace = desdeEnlace();
   if (delEnlace) return abrir(delEnlace);

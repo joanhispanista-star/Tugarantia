@@ -101,6 +101,10 @@ function abrirPlay(opciones) {
     removeEventListener() {}, dispatchEvent() { return true; }
   };
   ctx.window = ctx; ctx.self = ctx;
+  /* 28-oct-2026 — `o.indexedDB`: un IndexedDB de mentira (pruebas/idb-de-mentira.js)
+     para lo que la historia laboral deja en el teléfono. Sin él, como un
+     navegador sin IndexedDB: la memoria de la página. */
+  if (o.indexedDB) ctx.indexedDB = o.indexedDB;
   /* Cada banco recibe su PROPIA copia de los módulos. Sin esto, clavarle un
      topeVigente de mentira a uno se lo clava a todos los que vengan después en
      el mismo proceso: ya pasó, y envenenó tres pruebas de otro archivo. */

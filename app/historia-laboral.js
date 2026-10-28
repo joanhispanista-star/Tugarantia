@@ -617,9 +617,16 @@
       if (dbP) return dbP;
       dbP = new Promise(function (res) {
         if (!idb || typeof idb.open !== 'function') { persistido = false; return res(null); }
-        var listo = false, fin = function (d) { if (listo) return; listo = true; if (!d) persistido = false; res(d); };
+        /* 28-oct-2026 (arreglo de los leves) — el reloj de los 3 s se suelta
+           al contestar: colgado, dejaba viva la página de pruebas tres
+           segundos más, y no tiene nada que esperar. */
+        var reloj = null, listo = false, fin = function (d) {
+          if (listo) return; listo = true; if (!d) persistido = false;
+          try { if (reloj) clearTimeout(reloj); } catch (e) {}
+          res(d);
+        };
         /* Safari a veces no contesta nunca el open: a los 3 s, la memoria. */
-        try { setTimeout(function () { fin(null); }, 3000); } catch (e) {}
+        try { reloj = setTimeout(function () { fin(null); }, 3000); } catch (e) {}
         try {
           var req = idb.open(BASE_DE_DATOS, 1);
           req.onupgradeneeded = function () { try { req.result.createObjectStore('lotes'); } catch (e) {} };
@@ -770,6 +777,55 @@
         });
       },
       guardarCola: function (cel, c) { return escribir('cola:' + cel, c || null); },
+      /**
+       * 28-oct-2026 (arreglo de los leves, P7) — EL BARRIDO DE LO VENCIDO.
+       * «Caducan al día» era perezoso: la cola de una cuenta ('cola:<celular>')
+       * y los archivos de un registro ('reg') solo se miraban —y se borraban
+       * si habían vencido— cuando ESA cuenta volvía a entrar en ESE teléfono,
+       * o ese registro volvía a su paso. Si María no volvía al teléfono de
+       * Beto, su historia laboral (empleadores, salarios, cédula) se quedaba
+       * ahí para siempre, legible por cualquier página del mismo sitio. Lo
+       * llaman play/ y app/socio.html al arrancar: borra TODA cola y todo
+       * registro de más de HORAS_ARCHIVOS, sea de quien sea (es lo mismo que
+       * hace sanearColas con las fotos), y lo escogido de más de DIAS_ESTADO.
+       * `perdidos`: si lo vencido eran archivos de ESTE registro (intento y
+       * celular), para que su paso lo diga como antes.
+       * @returns Promise<{borrados, perdidos}>
+       */
+      barrer: function (intento, celular) {
+        var e = leerEstadoCrudo();
+        if (e && !(ahora() - Number(e.t) >= 0 && ahora() - Number(e.t) < DIAS_ESTADO * 24 * 3600e3)) {
+          ESTADO_MEM = null;
+          try { if (ls) ls.removeItem(LLAVE_ESTADO); } catch (x) {}
+        }
+        var res = { borrados: 0, perdidos: false };
+        var vencido = function (k, v) {
+          if (k !== 'reg' && String(k).indexOf('cola:') !== 0) return false;
+          var ok = v && typeof v === 'object' && ahora() - Number(v.t) >= 0 && ahora() - Number(v.t) < HORAS_ARCHIVOS * 3600e3 &&
+            (k === 'reg' || String(v.celular) === String(k).slice(5));
+          if (ok) return false;
+          if (k === 'reg' && v && intento && celular && v.intento === String(intento) && v.celular === String(celular) &&
+              v.archivos && v.archivos.length) res.perdidos = true;
+          res.borrados++;
+          return true;
+        };
+        return abrir().then(function (d) {
+          if (!d) { Object.keys(MEM).forEach(function (k) { if (vencido(k, MEM[k])) delete MEM[k]; }); return res; }
+          return new Promise(function (fin) {
+            try {
+              var tx = d.transaction('lotes', 'readwrite'), cur = tx.objectStore('lotes').openCursor();
+              cur.onsuccess = function () {
+                var c = cur.result;
+                if (!c) return;
+                if (vencido(c.key, c.value)) c['delete']();
+                c['continue']();
+              };
+              tx.oncomplete = function () { fin(res); };
+              tx.onerror = tx.onabort = function () { fin(res); };
+            } catch (x) { fin(res); }
+          });
+        });
+      },
       /** ¿Lo escogido vive solo en la memoria de la página? */
       soloEnMemoria: function () { return abrir().then(function () { return !persistido; }); }
     };
@@ -785,12 +841,18 @@
    * uno en uno: si la señal se cae a mitad, lo que ya subió no se repite (la
    * base tampoco duplica: mismo sha256).
    * @returns Promise<{estado, subidos, rechazados, total, pendientes}> —
-   *   estado: 'nada' | 'ok' | 'apagado' | 'sesion' | 'freno' | 'lleno' | 'sin_red'.
+   *   estado: 'nada' | 'ok' | 'apagado' | 'sesion' | 'freno' | 'lleno' | 'retirada' | 'sin_red'.
    * 28-oct-2026 (arreglo, ronda 2) — 'lleno' es el cortacircuito de la base
    * (el espacio de las historias laborales se llenó). NO es un rechazo final:
    * el archivo no tiene nada malo y la base puede volver a tener espacio, así
    * que se queda en la cola como con el freno. Antes caía en 'sin_red' y la
    * pantalla culpaba a la señal.
+   * 28-oct-2026 (arreglo de los leves, P7) — 'retirada': la base dice que ya
+   * no hay autorización vigente (la retiró desde otro teléfono, o pidió por
+   * el chat que la borraran). ESE sí es final, y para toda la cola: se borra
+   * del teléfono. Antes caía en 'sin_red' y, cada vez que entraba, la
+   * pantalla le decía «no alcanzó a subir… Lo volvemos a intentar» con la
+   * historia laboral de alguien que ya dijo que no.
    */
   function subirCola(g, cel, llamar) {
     return g.cola(cel).then(function (c) {
@@ -824,6 +886,10 @@
         return g.guardarCola(cel, null).then(function () { return res; });
       }, function (e) {
         var st = e && e.status, m = e && e.motivo;
+        if (m === 'sin_autorizacion') {
+          res.estado = 'retirada'; res.pendientes = 0;
+          return g.guardarCola(cel, null).then(function () { return res; });
+        }
         res.estado = st === 404 ? 'apagado'
           : (st === 401 || st === 403 || m === 'sin_sesion' || (e && e.sinSesion)) ? 'sesion'
           : m === 'freno' ? 'freno' : m === 'lleno' ? 'lleno' : 'sin_red';
@@ -847,6 +913,8 @@
     if (r.estado === 'apagado') return { clase: 'ambar', html: '<b>Tu historia laboral se quedó en este teléfono:</b> esta parte todavía no está encendida en nuestro sistema. ' + quedan };
     if (r.estado === 'freno') return { clase: 'ambar', html: '<b>Tu historia laboral no alcanzó a subir</b> por demasiados intentos seguidos. ' + quedan };
     if (r.estado === 'lleno') return { clase: 'ambar', html: '<b>Tu historia laboral se quedó en este teléfono:</b> ahora mismo no podemos recibir más historias laborales. Es opcional: tu cuenta sigue igual. ' + quedan };
+    /* 28-oct-2026 (arreglo de los leves, P7) — sin «Lo volvemos a intentar»: no se va a intentar. */
+    if (r.estado === 'retirada') return { clase: 'ambar', html: '<b>No subimos tu historia laboral:</b> tu autorización ya no está vigente. La borramos de este teléfono.' };
     return { clase: 'ambar', html: '<b>Tu historia laboral no alcanzó a subir.</b> ' + quedan };
   }
   function resumenDe(n, r) { return n === r.total ? (n === 1 ? '1 archivo' : n + ' archivos') : n + ' de ' + r.total + ' archivos'; }
@@ -1362,10 +1430,21 @@
       return llamar('pension_autorizar', { p_fondos: fondos, p_version: null, p_momento: null }, true)
         .then(function (j) { return (j && j.ok === true) ? { ok: true } : { ok: false, motivo: (j && j.motivo) || 'sin_red' }; }, deError);
     };
+    /* 28-oct-2026 (arreglo de los leves, P7) — retirar también borra lo que
+       de esta cuenta esperaba en ESTE teléfono (la cola del registro que no
+       alcanzó a subir): sin eso, al entrar se volvía a intentar subir la
+       historia laboral de quien acababa de retirarla, y la pantalla decía «Lo
+       volvemos a intentar». `o.guardadero` y `o.celular` los da la página. */
+    var soltarLaCola = function () {
+      var cel = typeof o.celular === 'function' ? o.celular() : o.celular;
+      var p = (o.guardadero && cel) ? Promise.resolve(o.guardadero.guardarCola(String(cel), null)).then(null, function () {}) : Promise.resolve();
+      return p.then(function () { if (o.alRetirar) { try { o.alRetirar(); } catch (e) {} } });
+    };
     var retirar = function () {
       var preguntar = o.confirmar || function (t) { return typeof confirm === 'function' ? confirm(t) : true; };
       if (!preguntar('Vamos a borrar tu historia laboral y tu fondo, y a quitar tu autorización. ¿Seguimos?')) return;
-      llamar('pension_retirar', {}, true).then(function () { vm.vistas = {}; vm.pegado = null; return leer(); })
+      llamar('pension_retirar', {}, true).then(function () { vm.vistas = {}; vm.pegado = null; return soltarLaCola(); })
+        .then(function () { return leer(); })
         .then(function () { vm.aviso = 'Listo: borramos tu historia laboral y quitamos tu autorización.'; vm.avisoClase = 'verde'; pintarTarjeta(); },
               function (e) { vm.aviso = motivoEnPalabras(deError(e).motivo || (e && e.motivo)); vm.avisoClase = 'ambar'; pintarTarjeta(); });
     };

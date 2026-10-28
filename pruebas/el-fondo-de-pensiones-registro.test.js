@@ -265,6 +265,40 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     assert.equal(B.abrir({ search: '?marca=platachat' }).ev("SESION = { access_token: 't', user: { email: '573001112233@tugarantia.net' } }; montarHistoriaLaboralEnPerfil(); document.getElementById('hlCuenta').innerHTML"), '');
   });
 
+  /* 28-oct-2026 (arreglo de los leves, P7) — la cola de una cuenta solo se
+     borraba si ESA cuenta volvía a este teléfono. Ahora play/ barre lo
+     vencido al abrir, y la tarjeta del Perfil borra la cola de su cuenta al
+     retirar la autorización. Con el código de antes, la cola vencida de otra
+     cuenta seguía en el teléfono y la tarjeta no sabía de ninguna cola. */
+  test('al abrir play/ se barre lo vencido de la historia laboral de cualquier cuenta; lo vigente se queda', async () => {
+    const { idbDeMentira } = require('./idb-de-mentira.js');
+    const { hasta } = require('./esperar.js');
+    const ahora = Date.now();
+    const idb = idbDeMentira({
+      'cola:3009998877': { celular: '3009998877', t: ahora - 25 * 3600e3, archivos: [{ id: 'a', base64: PDF64 }] },
+      'cola:3001112233': { celular: '3001112233', t: ahora - 3600e3, archivos: [] } });
+    B.abrir({ indexedDB: idb });
+    assert.ok(await hasta(() => !idb.datos.has('cola:3009998877'), 200), 'la historia laboral vencida de otra cuenta se quedó en el teléfono');
+    assert.ok(idb.datos.has('cola:3001112233'), 'se llevó lo vigente');
+  });
+
+  test('la tarjeta del Perfil borra al retirar la cola de ESTA cuenta, y el aviso deja de decir «Lo volvemos a intentar»', async () => {
+    const P = B.abrir();
+    B.nube(P);
+    B.mariaHastaElPermiso(P, false);
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    P.ev('window.__opciones = null; var __montar = HL.tarjetaDeCuenta; HL.tarjetaDeCuenta = function (c, o) { window.__opciones = o; return __montar(c, o); };');
+    P.ev("pintarCuenta(); irA('perfil')");
+    await B.asentar(30);
+    assert.ok(P.ev('!!window.__opciones'), 'el Perfil no montó la tarjeta');
+    assert.ok(P.ev('window.__opciones.guardadero === guardaderoPension()'), 'la tarjeta no tiene la cola del teléfono para borrarla al retirar');
+    assert.equal(P.ev('window.__opciones.celular()'), B.CEL_MARIA, 'la tarjeta borraría la cola de otro celular');
+    P.ev("pintarAvisoPension('<b>Tu historia laboral no alcanzó a subir.</b> Lo volvemos a intentar…', 'ambar')");
+    P.ev('window.__opciones.alRetirar()');
+    assert.equal(avisoPension(P), '', 'retiró su autorización y el aviso sigue prometiendo reintentar');
+  });
+
   test('«Tu autorización» dice que la app recibe solo los archivos que la persona escoja', () => {
     const P = B.abrir();
     B.mariaHastaElPermiso(P, false);

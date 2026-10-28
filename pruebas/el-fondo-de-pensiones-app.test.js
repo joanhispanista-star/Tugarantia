@@ -235,6 +235,36 @@ describe('lo que hace, con su sesión', () => {
     assert.ok(subida.includes('LA HOJA IMPRESA'), 'se perdió la imagen');
   });
 
+  /* 28-oct-2026 (arreglo de los leves, P7) — lo que la historia laboral deja
+     en el teléfono (la cola de una cuenta cuyo registro no alcanzó a subirla)
+     no se queda ahí: la app lo barre al abrir, y retirar la autorización lo
+     borra. Con el código de antes, las dos colas seguían en el teléfono. */
+  test('al abrir la app se barre lo vencido de la historia laboral, sea de quien sea', async () => {
+    const { idbDeMentira } = require('./idb-de-mentira.js');
+    const idb = idbDeMentira({
+      'cola:3009998877': { celular: '3009998877', t: AHORA - 25 * 3600e3, archivos: [{ id: 'a', base64: 'JVBERi0=' }] },   // de otro, vencida
+      'cola:3001112222': { celular: '3001112222', t: AHORA - 3600e3, archivos: [] } });                                     // de Ana, vigente
+    abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, red: nube(), indexedDB: idb });
+    assert.ok(await hasta(() => !idb.datos.has('cola:3009998877'), 200), 'la historia laboral vencida de otra cuenta se quedó en el teléfono');
+    assert.ok(idb.datos.has('cola:3001112222'), 'se llevó lo vigente');
+  });
+
+  test('retirar la autorización borra también lo de ESTA cuenta que esperaba en el teléfono (y nada de otra)', async () => {
+    const { idbDeMentira } = require('./idb-de-mentira.js');
+    const idb = idbDeMentira({
+      'cola:3001112222': { celular: '3001112222', t: AHORA - 3600e3, autorizada: true, archivos: [{ id: 'a', base64: 'JVBERi0=' }] },
+      'cola:3009998877': { celular: '3009998877', t: AHORA - 3600e3, archivos: [] } });
+    const A = abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, indexedDB: idb, red: nube({
+      autorizacion: { fondos: ['porvenir'], version: '2026-11-03', recibida_en: '2026-11-03T14:00:00Z', revocada_en: null } }) });
+    await asentar(30);
+    A.elem('hlAbrir')._oyentes.click[0]();
+    await asentar(5);
+    A.elem('hlRetirar')._oyentes.click[0]();
+    assert.ok(await hasta(() => !idb.datos.has('cola:3001112222'), 200), 'retiró su autorización y su historia laboral se quedó en el teléfono');
+    assert.ok(pension(A).some(l => /pension_retirar$/.test(l.url)));
+    assert.ok(idb.datos.has('cola:3001112222') === false && idb.datos.has('cola:3009998877'), 'borró lo de otra cuenta');
+  });
+
   test('RETIRAR la autorización (Ley 1581): un toque, y se borra todo lo subido', async () => {
     const A = abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, red: nube({
       autorizacion: { fondos: ['skandia'], version: '2026-11-03', recibida_en: '2026-11-03T14:00:00Z', revocada_en: null },

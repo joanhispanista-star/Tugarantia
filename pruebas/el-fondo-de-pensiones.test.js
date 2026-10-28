@@ -425,6 +425,58 @@ describe('el guardadero del registro', () => {
   });
 });
 
+/* 28-oct-2026 (arreglo de los leves, P7) — «CADUCAN AL DÍA» ERA PEREZOSO. La
+   cola de una cuenta y los archivos de un registro solo se borraban si ESA
+   cuenta (o ese registro) volvía a ese teléfono: en el prestado, la historia
+   laboral de María (empleadores, salarios) se quedaba para siempre. Ahora
+   play/ y app/socio.html barren al arrancar. Con el código de antes no había
+   barrido (g.barrer no existía) y esto falla. Va contra un IndexedDB de
+   mentira: la memoria de la página nace vacía en cada arranque, y probarla
+   sería probar otra cosa. */
+describe('lo vencido no se queda en el teléfono', () => {
+  const { idbDeMentira } = require('./idb-de-mentira.js');
+  const T0 = Date.UTC(2026, 10, 3, 15, 0, 0), HORA = 3600e3;
+  const almacen = datos => ({ getItem: k => (k in datos ? datos[k] : null), setItem: (k, v) => { datos[k] = String(v); }, removeItem: k => { delete datos[k]; } });
+
+  test('al arrancar se barre toda cola y todo registro de más de un día, sea de quien sea; lo vigente se queda', async () => {
+    const idb = idbDeMentira({
+      'cola:3001112233': { celular: '3001112233', t: T0 - 25 * HORA, archivos: [{ id: 'a', base64: 'JVBERi0=' }] },   // María, en el teléfono de Beto
+      'cola:3009998877': { celular: '3009998877', t: T0 - HORA, archivos: [{ id: 'b', base64: 'JVBERi0=' }] },       // vigente
+      'cola:3005550000': { celular: '3001112233', t: T0, archivos: [] },                                               // no es de ese celular
+      reg: { intento: 'i1', celular: '3001112233', t: T0 - 30 * HORA, archivos: [{ id: 'c', base64: 'JVBERi0=' }] },
+      'otra-cosa': { t: 0 }                                                                                                // no es nuestra
+    });
+    const datos = { [HL.LLAVE_ESTADO]: JSON.stringify({ intento: 'i0', celular: '3000000000', t: T0 - 8 * 24 * HORA,
+      aut: { version: '2026-11-03' }, fondos: ['porvenir'], pidio: {} }) };
+    const g = HL.guardadero({ ls: almacen(datos), idb, ahora: () => T0 });
+    const r = await g.barrer('i1', '3001112233');
+    assert.deepEqual([...idb.datos.keys()].sort(), ['cola:3009998877', 'otra-cosa'], 'lo vencido se quedó en el teléfono');
+    assert.deepEqual([r.borrados, r.perdidos], [3, true], 'no dijo que se perdieron los archivos de este registro');
+    assert.equal(HL.LLAVE_ESTADO in datos, false, 'lo escogido de hace 8 días se quedó');
+    /* Lo de otro registro no cuenta como «perdido» para este. */
+    const idb2 = idbDeMentira({ reg: { intento: 'otro', celular: '3001112233', t: T0 - 30 * HORA, archivos: [{ id: 'x' }] } });
+    assert.equal((await HL.guardadero({ ls: almacen({}), idb: idb2, ahora: () => T0 }).barrer('i1', '3001112233')).perdidos, false);
+    assert.equal(idb2.datos.size, 0);
+  });
+
+  test('si la base dice que ya no hay autorización, la cola se borra entera y la pantalla NO dice «Lo volvemos a intentar»', async () => {
+    const idb = idbDeMentira();
+    const g = HL.guardadero({ ls: almacen({}), idb, ahora: () => T0 });
+    const e = g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('2026-11-03T15:00:00Z'); e.fondos = ['porvenir']; g.guardarEstado(e);
+    await g.agregar('i1', '3001112233', A('pdf', '%PDF-a'));
+    await g.agregar('i1', '3001112233', A('pdf', '%PDF-b'));
+    await g.encolar('i1', '3001112233');
+    const c = await g.cola('3001112233'); c.autorizada = true; await g.guardarCola('3001112233', c);   // ya había autorizado
+    const r = await HL.subirCola(g, '3001112233', fn => Promise.resolve(fn === 'pension_subir' ? { ok: false, motivo: 'sin_autorizacion' } : { ok: true }));
+    assert.equal(r.estado, 'retirada');
+    assert.equal(await g.cola('3001112233'), null, 'la historia laboral de quien retiró su autorización se quedó en el teléfono');
+    assert.equal(idb.datos.has('cola:3001112233'), false);
+    const a = HL.avisoDeLaCola(r);
+    assert.equal(/volvemos a intentar|alcanzó a subir/i.test(a.html), false, 'promete reintentar lo que ya no se va a subir: ' + a.html);
+    assert.match(a.html, /tu autorización ya no está vigente\. La borramos de este teléfono\./);
+  });
+});
+
 /* 28-oct-2026 (arreglo, ronda 1) — «📋 Pegar» guardaba lo que hubiera en el
    portapapeles en el mismo toque, sin enseñarlo (una foto de un chat quedaba
    como «Pantallazo»). Quien escoge un archivo lo ve en el selector del
