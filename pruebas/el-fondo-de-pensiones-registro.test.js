@@ -87,7 +87,7 @@ describe('dónde va, y que nunca frena el registro', () => {
     assert.match(h, /href="https:\/\/www\.porvenir\.com\.co\/web\/certificados-y-extractos\/certificado-de-historia-laboral" target="_blank"/);
     assert.match(hl(P), /Abrir la página de Porvenir/);
     assert.match(hl(P), /vuelve a esta pestaña de Tu Garantía/);
-    ['📄 Subir el PDF', '🖼 Subir pantallazos', '📋 Pegar'].forEach(b => assert.ok(hl(P).indexOf(b) >= 0, 'falta ' + b));
+    ['📄 Subir el PDF', '🖼️ Subir pantallazos', '📋 Pegar'].forEach(b => assert.ok(hl(P).indexOf(b) >= 0, 'falta ' + b));
   });
 });
 

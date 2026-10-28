@@ -150,7 +150,7 @@
       fila('Autorizó', 'el ' + esc(fecha(a.autorizada_en, true)) + ' <span class="muted">· texto del ' + esc(a.version) + '</span>') +
       (a.revocada_en ? fila('Retiró su autorización', 'el ' + esc(fecha(a.revocada_en, true))) : '') +
       (archivos.length ? archivos.map(function (x) {
-        return '<div class="info-row"><span class="k">' + (x.tipo === 'pdf' ? '📄 PDF' : '🖼 Pantallazo') + ' · ' + esc(tamano(x.bytes)) +
+        return '<div class="info-row"><span class="k">' + (x.tipo === 'pdf' ? '📄 PDF' : '🖼️ Pantallazo') + ' · ' + esc(tamano(x.bytes)) +
           '<div class="muted" style="font-size:12px">subido el ' + esc(fecha(x.creado_en, true)) + '</div></span>' +
           '<span class="vv"><button class="btn btn-ghost btn-sm" data-pension-archivo="' + esc(x.id) + '" ' +
           'onclick="verArchivoPension(this.getAttribute(\'data-pension-archivo\'), this)">📄 Ver</button></span></div>';

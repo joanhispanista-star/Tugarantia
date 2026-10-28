@@ -24,7 +24,9 @@
  * LAS TRES FORMAS, Y LO QUE DE VERDAD HACE CADA UNA:
  *   · 📄 Subir el PDF — el mejor: es el documento tal como lo mandó el fondo,
  *     con su texto. Se sube igual, sin tocarlo.
- *   · 🖼 Subir pantallazos — hasta 5. Si pesan mucho se achican en el teléfono
+ *   · 🖼️ Subir pantallazos — hasta 5. Si pesan mucho se achican en el teléfono
+ *     (el 🖼 lleva su selector de emoji, U+FE0F: sin él, muchos teléfonos lo
+ *     dibujan como un signo gris de texto, y en los avisos se lee raro).
  *     (JPEG, hasta 2.000 px de lado: el texto se sigue leyendo) antes de subir.
  *   · 📋 Pegar — para quien COPIÓ el pantallazo. Primero se intenta leer lo
  *     copiado (navigator.clipboard.read, que en iPhone muestra su botón
@@ -150,10 +152,10 @@
     sin_red: 'No hay conexión. Revisa tu internet y vuelve a intentar.',
     apagado: 'Esta parte todavía no está encendida en nuestro sistema. Inténtalo más tarde.',
     fondos: 'Esa combinación de fondos no la podemos guardar: marca uno, o Colpensiones y un fondo privado.',
-    pegar_vacio: 'No encontramos un pantallazo copiado. Cópialo primero (en tu galería: Compartir → Copiar) y vuelve a tocar «📋 Pegar», o usa «🖼 Subir pantallazos».',
-    pegar_negado: 'Tu teléfono no nos dejó leer lo que copiaste. Mantén presionado el recuadro de abajo y toca «Pegar», o usa «🖼 Subir pantallazos».',
+    pegar_vacio: 'No encontramos un pantallazo copiado. Cópialo primero (en tu galería: Compartir → Copiar) y vuelve a tocar «📋 Pegar», o usa «🖼️ Subir pantallazos».',
+    pegar_negado: 'Tu teléfono no nos dejó leer lo que copiaste. Mantén presionado el recuadro de abajo y toca «Pegar», o usa «🖼️ Subir pantallazos».',
     pegar_sin_api: 'Mantén presionado el recuadro de abajo y toca «Pegar».',
-    pegar_texto: 'Lo que pegaste es texto, no una imagen ni un PDF. Copia el pantallazo, o usa «🖼 Subir pantallazos».'
+    pegar_texto: 'Lo que pegaste es texto, no una imagen ni un PDF. Copia el pantallazo, o usa «🖼️ Subir pantallazos».'
   };
   function motivoEnPalabras(m) { return MOTIVOS[m] || 'No pudimos guardar ese archivo. Vuelve a intentar.'; }
 
@@ -716,7 +718,7 @@
       '<div class="hl-formas">' +
         '<label class="btn sec sm hl-forma" id="hlBotonPdf">📄 Subir el PDF' +
           '<input type="file" class="hl-archivo" accept="application/pdf,.pdf" data-hl="archivo"' + (vm.ocupado ? ' disabled' : '') + '></label>' +
-        '<label class="btn sec sm hl-forma" id="hlBotonImg">🖼 Subir pantallazos' +
+        '<label class="btn sec sm hl-forma" id="hlBotonImg">🖼️ Subir pantallazos' +
           '<input type="file" class="hl-archivo" accept="image/png,image/jpeg,image/webp" multiple data-hl="archivo"' + (vm.ocupado ? ' disabled' : '') + '></label>' +
         '<button type="button" class="btn sec sm" id="hlBotonPegar" data-hl="pegar"' + (vm.ocupado ? ' disabled' : '') + '>📋 Pegar</button>' +
       '</div>' +
@@ -728,7 +730,7 @@
     if (!l.length) return '';
     return '<div class="hl-lista" id="hlLista" style="margin-top:var(--e3)">' + l.map(function (a) {
       var cuando = a.creado_en ? ' · subido el ' + fechaCorta(a.creado_en) : '';
-      return '<div class="hl-item"><span>' + (a.tipo === 'pdf' ? '📄 ' : '🖼 ') + esc(nombreDeTipo(a.tipo)) + ' · ' +
+      return '<div class="hl-item"><span>' + (a.tipo === 'pdf' ? '📄 ' : '🖼️ ') + esc(nombreDeTipo(a.tipo)) + ' · ' +
         esc(tamanoEnPalabras(a.bytes)) + esc(cuando) + '</span>' +
         '<button type="button" class="btn sec sm" data-hl="quitar" data-id="' + esc(a.id) + '"' + (vm.ocupado ? ' disabled' : '') + '>Quitar</button></div>';
     }).join('') + '</div>' +

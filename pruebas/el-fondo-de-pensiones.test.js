@@ -126,7 +126,7 @@ describe('los textos: la autorización dice lo que la ley pide, y nada que el c�
     assert.equal(/data-hl="fondo"/.test(sin), false, 'sin autorización ya pregunta el fondo');
     assert.match(con, /data-hl="fondo" value="porvenir" checked/);
     assert.match(con, /href="https:\/\/www\.porvenir\.com\.co\/[^"]+" target="_blank" rel="noopener noreferrer"/);
-    ['📄 Subir el PDF', '🖼 Subir pantallazos', '📋 Pegar'].forEach(b => assert.ok(con.indexOf(b) >= 0, 'falta «' + b + '»'));
+    ['📄 Subir el PDF', '🖼️ Subir pantallazos', '📋 Pegar'].forEach(b => assert.ok(con.indexOf(b) >= 0, 'falta «' + b + '»'));
     assert.match(con, /accept="application\/pdf,\.pdf"/);
     assert.match(con, /accept="image\/png,image\/jpeg,image\/webp" multiple/);
     assert.equal(/capture=/.test(con), false, 'el PDF y los pantallazos se escogen, no se toman con la cámara');

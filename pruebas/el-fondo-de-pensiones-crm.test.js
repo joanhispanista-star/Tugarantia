@@ -73,7 +73,7 @@ describe('lo que Joan ve', () => {
     assert.match(t, /Autorizó el 3-nov-2026/);
     assert.match(t, /texto del 2026-11-03/);
     assert.match(t, /📄 PDF · 225 KB/);
-    assert.match(t, /🖼 Pantallazo · 176 KB/);
+    assert.match(t, /🖼️ Pantallazo · 176 KB/);
     assert.match(t, /ningún fondo tiene cómo confirmarlo/);
     assert.match(t, /no las uses para decidir: son datos de salud/);
     assert.match(t, /Suele llegar con contraseña: el número de documento/, 'falta la nota de Colpensiones para Joan');
