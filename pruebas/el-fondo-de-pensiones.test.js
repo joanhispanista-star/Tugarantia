@@ -1010,6 +1010,102 @@ describe('lo que se hace a mitad del paso (ronda 3)', () => {
     assert.equal((await t.g.archivos('i1', '3001112233')).lista.length, 0, 'lo del paso viejo se guardó con la autorización ya quitada');
     assert.ok(plano(B1.caja.innerHTML).indexOf(HL.MOTIVOS.desautorizado) >= 0, 'el paso montado otra vez no dice que no se guardó: ' + plano(B1.caja.innerHTML).slice(0, 300));
   });
+
+  /* 28-oct-2026 (arreglador, verificación 1) — DESMARCAR MIENTRAS SE MIRA LO
+     PEGADO. Quien tocaba «📋 Pegar» y desmarcaba la casilla mientras se miraba
+     lo copiado quedaba atascada en el paso 8: sin autorización el paso no
+     pinta la parte de subir, pero lo pegado llegaba igual a vm.pegado, y
+     «Continuar» y «Lo hago después» le pedían tocar «Sí, guardarla» o «No, no
+     es esta», que no estaban; mientras se miraba, «Cuando aparezca, dinos…», y
+     no iba a aparecer. Igual mientras se LEE lo copiado (en iPhone, hasta que
+     toque su «Pegar»): si la lectura fallaba, el aviso mandaba a «el recuadro
+     de abajo», que tampoco estaba. Visto en Chrome sin ventana (Android de 412
+     px e iPhone de 390 px, CPU ×6). Con el código de antes, las dos primeras
+     fallan. La tercera pasa con los dos: vigila que el arreglo no apague la
+     espera de quien vuelve a marcar mientras se mira (ahí lo pegado SÍ va a
+     aparecer, y «Continuar» lo tiene que esperar). */
+  const conPortapapeles = async (read, fn) => {
+    const antes = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { read } });
+    try { return await fn(); } finally { if (antes) Object.defineProperty(navigator, 'clipboard', antes); else delete navigator.clipboard; }
+  };
+  const copiado = blob => () => Promise.resolve([{ types: ['image/png'], getType: () => Promise.resolve(blob) }]);
+
+  test('desmarcar mientras se mira lo pegado: «Continuar» y «Lo hago después» pasan, y lo pegado no se queda escondido', async () => {
+    const t = autorizado();
+    const p = lento(PANTALLAZO, 'image.png');
+    await conPortapapeles(copiado(p.blob), async () => {
+      const { caja, toque, marcar } = cajaDeMentira();
+      let despues = 0;
+      const ctl = paso(t, caja, { despues: () => { despues++; } });
+      toque('pegar');
+      assert.ok(await hasta(() => despuesApagado(caja), 200), 'no empezó a mirar lo copiado');
+      marcar(false);   // cambió de idea mientras se miraba
+      assert.equal(ctl.puedeSeguir(), true, 'sin autorización, «Continuar» espera lo pegado, que ya no tiene dónde aparecer');
+      assert.equal(plano(caja.innerHTML).indexOf(HL.TEXTOS.mirandoPegado), -1, 'dice «Cuando aparezca…» de algo que no va a aparecer');
+      p.soltar();
+      assert.ok(await hasta(() => !despuesApagado(caja), 2000), 'al terminar de mirar no soltó «Lo hago después»');
+      assert.equal(ctl.vm.pegado, null, 'lo pegado se quedó esperando una respuesta que la pantalla no pide');
+      assert.equal(ctl.puedeSeguir(), true, '«Continuar» pide contestar una pregunta que no está en la pantalla');
+      toque('despues');
+      assert.equal(despues, 1, '«Lo hago después» no pasa');
+      const dice = plano(caja.innerHTML);
+      assert.equal(dice.indexOf(HL.TEXTOS.pegadoPendiente), -1, 'pide tocar «Sí, guardarla», que no está: ' + dice.slice(0, 300));
+      assert.equal(/id="hlPegado"/.test(caja.innerHTML), false);
+      /* Volver a marcar no revive lo que se descartó, y nada quedó en el teléfono. */
+      marcar(true);
+      assert.ok(await hasta(() => /data-hl="fondo"/.test(caja.innerHTML), 200));
+      assert.equal(/id="hlPegado"/.test(caja.innerHTML), false, 'volver a marcar revivió lo pegado de antes');
+      assert.equal((await t.g.archivos('i1', '3001112233')).lista.length, 0);
+    });
+  });
+
+  test('desmarcar mientras se lee lo copiado (iPhone espera su «Pegar»): lo que llegue no se mira, ni manda a un recuadro que no está', async () => {
+    for (const como of ['la lectura falla', 'la lectura llega']) {
+      const t = autorizado();
+      let contestar = null;
+      await conPortapapeles(() => new Promise((res, rej) => { contestar = { res, rej }; }), async () => {
+        const { caja, toque, marcar } = cajaDeMentira();
+        const ctl = paso(t, caja);
+        toque('pegar');
+        assert.ok(await hasta(() => !!contestar, 200), 'no empezó a leer lo copiado');
+        assert.equal(ctl.puedeSeguir(), false, 'la prueba no prueba nada: con la casilla marcada, «Continuar» no espera la lectura');
+        marcar(false);
+        assert.equal(ctl.puedeSeguir(), true, como + ': sin autorización, «Continuar» espera una lectura que ya no tiene dónde enseñarse');
+        if (como === 'la lectura llega') contestar.res([{ types: ['image/png'], getType: () => Promise.resolve(new Blob([PANTALLAZO], { type: 'image/png' })) }]);
+        else contestar.rej(new Error('cerró su «Pegar»'));
+        await hasta(() => false, 30);
+        const dice = plano(caja.innerHTML);
+        assert.equal(dice.indexOf(HL.MOTIVOS.pegar_negado), -1, como + ': manda a un recuadro y a un botón que no están: ' + dice.slice(0, 300));
+        assert.equal(/Mirando lo que copiaste/.test(dice), false, como + ': mira lo copiado sin autorización');
+        assert.equal(ctl.vm.pegado, null, como);
+        assert.equal(ctl.puedeSeguir(), true, como);
+      });
+    }
+  });
+
+  test('si vuelve a marcar mientras se mira, lo pegado sí aparece y pregunta, y «Continuar» lo espera', async () => {
+    const t = autorizado();
+    const p = lento(PANTALLAZO, 'image.png');
+    await conPortapapeles(copiado(p.blob), async () => {
+      const { caja, toque, marcar } = cajaDeMentira();
+      const ctl = paso(t, caja);
+      toque('pegar');
+      assert.ok(await hasta(() => despuesApagado(caja), 200), 'no empezó a mirar lo copiado');
+      marcar(false);
+      assert.ok(await hasta(() => !/data-hl="fondo"/.test(caja.innerHTML), 200));
+      marcar(true);
+      assert.ok(await hasta(() => /data-hl="fondo"/.test(caja.innerHTML), 200));
+      assert.equal(ctl.puedeSeguir(), false, 'con la casilla marcada otra vez, «Continuar» deja atrás lo que se está mirando');
+      assert.ok(plano(caja.innerHTML).indexOf(HL.TEXTOS.mirandoPegado) >= 0, 'no dice por qué espera');
+      p.soltar();
+      assert.ok(await hasta(() => /id="hlPegado"/.test(caja.innerHTML), 2000), 'lo pegado no apareció');
+      assert.equal(ctl.puedeSeguir(), false, 'con la pregunta abierta, sigue preguntando');
+      toque('pegado-no');
+      assert.ok(await hasta(() => !/id="hlPegado"/.test(caja.innerHTML), 200));
+      assert.equal(ctl.puedeSeguir(), true);
+    });
+  });
 });
 
 describe('la subida de la cola, con la sesión de la cuenta', () => {

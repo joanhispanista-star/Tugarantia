@@ -1465,18 +1465,30 @@
        se mira, el paso no se deja (puedeSeguir), igual que con la pregunta
        abierta: lo pegado llega a ESTA pantalla, y un paso montado otra vez no
        lo vería nunca. */
+    /* 28-oct-2026 (arreglador, verificación 1) — SIN AUTORIZACIÓN, LO PEGADO
+       NO SE QUEDA. Quien tocaba «Pegar» y desmarcaba la casilla mientras se
+       miraba lo copiado quedaba atascada en el paso 8: lo pegado llegaba
+       después a vm.pegado, la pantalla no lo pintaba (sin autorización no hay
+       parte de subir) y «Continuar» y «Lo hago después» le pedían tocar «Sí,
+       guardarla» o «No, no es esta», que no estaban. Visto en Chrome sin
+       ventana (Android e iPhone, CPU ×6). Ahora, si al terminar de mirar ya
+       no hay autorización, se descarta y solo se repinta (suelta los botones):
+       sin la casilla nada se iba a guardar, y no hay a quién preguntarle. Se
+       mira vm.aut al TERMINAR y no un número de vuelta: si vuelve a marcar
+       mientras se mira, lo pegado sí aparece y pregunta (ver puedeSeguir). */
     var mostrarPegado = function (blobs) {
       var lista = Array.prototype.slice.call(blobs || []);
-      if (!lista.length) return Promise.resolve();
+      if (!lista.length || !vm.aut) return Promise.resolve();
       vm.pegando = false; vm.pegado = null;
       vm.aviso = 'Mirando lo que copiaste…'; vm.avisoClase = 'info';
       vm.mirandoPegado = true;
       return trabajar(prepararTodos(lista)).then(function (r) {
         vm.mirandoPegado = false;
+        if (!vm.aut) { pintar(); return; }
         if (!r.listos.length) { decirMalos(r.malos.length ? r.malos : ['pegar_vacio']); return; }
         vm.pegado = r;
         decir('');
-      }, function () { vm.mirandoPegado = false; decir(motivoEnPalabras('lectura')); });
+      }, function () { vm.mirandoPegado = false; if (!vm.aut) { pintar(); return; } decir(motivoEnPalabras('lectura')); });
     };
     caja.addEventListener('click', function (ev) {
       var t = ev.target && ev.target.closest ? ev.target.closest('[data-hl]') : null;
@@ -1510,6 +1522,13 @@
         vm.mirandoPegado = true;
         decir('Mirando lo que copiaste…', 'info');
         conTope(leerPortapapeles(), msTope, { ok: false, blobs: [], motivo: 'pegar_negado' }).then(function (r) {
+          /* 28-oct-2026 (arreglador, verificación 1) — desmarcó mientras se
+             leía (en iPhone la lectura espera el toque en su «Pegar», hasta
+             el tope): lo que llegue, ni se mira ni se dice. Si la lectura
+             fallaba, el aviso mandaba a «el recuadro de abajo» y a «🖼️ Subir
+             pantallazos», que sin autorización no están. Visto en Chrome sin
+             ventana (iPhone, la lectura fallando a los 2,5 s). */
+          if (!vm.aut) { vm.mirandoPegado = false; return; }
           if (r.ok && r.blobs.length) return mostrarPegado(r.blobs);
           vm.mirandoPegado = false;
           vm.pegando = true;
@@ -1656,7 +1675,15 @@
        pegado esperando respuesta: «Continuar» lo dejaba atrás sin decir nada.
        Se dice debajo de la pregunta, y se lleva la pantalla hasta ella. La
        página lo pregunta antes de pasar de paso (siguientePaso, en play/). */
+    /* 28-oct-2026 (arreglador, verificación 1) — SIN AUTORIZACIÓN NADA FRENA:
+       la parte de subir no está en la pantalla, así que no hay pregunta que
+       contestar ni nada que vaya a aparecer. Frenaba a quien desmarcó con lo
+       pegado a medio mirar: «Un momento… Cuando aparezca, dinos…» (no iba a
+       aparecer) y después «Toca «Sí, guardarla»…», sin esos botones. Se mira
+       aquí, y no apagando vm.mirandoPegado al desmarcar: quien vuelve a marcar
+       mientras se mira SÍ va a ver lo pegado, y «Continuar» lo espera. */
     ctl.puedeSeguir = function () {
+      if (!vm.aut) return true;
       if (vm.mirandoPegado) { ctl.decir(TEXTOS.mirandoPegado, 'info'); return false; }
       if (!(vm.pegado && vm.pegado.listos && vm.pegado.listos.length)) return true;
       ctl.decir(TEXTOS.pegadoPendiente, 'ambar');
