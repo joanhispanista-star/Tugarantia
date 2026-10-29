@@ -302,6 +302,10 @@
     tardo: 'Ese archivo no terminó de abrirse en este teléfono en ' + SEGUNDOS_TOPE + ' segundos, así que seguimos sin él. ' +
       'Escógelo otra vez o prueba con otro.',
     sin_autorizacion: 'Primero marca la autorización de arriba.',
+    /* 28-oct-2026 (arreglador final, L4 de la ronda 3) — en el registro, un
+       'sin_autorizacion' solo sale de desmarcar la casilla con archivos
+       preparándose: se dice lo que pasó, una vez. */
+    desautorizado: 'Quitaste la autorización: no guardamos los archivos que se estaban preparando.',
     freno: 'Hiciste muchos cambios seguidos. Espera unos minutos y vuelve a intentar.',
     sin_sesion: 'Se cerró tu sesión. Entra otra vez y vuelve a intentar.',
     sesion: 'Se cerró tu sesión. Entra otra vez y vuelve a intentar.',
@@ -1425,8 +1429,20 @@
         });
       }, Promise.resolve()).then(function () { return h.leer(); }).then(function () { return m; });
     };
+    /* 28-oct-2026 (arreglador final, L4 de la ronda 3) — LA AUTORIZACIÓN NO
+       ES DE CADA ARCHIVO. Quien desmarcaba la casilla con cinco pantallazos
+       preparándose leía «Primero marca la autorización de arriba. (y 4
+       más)»: le pedía, cinco veces, marcar lo que acababa de quitar. Si falta
+       la autorización, eso es lo que pasó con todos: una línea, que en el
+       registro dice que fue ella (desautorizado) y no le pide nada. */
     var decirMalos = function (malos) {
-      if (malos.length) decir(motivoEnPalabras(malos[0]) + (malos.length > 1 ? ' (y ' + (malos.length - 1) + ' más)' : ''));
+      var m = malos || [];
+      if (m.indexOf('sin_autorizacion') >= 0) {
+        if (vm.modo === 'registro') decir(motivoEnPalabras('desautorizado'), 'info');
+        else decir(motivoEnPalabras('sin_autorizacion'));
+        return;
+      }
+      if (m.length) decir(motivoEnPalabras(m[0]) + (m.length > 1 ? ' (y ' + (m.length - 1) + ' más)' : ''));
       else decir('');
     };
     /* Lo que la persona ESCOGIÓ en el selector del teléfono (ahí lo vio): se

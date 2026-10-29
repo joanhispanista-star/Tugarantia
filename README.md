@@ -248,6 +248,9 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         camino (encolar espera alTerminar), y agregar no
                         escribe nada sin la autorización vigente de ese
                         registro en el guardadero: nada queda huérfano.
+                        Desmarcar la casilla con archivos preparándose dice
+                        una sola vez lo que pasó (desautorizado), sin «(y 4
+                        más)» ni pedirle que la vuelva a marcar.
                         Pruebas: pruebas/el-fondo-de-pensiones*.test.js.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la

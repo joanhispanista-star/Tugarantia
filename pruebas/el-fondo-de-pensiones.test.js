@@ -628,7 +628,9 @@ function cajaDeMentira() {
     clipboardData: { items: [{ kind: 'file', type: f.type, getAsFile: () => f }], files: [], getData: () => '' } }));
   /* Escoger archivos en el selector del teléfono (el <input type=file>). */
   const escoger = files => oyentes.change.forEach(f => f({ target: { getAttribute: k => (k === 'data-hl' ? 'archivo' : null), files, value: '' } }));
-  return { caja, toque, pegarEnElRecuadro, escoger };
+  /* 28-oct-2026 (arreglador final) — marcar o desmarcar la casilla de la autorización. */
+  const marcar = si => oyentes.change.forEach(f => f({ target: { getAttribute: k => (k === 'data-hl' ? 'aut' : null), checked: !!si } }));
+  return { caja, toque, pegarEnElRecuadro, escoger, marcar };
 }
 describe('«📋 Pegar» enseña lo copiado y pregunta antes de guardarlo', () => {
   const { hasta } = require('./esperar.js');
@@ -968,6 +970,40 @@ describe('lo que se hace a mitad del paso (ronda 3)', () => {
     assert.equal((await t.g.agregar('i1', '3001112233', A('pdf', '%PDF-tarde'))).ok, false, 'después de abrir la cuenta, lo que llega tarde se guarda igual');
     await hasta(() => false, 20);
     assert.equal(idb.datos.has('reg'), false, 'lo que llegó tarde quedó huérfano en el teléfono');
+  });
+
+  test('L4 · desmarcar la autorización con tres preparándose: un solo aviso, limpio, y nada queda en el teléfono', async () => {
+    const t = autorizado();
+    const { caja, escoger, marcar } = cajaDeMentira();
+    paso(t, caja);
+    const ps = ['a.png', 'b.png', 'c.png'].map(n => lento(PANTALLAZO, n));
+    escoger(ps.map(p => p.blob));
+    marcar(false);   // cambió de idea con los tres en camino
+    await hasta(() => false, 20);
+    ps.forEach(p => p.soltar());
+    assert.ok(await hasta(() => !despuesApagado(caja) && plano(caja.innerHTML).indexOf(HL.MOTIVOS.desautorizado) >= 0, 2000),
+      'no dijo qué pasó con lo que se preparaba: ' + plano(caja.innerHTML).slice(0, 300));
+    const dice = plano(caja.innerHTML);
+    assert.equal(/\(y \d+ más\)/.test(dice), false, 'el aviso se repite: ' + dice);
+    assert.equal(dice.split(HL.MOTIVOS.desautorizado).length - 1, 1);
+    assert.equal(dice.indexOf(HL.MOTIVOS.sin_autorizacion), -1, 'le pide marcar la autorización que acaba de quitar');
+    assert.equal((await t.g.archivos('i1', '3001112233')).lista.length, 0);
+  });
+
+  test('L4 · desmarcar en el paso montado otra vez: lo que venía del paso viejo tampoco se guarda, y se dice', async () => {
+    const t = autorizado();
+    const A1 = cajaDeMentira();
+    paso(t, A1.caja);
+    const p = lento(PANTALLAZO);
+    A1.escoger([p.blob]);
+    const B1 = cajaDeMentira();
+    paso(t, B1.caja);
+    B1.marcar(false);
+    p.soltar();
+    assert.ok(await hasta(() => !t.g.enCamino() && !despuesApagado(B1.caja), 2000));
+    await hasta(() => false, 20);
+    assert.equal((await t.g.archivos('i1', '3001112233')).lista.length, 0, 'lo del paso viejo se guardó con la autorización ya quitada');
+    assert.ok(plano(B1.caja.innerHTML).indexOf(HL.MOTIVOS.desautorizado) >= 0, 'el paso montado otra vez no dice que no se guardó: ' + plano(B1.caja.innerHTML).slice(0, 300));
   });
 });
 
