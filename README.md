@@ -223,10 +223,16 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         ya escogidos lee que eso se guarda al abrir la
                         cuenta y cómo echarse atrás (pistaDespues, leído del
                         guardadero), no «Lo dejaste para después». (Ronda 2)
-                        «Lo hago después» se apaga mientras algo se prepara
-                        o se guarda, y el paso que se monta con algo en
-                        camino («Continuar» y «Volver» a mitad) espera a que
-                        llegue (enCamino, guardadero).
+                        Con archivos, la línea dice también hasta cuándo
+                        esperan: la condición de la lista (pasados los
+                        minutos de la cámara con la página cerrada, se
+                        borran). Si el arranque se los lleva y la persona
+                        retoma DESPUÉS del paso del fondo, ese paso lo dice
+                        una vez, con el camino de vuelta (play/,
+                        perdidosPensionHTML). «Lo hago después» se apaga
+                        mientras algo se prepara o se guarda, y el paso que
+                        se monta con algo en camino («Continuar» y «Volver»
+                        a mitad) espera a que llegue (enCamino, guardadero).
                         Pruebas: pruebas/el-fondo-de-pensiones*.test.js.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la

@@ -176,6 +176,58 @@ describe('lo que sobrevive y lo que se va', () => {
     const pronto = await corre(2);
     assert.equal(pronto.ev('PENSION_PERDIDOS'), false, 'soltó los archivos de quien volvió en dos minutos');
   });
+
+  /* 28-oct-2026 (segunda revisión, ronda 2) — EL «DESPUÉS» QUE SE VA AL
+     BANCO. Escribió sus datos a mano y siguió sin la selfie, escogió su PDF,
+     tocó «Lo hago después», y desde «¿Dónde te enviamos la plata?» se fue 15
+     minutos a la app de su banco. Al volver, «¿Es tuyo?» → «Seguir» la dejaba
+     en ese mismo paso 9: el arranque se había llevado su PDF y solo el paso
+     del fondo lo decía, y ya no pasaba por él. Abría su cuenta y en la base
+     quedaban 0 archivos. Visto en Chrome sin ventana. Con el código de antes,
+     el paso 9 no dice nada y esto falla. */
+  test('vuelve pasado el rato a un paso DESPUÉS del fondo: ahí se le dice que sus archivos se borraron, una vez, con el camino de vuelta', async () => {
+    const almacen = {}, sesion = {};
+    const P = B.abrir({ almacen, sesion });
+    B.mariaHastaElPermiso(P, false);
+    escoger(P, ['porvenir'], [UN_PDF]);
+    await B.asentar(5);
+    P.ev("pintarRegistro(indiceDe('pension'))");
+    await B.asentar(5);
+    P.ev('pensionDespues()');
+    assert.equal(B.pasoActual(P), 'cobro');
+    /* La línea ya decía la condición (aquí, sin IndexedDB, la de la memoria de la página). */
+    assert.match(B.texto(B.cuerpo(P)), /Tu autorización y 1 archivo se guardan con tu registro cuando toques «Abrir mi cuenta»\. Hasta entonces los archivos esperan en esta página/);
+    const D0 = Date, d = 15 * 60e3;
+    class Luego extends D0 { constructor(...a) { if (a.length) super(...a); else super(D0.now() + d); } static now() { return D0.now() + d; } }
+    const Q = B.abrir({ almacen, sesion, Date: Luego });
+    await B.asentar(10);
+    assert.equal(Q.ev('guardaderoPension().hayArchivosGuardados(REGISTRO.intento, REGISTRO.celular)'), false, 'la regla de la cámara no se los llevó');
+    assert.equal(B.pasoActual(Q), 'pregunta', 'no preguntó «¿Es tuyo?»');
+    B.tocar(Q, 'Seguir');
+    assert.equal(B.pasoActual(Q), 'cobro', 'no retomó en «¿Dónde te enviamos la plata?»');
+    const c = B.cuerpo(Q), t = B.texto(c);
+    assert.match(t, /Los archivos de tu historia laboral se borraron de este teléfono porque pasó un rato desde que saliste de la página\./,
+      'el paso donde retoma no dice que se borraron: ' + t.slice(0, 300));
+    assert.match(t, /Es opcional: puedes volver a «Tu fondo de pensiones» y escogerlos otra vez, o subirla después desde tu cuenta: Perfil → «📄 Tu historia laboral»/);
+    assert.ok(c.indexOf('id="perdidosPension"') < c.indexOf('id="btnSeguir"'), 'el aviso no va arriba');
+    /* El camino de vuelta lleva al paso del fondo, con su autorización y su fondo. */
+    B.tocar(Q, 'Volver a «Tu fondo de pensiones»');
+    assert.equal(B.pasoActual(Q), 'pension');
+    await B.asentar(5);
+    assert.match(hlCrudo(Q), /data-hl="fondo" value="porvenir" checked/);
+    /* Una sola vez: de vuelta en el paso 9 ya no está. */
+    Q.ev('siguientePaso()');
+    assert.equal(B.pasoActual(Q), 'cobro');
+    assert.equal(/id="perdidosPension"/.test(B.cuerpo(Q)), false, 'el aviso se quedó pegado');
+    /* Y quien retoma ANTES del fondo lo lee en el paso del fondo, como antes, no arriba de otro. */
+    const R = enElPaso({ almacen: {}, sesion: {} });
+    R.ev('PENSION_PERDIDOS = true;');
+    R.ev("pintarRegistro(indiceDe('ingresos'))");
+    assert.equal(/id="perdidosPension"/.test(B.cuerpo(R)), false, 'lo dijo antes de llegar al paso del fondo');
+    R.ev("pintarRegistro(indiceDe('pension'))");
+    await B.asentar(5);
+    assert.match(hl(R), /se borraron de este teléfono/);
+  });
 });
 
 describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () => {
@@ -300,7 +352,10 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     assert.equal(B.pasoActual(P), 'cobro');
     const t = B.texto(B.cuerpo(P));
     assert.equal(/Lo dejaste para después/.test(t), false, 'le dice que no dio nada, y lo escogido va a subir: ' + t.slice(0, 300));
-    assert.match(t, /Tu autorización y 1 archivo se guardan con tu registro cuando toques «Abrir mi cuenta»\. Si cambiaste de idea, toca «Volver» y desmarca la autorización\. Lo que te falte lo subes cuando quieras desde tu cuenta: Perfil → «📄 Tu historia laboral» \(en la app instalada, en Inicio\)\./);
+    /* 28-oct-2026 (segunda revisión, ronda 2) — con la condición en medio:
+       el banco no tiene IndexedDB, así que es la de la memoria de la página
+       (la de los minutos, con IndexedDB, va en la prueba que sigue). */
+    assert.match(t, /Tu autorización y 1 archivo se guardan con tu registro cuando toques «Abrir mi cuenta»\. Hasta entonces los archivos esperan en esta página: este teléfono no deja guardarlos, y si la página se cierra tendrás que escogerlos otra vez\. Si cambiaste de idea, toca «Volver» y desmarca la autorización\. Lo que te falte lo subes cuando quieras desde tu cuenta: Perfil → «📄 Tu historia laboral» \(en la app instalada, en Inicio\)\./);
     assert.ok(B.cuerpo(P).indexOf('id="pistaPension"') < B.cuerpo(P).indexOf('id="btnSeguir"'), 'la línea no va arriba');
     /* «Volver» lleva al paso del fondo, con la casilla marcada: ahí se desmarca. */
     B.tocar(P, 'Volver');
@@ -314,6 +369,24 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     assert.equal(P.ev('VISTA'), 'listo', 'María no abrió su cuenta: ' + B.texto(B.caja(P)));
     assert.equal(llamadas().filter(x => /rpc\/pension_subir/.test(x.url)).length, 1);
     assert.match(avisoPension(P), /Tu historia laboral llegó \(1 archivo\)\./);
+  });
+  /* 28-oct-2026 (segunda revisión, ronda 2) — con IndexedDB (el teléfono de
+     casi todos), la línea dice la condición de la lista, con los minutos de la
+     regla: «Tu autorización y 2 archivos se guardan…» a secas era una promesa
+     que el arranque rompía a los 15 minutos fuera. Con el código de antes,
+     falla. */
+  test('«Lo hago después» con archivos en IndexedDB: la línea dice que se borran si sale más de los minutos de la regla', async () => {
+    const { idbDeMentira } = require('./idb-de-mentira.js');
+    const idb = idbDeMentira();
+    const P = enElPaso({ indexedDB: idb });
+    escoger(P, ['porvenir'], [UN_PDF]);
+    await B.asentar(10);
+    assert.ok(idb.datos.has('reg'), 'el PDF no quedó en IndexedDB');
+    P.ev('pensionDespues()');
+    assert.equal(B.pasoActual(P), 'cobro');
+    const min = P.ev('EC.MINUTOS_VUELTA_DE_LA_CAMARA');
+    assert.match(B.texto(B.cuerpo(P)), new RegExp('Tu autorización y 1 archivo se guardan con tu registro cuando toques «Abrir mi cuenta»\\. ' +
+      'Hasta entonces los archivos esperan en este teléfono: si sales de esta página más de ' + min + ' minutos y el teléfono la cierra, se borran\\.'));
   });
   test('«Lo hago después» con la autorización y sin archivos dice que la autorización se guarda; con varios, cuántos', async () => {
     const P = enElPaso();

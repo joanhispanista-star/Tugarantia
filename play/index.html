@@ -2346,6 +2346,10 @@ function pintarRegistro(paso) {
      escogió (segunda revisión, ronda 1). */
   var pista = (PISTA_DESPUES && p.id !== 'pension') ? pistaDespuesHTML(PISTA_DESPUES) : '';
   PISTA_DESPUES = null;
+  /* 28-oct-2026 (segunda revisión, ronda 2) — y si el arranque se llevó sus
+     archivos y retoma DESPUÉS del paso del fondo, se lo dice aquí, una vez
+     (ver perdidosPensionHTML). */
+  var perdidos = perdidosPensionHTML();
 
   $('cuerpo').innerHTML =
     '<div class="card">' +
@@ -2353,6 +2357,7 @@ function pintarRegistro(paso) {
       barra +
       '<h3 class="tit" style="margin-top:var(--e3)">' + esc(titulo) + '</h3>' +
       pista +
+      perdidos +
       cuerpo +
       /* 8-oct-2026 — aquí iba la tarjeta «¿quieres que un asesor te
          acompañe?», en CADA paso. Joan la quitó: el acompañamiento ya no se
@@ -3271,21 +3276,49 @@ function pensionDespues() {
   pintarRegistro(PASO + 1);
 }
 /* {aut, n}: la autorización de ESTE registro (su intento y su celular, los
-   del paso: montarPasoPension) y cuántos archivos esperan en el teléfono. */
+   del paso: montarPasoPension) y cuántos archivos esperan en el teléfono.
+   28-oct-2026 (segunda revisión, ronda 2) — y `memoria`: si el teléfono no
+   dejó guardarlos y viven solo en la página (la línea lo dice así, y no con
+   los minutos de la regla). La línea nunca se arma con algo en camino: el
+   paso apaga «Lo hago después» mientras tanto (app/historia-laboral.js). */
 function loEscogidoEnElPaso() {
   var g = guardaderoPension(), intento = String(REGISTRO.intento || ''), cel = String(REGISTRO.celular || '');
-  var lo = { aut: null, n: 0 };
+  var lo = { aut: null, n: 0, memoria: false };
   if (!g) return lo;
   try {
     var e = g.estado(intento, cel);
     lo.aut = (e && e.aut) || null;
     lo.n = g.hayArchivosGuardados(intento, cel) ? (Number(e.archivos_n) || 0) : 0;
+    lo.memoria = !!(g.enMemoria && g.enMemoria());
   } catch (x) { /* sin guardadero: como sin nada escogido */ }
   return lo;
 }
 function pistaDespuesHTML(lo) {
   if (!HL || HL_APAGADO_PLAY) return '';
   return '<div class="aviso info" id="pistaPension" role="status">' + HL.pistaDespues(lo) + '</div>';
+}
+/* 28-oct-2026 (segunda revisión, ronda 2) — LOS ARCHIVOS QUE SE BORRARON,
+   DICHOS DONDE RETOMA. El arranque los suelta si la persona estuvo fuera más
+   del rato de la cámara (PENSION_PERDIDOS), y solo el paso del fondo lo
+   decía. Quien escribió sus datos a mano, escogió su PDF y su pantallazo,
+   tocó «Lo hago después» y se fue 15 minutos a la app de su banco desde
+   «¿Dónde te enviamos la plata?» volvía con «¿Es tuyo?» → «Seguir» al paso 9,
+   no volvía a pasar por el del fondo, y abría su cuenta sin enterarse: en la
+   base quedaban 0 archivos. Visto en Chrome sin ventana, Android e iPhone.
+   Ahora, si retoma DESPUÉS del paso del fondo, se dice arriba, una vez, con
+   el camino de vuelta; si retoma antes, lo sigue diciendo el paso del fondo
+   cuando llegue (montarPasoPension). */
+function perdidosPensionHTML() {
+  var i = indiceDe('pension');
+  if (!PENSION_PERDIDOS || !HL || HL_APAGADO_PLAY || i < 0 || PASO <= i) return '';
+  PENSION_PERDIDOS = false;   // se dice una vez
+  return '<div class="aviso ambar" id="perdidosPension" role="status"><b>' + esc(HL.TEXTOS.perdidosOtroPaso || '') + '</b> ' +
+    esc(HL.TEXTOS.perdidosQueHacer || '') +
+    '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="irAlPasoPension()">Volver a «Tu fondo de pensiones»</button></div>';
+}
+function irAlPasoPension() {
+  var i = indiceDe('pension');
+  if (i >= 0) pintarRegistro(i);
 }
 function soltarArchivosDePension() {
   var g = guardaderoPension();

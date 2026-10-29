@@ -713,11 +713,13 @@ describe('«📋 Pegar» enseña lo copiado y pregunta antes de guardarlo', () =
 });
 
 /* 28-oct-2026 (segunda revisión, ronda 2) — «LO HAGO DESPUÉS» NO ARMA SU
-   LÍNEA CON ALGO EN CAMINO. Visto en Chrome sin ventana (Android de 412 px,
-   CPU ×6): tres pantallazos pesados tardan 2,3 s en prepararse; tocado a los
-   1,5 s, «Lo hago después» decía «Tu autorización se guarda…» y al abrir la
-   cuenta subían los tres. Lo mismo con «Continuar» y «Volver» a mitad (el
-   paso montado otra vez no sabía de ellos). Con el código de antes, las dos
+   LÍNEA CON ALGO EN CAMINO, Y PROMETE CON SU CONDICIÓN. Visto en Chrome sin
+   ventana (Android de 412 px, CPU ×6): tres pantallazos pesados tardan 2,3 s
+   en prepararse; tocado a los 1,5 s, «Lo hago después» decía «Tu autorización
+   se guarda…» y al abrir la cuenta subían los tres. Lo mismo con «Continuar» y
+   «Volver» a mitad (el paso montado otra vez no sabía de ellos). Y la línea
+   con archivos los prometía sin la condición de la lista: 15 minutos en la
+   app del banco y el arranque se los llevaba. Con el código de antes, las tres
    fallan. */
 describe('«Lo hago después» dice lo que va a pasar con lo escogido', () => {
   const { hasta } = require('./esperar.js');
@@ -737,6 +739,25 @@ describe('«Lo hago después» dice lo que va a pasar con lo escogido', () => {
     const e = t.g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('2026-10-30T15:00:00Z'); e.fondos = ['colpensiones']; t.g.guardarEstado(e);
     return t;
   }
+
+  test('con archivos, la línea dice hasta cuándo esperan: la condición de la lista con los minutos de la regla, o la de la memoria', () => {
+    const min = require('../app/escaner-cedula.js').MINUTOS_VUELTA_DE_LA_CAMARA;
+    const aut = { version: HL.VERSION_AUTORIZACION };
+    const con = plano(HL.pistaDespues({ aut, n: 2 }));
+    assert.match(con, /^Tu autorización y 2 archivos se guardan con tu registro cuando toques «Abrir mi cuenta»\./);
+    assert.ok(con.indexOf('si sales de esta página más de ' + min + ' minutos y el teléfono la cierra, se borran') > 0,
+      'promete los archivos sin decir cuándo se borran: ' + con);
+    /* La misma condición que dice la lista del paso. */
+    const lista = plano(HL.pantallaHTML({ modo: 'registro', aut, fondos: ['porvenir'], pidio: {}, archivos: [{ id: 'a', tipo: 'pdf', bytes: 10 }] }));
+    assert.ok(lista.indexOf('Si sales de esta página más de ' + min + ' minutos y el teléfono la cierra, se borran') >= 0);
+    /* Si el teléfono no deja guardarlos, cualquier cierre se los lleva: eso, y no los minutos. */
+    const mem = plano(HL.pistaDespues({ aut, n: 1, memoria: true }));
+    assert.match(mem, /^Tu autorización y 1 archivo se guardan[^.]*\. Hasta entonces los archivos esperan en esta página: este teléfono no deja guardarlos, y si la página se cierra tendrás que escogerlos otra vez\./);
+    assert.equal(/minutos/.test(mem), false, mem);
+    /* Sin archivos no hay nada que se borre; sin autorización, como antes. */
+    assert.equal(/se borran|esperan en/.test(plano(HL.pistaDespues({ aut, n: 0 }))), false);
+    assert.match(plano(HL.pistaDespues({ aut: null, n: 2 })), /^Lo dejaste para después\./);
+  });
 
   test('mientras se prepara lo escogido, «Lo hago después» está apagado y su toque no arma la línea; al terminar, sí, y ya lo cuenta', async () => {
     const t = autorizado();

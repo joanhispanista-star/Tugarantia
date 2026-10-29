@@ -210,6 +210,16 @@
        ESCOGIDO: ver pistaDespues. {n} es «1 archivo» o «3 archivos». */
     despuesConAutorizacion: 'Tu autorización se guarda con tu registro cuando toques «Abrir mi cuenta».',
     despuesConArchivos: 'Tu autorización y {n} se guardan con tu registro cuando toques «Abrir mi cuenta».',
+    /* 28-oct-2026 (segunda revisión, ronda 2) — Y HASTA ENTONCES, LA
+       CONDICIÓN DE LA LISTA (quedanAqui). La línea prometía los archivos sin
+       condición, y la persona la lee en «¿Dónde te enviamos la plata?», el
+       paso que la manda a la app de su banco: si tarda más del rato de la
+       cámara y el teléfono cierra la pestaña, el arranque se los lleva. Visto
+       en Chrome sin ventana: 15 minutos fuera y en la base quedaron 0. */
+    despuesSeBorran: 'Hasta entonces los archivos esperan en este teléfono: si sales de esta página más de {min} minutos y ' +
+      'el teléfono la cierra, se borran.',
+    despuesEnMemoria: 'Hasta entonces los archivos esperan en esta página: este teléfono no deja guardarlos, y si la página ' +
+      'se cierra tendrás que escogerlos otra vez.',
     despuesQuitar: 'Si cambiaste de idea, toca «Volver» y desmarca la autorización.',
     dondeFalte: 'Lo que te falte lo subes cuando quieras desde tu cuenta: Perfil → «📄 Tu historia laboral» (en la app instalada, en Inicio).',
     subela: 'Cuando la tengas, súbela',
@@ -240,6 +250,16 @@
     soloMemoria: 'Este teléfono no deja guardarlos: si la página se cierra antes de abrir tu cuenta, tendrás que escogerlos otra vez.',
     perdidos: 'Los archivos que habías escogido se borraron de este teléfono porque pasó un rato desde que saliste de la ' +
       'página: escógelos otra vez.',
+    /* 28-oct-2026 (segunda revisión, ronda 2) — LO MISMO, DICHO DONDE
+       RETOMA. «perdidos» solo salía en el paso del fondo, y quien vuelve
+       pasado el rato a un paso de DESPUÉS («¿Es tuyo?» → «Seguir» lo deja en
+       el 9 si escribió sus datos a mano) no vuelve a pasar por él: abría su
+       cuenta creyendo que su historia laboral iba con ella. Lo pinta play/
+       (perdidosPensionHTML), una vez. */
+    perdidosOtroPaso: 'Los archivos de tu historia laboral se borraron de este teléfono porque pasó un rato desde que ' +
+      'saliste de la página.',
+    perdidosQueHacer: 'Es opcional: puedes volver a «Tu fondo de pensiones» y escogerlos otra vez, o subirla después desde ' +
+      'tu cuenta: Perfil → «📄 Tu historia laboral» (en la app instalada, en Inicio).',
     /* 28-oct-2026 (segunda revisión, ronda 2) — el paso que se monta con
        archivos todavía en camino (ver «LO QUE VA EN CAMINO»). */
     terminando: 'Un momento: estamos terminando con los archivos que escogiste…'
@@ -893,6 +913,9 @@
       },
       /** ¿Lo escogido vive solo en la memoria de la página? */
       soloEnMemoria: function () { return abrir().then(function () { return !persistido; }); },
+      /* 28-oct-2026 (segunda revisión, ronda 2) — lo mismo sin esperar, para
+         la línea de «Lo hago después»: si hay archivos, ya se escribió. */
+      enMemoria: function () { return !persistido; },
       /** Ver «LO QUE VA EN CAMINO»: con `p`, lo anota hasta que termine; sin
           nada, dice si queda algo en camino. */
       enCamino: function (p) {
@@ -1036,12 +1059,18 @@
    * archivo), y se dice como antes.
    * `lo`: {aut, n}, lo que «Abrir mi cuenta» va a encolar de este registro
    * (encolar) y cuántos archivos esperan en el teléfono.
+   * 28-oct-2026 (segunda revisión, ronda 2) — con archivos, la línea dice
+   * también hasta cuándo esperan, con la condición de la lista (despuesSeBorran,
+   * los minutos de la regla), o la de la memoria si el teléfono no deja
+   * guardarlos (`lo.memoria`). Sin ella prometía los archivos a secas, y el
+   * arranque los borra si la persona tarda en el banco más del rato.
    */
   function pistaDespues(lo) {
     var x = lo || {}, n = Math.max(0, Math.floor(Number(x.n) || 0));
     if (!(x.aut && x.aut.version)) return '<b>Lo dejaste para después.</b> ' + esc(TEXTOS.dondeDespues);
     var guardado = n ? TEXTOS.despuesConArchivos.replace('{n}', n === 1 ? '1 archivo' : n + ' archivos') : TEXTOS.despuesConAutorizacion;
-    return '<b>' + esc(guardado) + '</b> ' + esc(TEXTOS.despuesQuitar) + ' ' + esc(TEXTOS.dondeFalte);
+    var hasta = n ? ' ' + esc(x.memoria ? TEXTOS.despuesEnMemoria : conMinutos(TEXTOS.despuesSeBorran)) : '';
+    return '<b>' + esc(guardado) + '</b>' + hasta + ' ' + esc(TEXTOS.despuesQuitar) + ' ' + esc(TEXTOS.dondeFalte);
   }
 
   /* ------------------------------------------------- la llamada con un token */
