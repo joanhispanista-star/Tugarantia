@@ -172,7 +172,12 @@ describe('los textos: la autorización dice lo que la ley pide, y nada que el c�
     assert.equal(/sale de tus pagos/.test(HL.TEXTOS.introCuenta), false, 'la tarjeta dice que la garantía sale de los pagos: falso para quien recién se registra');
     /* Los términos cambiaron: su fecha y su lista lo dicen (la regla de responsable-nexeco). */
     assert.match(T, /Última actualización: 30 de octubre de 2026/);
-    assert.match(T, /Lo que cambió el 30 de octubre de 2026: La historia laboral de tu fondo de pensiones, que puedes darnos si quieres, no sube la garantía que te prestamos/);
+    /* 28-oct-2026 (arreglador final, L5 de la ronda 3) — los términos también
+       los lee PlataChat, y su «que puedes darnos si quieres» le ofrecía algo
+       que su app no pide. Dicen lo mismo que la política: «(PlataChat no la
+       pide)». Con el texto de antes, esto falla. */
+    assert.match(T, /Lo que cambió el 30 de octubre de 2026: La historia laboral de tu fondo de pensiones, que en Tu Garantía \(PlataChat no la pide\) puedes darnos si quieres, no sube la garantía que te prestamos/);
+    assert.equal(/que puedes darnos si quieres/.test(T), false, 'los términos le ofrecen la historia laboral a quien llega por PlataChat');
     /* La salud: se guarda con el documento, no se usa, no es obligatoria, y se puede tapar. */
     const pension = visible(fs.readFileSync(path.join(RAIZ, 'legal', 'privacidad.html'), 'utf8')
       .split('<h3 id="pension">')[1].split('<section id="sensibles">')[0]);
