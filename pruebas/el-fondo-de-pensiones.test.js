@@ -615,21 +615,24 @@ describe('lo vencido no se queda en el teléfono', () => {
    teléfono; quien pega, no. El paso de verdad (pasoDelRegistro) en una caja de
    mentira que guarda sus oyentes: con el código de antes, el primer toque ya
    dejaba el archivo en el teléfono y esta prueba falla. */
+/* La caja del paso, de mentira, que guarda sus oyentes. 28-oct-2026 (segunda
+   revisión, ronda 2) — sube aquí desde «📋 Pegar»: la usan también las de lo
+   que va en camino, más abajo. */
+function cajaDeMentira() {
+  const oyentes = {};
+  const caja = { innerHTML: '', contains: () => true, querySelectorAll: () => [],
+    addEventListener: (t, f) => { (oyentes[t] = oyentes[t] || []).push(f); },
+    ownerDocument: { getElementById: () => null, createElement: () => ({}), head: { appendChild() {} } } };
+  const toque = que => oyentes.click.forEach(f => f({ target: { closest: () => ({ getAttribute: k => (k === 'data-hl' ? que : null) }) } }));
+  const pegarEnElRecuadro = f => oyentes.paste.forEach(o => o({ target: { closest: () => ({}) }, preventDefault() {},
+    clipboardData: { items: [{ kind: 'file', type: f.type, getAsFile: () => f }], files: [], getData: () => '' } }));
+  /* Escoger archivos en el selector del teléfono (el <input type=file>). */
+  const escoger = files => oyentes.change.forEach(f => f({ target: { getAttribute: k => (k === 'data-hl' ? 'archivo' : null), files, value: '' } }));
+  return { caja, toque, pegarEnElRecuadro, escoger };
+}
 describe('«📋 Pegar» enseña lo copiado y pregunta antes de guardarlo', () => {
   const { hasta } = require('./esperar.js');
   const COPIADO = pngDe(IHDR, trozoPng('IDAT', 'FOTO PRIVADA DE UN CHAT'), trozoPng('IEND', ''));
-  function cajaDeMentira() {
-    const oyentes = {};
-    const caja = { innerHTML: '', contains: () => true, querySelectorAll: () => [],
-      addEventListener: (t, f) => { (oyentes[t] = oyentes[t] || []).push(f); },
-      ownerDocument: { getElementById: () => null, createElement: () => ({}), head: { appendChild() {} } } };
-    const toque = que => oyentes.click.forEach(f => f({ target: { closest: () => ({ getAttribute: k => (k === 'data-hl' ? que : null) }) } }));
-    const pegarEnElRecuadro = f => oyentes.paste.forEach(o => o({ target: { closest: () => ({}) }, preventDefault() {},
-      clipboardData: { items: [{ kind: 'file', type: f.type, getAsFile: () => f }], files: [], getData: () => '' } }));
-    /* Escoger archivos en el selector del teléfono (el <input type=file>). */
-    const escoger = files => oyentes.change.forEach(f => f({ target: { getAttribute: k => (k === 'data-hl' ? 'archivo' : null), files, value: '' } }));
-    return { caja, toque, pegarEnElRecuadro, escoger };
-  }
   /* 28-oct-2026 (arreglo de los leves, P10) — con la pregunta abierta,
      «Continuar» pasaba de paso y escoger un PDF o un pantallazo la cerraba:
      lo pegado se perdía sin una palabra. Ahora la pregunta espera, y
@@ -706,6 +709,77 @@ describe('«📋 Pegar» enseña lo copiado y pregunta antes de guardarlo', () =
     } finally {
       if (antes) Object.defineProperty(navigator, 'clipboard', antes); else delete navigator.clipboard;
     }
+  });
+});
+
+/* 28-oct-2026 (segunda revisión, ronda 2) — «LO HAGO DESPUÉS» NO ARMA SU
+   LÍNEA CON ALGO EN CAMINO. Visto en Chrome sin ventana (Android de 412 px,
+   CPU ×6): tres pantallazos pesados tardan 2,3 s en prepararse; tocado a los
+   1,5 s, «Lo hago después» decía «Tu autorización se guarda…» y al abrir la
+   cuenta subían los tres. Lo mismo con «Continuar» y «Volver» a mitad (el
+   paso montado otra vez no sabía de ellos). Con el código de antes, las dos
+   fallan. */
+describe('«Lo hago después» dice lo que va a pasar con lo escogido', () => {
+  const { hasta } = require('./esperar.js');
+  const PANTALLAZO = pngDe(IHDR, trozoPng('IDAT', 'pantallazo de la historia laboral'), trozoPng('IEND', ''));
+  /* Un archivo que tarda en leerse lo que la prueba diga: como un pantallazo
+     pesado en un teléfono barato. */
+  function lento(contenido) {
+    let soltar;
+    const listo = new Promise(r => { soltar = r; });
+    const bytes = Uint8Array.from(contenido);
+    return { blob: { name: 'Screenshot_20261028.png', arrayBuffer: () => listo.then(() => bytes.buffer) }, soltar: () => soltar() };
+  }
+  const plano = h => String(h).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const despuesApagado = caja => /id="hlDespues" data-hl="despues" disabled/.test(caja.innerHTML);
+  function autorizado() {
+    const t = telefono();
+    const e = t.g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('2026-10-30T15:00:00Z'); e.fondos = ['colpensiones']; t.g.guardarEstado(e);
+    return t;
+  }
+
+  test('mientras se prepara lo escogido, «Lo hago después» está apagado y su toque no arma la línea; al terminar, sí, y ya lo cuenta', async () => {
+    const t = autorizado();
+    const { caja, toque, escoger } = cajaDeMentira();
+    let despues = 0;
+    HL.pasoDelRegistro(caja, { guardadero: t.g, intento: 'i1', celular: '3001112233', ahora: () => t.reloj.t, despues: () => { despues++; } });
+    await hasta(() => /id="hlDespues"/.test(caja.innerHTML), 50);
+    assert.equal(despuesApagado(caja), false, 'sin nada en camino, «Lo hago después» nace apagado');
+    const p = lento(PANTALLAZO);
+    escoger([p.blob]);
+    assert.ok(despuesApagado(caja), '«Lo hago después» sigue suelto mientras se prepara el pantallazo');
+    toque('despues');
+    assert.equal(despues, 0, 'el toque armó la línea con el pantallazo todavía en camino');
+    p.soltar();
+    assert.ok(await hasta(() => /id="hlLista"/.test(caja.innerHTML) && !despuesApagado(caja), 2000), 'al terminar no soltó el botón');
+    assert.equal(t.g.hayArchivosGuardados('i1', '3001112233'), true);
+    toque('despues');
+    assert.equal(despues, 1);
+  });
+
+  test('«Continuar» y «Volver» a mitad: el paso que se monta otra vez espera lo que va en camino, lo dice, y al terminar lo enseña', async () => {
+    const t = autorizado();
+    const A1 = cajaDeMentira();
+    HL.pasoDelRegistro(A1.caja, { guardadero: t.g, intento: 'i1', celular: '3001112233', ahora: () => t.reloj.t });
+    const p = lento(PANTALLAZO);
+    A1.escoger([p.blob]);
+    assert.equal(t.g.enCamino(), true, 'el guardadero no sabe lo que va en camino');
+    /* «Continuar» y «Volver»: el mismo paso, montado otra vez en otra caja, con el mismo guardadero. */
+    const B1 = cajaDeMentira();
+    let despues = 0;
+    HL.pasoDelRegistro(B1.caja, { guardadero: t.g, intento: 'i1', celular: '3001112233', ahora: () => t.reloj.t, despues: () => { despues++; } });
+    assert.ok(despuesApagado(B1.caja), 'el paso montado otra vez deja «Lo hago después» suelto con el pantallazo en camino');
+    assert.ok(plano(B1.caja.innerHTML).indexOf(HL.TEXTOS.terminando) >= 0, 'no dice por qué espera');
+    B1.toque('despues');
+    assert.equal(despues, 0, 'armó la línea sin el pantallazo que venía');
+    p.soltar();
+    assert.ok(await hasta(() => /id="hlLista"/.test(B1.caja.innerHTML) && !despuesApagado(B1.caja), 2000), 'el paso montado otra vez no enseña lo que llegó');
+    assert.equal(plano(B1.caja.innerHTML).indexOf(HL.TEXTOS.terminando), -1, 'el «Un momento» se quedó pegado');
+    assert.equal(t.g.enCamino(), false);
+    B1.toque('despues');
+    assert.equal(despues, 1);
+    /* Y lo que la línea va a contar es lo que de verdad espera. */
+    assert.equal(t.g.estado('i1', '3001112233').archivos_n, 1);
   });
 });
 

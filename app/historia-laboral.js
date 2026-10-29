@@ -239,7 +239,10 @@
       'más de {min} minutos y el teléfono la cierra, se borran, como las fotos de tu cédula.',
     soloMemoria: 'Este teléfono no deja guardarlos: si la página se cierra antes de abrir tu cuenta, tendrás que escogerlos otra vez.',
     perdidos: 'Los archivos que habías escogido se borraron de este teléfono porque pasó un rato desde que saliste de la ' +
-      'página: escógelos otra vez.'
+      'página: escógelos otra vez.',
+    /* 28-oct-2026 (segunda revisión, ronda 2) — el paso que se monta con
+       archivos todavía en camino (ver «LO QUE VA EN CAMINO»). */
+    terminando: 'Un momento: estamos terminando con los archivos que escogiste…'
   };
 
   var MOTIVOS = {
@@ -663,6 +666,17 @@
        guardando cuando la persona tocó «No soy yo» ya no se escribe (era de
        la anterior). */
     var GEN = 0;
+    /* 28-oct-2026 (segunda revisión, ronda 2) — LO QUE VA EN CAMINO. Preparar
+       pantallazos pesados toma segundos en un teléfono barato (CPU ×6: 2,3 s
+       para tres), y lo escogido se escribe aquí al terminar, aunque el paso ya
+       no esté en pantalla. La línea de «Lo hago después» se arma con lo que hay
+       aquí: tocada a mitad, decía «Tu autorización se guarda…» y al abrir la
+       cuenta subían los tres. Y no solo desde el mismo paso: «Continuar» y
+       «Volver» a mitad montan un paso nuevo que no sabía nada de lo que venía.
+       Por eso la cuenta va aquí, que es uno solo por página, y no en la
+       pantalla: el paso la anota (pasoDelRegistro) y el que se monte después
+       espera a que termine. */
+    var EN_CAMINO = 0, AL_TERMINAR = [];
 
     function abrir() {
       if (dbP) return dbP;
@@ -878,7 +892,23 @@
         });
       },
       /** ¿Lo escogido vive solo en la memoria de la página? */
-      soloEnMemoria: function () { return abrir().then(function () { return !persistido; }); }
+      soloEnMemoria: function () { return abrir().then(function () { return !persistido; }); },
+      /** Ver «LO QUE VA EN CAMINO»: con `p`, lo anota hasta que termine; sin
+          nada, dice si queda algo en camino. */
+      enCamino: function (p) {
+        if (!arguments.length) return EN_CAMINO > 0;
+        EN_CAMINO++;
+        var fin = function () {
+          EN_CAMINO = Math.max(0, EN_CAMINO - 1);
+          if (EN_CAMINO) return;
+          var l = AL_TERMINAR; AL_TERMINAR = [];
+          l.forEach(function (f) { try { f(); } catch (e) {} });
+        };
+        Promise.resolve(p).then(fin, fin);
+        return true;
+      },
+      /** `f` cuando ya no quede nada en camino (ya mismo, si no hay nada). */
+      alTerminar: function (f) { if (EN_CAMINO > 0) AL_TERMINAR.push(f); else f(); }
     };
     return g;
   }
@@ -1223,9 +1253,13 @@
   /** Lo de adentro del paso (o de la tarjeta), según el estado. */
   function pantallaHTML(vm) {
     var conAut = !!vm.aut;
+    /* 28-oct-2026 (segunda revisión, ronda 2) — «Lo hago después» se apaga
+       como los demás botones mientras algo se prepara o se guarda: la línea
+       que arma cuenta lo que ya está en el teléfono, y lo que va en camino
+       llegaba después (ver «LO QUE VA EN CAMINO», en el guardadero). */
     var r = (vm.modo === 'registro'
         ? '<p class="sub">' + esc(TEXTOS.intro) + '</p>' +
-          '<button type="button" class="btn sec sm hl-despues" id="hlDespues" data-hl="despues">Lo hago después</button>'
+          '<button type="button" class="btn sec sm hl-despues" id="hlDespues" data-hl="despues"' + (vm.ocupado ? ' disabled' : '') + '>Lo hago después</button>'
         : '<p class="sub">' + esc(TEXTOS.introCuenta) + '</p>') +
       (vm.perdidos ? '<div class="aviso ambar" role="status">' + esc(TEXTOS.perdidos) + '</div>' : '') +
       autorizacionHTML(conAut);
@@ -1262,7 +1296,11 @@
     var trabajar = function (p) {
       vm.ocupado = true; pintar();
       var fin = function () { vm.ocupado = false; };
-      return Promise.resolve(p).then(function (x) { fin(); return x; }, function (e) { fin(); throw e; });
+      var q = Promise.resolve(p).then(function (x) { fin(); return x; }, function (e) { fin(); throw e; });
+      /* 28-oct-2026 (segunda revisión, ronda 2) — y quien monte el paso
+         después lo sabe: ver «LO QUE VA EN CAMINO», en el guardadero. */
+      if (h.enCamino) { try { h.enCamino(q); } catch (e) {} }
+      return q;
     };
     /* Preparar, en orden (el tipo por sus bytes, el achique), SIN guardar
        nada todavía: {listos, malos}. */
@@ -1319,7 +1357,9 @@
       var t = ev.target && ev.target.closest ? ev.target.closest('[data-hl]') : null;
       if (!t || !caja.contains(t)) return;
       var que = t.getAttribute('data-hl');
-      if (que === 'despues') { if (h.despues) h.despues(); return; }
+      /* Apagado mientras algo va en camino (pantallaHTML); y si el toque
+         llega igual, no arma una línea que no lo cuenta. */
+      if (que === 'despues') { if (!vm.ocupado && h.despues) h.despues(); return; }
       if (que === 'abrir') {
         /* NO se repinta en este toque: un <a> que sale del documento antes de
            terminar su toque no abre nada. Solo se anota y se dice la hora. */
@@ -1451,9 +1491,23 @@
       abrio: function (c) { vm.pidio[c] = new Date(ahora()).toISOString(); guardar(); },
       agregar: function (a) { return vm.aut ? g.agregar(intento, cel, a) : { ok: false, motivo: 'sin_autorizacion' }; },
       quitar: function (id) { return g.quitar(intento, cel, id); },
-      despues: function () { e.despues = true; guardar(); if (o.despues) o.despues(); }
+      despues: function () { e.despues = true; guardar(); if (o.despues) o.despues(); },
+      enCamino: function (q) { if (g.enCamino) g.enCamino(q); }
     };
     var ctl = controlar(caja, vm, h);
+    /* 28-oct-2026 (segunda revisión, ronda 2) — EL PASO QUE SE MONTA CON ALGO
+       EN CAMINO. «Continuar» y «Volver» a mitad de preparar (tres toques en
+       1,6 s, CPU ×6) montaban este paso con la lista vacía y «Lo hago después»
+       suelto, y la línea decía «Tu autorización se guarda…» con tres archivos
+       que llegaban un segundo después y subían al abrir la cuenta. Ahora
+       espera a lo que va en camino, lo dice, y al terminar los enseña. */
+    if (g.enCamino && g.enCamino()) {
+      vm.ocupado = true; vm.aviso = TEXTOS.terminando; vm.avisoClase = 'info';
+      g.alTerminar(function () {
+        vm.ocupado = false; vm.aviso = ''; vm.avisoClase = '';
+        h.leer().then(ctl.pintar, ctl.pintar);
+      });
+    }
     /* 28-oct-2026 (arreglo de los leves, P10) — ¿se puede seguir? No con lo
        pegado esperando respuesta: «Continuar» lo dejaba atrás sin decir nada.
        Se dice debajo de la pregunta, y se lleva la pantalla hasta ella. La
