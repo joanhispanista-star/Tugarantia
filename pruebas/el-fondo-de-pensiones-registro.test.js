@@ -739,7 +739,7 @@ describe('«Abrir mi cuenta» con algo todavía en camino (el grave de la verifi
    antes (0140f2c) las dos fallan: la tarjeta dice «Todavía no nos la das.». */
 describe('la tarjeta del Perfil mientras sube lo del registro (el grave de la verificación de 0140f2c)', () => {
   const { idbDeMentira } = require('./idb-de-mentira.js');
-  const ESPERA = /Un momento: estamos subiendo la historia laboral que escogiste en tu registro…/;
+  const ESPERA = /Un momento: estamos guardando lo que escogiste en tu registro…/;
   const tarjetaCruda = P => P.ev("document.getElementById('hlCuenta').innerHTML");
   const tarjeta = P => B.texto(tarjetaCruda(P));
   /* Lo que se puede tocar: «Subirla» o «Ver o cambiar», «Retirar», o el cuerpo con la casilla. */

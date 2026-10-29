@@ -298,7 +298,10 @@
        DEL REGISTRO», en tarjetaDeCuenta. «En tu registro» y no «al abrir tu
        cuenta»: quien ya tenía cuenta también llega aquí («Entrar y terminar
        mi registro»). */
-    subiendoRegistro: 'Un momento: estamos subiendo la historia laboral que escogiste en tu registro…'
+    /* 29-oct-2026 — «guardando lo que escogiste» y no «subiendo la historia
+       laboral»: el caso más común es «Lo hago después» con solo la autorización
+       y el fondo, sin ningún archivo, y ahí no hay historia laboral que subir. */
+    subiendoRegistro: 'Un momento: estamos guardando lo que escogiste en tu registro…'
   };
 
   var MOTIVOS = {
