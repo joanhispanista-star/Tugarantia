@@ -413,9 +413,19 @@
       opciones: ['Quincenal (15 y 30)', 'Mensual, fin de mes', 'Semanal', 'No es fijo'],
       porque: 'Para que la fecha de tu cuota caiga después de que te paguen, y no antes.' },
 
-    /* --- quién responde por él --- */
+    /* --- quién lo conoce ---
+       28-oct-2026 (arreglador final, R1) — PARA QUÉ SON LAS REFERENCIAS, COMO
+       LO DICE LA POLÍTICA. El `porque` de la primera decía «con quien podamos
+       hablar si no te ubicamos» y el de la segunda «el día que haga falta»: es
+       la promesa que la política y los términos quitaron el 8-oct («se las
+       contactaba si no logramos comunicarnos contigo»), porque la Ley 2300 de
+       2023, art. 4, prohíbe gestionar el cobro con referencias. Este `porque`
+       es el «para qué» que la ficha de Play declara de cada dato
+       (Cumplimiento.datosQueRecoge → PLAY-FICHA.md): tiene que decir lo mismo
+       que la política, «saber, al evaluar tu solicitud, que hay gente que te
+       conoce». */
     { id: 'ref1_nombre',  etiqueta: 'Nombre de una referencia', grupo: 'referencias', tipo: 'texto', obligatorio: true,
-      porque: 'Alguien que te conozca y con quien podamos hablar si no te ubicamos.' },
+      porque: 'Alguien que te conozca: la miramos al evaluar tu solicitud. Nunca la llamamos para cobrarte (Ley 2300).' },
     /* 8-oct-2026 (segunda vuelta) — sin el comentario de debajo, «Qué es tuyo»
        se leía como «¿qué cosa es tuya?». El ejemplo va en la etiqueta. */
     { id: 'ref1_parentesco', etiqueta: 'Qué es tuyo (mamá, amigo, compañero…)', grupo: 'referencias', tipo: 'texto', obligatorio: true,
@@ -423,7 +433,7 @@
     { id: 'ref1_celular', etiqueta: 'Su celular',             grupo: 'referencias', tipo: 'celular', obligatorio: true,
       porque: 'Sin número, la referencia no sirve de nada.' },
     { id: 'ref2_nombre',  etiqueta: 'Nombre de otra referencia', grupo: 'referencias', tipo: 'texto', obligatorio: true,
-      porque: 'Dos, para no depender de que una sola conteste el día que haga falta.' },
+      porque: 'Una segunda persona que te conozca: al evaluar tu solicitud, dos dicen más que una.' },
     { id: 'ref2_parentesco', etiqueta: 'Qué es tuyo (mamá, amigo, compañero…)', grupo: 'referencias', tipo: 'texto', obligatorio: true,
       porque: 'Dos referencias del mismo hogar no son dos: conviene que una sea de fuera.' },
     { id: 'ref2_celular', etiqueta: 'Su celular',             grupo: 'referencias', tipo: 'celular', obligatorio: true,
@@ -435,7 +445,13 @@
     { id: 'contacto',    titulo: 'Cómo te contactamos' },
     { id: 'domicilio',   titulo: 'Dónde vives' },
     { id: 'ingresos',    titulo: 'De qué vives' },
-    { id: 'referencias', titulo: 'Quién puede responder por ti' }
+    /* 28-oct-2026 (arreglador final, R1) — decía «Quién puede responder por
+       ti»: «responder por» alguien es hacerse cargo de lo suyo, y en una app
+       de crédito se lee como que la referencia responde por la deuda (y que
+       se le va a cobrar). Las referencias no responden por nada: son gente que
+       te conoce (legal/privacidad.html, y la Ley 2300, art. 4). El mismo
+       título está en PASOS de play/index.html. */
+    { id: 'referencias', titulo: 'Quién te conoce' }
   ];
 
   function camposDelGrupo(id) {

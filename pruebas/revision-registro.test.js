@@ -162,11 +162,19 @@ function ruido(g, sigma, semilla) {
 
 /* ======================================================================= */
 
+const FIRMA_DE_LLEGADA = '(function () { try { var s = document.currentScript; if (s && s.src) '
+  + '(window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();';
 describe('el módulo es puro y corre en todas partes', () => {
   const FUENTE = leer('app/revision-registro.js');
   /* Sin comentarios: lo que se vigila es el código que corre, no la cabecera
      que explica por qué no se usa el reloj. */
-  const CODIGO = FUENTE.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:'"])\/\/[^\n]*/g, '$1');
+  const CODIGO = FUENTE.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:'"])\/\/[^\n]*/g, '$1')
+    /* 28-oct-2026 (arreglador final, R1) — menos la firma de llegada, a la
+       letra: la regla de versiones la exige en todo .js que una página pide
+       con ?v= (pruebas/la-pagina-nueva-no-corre-con-un-js-viejo.test.js), y es
+       la única línea que toca la página: anota que el archivo llegó, no lee
+       ni escribe nada de un registro, y en Node no hace nada. Una sola vez. */
+    .replace(FIRMA_DE_LLEGADA, ' ');
 
   test('ni DOM, ni red, ni almacenamiento, ni reloj, ni azar', () => {
     ['document.', 'window.', 'navigator', 'fetch(', 'XMLHttpRequest', 'localStorage', 'sessionStorage',

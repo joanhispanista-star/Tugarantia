@@ -161,8 +161,8 @@ del dispositivo.
 |---|---|---|
 | Tus nombres | Sí | Es a nombre de quién queda el crédito y el contrato. |
 | Tus apellidos | Sí | Lo mismo: el contrato lleva nombre completo. |
-| Nombre de una referencia | Sí | Alguien que te conozca y con quien podamos hablar si no te ubicamos. |
-| Nombre de otra referencia | Sí | Dos, para no depender de que una sola conteste el día que haga falta. |
+| Nombre de una referencia | Sí | Alguien que te conozca: la miramos al evaluar tu solicitud. Nunca la llamamos para cobrarte (Ley 2300). |
+| Nombre de otra referencia | Sí | Una segunda persona que te conozca: al evaluar tu solicitud, dos dicen más que una. |
 
 ### Información personal · Número de teléfono
 

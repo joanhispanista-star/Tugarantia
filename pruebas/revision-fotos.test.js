@@ -384,7 +384,8 @@ describe('«Revisar a todos» en la bandeja del CRM', () => {
     const SW = fs.readFileSync(path.join(RAIZ, 'sw.js'), 'utf8');
     const lista = SW.slice(SW.indexOf('const ARCHIVOS = ['), SW.indexOf('].map(f => BASE + f)'));
     const ARCHIVOS = new Set([...lista.matchAll(/^\s*'([^']*)',?/mg)].map(m => m[1]));
-    assert.ok(ARCHIVOS.has('app/revision-registro.js'), 'el celular abre Registrados sin señal y le faltaría el motor');
+    /* 28-oct-2026 (arreglador final, R1) — con la versión en la dirección desde v141 (ver sw.js). */
+    assert.ok([...ARCHIVOS].some(a => /^app\/revision-registro\.js(\?v=\d+)?$/.test(a)), 'el celular abre Registrados sin señal y le faltaría el motor');
     assert.ok(!ARCHIVOS.has('panel/revision.html'));
     assert.ok(!ARCHIVOS.has('app/revision-fotos.js'));
     const v = Number((/const CACHE = 'tugarantia-v(\d+)';/.exec(SW) || [])[1]);

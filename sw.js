@@ -1969,7 +1969,13 @@
    prohíbe cobrar a través de ellas). Estaba publicado sin versión en la
    dirección, así que desde aquí lo piden con ?v=141 las siete páginas que lo
    cargan (app/socio.html, play/, platachat/, panel/crm.html, espejo.html,
-   subir.html y traer.html), firma al llegar como puente.js, y se precarga así. */
+   subir.html y traer.html), firma al llegar como puente.js, y se precarga así.
+   Y por lo mismo app/cuenta.js (el «para qué» de las referencias y el título
+   de su paso decían que se las llamaría o que responden por la deuda) y
+   app/revision-registro.js (dos notas del CRM decían «para que lo sepas si
+   algún día hay que llamarla»): pasan a ?v=141 en todas las páginas que los
+   piden (revision-registro.js estrena la firma, y panel/revision.html, que no
+   pedía nada con versión, estrena la guardia), y aquí. */
 const CACHE = 'tugarantia-v141';
 const BASE = new URL('./', self.location).pathname;
 
@@ -2038,7 +2044,7 @@ const ARCHIVOS = [
   /* 2-oct-2026 — «Tu gente», los referidos del espejo. Ver la nota de v124. */
   'app/gente.js',
   /* 2-oct-2026 — las reglas de la revision de registrados. Ver la nota de v126. */
-  'app/revision-registro.js',
+  'app/revision-registro.js?v=141',   // 28-oct-2026 — ?v=141: las notas de las referencias (ver la nota de v141)
   'panel/panel-180.png',
   'panel/panel-192.png',
   'panel/panel-512.png',
@@ -2061,7 +2067,7 @@ const ARCHIVOS = [
   'play/index.html',
   'play/estilo.css',
   'play/app.webmanifest',
-  'app/cuenta.js?v=139',
+  'app/cuenta.js?v=141',   // 28-oct-2026 — ?v=141: para qué son las referencias, como la política (ver la nota de v141)
   /* 19-oct-2026 — el telefono de verdad: play/, app/socio.html y el CRM lo
      cargan con un <script src>. Sin el, la app instalada no anota el aparato
      (la pagina se protege sola) y el CRM no lo pone en palabras. Ver v138. */

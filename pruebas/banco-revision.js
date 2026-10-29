@@ -133,7 +133,10 @@ function abrirRevision(opciones) {
   const sin = new Set(o.sin || []);
   const reemplazaFotos = Object.prototype.hasOwnProperty.call(o, 'fotos');
   for (const m of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)) {
-    const src = (/\bsrc="([^"]+)"/.exec(m[1]) || [])[1];
+    /* 28-oct-2026 (arreglador final, R1) — la página pide con la versión en la
+       dirección (revision-registro.js?v=141, ver sw.js): el archivo y `sin` van
+       por el nombre, como en banco-espejo.js. */
+    const src = ((/\bsrc="([^"]+)"/.exec(m[1]) || [])[1] || '').split('?')[0];
     if (src) {
       if (sin.has(src)) continue;
       if (reemplazaFotos && src === '../app/revision-fotos.js') {

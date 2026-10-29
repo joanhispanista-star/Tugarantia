@@ -104,6 +104,16 @@
  *               en la nube (socios_historial).
  * ==========================================================================*/
 
+/* 28-oct-2026 (arreglador final, R1) — LA FIRMA DE LLEGADA, la misma de
+   app/puente.js. Este archivo ya estaba publicado sin versión en la
+   dirección, y cambia en v141 (las notas de las referencias, en
+   reglaReferencias): desde ahora panel/crm.html, panel/espejo.html y
+   panel/revision.html lo piden con …?v=141, y las dos que lo cargan con
+   <script src> miran, antes de arrancar su bloque grande, que haya firmado
+   aquí. Va PRIMERO por la razón que explica puente.js. En Node no hay
+   document y no hace nada. */
+(function () { try { var s = document.currentScript; if (s && s.src) (window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();
+
 (function (raiz, fabrica) {
   'use strict';
   if (typeof module === 'object' && module.exports) module.exports = fabrica();
@@ -1008,21 +1018,26 @@
       /* 2-oct-2026 — NOTAS, NO SOSPECHAS. Las dos frases decían «no es una
          falta» y aun así ponían la tarjeta en ámbar; y el referido que trae
          un cliente lo pone casi siempre de referencia, así que se habrían
-         puesto ámbar todos. Tampoco dicen «al llamar»: la política de
-         privacidad promete llamar a las referencias solo si no se logra
-         hablar con la persona. */
+         puesto ámbar todos.
+         28-oct-2026 (arreglador final, R1) — Y NO DICEN «si algún día hay que
+         llamarla». Lo decían porque la política prometía llamar a las
+         referencias si no se lograba hablar con la persona; esa promesa se
+         quitó el 8-oct, porque la Ley 2300 de 2023, art. 4, prohíbe gestionar
+         el cobro con referencias, y la política dice hoy «No las llamamos
+         para cobrarte». Saber de quién es ese celular sirve al revisar ESTA
+         solicitud, y es lo que dicen. */
       var regs = (ctx.otros || []).filter(function (o) { return o.todos.indexOf(r.cel) >= 0; });
       if (regs.length) {
         anota.neutro('ref' + r.i + '_otro_registrado',
           'El celular de la referencia ' + r.i + ' es el celular de otro registrado (' + cuandoVarios(regs, ctx.hoy) + '). '
-          + 'No es una falta: puede ser quien lo trajo o un familiar que también se registró; es para que lo sepas si algún día hay que llamarla.');
+          + 'No es una falta: puede ser quien lo trajo o un familiar que también se registró; es para que lo sepas al revisar esta solicitud.');
       }
       var clientes = (ctx.cartera || []).filter(function (s) { return s.celulares.indexOf(r.cel) >= 0; })
         .map(function (s) { return s.codigo; });
       if (clientes.length) {
         anota.neutro('ref' + r.i + '_cliente',
           'El celular de la referencia ' + r.i + ' es el de tu cliente ' + unir(clientes)
-          + '. No es una falta: es alguien que ya conoces, para que lo sepas si algún día hay que llamarla.');
+          + '. No es una falta: es alguien que ya conoces, para que lo sepas al revisar esta solicitud.');
       }
     });
     /* Las dos con su propio celular ya salieron dos veces: «las dos iguales»

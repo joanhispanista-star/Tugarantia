@@ -1169,7 +1169,7 @@
 <!-- 8-sep-2026: dispositivoDe (la huella del registro, en palabras).
      19-oct-2026: ya NO se muestra el user-agent crudo si no llega: decía
      «Mozilla/5.0 (Linux; Android 10; K)…» y se leía como el teléfono. -->
-<script src="../app/cuenta.js?v=139"></script>
+<script src="../app/cuenta.js?v=141"></script>
 <!-- 19-oct-2026 — el teléfono de verdad: lo que informó el navegador del
      cliente (modelo, versión, nuestra app) y sus palabras para la ficha. Va
      después de cuenta.js, de donde toma el lector del user-agent. -->
@@ -12041,7 +12041,7 @@ function cargarScriptCRM(url){ return new Promise((res,rej)=>{ if(document.query
    al primer toque, no al abrir el CRM: son para la ficha de un registrado, y
    así el CRM arranca igual que antes. La promesa se guarda para que dos toques
    seguidos no se encuentren la librería a medio bajar. */
-const URL_REVISION_REGISTRO='../app/revision-registro.js', URL_REVISION_FOTOS='../app/revision-fotos.js';
+const URL_REVISION_REGISTRO='../app/revision-registro.js?v=141', URL_REVISION_FOTOS='../app/revision-fotos.js';   // 28-oct-2026 — ?v=141: cambió (ver sw.js, v141)
 let _revisionFotos=null;
 function conRevisionFotos(){
   if(window.RevisionFotos&&window.RevisionRegistro) return Promise.resolve(window.RevisionFotos);

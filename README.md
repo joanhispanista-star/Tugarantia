@@ -86,6 +86,12 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
   cuenta.js             Entrar con teléfono y contraseña, el formulario de
                         vinculación, y los permisos que la app NO pide.
                         Y el único lector del user-agent (leerUserAgent).
+                        (28-oct) El «para qué» de las referencias (lo que
+                        declara PLAY-FICHA.md) y el título de su paso («Quién
+                        te conoce») dicen lo de la política: se miran al
+                        evaluar, nunca se llaman para cobrar (Ley 2300, art.
+                        4). Lo mismo las notas de las referencias de
+                        revision-registro.js. Los dos van con ?v=141.
   aparato.js            Desde qué teléfono (19-oct-2026): lo que el navegador
                         sabe del aparato —modelo, versión, si va dentro de
                         nuestra app— y sus palabras para el CRM. Se anota al
