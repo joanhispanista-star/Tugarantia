@@ -291,7 +291,14 @@
        en la caja de la cuenta recién abierta, donde ya no se ve el paso: si al
        tocar «Abrir mi cuenta» algo seguía preparándose, la subida lo espera
        (ver ENCOLADO, en el guardadero) y la caja dice por qué. */
-    terminandoCola: 'Un momento: estamos terminando de preparar los archivos de tu historia laboral que escogiste…'
+    terminandoCola: 'Un momento: estamos terminando de preparar los archivos de tu historia laboral que escogiste…',
+    /* 29-oct-2026 (arreglador, la tarjeta durante la subida del registro) — la
+       tarjeta «Tu historia laboral» de la cuenta mientras la página sube lo
+       que la persona escogió en el registro, y nada más: ver «MIENTRAS SUBE LO
+       DEL REGISTRO», en tarjetaDeCuenta. «En tu registro» y no «al abrir tu
+       cuenta»: quien ya tenía cuenta también llega aquí («Entrar y terminar
+       mi registro»). */
+    subiendoRegistro: 'Un momento: estamos subiendo la historia laboral que escogiste en tu registro…'
   };
 
   var MOTIVOS = {
@@ -1837,16 +1844,20 @@
   /* --------------------------------------------- la tarjeta de la app (socio) */
   /**
    * «Tu historia laboral» en la cuenta. `o`: {credenciales() → Promise<{url,
-   * anon, token}>, fetch, escritura(p), ahora(), confirmar(texto)}.
+   * anon, token}>, fetch, escritura(p), ahora(), confirmar(texto), subida()}.
    * Si la base todavía no tiene las funciones (404), la tarjeta no aparece:
    * no se ofrece lo que no va a funcionar.
+   * 29-oct-2026 — `subida()`: la promesa de la subida de lo del registro que
+   * la página tiene en curso para ESTA cuenta, o null; y si una empieza con
+   * la tarjeta ya montada, la página llama esperar(promesa). Ver «MIENTRAS
+   * SUBE LO DEL REGISTRO», abajo.
    */
   function tarjetaDeCuenta(caja, o) {
     o = o || {};
     var ahora = typeof o.ahora === 'function' ? o.ahora : function () { return Date.now(); };
     var escritura = typeof o.escritura === 'function' ? o.escritura : function (p) { return p; };
     var vm = { modo: 'cuenta', aut: null, fondos: [], pidio: {}, archivos: [], aviso: '', avisoClase: '', pegando: false,
-               pegado: null, vistas: {}, ocupado: false, abierta: !!o.abierta, cargando: true };
+               pegado: null, vistas: {}, ocupado: false, abierta: !!o.abierta, cargando: true, subiendo: null };
     var llamar = function (fn, cuerpo, escribe) {
       var p = Promise.resolve(o.credenciales ? o.credenciales() : null).then(function (cfg) {
         return llamarConToken(cfg, fn, cuerpo, o.fetch);
@@ -1858,16 +1869,34 @@
       return { ok: false, motivo: st === 404 ? 'apagado' : (st === 401 || st === 403 || (e && e.sinSesion)) ? 'sesion' : 'sin_red' };
     };
     var cuerpoCaja = null;
-    /* Por id y no buscando dentro de la caja: hay una sola tarjeta por pantalla. */
-    var porId = function (id) { var d = caja.ownerDocument || (typeof document !== 'undefined' ? document : null); return d && d.getElementById ? d.getElementById(id) : null; };
+    /* Por id y no buscando dentro de la caja: hay una sola tarjeta por pantalla.
+       29-oct-2026 — pero solo lo de ESTA caja, y buscado dentro de ella si el
+       documento no la tiene. La tarjeta se vuelve a pintar sola al terminar
+       la subida del registro (esperar): si la persona está en otra pestaña,
+       su caja está fuera del documento (play/ la guarda y la vuelve a poner
+       al volver al Perfil), y abierta volvía sin su cuerpo y con «Retirar»
+       sordo. Y si en esos segundos salió y entró otra cuenta, el documento
+       tiene la tarjeta de la otra: una vieja no le pone oyentes ni le pinta
+       su cuerpo. */
+    var porId = function (id) {
+      var d = caja.ownerDocument || (typeof document !== 'undefined' ? document : null);
+      var x = d && d.getElementById ? d.getElementById(id) : null;
+      if (x && typeof caja.contains === 'function' && !caja.contains(x)) x = null;
+      if (!x && caja.querySelector) { try { x = caja.querySelector('#' + id); } catch (e) { x = null; } }
+      return x;
+    };
     var pintarTarjeta = function () {
       if (vm.apagado) { caja.innerHTML = ''; return; }
       var n = vm.archivos.length;
-      var linea = vm.cargando ? 'Mirando lo que tienes guardado…'
+      /* Mientras sube lo del registro (vm.subiendo), solo la línea: ver
+         «MIENTRAS SUBE LO DEL REGISTRO». Cuando ya subió y falta mirar la
+         base, lo que de verdad se está haciendo. */
+      var linea = vm.subiendo ? (vm.subiendo.subio ? 'Mirando lo que tienes guardado…' : TEXTOS.subiendoRegistro)
+        : vm.cargando ? 'Mirando lo que tienes guardado…'
         : n ? 'Ya nos diste ' + resumen(vm.archivos) + '.' : (vm.aut ? 'Ya nos diste tu autorización. Falta tu historia laboral.' : 'Todavía no nos la das.');
       caja.innerHTML = '<div class="card" id="hlTarjeta"><h3 class="tit">📄 Tu historia laboral <span class="muted" style="font-weight:400">· opcional</span></h3>' +
         '<p class="sub" id="hlLinea">' + esc(linea) + '</p>' +
-        (vm.abierta ? '<div id="hlCuerpo"></div>' +
+        (vm.subiendo ? '' : vm.abierta ? '<div id="hlCuerpo"></div>' +
           /* Siempre en la tarjeta abierta, escondido sin autorización: quien la
              da aquí mismo tiene que ver YA cómo retirarla (pintarLinea lo
              muestra), no al volver a abrir la tarjeta. */
@@ -1879,18 +1908,32 @@
       if (b) b.addEventListener('click', function () { vm.abierta = true; pintarTarjeta(); });
       var r = porId('hlRetirar');
       if (r) r.addEventListener('click', retirar);
-      cuerpoCaja = porId('hlCuerpo');
+      cuerpoCaja = vm.subiendo ? null : porId('hlCuerpo');   // mientras sube no hay cuerpo que escuchar
       if (cuerpoCaja) { ctl = controlar(cuerpoCaja, vm, h); ctl.pintar(); }
     };
+    /* 29-oct-2026 — LO QUE DICE LA BASE SE TOMA EN EL ORDEN EN QUE SE
+       PREGUNTÓ. La lectura del montaje sale con la base todavía vacía si lo
+       del registro está subiendo; con la red lenta puede contestar DESPUÉS de
+       la de al terminar, y pintaría otra vez «Todavía no nos la das» encima
+       de lo que ya quedó. Una respuesta más vieja que la última que ya se
+       tomó (bien o mal) no cambia nada: quien la pidió pinta lo de ahora. */
+    var pedidas = 0, tomada = 0;
     var leer = function () {
+      var esta = ++pedidas;
       return llamar('pension_mia', {}).then(function (j) {
+        if (esta < tomada) return;
+        tomada = esta;
         vm.cargando = false;
         if (!j || j.ok !== true) throw { motivo: (j && j.motivo) || 'sin_red' };
         var a = j.autorizacion;
         vm.aut = (a && !a.revocada_en) ? a : null;
         vm.fondos = vm.aut ? (a.fondos || []) : [];
         vm.archivos = j.archivos || [];
-      }, function (e) { vm.cargando = false; var m = deError(e).motivo; if (m === 'apagado') vm.apagado = true; throw { motivo: m }; });
+      }, function (e) {
+        if (esta < tomada) return;
+        tomada = esta;
+        vm.cargando = false; var m = deError(e).motivo; if (m === 'apagado') vm.apagado = true; throw { motivo: m };
+      });
     };
     /* La casilla: esto SÍ es firmar, con la versión del texto que se ve. */
     var autorizarCon = function (fondos) {
@@ -1959,18 +2002,64 @@
     };
     var pintarLinea = function () {
       var l = porId('hlLinea'), n = vm.archivos.length;
-      if (l) l.textContent = n ? 'Ya nos diste ' + resumen(vm.archivos) + '.' : (vm.aut ? 'Ya nos diste tu autorización. Falta tu historia laboral.' : 'Todavía no nos la das.');
+      /* Un toque que ya iba en camino cuando empezó la espera también relee y
+         pinta la línea: tampoco pisa la de la espera. */
+      if (l) l.textContent = vm.subiendo ? (vm.subiendo.subio ? 'Mirando lo que tienes guardado…' : TEXTOS.subiendoRegistro)
+        : n ? 'Ya nos diste ' + resumen(vm.archivos) + '.' : (vm.aut ? 'Ya nos diste tu autorización. Falta tu historia laboral.' : 'Todavía no nos la das.');
       var r = porId('hlRetirar');
       if (r) r.classList[vm.aut ? 'remove' : 'add']('oculto');
     };
-    ponerEstilo(caja.ownerDocument || (typeof document !== 'undefined' ? document : null));
-    pintarTarjeta();
-    leer().then(pintarTarjeta, function () {
+    var fallo = function () {
       if (vm.apagado) { caja.innerHTML = ''; if (o.alApagado) o.alApagado(); return; }
+      /* Mientras sube lo del registro, lo que diga la base todavía no cuenta:
+         al terminar se vuelve a mirar (esperar). */
+      if (vm.subiendo) return;
       vm.aviso = 'No pude mirar tu historia laboral. Revisa tu internet y vuelve a abrir esta pantalla.'; vm.avisoClase = 'ambar';
       caja.innerHTML = '<div class="card"><h3 class="tit">📄 Tu historia laboral</h3><div class="aviso ambar" role="status">' + esc(vm.aviso) + '</div></div>';
-    });
-    return { vm: vm, recargar: function () { return leer().then(pintarTarjeta); } };
+    };
+    /* 29-oct-2026 (arreglador, el grave de la verificación de 0140f2c) —
+       MIENTRAS SUBE LO DEL REGISTRO, LA TARJETA NO OFRECE NADA. Desde 0140f2c
+       la subida de la cola espera lo que se estaba preparando al tocar «Abrir
+       mi cuenta» (subirCola → colaLista: de 1 a 3 s con pantallazos pesados,
+       hasta el tope de 30 s con uno que no termina de abrirse), y en ese rato
+       la base no tiene nada de esta persona. La tarjeta se pintaba con eso:
+       «Todavía no nos la das», «Subirla» y, abierta, la casilla sin marcar.
+       Abierta, no se volvía a mirar al terminar (arriba decía «llegó (2
+       archivos)» y aquí seguía «Todavía no nos la das»), y marcar esa casilla
+       firmaba otra vez con la lista de fondos vacía: pension_autorizar, con
+       versión, pisa los fondos, y la base perdía el que la persona escogió en
+       el registro (2|porvenir → 2|). Visto en Chrome sin ventana (Android de
+       412 px e iPhone de 390 px, CPU ×6).
+       Ahora, mientras la página sube lo del registro de esta cuenta
+       (o.subida() al montarla, o esperar(p) si la subida empieza con la
+       tarjeta ya montada), la tarjeta dice eso (TEXTOS.subiendoRegistro) y
+       no ofrece nada: ni «Subirla», ni la casilla, ni «Retirar». Al terminar,
+       salga como salga, vuelve a mirar la base y se pinta con lo que de
+       verdad quedó, abierta o cerrada como estaba; si la base no contesta, lo
+       dice como siempre («No pude mirar tu historia laboral…»). Si llega otra
+       espera, la última manda. */
+    var esperar = function (p) {
+      if (!p || typeof p.then !== 'function' || vm.apagado) return;
+      var esta = { subio: false };
+      vm.subiendo = esta;
+      pintarTarjeta();
+      var fin = function () {
+        if (vm.subiendo !== esta) return;
+        esta.subio = true; pintarTarjeta();
+        var listo = function () { if (vm.subiendo === esta) vm.subiendo = null; };
+        leer().then(function () { listo(); if (!vm.subiendo) pintarTarjeta(); },
+                    function () { listo(); if (!vm.subiendo) fallo(); });
+      };
+      p.then(fin, fin);
+    };
+    ponerEstilo(caja.ownerDocument || (typeof document !== 'undefined' ? document : null));
+    var enCurso = null;
+    try { enCurso = typeof o.subida === 'function' ? o.subida() : null; } catch (e) { enCurso = null; }
+    if (enCurso && typeof enCurso.then === 'function') esperar(enCurso);
+    else pintarTarjeta();
+    leer().then(pintarTarjeta, fallo);
+    /* recargar mientras sube no pregunta nada: al terminar se mira sola. */
+    return { vm: vm, esperar: esperar, recargar: function () { return vm.subiendo ? Promise.resolve() : leer().then(pintarTarjeta); } };
   }
 
   return {

@@ -260,9 +260,14 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         la autorización de ese registro sigue vigente; la
                         subida lo espera (colaLista), dice lo que no entró
                         (noLlegaron) y es una sola aunque la pidan «Abrir mi
-                        cuenta» e «Ir a mi cuenta» (play/, PENSION_SUBIDA);
-                        al terminar, la tarjeta del Perfil que quedó a la
-                        vista se vuelve a mirar.
+                        cuenta» e «Ir a mi cuenta» (play/, PENSION_SUBIDA).
+                        Mientras sube, la tarjeta del Perfil de esa cuenta
+                        lo dice y no ofrece nada que tocar (ni «Subirla», ni
+                        la casilla, ni «Retirar»); al terminar se mira sola
+                        en la base, abierta o cerrada (esperar,
+                        subiendoRegistro). (29-oct: abierta, se quedaba en
+                        «Todavía no nos la das», y marcar esa casilla
+                        borraba el fondo escogido en el registro.)
                         Soltar el registro nunca toca la cola, y agregar no
                         escribe nada sin la autorización vigente de ese
                         registro: nada queda huérfano. (29-oct: desde

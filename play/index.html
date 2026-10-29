@@ -3447,27 +3447,49 @@ function subirLaHistoriaLaboralYDecirlo() {
     if (va.dice && SESION === ses) pintarAvisoPension(va.dice, '');
     return va.p.then(decirLoQuePaso, function () {});
   }
-  var s = { cel: cel, dice: '', p: null };
+  var s = { cel: cel, dice: '', p: null, cola: false };
   var decir = function (html) { s.dice = html; if (SESION === ses) pintarAvisoPension(html, ''); };
   s.p = (PENSION_ENCOLADA || Promise.resolve()).then(function () { return g.cola(cel); }).then(function (c) {
     if (!c) return null;
+    /* 29-oct-2026 — hay algo que subir: la tarjeta del Perfil de esta cuenta
+       no ofrece nada hasta que termine (laTarjetaEspera). */
+    s.cola = true;
+    laTarjetaEspera(s);
     decir('<b>' + esc(g.colaEnEspera && g.colaEnEspera(cel) ? HL.TEXTOS.terminandoCola : 'Subiendo tu historia laboral…') + '</b>');
     return HL.subirCola(g, cel, function (fn, cuerpo) { return rpcSesion(fn, cuerpo, ses, true); },
       { alSubir: function () { decir('<b>Subiendo tu historia laboral…</b>'); } });
   });
   PENSION_SUBIDA = s;
   var fin = function () { if (PENSION_SUBIDA === s) PENSION_SUBIDA = null; };
-  /* Y la tarjeta del Perfil, si quedó a la vista con esta sesión mientras la
-     cola esperaba o subía: decía lo que la base tenía ANTES («Todavía no nos
-     la das»), y la espera de lo que va en camino puede durar el tope de un
-     archivo. Cerrada, se vuelve a mirar; abierta no se toca (la persona la
-     está usando), como al volver al Perfil (montarHistoriaLaboralEnPerfil). */
-  var mirarLaTarjeta = function (r) {
-    var t = HL_TARJETA_PLAY, vm = t && t.tarjeta && t.tarjeta.vm;
-    if (!r || r.estado === 'nada' || !t || t.ses !== ses || !vm || vm.abierta || vm.cargando || vm.apagado) return;
-    t.tarjeta.recargar().then(null, function () { /* se queda lo que decía */ });
-  };
-  return s.p.then(function (r) { fin(); decirLoQuePaso(r); mirarLaTarjeta(r); }, fin);
+  /* La tarjeta del Perfil ya no se vuelve a mirar desde aquí: espera esta
+     subida y se mira sola al terminar, abierta o cerrada (laTarjetaEspera). */
+  return s.p.then(function (r) { fin(); decirLoQuePaso(r); }, fin);
+}
+/* 29-oct-2026 (arreglador, el grave de la verificación de 0140f2c) — LA
+   TARJETA DEL PERFIL ESPERA A LA SUBIDA DEL REGISTRO. Mientras la cola
+   esperaba lo que se preparaba (hasta el tope de un archivo), la tarjeta
+   «Tu historia laboral» decía lo que la base tenía entonces —nada—:
+   «Todavía no nos la das», con «Subirla» y la casilla sin marcar. Abierta,
+   al terminar seguía así aunque arriba dijera «llegó (2 archivos)»
+   (mirarLaTarjeta solo releía la cerrada), y marcar la casilla firmaba otra
+   vez sin fondos: la base perdía el fondo del registro (2|porvenir → 2|).
+   Visto en Chrome sin ventana (Android de 412 px e iPhone de 390 px, CPU
+   ×6). Ahora, en cuanto la subida sabe que hay cola para ESA cuenta (su
+   celular), la tarjeta montada la espera (esperar) y la que se monte
+   mientras tanto nace esperando (subidaDeLaHistoriaLaboral): dice que está
+   subiendo, no ofrece nada que tocar, y al terminar se mira sola en la
+   base (app/historia-laboral.js, «MIENTRAS SUBE LO DEL REGISTRO»).
+   Sin cola no espera nada: entrar a la cuenta sin nada que subir no le
+   cambia nada a la tarjeta. Y una cola que no alcanzó a subir (sin señal,
+   el freno) tampoco la frena: ahí no hay nada en curso que esperar, y la
+   caja de arriba manda justamente a la tarjeta («Subirla desde tu Perfil»). */
+function subidaDeLaHistoriaLaboral(cel) {
+  var s = PENSION_SUBIDA;
+  return (s && s.cola && cel && s.cel === String(cel)) ? s.p : null;
+}
+function laTarjetaEspera(s) {
+  var t = HL_TARJETA_PLAY;
+  if (s && t && t.tarjeta && t.cel === s.cel && typeof t.tarjeta.esperar === 'function') t.tarjeta.esperar(s.p);
 }
 function pintarAvisoPension(html, clase, conCamino) {
   var a = $('avisoPension');
@@ -3516,7 +3538,10 @@ function montarHistoriaLaboralEnPerfil() {
     if (vm && !vm.abierta && !vm.cargando && !vm.apagado) ya.tarjeta.recargar().then(null, function () { /* se queda lo que decía */ });
     return;
   }
-  HL_TARJETA_PLAY = { ses: ses, nodo: caja, tarjeta: null };
+  /* 29-oct-2026 — el celular de ESTA cuenta: el de la cola que retirar
+     borra, y el de la subida que la tarjeta espera (laTarjetaEspera). */
+  var cel = (function () { var e = (ses.user && ses.user.email) || '', m = String(e).toLowerCase().match(/^57([0-9]{10})@tugarantia\.net$/); return m ? m[1] : ''; })();
+  HL_TARJETA_PLAY = { ses: ses, cel: cel, nodo: caja, tarjeta: null };
   HL_TARJETA_PLAY.tarjeta = HL.tarjetaDeCuenta(caja, {
     /* Con el token de la sesión que la abrió; si ya es otra, sin sesión. */
     credenciales: function () {
@@ -3533,7 +3558,10 @@ function montarHistoriaLaboralEnPerfil() {
        de ESTA cuenta esperaba en el teléfono (la cola del registro), y el
        aviso de arriba deja de decir «Lo volvemos a intentar». */
     guardadero: guardaderoPension(),
-    celular: function () { var e = (ses.user && ses.user.email) || '', m = String(e).toLowerCase().match(/^57([0-9]{10})@tugarantia\.net$/); return m ? m[1] : ''; },
+    celular: function () { return cel; },
+    /* 29-oct-2026 — si lo del registro de esta cuenta está subiendo, nace
+       esperando (ver laTarjetaEspera). */
+    subida: function () { return subidaDeLaHistoriaLaboral(cel); },
     alRetirar: function () { if (SESION === ses) pintarAvisoPension(''); }
   });
 }

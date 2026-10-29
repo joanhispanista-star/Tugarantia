@@ -1380,3 +1380,155 @@ describe('la llamada con el token de la sesión (la app)', () => {
     await assert.rejects(HL.llamarConToken({ url: 'u', anon: 'a', token: 't' }, 'pension_mia', {}, f404), e => e.status === 404);
   });
 });
+
+/* 29-oct-2026 (arreglador, el grave de la verificación de 0140f2c) — LA
+   TARJETA DE LA CUENTA MIENTRAS SUBE LO DEL REGISTRO. Desde 0140f2c la subida
+   de la cola espera lo que se preparaba al abrir la cuenta (hasta 30 s por
+   archivo), y en ese rato la base no tiene nada: la tarjeta decía «Todavía no
+   nos la das» con «Subirla» y, abierta, la casilla sin marcar; abierta, no se
+   volvía a mirar al terminar, y marcar esa casilla firmaba sin fondos (la base
+   perdía el del registro). Visto en Chrome sin ventana, Android e iPhone.
+   Aquí, la tarjeta sola, con una base de mentira y una página de mentira
+   cuyo documento encuentra por id solo lo que la tarjeta pintó. Con el
+   código de antes (0140f2c) las cuatro fallan: la tarjeta no sabe de
+   subida() ni tiene esperar(). */
+describe('la tarjeta de la cuenta mientras sube lo del registro (el grave de la verificación de 0140f2c)', () => {
+  const { hasta } = require('./esperar.js');
+  const ESPERA = HL.TEXTOS.subiendoRegistro;
+  const DEL_REGISTRO = { aut: { fondos: ['porvenir'], version: '2026-10-30', recibida_en: '2026-10-30T15:00:00Z', revocada_en: null },
+    archivos: [{ id: 1, tipo: 'pdf', bytes: 1194, creado_en: '2026-10-30T15:00:05Z' }, { id: 2, tipo: 'png', bytes: 8000, creado_en: '2026-10-30T15:00:06Z' }] };
+  /* La base: pension_mia contesta lo que haya EN EL MOMENTO DE LA PREGUNTA;
+     `colgar(fn)` retiene esa respuesta hasta que la prueba la suelte. */
+  function base() {
+    const b = { aut: null, archivos: [], llamadas: [], colgadas: [], colgar: null };
+    b.fetch = (url, op) => {
+      const fn = String(url).split('/rpc/')[1], c = JSON.parse((op && op.body) || '{}');
+      b.llamadas.push(fn);
+      if (b.sinRed) return Promise.reject(new Error('sin red'));
+      let r = { ok: true };
+      if (fn === 'pension_mia') r = { ok: true, autorizacion: b.aut ? JSON.parse(JSON.stringify(b.aut)) : null, archivos: b.archivos.slice() };
+      if (fn === 'pension_autorizar') {
+        if (c.p_version) b.aut = { fondos: c.p_fondos, version: c.p_version, revocada_en: null };
+        else if (b.aut) b.aut.fondos = c.p_fondos;
+      }
+      const x = { ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(r)) };
+      if (b.colgar && b.colgar(fn)) return new Promise(res => b.colgadas.push(() => res(x)));
+      return Promise.resolve(x);
+    };
+    b.recibe = d => { b.aut = JSON.parse(JSON.stringify(d.aut)); b.archivos = d.archivos.slice(); };
+    return b;
+  }
+  /* La página: pintar la caja otra vez estrena sus nodos, como el navegador. */
+  function pagina() {
+    let html = '';
+    const nodos = {};
+    const pintado = id => { const re = new RegExp('id="' + id + '"'); return re.test(html) || !!(nodos.hlCuerpo && re.test(nodos.hlCuerpo.innerHTML)); };
+    const doc = { createElement: () => ({}), head: { appendChild() {} } };
+    const nuevo = id => ({ id, innerHTML: '', textContent: '', _oyentes: {}, ownerDocument: doc,
+      classList: { add() {}, remove() {}, contains: () => false },
+      addEventListener(t, f) { (this._oyentes[t] = this._oyentes[t] || []).push(f); },
+      contains: () => true, querySelectorAll: () => [], querySelector: () => null });
+    doc.getElementById = id => (pintado(id) ? (nodos[id] = nodos[id] || nuevo(id)) : null);
+    const caja = { ownerDocument: doc, querySelectorAll: () => [], querySelector: () => null, addEventListener() {}, contains: () => true,
+      get innerHTML() { return html; },
+      set innerHTML(v) { html = String(v); Object.keys(nodos).forEach(k => { delete nodos[k]; }); } };
+    const linea = () => (nodos.hlLinea ? nodos.hlLinea.textContent : ((/id="hlLinea">([^<]*)</.exec(html) || [])[1] || ''));
+    /* Lo que se puede tocar en la tarjeta: sus botones y, abierta, la casilla y los fondos. */
+    const tocables = () => (html.match(/<button|<input/g) || []).length + (nodos.hlCuerpo ? (nodos.hlCuerpo.innerHTML.match(/<button|<input/g) || []).length : 0);
+    const tocar = id => { const n = doc.getElementById(id); assert.ok(n && n._oyentes.click, 'no está «' + id + '» para tocar'); n._oyentes.click.forEach(f => f()); };
+    const casilla = () => { const c = doc.getElementById('hlAut'); return c ? / checked/.test(/<input[^>]*id="hlAut"[^>]*>/.exec(nodos.hlCuerpo.innerHTML)[0]) : null; };
+    const fondos = () => (nodos.hlCuerpo ? [...nodos.hlCuerpo.innerHTML.matchAll(/data-hl="fondo" value="([^"]+)" checked/g)].map(m => m[1]) : []);
+    return { caja, linea, tocables, tocar, casilla, fondos, doc, html: () => html };
+  }
+  const montar = (P, b, o) => HL.tarjetaDeCuenta(P.caja, Object.assign({
+    credenciales: () => Promise.resolve({ url: 'https://x.supabase.co', anon: 'anon', token: 'tok' }), fetch: b.fetch }, o || {}));
+  /* La subida de play/, retenida: termina (fin) o se cae (falla) cuando la prueba diga. */
+  const subidaColgada = () => {
+    let fin, falla;
+    const p = new Promise((r, j) => { fin = r; falla = j; });
+    p.catch(() => {});   // que una caída no salga como rechazo sin atender: la prueba mira la tarjeta
+    return { p, fin, falla };
+  };
+
+  test('nace esperando si lo del registro está subiendo: lo dice y no ofrece nada; al terminar se pinta sola con lo que quedó en la base', async () => {
+    const b = base(), P = pagina(), s = subidaColgada();
+    const t = montar(P, b, { subida: () => s.p });
+    await hasta(() => false, 10);
+    assert.equal(P.linea(), ESPERA, 'mientras sube lo del registro, la tarjeta no lo dice: «' + P.linea() + '»');
+    assert.equal(P.tocables(), 0, 'mientras sube, la tarjeta ofrece algo que tocar: ' + P.html());
+    assert.equal(P.doc.getElementById('hlAut'), null, 'mientras sube, la casilla está a la vista');
+    /* La base recibe lo del registro y la subida termina. */
+    b.recibe(DEL_REGISTRO);
+    s.fin({ estado: 'ok', subidos: 2, total: 2 });
+    assert.ok(await hasta(() => /Ya nos diste/.test(P.linea()), 40), 'al terminar no se volvió a mirar: «' + P.linea() + '»');
+    assert.equal(P.linea(), 'Ya nos diste 1 PDF y 1 pantallazo.');
+    assert.match(P.html(), /id="hlAbrir">Ver o cambiar</);
+    /* Abierta, dice lo que dio en el registro: la casilla marcada y su fondo. */
+    P.tocar('hlAbrir');
+    assert.equal(P.casilla(), true, 'abierta, la casilla sale sin marcar aunque ya autorizó en el registro');
+    assert.deepEqual(P.fondos(), ['porvenir']);
+    assert.match(P.html(), /class="btn sec sm" style="margin-top:var\(--e4\)" id="hlRetirar"/, '«Retirar» no está a la vista');
+    assert.equal(b.llamadas.filter(f => f !== 'pension_mia').length, 0, 'la tarjeta escribió en la base sin que nadie tocara nada');
+    assert.equal(t.vm.subiendo, null);
+  });
+
+  test('ya montada y ABIERTA cuando empieza la subida: se cierra a la espera, y al terminar vuelve abierta con lo de la base; la casilla ya no firma sin fondos', async () => {
+    const b = base(), P = pagina();
+    const t = montar(P, b);
+    assert.ok(await hasta(() => /Todavía no nos la das/.test(P.linea()), 40));
+    P.tocar('hlAbrir');
+    assert.equal(P.casilla(), false);
+    /* La subida de la cola de esta cuenta empieza (play/: laTarjetaEspera). */
+    const s = subidaColgada();
+    t.esperar(s.p);
+    assert.equal(P.linea(), ESPERA);
+    assert.equal(P.tocables(), 0, 'la tarjeta abierta siguió ofreciendo la casilla mientras subía: ' + P.html());
+    assert.equal(P.doc.getElementById('hlAut'), null);
+    /* Volver al Perfil mientras sube (recargar) no pregunta ni pinta nada viejo. */
+    const antes = b.llamadas.length;
+    await t.recargar();
+    assert.equal(b.llamadas.length, antes, 'recargar mientras sube volvió a preguntar');
+    assert.equal(P.linea(), ESPERA);
+    b.recibe(DEL_REGISTRO);
+    s.fin({ estado: 'ok' });
+    assert.ok(await hasta(() => P.casilla() === true, 40), 'al terminar, abierta, la casilla sigue sin marcar: ' + P.html());
+    assert.equal(P.linea(), 'Ya nos diste 1 PDF y 1 pantallazo.');
+    assert.deepEqual(P.fondos(), ['porvenir'], 'abierta, no enseña el fondo del registro');
+    assert.equal(b.llamadas.indexOf('pension_autorizar'), -1);
+    assert.deepEqual(b.aut.fondos, ['porvenir']);
+  });
+
+  test('la lectura del montaje que contesta tarde (la base todavía vacía) no pisa lo que se pintó al terminar', async () => {
+    const b = base(), P = pagina(), s = subidaColgada();
+    b.colgar = fn => fn === 'pension_mia' && b.colgadas.length === 0;   // solo la primera: la del montaje
+    montar(P, b, { subida: () => s.p });
+    await hasta(() => false, 10);
+    assert.equal(b.colgadas.length, 1, 'la prueba no prueba nada: la lectura del montaje no quedó colgada');
+    b.recibe(DEL_REGISTRO);
+    s.fin({ estado: 'ok' });
+    assert.ok(await hasta(() => P.linea() === 'Ya nos diste 1 PDF y 1 pantallazo.', 40), 'no se pintó lo de la base al terminar: «' + P.linea() + '»');
+    b.colgadas[0]();   // contesta la del montaje, con la base de ANTES
+    await hasta(() => false, 20);
+    assert.equal(P.linea(), 'Ya nos diste 1 PDF y 1 pantallazo.', 'la respuesta vieja volvió a pintar lo de antes de subir');
+    assert.match(P.html(), /Ver o cambiar/);
+  });
+
+  test('si la subida no alcanza (sin señal), deja de esperar igual y pinta lo que hay; si la base no contesta, lo dice', async () => {
+    const b = base(), P = pagina(), s = subidaColgada();
+    montar(P, b, { subida: () => s.p });
+    await hasta(() => false, 10);
+    s.falla(new Error('sin señal'));
+    assert.ok(await hasta(() => /Todavía no nos la das/.test(P.linea()), 40), 'la tarjeta se quedó esperando una subida que ya terminó: «' + P.linea() + '»');
+    assert.match(P.html(), /id="hlAbrir">Subirla</, 'sin subida en curso, la tarjeta tiene que ofrecer subirla');
+    /* Y si al terminar la base no contesta: el aviso de siempre, sin nada que
+       tocar, y no la línea de la espera. */
+    const b2 = base(), P2 = pagina(), s2 = subidaColgada();
+    montar(P2, b2, { subida: () => s2.p });
+    await hasta(() => false, 10);
+    b2.sinRed = true;
+    s2.fin({ estado: 'sin_red' });
+    assert.ok(await hasta(() => /No pude mirar tu historia laboral/.test(P2.html()), 40), 'sin red al terminar, la tarjeta no lo dice: ' + P2.html());
+    assert.equal(P2.tocables(), 0);
+    assert.doesNotMatch(P2.html(), /Un momento/);
+  });
+});

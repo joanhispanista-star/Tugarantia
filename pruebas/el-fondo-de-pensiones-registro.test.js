@@ -725,3 +725,104 @@ describe('«Abrir mi cuenta» con algo todavía en camino (el grave de la verifi
     assert.equal(idb.datos.size, 0, 'algo quedó en el teléfono: ' + [...idb.datos.keys()]);
   });
 });
+
+/* 29-oct-2026 (arreglador, el grave de la verificación de 0140f2c) — LA
+   TARJETA DEL PERFIL MIENTRAS SUBE LO DEL REGISTRO, en la página de verdad.
+   Con 0140f2c la subida espera lo que se preparaba, y en esa espera la
+   tarjeta «Tu historia laboral» decía «Todavía no nos la das» con «Subirla»;
+   abierta, la casilla sin marcar, y al marcarla la base perdía el fondo del
+   registro. Visto en Chrome sin ventana (Android e iPhone, CPU ×6). Ahora,
+   mientras sube, la tarjeta lo dice y no ofrece nada, haya nacido durante la
+   espera («Ir a mi cuenta» → Perfil) o estuviera ya montada cuando la subida
+   empieza (volver a la cuenta con el Perfil a la vista y la cola pendiente),
+   y al terminar se pinta sola con lo que dice la base. Con el código de
+   antes (0140f2c) las dos fallan: la tarjeta dice «Todavía no nos la das.». */
+describe('la tarjeta del Perfil mientras sube lo del registro (el grave de la verificación de 0140f2c)', () => {
+  const { idbDeMentira } = require('./idb-de-mentira.js');
+  const ESPERA = /Un momento: estamos subiendo la historia laboral que escogiste en tu registro…/;
+  const tarjetaCruda = P => P.ev("document.getElementById('hlCuenta').innerHTML");
+  const tarjeta = P => B.texto(tarjetaCruda(P));
+  /* Lo que se puede tocar: «Subirla» o «Ver o cambiar», «Retirar», o el cuerpo con la casilla. */
+  const ofrece = P => /<button|<input|id="hlCuerpo"/.test(tarjetaCruda(P));
+  /* Desde aquí, la base contesta lo que dejó la subida: la autorización con su fondo, y lo subido. */
+  const laBaseTiene = (P, archivos) => P.ev('window.__resp = [[/rpc\\/pension_mia/, ' + JSON.stringify({ ok: true,
+    autorizacion: { fondos: ['porvenir'], version: '2026-10-30', recibida_en: '2026-10-30T15:00:00Z', revocada_en: null },
+    archivos }) + ']];');
+  const autorizaciones = l => l.filter(x => /rpc\/pension_autorizar/.test(x.url));
+
+  test('«Ir a mi cuenta» y al Perfil con un pantallazo preparándose: la tarjeta dice que sube y no ofrece nada; al terminar dice lo que quedó', async () => {
+    const idb = idbDeMentira();
+    const P = B.abrir({ indexedDB: idb });
+    const llamadas = B.nube(P);
+    B.mariaHastaElPermiso(P, false);
+    escoger(P, ['porvenir'], [UN_PDF]);
+    await B.asentar(10);
+    /* Un pantallazo que se sigue preparando, como lo anota el paso (enCamino) y lo guarda al terminar (agregar). */
+    P.ev('(function () { var g = guardaderoPension(), i = REGISTRO.intento, c = REGISTRO.celular, soltar;' +
+      ' g.enCamino(new Promise(function (r) { soltar = r; }).then(function () { return g.agregar(i, c, ' + JSON.stringify(UN_PNG) + '); })' +
+      '.then(function (x) { return x && x.ok ? [] : [(x && x.motivo) || "rechazo"]; })); window.__soltarElQueTarda = soltar; })()');
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    assert.equal(P.ev('VISTA'), 'listo', 'María no abrió su cuenta: ' + B.texto(B.caja(P)));
+    B.tocar(P, 'Ir a mi cuenta');
+    await B.asentar(20);
+    P.ev("irA('perfil')");
+    await B.asentar(20);
+    assert.match(tarjeta(P), ESPERA, 'mientras sube lo del registro, la tarjeta no lo dice: ' + tarjeta(P));
+    assert.equal(ofrece(P), false, 'mientras sube, la tarjeta ofrece algo que tocar: ' + tarjeta(P));
+    assert.equal(autorizaciones(llamadas()).length, 0, 'la prueba no prueba nada: ya subió');
+    laBaseTiene(P, [{ id: 1, tipo: 'pdf', bytes: 38 }, { id: 2, tipo: 'png', bytes: 29 }]);
+    P.ev('window.__soltarElQueTarda()');
+    await B.asentar(60);
+    assert.match(avisoPension(P), /Tu historia laboral llegó \(2 archivos\)\./);
+    assert.match(tarjeta(P), /Ya nos diste 1 PDF y 1 pantallazo\./, 'al terminar, la tarjeta no dice lo que quedó en la base: ' + tarjeta(P));
+    assert.match(tarjetaCruda(P), /id="hlAbrir">Ver o cambiar</);
+    const aut = autorizaciones(llamadas());
+    assert.equal(aut.length, 1, 'la autorización subió ' + aut.length + ' veces');
+    assert.deepEqual(aut[0].cuerpo.p_fondos, ['porvenir'], 'la autorización no llevó el fondo del registro');
+  });
+
+  test('ya en el Perfil cuando la cola pendiente vuelve a subir: la tarjeta montada la espera sin nada que tocar, y al terminar se mira sola', async () => {
+    const idb = idbDeMentira();
+    const P = B.abrir({ indexedDB: idb });
+    B.nube(P);
+    B.mariaHastaElPermiso(P, false);
+    escoger(P, ['porvenir'], [UN_PDF]);
+    await B.asentar(10);
+    /* La primera vez la señal se cae en la autorización: la cola se queda en el teléfono. */
+    P.ev('window.__colgar = /rpc\\/pension_autorizar/;');
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    assert.deepEqual(B.colgadas(P).filter(u => /pension_autorizar/.test(u)).length, 1, 'la subida no llegó a la autorización');
+    P.ev('window.__colgadas[0].cortar(); window.__colgadas = [];');
+    await B.asentar(30);
+    assert.match(avisoPension(P), /no alcanzó a subir/);
+    /* Vuelve a su cuenta con el Perfil a la vista: la tarjeta se monta ANTES de
+       que la cola vuelva a subir (retenida otra vez en la autorización). */
+    P.ev("TAB = 'perfil'; pintarCuenta();");
+    await B.asentar(30);
+    assert.equal(B.colgadas(P).length, 1, 'la cola pendiente no volvió a subir al entrar');
+    assert.match(tarjeta(P), ESPERA, 'la tarjeta montada no espera la subida que empezó después: ' + tarjeta(P));
+    assert.equal(ofrece(P), false, 'mientras sube, la tarjeta ofrece algo que tocar: ' + tarjeta(P));
+    laBaseTiene(P, [{ id: 1, tipo: 'pdf', bytes: 38 }]);
+    P.ev('window.__colgar = null;');
+    B.soltar(P, 0);
+    await B.asentar(60);
+    assert.match(avisoPension(P), /Tu historia laboral llegó \(1 archivo\)\./);
+    assert.match(tarjeta(P), /Ya nos diste 1 PDF\./, 'al terminar, la tarjeta no dice lo que quedó en la base: ' + tarjeta(P));
+    assert.equal(idb.datos.size, 0, 'algo quedó en el teléfono: ' + [...idb.datos.keys()]);
+  });
+
+  test('entrar a la cuenta sin nada que subir no le cambia nada a la tarjeta: no espera', async () => {
+    const P = B.abrir();
+    B.nube(P);
+    B.mariaHastaElPermiso(P, false);   // sin autorizar el fondo: nada va a la cola
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    P.ev("TAB = 'perfil'; pintarCuenta();");
+    await B.asentar(30);
+    assert.match(tarjeta(P), /Todavía no nos la das\./);
+    assert.match(tarjetaCruda(P), /id="hlAbrir">Subirla</);
+    assert.equal(P.ev('PENSION_SUBIDA'), null);
+  });
+});
