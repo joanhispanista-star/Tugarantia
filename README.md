@@ -189,8 +189,9 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         pantalla para el paso opcional del registro (play/) y
                         la tarjeta «Tu historia laboral» de la app
                         (socio.html) y del Perfil de play/. La autorización
-                        aparte y sin marcar (su versión, 2026-11-03, es la
-                        fecha de la política), los
+                        aparte y sin marcar (su versión, 2026-10-30, es la
+                        fecha de la política y el día en que sale el lote,
+                        el viernes 30; si sale otro día, se mueve), los
                         fondos, el botón a la página oficial en otra pestaña,
                         y las tres formas: 📄 PDF, 🖼️ hasta 5 pantallazos
                         (achicados en el teléfono si pesan) y 📋 Pegar
@@ -214,7 +215,10 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         firmar (va sin versión). Lo pegado sin contestar no
                         se pierde callado (puedeSeguir), el paso dice cómo
                         traer el PDF del correo, y dondeDespues dice dónde
-                        queda el «después».
+                        queda el «después». (28-oct, segunda revisión) El
+                        registro dice «no cambia tu garantía» arriba de la
+                        casilla, como la tarjeta: es el aviso que promete el
+                        punto 11 de los términos para su cambio.
                         Pruebas: pruebas/el-fondo-de-pensiones*.test.js.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la

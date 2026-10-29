@@ -171,8 +171,8 @@ describe('los textos: la autorización dice lo que la ley pide, y nada que el c�
     assert.equal(HL.TEXTOS.introCuenta.slice(-'No cambia tu garantía.'.length), 'No cambia tu garantía.');
     assert.equal(/sale de tus pagos/.test(HL.TEXTOS.introCuenta), false, 'la tarjeta dice que la garantía sale de los pagos: falso para quien recién se registra');
     /* Los términos cambiaron: su fecha y su lista lo dicen (la regla de responsable-nexeco). */
-    assert.match(T, /Última actualización: 3 de noviembre de 2026/);
-    assert.match(T, /Lo que cambió el 3 de noviembre de 2026: La historia laboral de tu fondo de pensiones, que puedes darnos si quieres, no sube la garantía que te prestamos/);
+    assert.match(T, /Última actualización: 30 de octubre de 2026/);
+    assert.match(T, /Lo que cambió el 30 de octubre de 2026: La historia laboral de tu fondo de pensiones, que puedes darnos si quieres, no sube la garantía que te prestamos/);
     /* La salud: se guarda con el documento, no se usa, no es obligatoria, y se puede tapar. */
     const pension = visible(fs.readFileSync(path.join(RAIZ, 'legal', 'privacidad.html'), 'utf8')
       .split('<h3 id="pension">')[1].split('<section id="sensibles">')[0]);
@@ -183,7 +183,7 @@ describe('los textos: la autorización dice lo que la ley pide, y nada que el c�
     /* PlataChat: el paso es solo de Tu Garantía, y se dice. */
     assert.match(pension, /es solo de Tu Garantía/);
     assert.match(pension, /PlataChat no te la pide/);
-    assert.match(P, /Lo que cambió el 3 de noviembre de 2026: En Tu Garantía \(PlataChat no la pide\) puedes darnos/);
+    assert.match(P, /Lo que cambió el 30 de octubre de 2026: En Tu Garantía \(PlataChat no la pide\) puedes darnos/);
   });
   test('ninguna pantalla dice «verificado», ni promete que se borra a los 30 días, ni que sube la garantía', () => {
     const pantallas = JSON.stringify([HL.TEXTOS, HL.MOTIVOS, FP.FONDOS, FP.OTRAS]);
@@ -217,16 +217,70 @@ describe('los textos: la autorización dice lo que la ley pide, y nada que el c�
   test('la casilla nace SIN marcar (Decreto 1377, art. 7): solo sale marcada si ya la dio', () => {
     assert.equal(/checked/.test(HL.autorizacionHTML(false)), false);
     assert.match(HL.autorizacionHTML(true), /checked/);
-    assert.match(HL.autorizacionHTML(false), /Versión del 3 de noviembre de 2026/);
+    assert.match(HL.autorizacionHTML(false), /Versión del 30 de octubre de 2026/);
     assert.match(HL.autorizacionHTML(false), /privacidad\.html#pension/);
   });
   test('su versión es la fecha de la política que la describe, y no es la de la autorización general', () => {
-    assert.equal(HL.VERSION_AUTORIZACION, '2026-11-03');
+    assert.equal(HL.VERSION_AUTORIZACION, '2026-10-30');
     assert.notEqual(HL.VERSION_AUTORIZACION, require('../app/cuenta.js').VERSION_AUTORIZACION);
     const P = fs.readFileSync(path.join(RAIZ, 'legal', 'privacidad.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
     assert.match(P, /id="pension"/, 'la política no tiene la sección a la que apunta la casilla');
-    assert.match(P.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '), /Lo que cambió el 3 de noviembre de 2026:/,
+    assert.match(P.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '), /Lo que cambió el 30 de octubre de 2026:/,
       'la versión de la autorización no es la fecha de ninguna versión publicada de la política');
+  });
+  /* 28-oct-2026 (segunda revisión, ronda 1) — LA FECHA ES LA DE
+     PUBLICACIÓN, Y ESTE LOTE SALE EL VIERNES 30. Las pruebas de arriba solo
+     pedían que la casilla, la política y los términos dijeran el MISMO día, y
+     los tres decían el 3 de noviembre (el piloto que se había propuesto): del
+     viernes 30 al lunes 2, festivo, el paso habría recogido historias
+     laborales con una autorización «del 3 de noviembre» mientras la política
+     publicada decía que regía la del 27-oct, que no tiene esta finalidad. El
+     día de salida es decisión de Joan (28-oct, en la noche: «publícalo con lo
+     del viernes»), y por eso está escrito aquí: si el lote sale otro día, se
+     cambia este renglón y la prueba dice qué más mover. Con los textos de
+     antes falla. */
+  const PUBLICACION_DEL_LOTE = '2026-10-30';
+  const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const isoDe = t => { const m = String(t).match(/(\d{1,2}) de (\w+) de (\d{4})/); return m ? m[3] + '-' + String(MESES.indexOf(m[2]) + 1).padStart(2, '0') + '-' + m[1].padStart(2, '0') : ''; };
+  test('la casilla, la política y los términos dicen el día en que el lote sale al sitio, y ninguna fecha es posterior', () => {
+    const visible = h => h.replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const P = visible(fs.readFileSync(path.join(RAIZ, 'legal', 'privacidad.html'), 'utf8'));
+    const T = visible(fs.readFileSync(path.join(RAIZ, 'legal', 'terminos.html'), 'utf8'));
+    const casilla = visible(HL.autorizacionHTML(false));
+    assert.equal(HL.VERSION_AUTORIZACION, PUBLICACION_DEL_LOTE, 'la casilla firma una versión que no es el día en que sale');
+    assert.equal(isoDe((casilla.match(/Versión del (\d{1,2} de \w+ de \d{4})/) || [])[1]), PUBLICACION_DEL_LOTE, 'la casilla dice otro día');
+    const fechas = { 'la política, «Última actualización»': (P.match(/Última actualización: (\d{1,2} de \w+ de \d{4})/) || [])[1],
+                     'la política, su primer «Lo que cambió»': (P.match(/Lo que cambió el (\d{1,2} de \w+ de \d{4}):/) || [])[1],
+                     'la política, «Esta versión rige desde»': (P.match(/Esta versión rige desde el (\d{1,2} de \w+ de \d{4})/) || [])[1],
+                     'los términos, «Última actualización»': (T.match(/Última actualización: (\d{1,2} de \w+ de \d{4})/) || [])[1],
+                     'los términos, su primer «Lo que cambió»': (T.match(/Lo que cambió el (\d{1,2} de \w+ de \d{4}):/) || [])[1] };
+    Object.keys(fechas).forEach(k => assert.equal(isoDe(fechas[k]), PUBLICACION_DEL_LOTE, k + ' dice «' + fechas[k] + '»'));
+    /* Y en ninguno de los dos documentos hay una fecha de versión después del
+       día en que sale: una versión que «rige» después de publicada deja lo
+       que se firme en el medio sin la política que lo describe. */
+    [['legal/privacidad.html', P], ['legal/terminos.html', T]].forEach(([f, d]) =>
+      [...d.matchAll(/(?:Última actualización:|Lo que cambió el|rige desde el|rigió desde el) (\d{1,2} de \w+ de \d{4})/g)].forEach(m =>
+        assert.ok(isoDe(m[1]) <= PUBLICACION_DEL_LOTE, f + ' tiene una versión del ' + m[1] + ', después del día en que sale el lote')));
+  });
+  /* 28-oct-2026 (segunda revisión, ronda 1) — EL AVISO DEL PUNTO
+     11 DE LOS TÉRMINOS. Los términos cambian con este lote (la historia
+     laboral no sube la garantía prestada) y su punto 11 promete avisar
+     «dentro de la app… antes de que rija». Ese cambio solo le toca a quien da
+     su historia laboral, y para darla tiene que pasar por el paso del registro
+     o por la tarjeta de la cuenta: las dos lo dicen arriba de la casilla. El
+     registro no lo decía (solo la tarjeta). Con el texto de antes falla. */
+  test('quien va a dar su historia laboral lee «no cambia tu garantía» ANTES de la casilla, en el registro y en la cuenta, y los términos lo dicen', () => {
+    const plano = h => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    ['registro', 'cuenta'].forEach(modo => {
+      const h = HL.pantallaHTML({ modo, aut: null, fondos: [], pidio: {}, archivos: [] });
+      const t = plano(h), i = t.search(/no cambia tu garantía/i);
+      assert.ok(i >= 0, 'en el ' + modo + ' no dice que no cambia la garantía');
+      assert.ok(h.search(/no cambia tu garantía/i) < h.indexOf('id="hlAut"'), 'en el ' + modo + ' lo dice después de la casilla');
+    });
+    const T = plano(fs.readFileSync(path.join(RAIZ, 'legal', 'terminos.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, ' '));
+    assert.match(T, /te avisamos dentro de la app o por WhatsApp antes de que rija/, 'la prueba no prueba nada: el punto 11 ya no promete el aviso');
+    assert.match(T, /no sube la garantía que te prestamos \(punto 6\): es opcional y aparte, y la app te lo dice antes de que nos la des\./,
+      'los términos no dicen cómo se avisa este cambio');
   });
   test('el paso del registro tiene «Lo hago después» a la vista, con o sin autorización', () => {
     const sin = HL.pantallaHTML({ modo: 'registro', aut: null, fondos: [], archivos: [] });
@@ -668,7 +722,7 @@ describe('la subida de la cola, con la sesión de la cuenta', () => {
     const llamadas = [];
     const r = await HL.subirCola(t.g, '3001112233', (fn, c) => { llamadas.push([fn, c]); return Promise.resolve({ ok: true }); });
     assert.deepEqual(llamadas.map(x => x[0]), ['pension_autorizar', 'pension_subir', 'pension_subir']);
-    assert.deepEqual(llamadas[0][1], { p_fondos: ['porvenir'], p_version: '2026-11-03', p_momento: '2026-11-03T15:00:00Z' });
+    assert.deepEqual(llamadas[0][1], { p_fondos: ['porvenir'], p_version: '2026-10-30', p_momento: '2026-11-03T15:00:00Z' });
     assert.deepEqual([r.estado, r.subidos, r.total], ['ok', 2, 2]);
     assert.equal(await t.g.cola('3001112233'), null);
     assert.match(HL.avisoDeLaCola(r).html, /Tu historia laboral llegó/);

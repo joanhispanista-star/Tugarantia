@@ -307,11 +307,11 @@ describe('4. lo demás que la política dice desde el 19-oct', () => {
        autorización que se acepta sigue siendo la del 19 hasta que se decida
        subirla (pruebas/el-lote-del-27-junto.test.js, sección 3). Lo del 19
        sigue en su lista y como «la anterior». */
-    /* 28-oct-2026 — y la del 3-nov (la historia laboral, con su propia
+    /* 28-oct-2026 — y la del 30-oct (la historia laboral, con su propia
        autorización) tampoco la sube: lo del 19 sigue en su lista y en «rige
        desde», ya no como «la anterior». */
     assert.equal(U.VERSION_AUTORIZACION, '2026-10-19');
-    assert.match(PRIV, /Última actualización: 3 de noviembre de 2026/);
+    assert.match(PRIV, /Última actualización: 30 de octubre de 2026/);
     const s = seccion('cambios');
     assert.match(s, /Lo que cambió el 19 de octubre de 2026:/);
     assert.match(s, /otra desde el 19 de octubre de 2026/);

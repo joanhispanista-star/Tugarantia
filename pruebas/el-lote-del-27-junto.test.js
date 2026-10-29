@@ -270,17 +270,18 @@ const listaDel = (P, dia) => {
 describe('3 · La política del 27-oct: una fecha y un «Lo que cambió» para los dos cambios', () => {
 
   test('una sola fecha, la del día que se publica, y su lista va primero', () => {
-    /* 28-oct-2026 — la versión del 3-nov (la historia laboral del fondo de
-       pensiones, pruebas/el-fondo-de-pensiones.test.js) va encima: la del
-       27-oct sigue entera, una sola vez, y es «la anterior». */
+    /* 28-oct-2026 — la versión del 30-oct (la historia laboral del fondo de
+       pensiones, pruebas/el-fondo-de-pensiones.test.js; decía 3-nov hasta la
+       segunda revisión, ronda 1: el lote sale el viernes 30) va
+       encima: la del 27-oct sigue entera, una sola vez, y es «la anterior». */
     const P = POLITICA();
     const fechas = [...P.matchAll(/Última actualización: ([^<\n]+)/g)].map(m => m[1].trim());
-    assert.deepEqual(fechas, ['3 de noviembre de 2026'], 'la política no tiene UNA fecha, la de la versión más nueva');
+    assert.deepEqual(fechas, ['30 de octubre de 2026'], 'la política no tiene UNA fecha, la de la versión más nueva');
     const listas = [...sinEtiquetas(P).matchAll(/Lo que cambió el (\d{1,2} de \w+ de \d{4}):/g)].map(m => m[1]);
-    assert.equal(listas[0], '3 de noviembre de 2026', 'lo más nuevo va primero');
+    assert.equal(listas[0], '30 de octubre de 2026', 'lo más nuevo va primero');
     assert.equal(listas[1], '27 de octubre de 2026', 'la del 27-oct no quedó justo debajo');
     assert.equal(listas.filter(l => l === '27 de octubre de 2026').length, 1, 'hay más de una lista del 27-oct');
-    assert.match(sinEtiquetas(P), /Esta versión rige desde el 3 de noviembre de 2026; la anterior rigió desde el 27 de octubre de 2026, otra desde el 19 de octubre de 2026/);
+    assert.match(sinEtiquetas(P), /Esta versión rige desde el 30 de octubre de 2026; la anterior rigió desde el 27 de octubre de 2026, otra desde el 19 de octubre de 2026/);
   });
 
   test('la lista nombra los dos cambios en palabras simples, y cada uno con su punto', () => {
