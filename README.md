@@ -76,6 +76,10 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         Sin HTML y sin llamadas a la nube: cada página pasa su
                         `pedir`. Pruebas: pruebas/chat-vivo.test.js.
   motor.js              El motor del producto de HOY (quincenal y con garantía).
+                        (28-oct) El tramo M1 de la cartera por tramo ya no
+                        manda a las referencias (Ley 2300, art. 4): se pide
+                        con ?v=141 y firma al llegar. Pruebas:
+                        pruebas/las-referencias-no-se-llaman-para-cobrar.test.js.
   creditos.js           El catálogo del producto a 6 meses, pensado para Play
                         (canal descartado el 18-ago — ver play/ abajo). Aparte
                         de motor.js a propósito.

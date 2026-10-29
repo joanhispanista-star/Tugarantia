@@ -1963,7 +1963,13 @@
    play/index.html, en play/borrar-cuenta.html y aquí. La base va ANTES:
    base/20261103_el_fondo_de_pensiones.sql (sin ella, lo que el cliente
    sube se queda en su teléfono y la pantalla lo dice). VERSION_SITIO sube a
-   v141 en las cinco páginas que se actualizan solas. */
+   v141 en las cinco páginas que se actualizan solas.
+   28-oct-2026 (arreglador final, R1) — y app/motor.js también cambia: el tramo
+   M1 de TRAMOS_MORA decía «gestión con referencias» (la Ley 2300, art. 4,
+   prohíbe cobrar a través de ellas). Estaba publicado sin versión en la
+   dirección, así que desde aquí lo piden con ?v=141 las siete páginas que lo
+   cargan (app/socio.html, play/, platachat/, panel/crm.html, espejo.html,
+   subir.html y traer.html), firma al llegar como puente.js, y se precarga así. */
 const CACHE = 'tugarantia-v141';
 const BASE = new URL('./', self.location).pathname;
 
@@ -1978,7 +1984,7 @@ const ARCHIVOS = [
   'legal/privacidad.html',
   'legal/terminos.html',
   'app/socio.html',
-  'app/motor.js',
+  'app/motor.js?v=141',   // 28-oct-2026 — ?v=141: cambió el M1 de la cartera por tramo (ver la nota de v141)
   'app/puente.js?v=139',
   /* El chat: lo comparten la app del socio, el CRM y el espejo, igual que el
      motor y el puente. Es la razón de que este service worker viva en la raíz. */

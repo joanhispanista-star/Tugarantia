@@ -669,7 +669,12 @@ describe('PlataChat: la página pintando de verdad', () => {
     ['M.calcularCupo(', 'M.maximoRespaldado(', 'g.acumulada', 'M.nivelPorGarantia(Number('].forEach(x =>
       assert.ok(p.indexOf(x) < 0, 'index.html sigue haciendo por su cuenta la cuenta de la ficha: ' + x));
     assert.match(PAGINA, /<script src="\.\.\/app\/ficha\.js"><\/script>/);
-    assert.ok(PAGINA.indexOf('<script src="../app/motor.js">') < PAGINA.indexOf('<script src="../app/ficha.js">'),
+    /* 28-oct-2026 (arreglador final, R1) — con o sin la versión de la
+       dirección (motor.js?v=141, ver sw.js): buscada a la letra, sin ella el
+       indexOf daba -1 y esto pasaba en vacío. */
+    const iMotor = PAGINA.search(/<script src="\.\.\/app\/motor\.js(\?v=\d+)?">/);
+    assert.ok(iMotor >= 0, 'PlataChat dejó de cargar el motor');
+    assert.ok(iMotor < PAGINA.indexOf('<script src="../app/ficha.js">'),
       'ficha.js tiene que ir después del motor: lo toma de window.MotorReglas al cargar');
   });
 

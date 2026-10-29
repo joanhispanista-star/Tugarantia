@@ -171,6 +171,16 @@
  *     y `capital_quincenal`).
  * ==========================================================================*/
 
+/* 28-oct-2026 (arreglador final, R1) — LA FIRMA DE LLEGADA, la misma de
+   app/puente.js. Este archivo ya estaba publicado sin versión en la dirección,
+   y cambia en v141 (el tramo M1 de TRAMOS_MORA, abajo): desde ahora las siete
+   páginas que lo cargan lo piden con …?v=141 y, antes de arrancar su bloque
+   grande, miran que haya firmado aquí. Sin la firma, lo que corrió no es este
+   archivo (no llegó, o una caché dio el de antes) y la página dice que se
+   recargue en vez de cobrar con las reglas de dos versiones. Va PRIMERO por la
+   razón que explica puente.js. En Node no hay document y no hace nada. */
+(function () { try { var s = document.currentScript; if (s && s.src) (window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();
+
 (function (raiz, fabrica) {
   'use strict';
   if (typeof module === 'object' && module.exports) module.exports = fabrica();
@@ -472,12 +482,20 @@
 
   // §9 — tramos de mora. `desde`/`hasta` en días corridos desde la fecha de
   // corte (negativo = todavía falta para el corte). D11: sin solapamiento.
+  /* 28-oct-2026 (arreglador final, R1) — EL M1 YA NO MANDA A LAS REFERENCIAS.
+     Decía «gestión con referencias», y el CRM lo enseña en «Cartera por tramo
+     › Qué toca hacer»: le decía a Joan que desde el día 16 de atraso tocaba
+     cobrar a través de las referencias. La Ley 2300 de 2023, art. 4, lo
+     prohíbe sin excepción, y la política y los términos lo dicen desde su
+     versión del 8-oct («A tus referencias no las llamamos para cobrarte»). Lo que toca en
+     el M1 es lo mismo que en el D2, con el cliente, y se dice el porqué en la
+     misma celda para que nadie lo «corrija» de vuelta. */
   var TRAMOS_MORA = [
     { tramo: 'vigente', desde: -Infinity, hasta: -3, accion: 'ninguna', canal: '—' },
     { tramo: 'preventivo', desde: -2, hasta: 0, accion: 'recordatorio amable', canal: 'push + WhatsApp' },
     { tramo: 'D1', desde: 1, hasta: 5, accion: 'recordatorio, oferta de prórroga', canal: 'WhatsApp' },
     { tramo: 'D2', desde: 6, hasta: 15, accion: 'contacto directo, oferta de plan de pagos', canal: 'llamada' },
-    { tramo: 'M1', desde: 16, hasta: 45, accion: 'gestión con referencias', canal: 'llamada' },
+    { tramo: 'M1', desde: 16, hasta: 45, accion: 'contacto directo con el cliente; nunca a sus referencias (Ley 2300, art. 4)', canal: 'llamada' },
     { tramo: 'M2', desde: 46, hasta: 89, accion: 'última instancia antes de castigo', canal: 'llamada' },
     // La garantía NO se pone en cero: se congela (ver evaluarCastigo).
     { tramo: 'castigo', desde: 90, hasta: Infinity, accion: 'suspender y congelar la garantía', canal: '—' }
