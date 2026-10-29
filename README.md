@@ -238,6 +238,10 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         pensionDespues lee g.archivos), no archivos_n; y si
                         IndexedDB no deja escribir, la copia de la memoria de
                         la página manda sobre la vieja de IndexedDB (leer).
+                        «Lo hago después» pregunta como «Continuar»
+                        (puedeSeguir) con lo pegado sin contestar, y los dos
+                        esperan mientras lo pegado se mira (leer lo copiado
+                        tiene tope: SEGUNDOS_TOPE).
                         Pruebas: pruebas/el-fondo-de-pensiones*.test.js.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la

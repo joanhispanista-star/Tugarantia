@@ -115,6 +115,24 @@
     calidad: 0.85,
     achicarDesde: 1048576      // un pantallazo de más de 1 MB se achica
   };
+  /* 28-oct-2026 (arreglador final, ronda 3) — EL TOPE DE LO QUE SE ESPERA DEL
+     TELÉFONO: leer lo copiado, y preparar cada archivo escogido o pegado. Sin
+     tope, una lectura que no termina nunca (un archivo que la nube del
+     teléfono no alcanza a bajar) dejaba el paso esperando para siempre. 30 s
+     alcanzan para un pantallazo de 3 MB en un teléfono lento (los de CPU ×6
+     tardaron menos de 3 s) y para bajarlo con mala señal. */
+  var SEGUNDOS_TOPE = 30;
+  /* La promesa `p`, o `siVence` si no contesta en `ms`. Lo que llegue
+     después se ignora: ya se siguió sin ello. */
+  function conTope(p, ms, siVence) {
+    if (!(ms > 0) || typeof setTimeout !== 'function') return Promise.resolve(p);
+    return new Promise(function (res, rej) {
+      var hecho = false;
+      var reloj = setTimeout(function () { if (!hecho) { hecho = true; res(siVence); } }, ms);
+      var fin = function (f, x) { if (hecho) return; hecho = true; try { clearTimeout(reloj); } catch (e) {} f(x); };
+      Promise.resolve(p).then(function (x) { fin(res, x); }, function (e) { fin(rej, e); });
+    });
+  }
   var HORAS_ARCHIVOS = 24;     // lo que espera en el teléfono: como la cola de las fotos
   var DIAS_ESTADO = 7;         // lo escogido (sin archivos): como un borrador
   var LLAVE_ESTADO = 'play_pension';
@@ -242,6 +260,9 @@
     /* 28-oct-2026 (arreglo de los leves, P10) — «Continuar» con la pregunta
        abierta: se le pregunta, en vez de seguir y perderlo callado. */
     pegadoPendiente: 'Antes de seguir: ¿lo que pegaste es tu historia laboral? Toca «Sí, guardarla» o «No, no es esta».',
+    /* 28-oct-2026 (arreglador final, ronda 3) — y mientras lo pegado todavía
+       se mira: «Continuar» pasaba, y lo pegado se quedaba en el paso viejo. */
+    mirandoPegado: 'Un momento: estamos mirando lo que copiaste. Cuando aparezca, dinos si es tu historia laboral.',
     /* 28-oct-2026 (arreglo, ronda 1) — decía «Quedan guardados en este
        teléfono» a secas, y con la vuelta de la cámara no es verdad: si la
        persona sale más del rato y el teléfono cierra la página, se borran. */
@@ -1319,6 +1340,9 @@
   function controlar(caja, vm, h) {
     var d = caja.ownerDocument || (typeof document !== 'undefined' ? document : null);
     ponerEstilo(d);
+    /* El tope de lo que se espera del teléfono (SEGUNDOS_TOPE); las pruebas
+       lo acortan con h.msTope. */
+    var msTope = Number(h.msTope) > 0 ? Number(h.msTope) : SEGUNDOS_TOPE * 1000;
     /* Las imágenes (lo pegado y las miniaturas de la lista) se ponen después
        de pintar, como propiedad del <img>: ver pegadoHTML. */
     var ponerVistas = function () {
@@ -1384,16 +1408,22 @@
     };
     /* 28-oct-2026 (arreglo, ronda 1) — Lo PEGADO no se guarda: se prepara y
        se enseña (pegadoHTML), y espera el «Sí» de la persona (pegado-si). */
+    /* 28-oct-2026 (arreglador final, ronda 3) — vm.mirandoPegado: mientras
+       se mira, el paso no se deja (puedeSeguir), igual que con la pregunta
+       abierta: lo pegado llega a ESTA pantalla, y un paso montado otra vez no
+       lo vería nunca. */
     var mostrarPegado = function (blobs) {
       var lista = Array.prototype.slice.call(blobs || []);
       if (!lista.length) return Promise.resolve();
       vm.pegando = false; vm.pegado = null;
       vm.aviso = 'Mirando lo que copiaste…'; vm.avisoClase = 'info';
+      vm.mirandoPegado = true;
       return trabajar(prepararTodos(lista)).then(function (r) {
+        vm.mirandoPegado = false;
         if (!r.listos.length) { decirMalos(r.malos.length ? r.malos : ['pegar_vacio']); return; }
         vm.pegado = r;
         decir('');
-      }, function () { decir(motivoEnPalabras('lectura')); });
+      }, function () { vm.mirandoPegado = false; decir(motivoEnPalabras('lectura')); });
     };
     caja.addEventListener('click', function (ev) {
       var t = ev.target && ev.target.closest ? ev.target.closest('[data-hl]') : null;
@@ -1420,9 +1450,15 @@
       }
       if (que === 'pegar') {
         vm.pegado = null;
+        /* 28-oct-2026 (arreglador final, ronda 3) — desde el toque: leer lo
+           copiado también es «mirar», y lo que llegue llega a esta pantalla.
+           Con tope (iPhone espera el toque en su «Pegar»; si no llega, se
+           ofrece el recuadro), para que «Continuar» nunca quede esperando. */
+        vm.mirandoPegado = true;
         decir('Mirando lo que copiaste…', 'info');
-        leerPortapapeles().then(function (r) {
+        conTope(leerPortapapeles(), msTope, { ok: false, blobs: [], motivo: 'pegar_negado' }).then(function (r) {
           if (r.ok && r.blobs.length) return mostrarPegado(r.blobs);
+          vm.mirandoPegado = false;
           vm.pegando = true;
           decir(motivoEnPalabras(r.motivo));
         });
@@ -1514,6 +1550,7 @@
     };
     var h = {
       ahora: ahora,
+      msTope: o.msTope,
       leer: function () {
         return g.archivos(intento, cel).then(function (r) {
           vm.archivos = r.lista; if (r.perdidos) vm.perdidos = true;
@@ -1533,7 +1570,15 @@
       abrio: function (c) { vm.pidio[c] = new Date(ahora()).toISOString(); guardar(); },
       agregar: function (a) { return vm.aut ? g.agregar(intento, cel, a) : { ok: false, motivo: 'sin_autorizacion' }; },
       quitar: function (id) { return g.quitar(intento, cel, id); },
-      despues: function () { e.despues = true; guardar(); if (o.despues) o.despues(); },
+      /* 28-oct-2026 (arreglador final, L1 de la ronda 3) — con la misma
+         pregunta que «Continuar» (puedeSeguir): con lo pegado esperando su
+         «¿Es tu historia laboral?», «Lo hago después» pasaba al paso 9 y lo
+         pegado se perdía sin su «No». Nada entra sin su «Sí», y nada se
+         pierde sin su «No», por cualquiera de los dos botones. */
+      despues: function () {
+        if (ctl && ctl.puedeSeguir && !ctl.puedeSeguir()) return;
+        e.despues = true; guardar(); if (o.despues) o.despues();
+      },
       enCamino: function (q) { if (g.enCamino) g.enCamino(q); }
     };
     var ctl = controlar(caja, vm, h);
@@ -1555,6 +1600,7 @@
        Se dice debajo de la pregunta, y se lleva la pantalla hasta ella. La
        página lo pregunta antes de pasar de paso (siguientePaso, en play/). */
     ctl.puedeSeguir = function () {
+      if (vm.mirandoPegado) { ctl.decir(TEXTOS.mirandoPegado, 'info'); return false; }
       if (!(vm.pegado && vm.pegado.listos && vm.pegado.listos.length)) return true;
       ctl.decir(TEXTOS.pegadoPendiente, 'ambar');
       try {

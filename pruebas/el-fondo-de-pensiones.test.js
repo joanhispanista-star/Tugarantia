@@ -843,6 +843,86 @@ describe('G1: la lista, la línea y la cola cuentan lo mismo aunque el teléfono
   });
 });
 
+/* 28-oct-2026 (arreglador final, ronda 3) — LO QUE SE HACE A MITAD DEL PASO.
+   Cuatro caminos vistos en Chrome sin ventana (Android de 412 px, CPU ×6),
+   cada uno con su prueba; con el código de antes, todas fallan:
+     L1 · «Lo hago después» con la pregunta «¿Es tu historia laboral?» abierta
+          pasaba al paso 9 y lo pegado se perdía sin su «No»; «Continuar» sí
+          preguntaba (P10).
+     ·    Lo pegado que todavía se está mirando: «Continuar» pasaba, el paso
+          montado otra vez decía «estamos terminando con los archivos que
+          escogiste…» y después no enseñaba nada.
+     L2 · Un archivo cuya lectura no termina nunca (la nube del teléfono que no
+          lo baja): el paso montado otra vez se quedaba para siempre en «Un
+          momento…» con los botones apagados.
+     L3 · «Abrir mi cuenta» con pantallazos todavía preparándose: no subían, y
+          quedaban huérfanos en el IndexedDB del teléfono.
+     L4 · Desmarcar la autorización con cinco preparándose: «Primero marca la
+          autorización de arriba. (y 4 más)». */
+describe('lo que se hace a mitad del paso (ronda 3)', () => {
+  const { hasta } = require('./esperar.js');
+  const { idbDeMentira } = require('./idb-de-mentira.js');
+  const PANTALLAZO = pngDe(IHDR, trozoPng('IDAT', 'pantallazo de la historia laboral'), trozoPng('IEND', ''));
+  const plano = h => String(h).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const despuesApagado = caja => /id="hlDespues" data-hl="despues" disabled/.test(caja.innerHTML);
+  /* Un archivo que tarda lo que la prueba diga (o no termina nunca). */
+  function lento(contenido, nombre) {
+    let soltar;
+    const listo = new Promise(r => { soltar = r; });
+    const bytes = Uint8Array.from(contenido);
+    return { blob: { name: nombre || 'Screenshot_20261028.png', arrayBuffer: () => listo.then(() => bytes.buffer) }, soltar: () => soltar() };
+  }
+  const colgado = () => ({ name: 'colgado.png', arrayBuffer: () => new Promise(() => {}) });
+  function autorizado(idb) {
+    const datos = {}, reloj = { t: Date.UTC(2026, 9, 30, 15, 0, 0) };
+    const ls = { getItem: k => (k in datos ? datos[k] : null), setItem: (k, v) => { datos[k] = String(v); }, removeItem: k => { delete datos[k]; } };
+    const g = HL.guardadero({ ls, idb: idb || null, ahora: () => reloj.t });
+    const e = g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('2026-10-30T15:00:00Z'); e.fondos = ['colpensiones']; g.guardarEstado(e);
+    return { g, reloj };
+  }
+  const paso = (t, caja, mas) => HL.pasoDelRegistro(caja, Object.assign({ guardadero: t.g, intento: 'i1', celular: '3001112233', ahora: () => t.reloj.t }, mas || {}));
+
+  test('L1 · «Lo hago después» con lo pegado esperando su respuesta no pasa: pregunta, como «Continuar»', async () => {
+    const t = autorizado();
+    const { caja, toque } = cajaDeMentira();
+    let despues = 0;
+    const ctl = paso(t, caja, { despues: () => { despues++; } });
+    await hasta(() => /id="hlDespues"/.test(caja.innerHTML), 50);
+    ctl.vm.pegado = { listos: [{ tipo: 'png', bytes: PANTALLAZO.length, base64: PANTALLAZO.toString('base64'), sha256: '' }], malos: [] };
+    ctl.pintar();
+    toque('despues');
+    assert.equal(despues, 0, '«Lo hago después» dejó atrás lo pegado sin su «No»');
+    assert.ok(plano(caja.innerHTML).indexOf(HL.TEXTOS.pegadoPendiente) >= 0, 'no le dice por qué no sigue');
+    toque('pegado-no');
+    assert.ok(await hasta(() => !/id="hlPegado"/.test(caja.innerHTML), 200));
+    toque('despues');
+    assert.equal(despues, 1, 'ya contestó y «Lo hago después» no pasa');
+  });
+
+  test('mientras se mira lo pegado, «Continuar» espera: lo pegado aparece en este paso y pregunta', async () => {
+    const t = autorizado();
+    const p = lento(PANTALLAZO, 'image.png');
+    const antes = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { read: () => Promise.resolve([{ types: ['image/png'], getType: () => Promise.resolve(p.blob) }]) } });
+    try {
+      const { caja, toque } = cajaDeMentira();
+      const ctl = paso(t, caja);
+      toque('pegar');
+      assert.ok(await hasta(() => /Mirando lo que copiaste/.test(caja.innerHTML), 200), 'no empezó a mirar lo copiado');
+      assert.equal(ctl.puedeSeguir(), false, '«Continuar» deja atrás lo que se está mirando');
+      assert.ok(plano(caja.innerHTML).indexOf(HL.TEXTOS.mirandoPegado) >= 0, 'no dice por qué espera');
+      p.soltar();
+      assert.ok(await hasta(() => /id="hlPegado"/.test(caja.innerHTML), 2000), 'lo pegado no se enseñó');
+      assert.equal(ctl.puedeSeguir(), false, 'con la pregunta abierta, sigue preguntando');
+      toque('pegado-no');
+      assert.ok(await hasta(() => !/id="hlPegado"/.test(caja.innerHTML), 200));
+      assert.equal(ctl.puedeSeguir(), true);
+    } finally {
+      if (antes) Object.defineProperty(navigator, 'clipboard', antes); else delete navigator.clipboard;
+    }
+  });
+});
+
 describe('la subida de la cola, con la sesión de la cuenta', () => {
   const preparar = async archivos => {
     const t = telefono();
