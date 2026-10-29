@@ -2342,9 +2342,10 @@ function pintarRegistro(paso) {
      solo hace dudar. */
   var conContinuar = !(p.id === 'documento' && !autorizoEsteIntento());
   /* 28-oct-2026 (arreglo de los leves, P1) — la línea de «Lo hago después»,
-     una vez, en el paso al que lleva (ver pensionDespues). */
-  var pista = (PISTA_DESPUES && p.id !== 'pension') ? pistaDespuesHTML() : '';
-  PISTA_DESPUES = false;
+     una vez, en el paso al que lleva (ver pensionDespues), con lo que ya
+     escogió (segunda revisión, ronda 1). */
+  var pista = (PISTA_DESPUES && p.id !== 'pension') ? pistaDespuesHTML(PISTA_DESPUES) : '';
+  PISTA_DESPUES = null;
 
   $('cuerpo').innerHTML =
     '<div class="card">' +
@@ -3256,15 +3257,35 @@ function montarPasoPension() {
    cuenta» solo estaba en la letra chica de la autorización, que quien salta
    no marca, y la tarjeta vive al fondo del Perfil. Ahora el paso siguiente
    abre con una línea que dice dónde (HL.TEXTOS.dondeDespues), una sola vez. */
-var PISTA_DESPUES = false;
+/* 28-oct-2026 (segunda revisión, ronda 1) — Y DICE LO QUE DE VERDAD PASA
+   CON LO QUE YA ESCOGIÓ. «Lo dejaste para después» salía también a quien ya
+   había autorizado y escogido su PDF, y al abrir la cuenta el archivo subía
+   igual («Tu historia laboral llegó (1 archivo)»). Lo escogido no se suelta
+   al tocar el botón: la línea lo dice (HL.pistaDespues). PISTA_DESPUES lleva
+   lo que ya escogió, leído del guardadero, que es de donde «Abrir mi cuenta»
+   lo va a encolar (encolarLaHistoriaLaboral), y no de la pantalla. */
+var PISTA_DESPUES = null;
 function pensionDespues() {
   if (viajando()) return;
-  PISTA_DESPUES = true;
+  PISTA_DESPUES = loEscogidoEnElPaso();
   pintarRegistro(PASO + 1);
 }
-function pistaDespuesHTML() {
+/* {aut, n}: la autorización de ESTE registro (su intento y su celular, los
+   del paso: montarPasoPension) y cuántos archivos esperan en el teléfono. */
+function loEscogidoEnElPaso() {
+  var g = guardaderoPension(), intento = String(REGISTRO.intento || ''), cel = String(REGISTRO.celular || '');
+  var lo = { aut: null, n: 0 };
+  if (!g) return lo;
+  try {
+    var e = g.estado(intento, cel);
+    lo.aut = (e && e.aut) || null;
+    lo.n = g.hayArchivosGuardados(intento, cel) ? (Number(e.archivos_n) || 0) : 0;
+  } catch (x) { /* sin guardadero: como sin nada escogido */ }
+  return lo;
+}
+function pistaDespuesHTML(lo) {
   if (!HL || HL_APAGADO_PLAY) return '';
-  return '<div class="aviso info" id="pistaPension" role="status"><b>Lo dejaste para después.</b> ' + esc(HL.TEXTOS.dondeDespues) + '</div>';
+  return '<div class="aviso info" id="pistaPension" role="status">' + HL.pistaDespues(lo) + '</div>';
 }
 function soltarArchivosDePension() {
   var g = guardaderoPension();

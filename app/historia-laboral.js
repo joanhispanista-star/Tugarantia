@@ -206,6 +206,12 @@
        pantalla de la cuenta recién abierta si saltó el paso. Sin enlace a la
        app: play/ no enlaza al quincenal (la frontera de Play). */
     dondeDespues: 'La subes cuando quieras desde tu cuenta: Perfil → «📄 Tu historia laboral» (en la app instalada, en Inicio).',
+    /* 28-oct-2026 (segunda revisión, ronda 1) — «Lo hago después» CON ALGO YA
+       ESCOGIDO: ver pistaDespues. {n} es «1 archivo» o «3 archivos». */
+    despuesConAutorizacion: 'Tu autorización se guarda con tu registro cuando toques «Abrir mi cuenta».',
+    despuesConArchivos: 'Tu autorización y {n} se guardan con tu registro cuando toques «Abrir mi cuenta».',
+    despuesQuitar: 'Si cambiaste de idea, toca «Volver» y desmarca la autorización.',
+    dondeFalte: 'Lo que te falte lo subes cuando quieras desde tu cuenta: Perfil → «📄 Tu historia laboral» (en la app instalada, en Inicio).',
     subela: 'Cuando la tengas, súbela',
     ayudaFormas: 'El PDF es lo mejor: es el documento tal como te lo mandó tu fondo. Si no, pantallazos donde se lean tu ' +
       'nombre, tus semanas y tus empleadores.',
@@ -983,6 +989,30 @@
     if (!f.length || !FP) return '<b>Guardamos tu autorización.</b>' + despues;
     return '<b>Guardamos tu autorización y ' + (f.length > 1 ? 'tus fondos' : 'tu fondo') + ' (' + esc(FP.nombres(f)) + ').</b>' + despues;
   }
+  /**
+   * 28-oct-2026 (segunda revisión, ronda 1) — LA LÍNEA DEL PASO QUE SIGUE A
+   * «LO HAGO DESPUÉS», SEGÚN LO QUE YA ESCOGIÓ. Decía «Lo dejaste para
+   * después. La subes cuando quieras desde tu cuenta» a cualquiera. Quien ya
+   * había autorizado y escogido su PDF (el de Colpensiones, mientras le
+   * llegaba el de Porvenir al correo) y tocaba «Lo hago después» —el botón de
+   * arriba del paso— leía que no había dado nada, y al abrir la cuenta su
+   * archivo subía igual: «Tu historia laboral llegó (1 archivo)». Visto en
+   * Chrome sin ventana. Tocarlo NO suelta lo escogido (sería tirar lo que la
+   * persona escogió a propósito), así que la línea dice lo que de verdad va a
+   * pasar: que su autorización —y sus archivos, si hay— se guardan al abrir la
+   * cuenta, cómo echarse atrás (desmarcar la autorización se lo lleva todo:
+   * h.autorizar(false) suelta los archivos) y dónde subir lo que le falte. Sin
+   * autorización no hay nada escogido que subir (sin ella no entra ningún
+   * archivo), y se dice como antes.
+   * `lo`: {aut, n}, lo que «Abrir mi cuenta» va a encolar de este registro
+   * (encolar) y cuántos archivos esperan en el teléfono.
+   */
+  function pistaDespues(lo) {
+    var x = lo || {}, n = Math.max(0, Math.floor(Number(x.n) || 0));
+    if (!(x.aut && x.aut.version)) return '<b>Lo dejaste para después.</b> ' + esc(TEXTOS.dondeDespues);
+    var guardado = n ? TEXTOS.despuesConArchivos.replace('{n}', n === 1 ? '1 archivo' : n + ' archivos') : TEXTOS.despuesConAutorizacion;
+    return '<b>' + esc(guardado) + '</b> ' + esc(TEXTOS.despuesQuitar) + ' ' + esc(TEXTOS.dondeFalte);
+  }
 
   /* ------------------------------------------------- la llamada con un token */
   /** Para la app (socio.html): {url, anon, token}. Rechaza con {status}. */
@@ -1610,6 +1640,7 @@
     guardadero: guardadero,
     subirCola: subirCola,
     avisoDeLaCola: avisoDeLaCola,
+    pistaDespues: pistaDespues,
     llamarConToken: llamarConToken,
     autorizacionHTML: autorizacionHTML,
     pantallaHTML: pantallaHTML,

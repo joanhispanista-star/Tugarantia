@@ -282,6 +282,56 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     assert.equal(/Lo dejaste para después/.test(B.cuerpo(Q)), false, '«Continuar» no es «Lo hago después»');
   });
 
+  /* 28-oct-2026 (segunda revisión, ronda 1) — «LO HAGO DESPUÉS» CON LO YA
+     ESCOGIDO. La línea decía «Lo dejaste para después. La subes cuando
+     quieras desde tu cuenta» a quien ya había autorizado y escogido su PDF
+     (el de Colpensiones, mientras espera el de Porvenir), y al abrir la
+     cuenta el PDF subía igual: «Tu historia laboral llegó (1 archivo)». Visto
+     en Chrome sin ventana. Con el código de antes esto falla. */
+  test('«Lo hago después» con la autorización y un PDF ya escogidos: la línea dice que eso se guarda al abrir la cuenta, y la cuenta lo confirma', async () => {
+    const P = B.abrir();
+    const llamadas = B.nube(P);
+    B.mariaHastaElPermiso(P, false);
+    escoger(P, ['colpensiones', 'porvenir'], [UN_PDF]);
+    await B.asentar(5);
+    P.ev("pintarRegistro(indiceDe('pension'))");
+    await B.asentar(5);
+    P.ev('pensionDespues()');
+    assert.equal(B.pasoActual(P), 'cobro');
+    const t = B.texto(B.cuerpo(P));
+    assert.equal(/Lo dejaste para después/.test(t), false, 'le dice que no dio nada, y lo escogido va a subir: ' + t.slice(0, 300));
+    assert.match(t, /Tu autorización y 1 archivo se guardan con tu registro cuando toques «Abrir mi cuenta»\. Si cambiaste de idea, toca «Volver» y desmarca la autorización\. Lo que te falte lo subes cuando quieras desde tu cuenta: Perfil → «📄 Tu historia laboral» \(en la app instalada, en Inicio\)\./);
+    assert.ok(B.cuerpo(P).indexOf('id="pistaPension"') < B.cuerpo(P).indexOf('id="btnSeguir"'), 'la línea no va arriba');
+    /* «Volver» lleva al paso del fondo, con la casilla marcada: ahí se desmarca. */
+    B.tocar(P, 'Volver');
+    assert.equal(B.pasoActual(P), 'pension');
+    await B.asentar(5);
+    assert.match(hlCrudo(P), /id="hlAut" data-hl="aut" checked/);
+    /* Y lo que dijo es lo que pasa: al abrir la cuenta llega ese archivo. */
+    P.ev("pintarRegistro(indiceDe('permiso')); $('autGeneral').checked = true;");
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    assert.equal(P.ev('VISTA'), 'listo', 'María no abrió su cuenta: ' + B.texto(B.caja(P)));
+    assert.equal(llamadas().filter(x => /rpc\/pension_subir/.test(x.url)).length, 1);
+    assert.match(avisoPension(P), /Tu historia laboral llegó \(1 archivo\)\./);
+  });
+  test('«Lo hago después» con la autorización y sin archivos dice que la autorización se guarda; con varios, cuántos', async () => {
+    const P = enElPaso();
+    escoger(P, ['porvenir']);
+    P.ev('pensionDespues()');
+    const t = B.texto(B.cuerpo(P));
+    assert.equal(/Lo dejaste para después/.test(t), false, t.slice(0, 300));
+    assert.match(t, /Tu autorización se guarda con tu registro cuando toques «Abrir mi cuenta»\. Si cambiaste de idea, toca «Volver» y desmarca la autorización\./);
+    const Q = enElPaso();
+    /* De uno en uno, como los guarda la pantalla (guardarTodos). */
+    escoger(Q, ['colpensiones'], [UN_PDF]);
+    await B.asentar(5);
+    escoger(Q, ['colpensiones'], [{ tipo: 'pdf', bytes: 40, base64: Buffer.from('%PDF-1.4\n% otro\n%%EOF\n', 'binary').toString('base64'), sha256: 'h2' }]);
+    await B.asentar(5);
+    Q.ev('pensionDespues()');
+    assert.match(B.texto(B.cuerpo(Q)), /Tu autorización y 2 archivos se guardan con tu registro/);
+  });
+
   test('saltó el paso: «Tu cuenta quedó creada» trae la misma pista, con el camino al Perfil; quien sí autorizó, no', async () => {
     const P = B.abrir();
     B.nube(P);

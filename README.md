@@ -218,7 +218,11 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         queda el «después». (28-oct, segunda revisión) El
                         registro dice «no cambia tu garantía» arriba de la
                         casilla, como la tarjeta: es el aviso que promete el
-                        punto 11 de los términos para su cambio.
+                        punto 11 de los términos para su cambio. Y quien toca
+                        «Lo hago después» con la autorización (y archivos)
+                        ya escogidos lee que eso se guarda al abrir la
+                        cuenta y cómo echarse atrás (pistaDespues, leído del
+                        guardadero), no «Lo dejaste para después».
                         Pruebas: pruebas/el-fondo-de-pensiones*.test.js.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
