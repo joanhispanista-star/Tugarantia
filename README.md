@@ -244,6 +244,10 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         tiene tope: SEGUNDOS_TOPE). Cada archivo también:
                         el que no termina de leerse en 30 s se queda por
                         fuera ('tardo'), y el paso que lo esperaba lo dice.
+                        «Abrir mi cuenta» encola DESPUÉS de lo que va en
+                        camino (encolar espera alTerminar), y agregar no
+                        escribe nada sin la autorización vigente de ese
+                        registro en el guardadero: nada queda huérfano.
                         Pruebas: pruebas/el-fondo-de-pensiones*.test.js.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la

@@ -846,6 +846,15 @@
         var gen = GEN;
         return g.archivos(intento, celular).then(function (r) {
           if (gen !== GEN) return { ok: false, motivo: 'repetido' };
+          /* 28-oct-2026 (arreglador final, L3 y L4 de la ronda 3) — SIN LA
+             AUTORIZACIÓN VIGENTE DE ESTE REGISTRO NO ENTRA NADA, y se mira aquí,
+             justo antes de escribir, en lo escogido del guardadero (no en la
+             pantalla que pidió guardar, que puede ser una vieja). Lo que se
+             preparaba cuando la persona desmarcó la casilla (en otro paso
+             montado), o cuando «Abrir mi cuenta» ya se llevó el registro a la
+             cola, se escribía igual y quedaba huérfano en el teléfono. */
+          var x = leerEstadoCrudo();
+          if (!(vale(x, intento, celular, DIAS_ESTADO * 24) && x.aut && x.aut.version)) return { ok: false, motivo: 'sin_autorizacion' };
           var rv = revisarNuevo(r.lista, a && a.tipo, a && a.bytes, a && a.sha256);
           if (!rv.ok) return rv;
           if (r.lista.some(function (x) { return x.base64 === a.base64; })) return { ok: false, motivo: 'repetido' };
@@ -888,7 +897,17 @@
       encolar: function (intento, celular) {
         var e = g.estado(intento, celular);
         var aut = e.aut, fondos = (e.fondos || []).slice();
-        return g.archivos(intento, celular).then(function (r) {
+        /* 28-oct-2026 (arreglador final, L3 de la ronda 3) — PRIMERO LO QUE VA
+           EN CAMINO. Quien ya había llenado los pasos 9 a 11, volvía al 8,
+           escogía tres pantallazos pesados y seguía de una (cuatro toques en
+           1,7 s, CPU ×6) abría la cuenta antes de que terminaran: la cola
+           salía vacía («Guardamos tu autorización y tu fondo…», 0 en la base)
+           y los tres se escribían después en un registro ya cerrado, huérfanos
+           en el teléfono. La cuenta no espera por esto (ya está creada); la
+           cola sí, y cada archivo tiene su tope (SEGUNDOS_TOPE). */
+        return new Promise(function (listo) { g.alTerminar(function () { listo(); }); }).then(function () {
+          return g.archivos(intento, celular);
+        }).then(function (r) {
           if (!aut || !aut.version) return g.olvidar().then(function () { return false; });
           var cola = { celular: String(celular), t: ahora(), aut: aut, fondos: fondos, autorizada: false,
                        archivos: r.lista.map(function (a) { return { id: a.id, tipo: a.tipo, bytes: a.bytes, base64: a.base64, sha256: a.sha256 }; }) };

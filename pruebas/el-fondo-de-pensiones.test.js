@@ -947,6 +947,28 @@ describe('lo que se hace a mitad del paso (ronda 3)', () => {
     /* Y la pantalla de donde salió el archivo también lo dice, si sigue a la vista. */
     assert.ok(plano(A1.caja.innerHTML).indexOf(HL.MOTIVOS.tardo) >= 0);
   });
+
+  test('L3 · «Abrir mi cuenta» con un pantallazo todavía preparándose: la cola lo espera y lo sube, y nada queda huérfano', async () => {
+    const idb = idbDeMentira();
+    const t = autorizado(idb);
+    const A1 = cajaDeMentira();
+    paso(t, A1.caja);
+    const p = lento(PANTALLAZO);
+    A1.escoger([p.blob]);
+    assert.equal(t.g.enCamino(), true, 'la prueba no prueba nada: no hay nada en camino');
+    /* «Abrir mi cuenta» salió bien con el pantallazo todavía en camino. */
+    const encolado = t.g.encolar('i1', '3001112233');
+    await hasta(() => false, 20);
+    p.soltar();
+    assert.equal(await encolado, true);
+    const c = await t.g.cola('3001112233');
+    assert.equal(c && c.archivos.length, 1, 'el pantallazo que se preparaba no quedó en la cola: no sube');
+    assert.ok(await hasta(() => !idb.datos.has('reg'), 200), 'quedó huérfano en el IndexedDB del teléfono');
+    /* Y un archivo que llegara después de abrir la cuenta ya no tiene registro al que entrar. */
+    assert.equal((await t.g.agregar('i1', '3001112233', A('pdf', '%PDF-tarde'))).ok, false, 'después de abrir la cuenta, lo que llega tarde se guarda igual');
+    await hasta(() => false, 20);
+    assert.equal(idb.datos.has('reg'), false, 'lo que llegó tarde quedó huérfano en el teléfono');
+  });
 });
 
 describe('la subida de la cola, con la sesión de la cuenta', () => {
