@@ -921,6 +921,32 @@ describe('lo que se hace a mitad del paso (ronda 3)', () => {
       if (antes) Object.defineProperty(navigator, 'clipboard', antes); else delete navigator.clipboard;
     }
   });
+
+  /* El tope va en milisegundos de verdad (msTope): `hasta` cuenta vueltas, no tiempo. */
+  const esperarMs = ms => new Promise(r => setTimeout(r, ms));
+  test('L2 · un archivo que no termina de leerse: al tope, el paso montado otra vez sigue sin él y lo dice', async () => {
+    const t = autorizado();
+    const A1 = cajaDeMentira();
+    paso(t, A1.caja, { msTope: 40 });
+    A1.escoger([colgado()]);
+    assert.equal(t.g.enCamino(), true, 'el guardadero no sabe lo que va en camino');
+    /* «Continuar» y «Volver»: el mismo paso, montado otra vez. */
+    const B1 = cajaDeMentira();
+    let despues = 0;
+    paso(t, B1.caja, { msTope: 40, despues: () => { despues++; } });
+    assert.ok(despuesApagado(B1.caja) && plano(B1.caja.innerHTML).indexOf(HL.TEXTOS.terminando) >= 0, 'no nació esperando');
+    await esperarMs(120);
+    assert.ok(await hasta(() => !despuesApagado(B1.caja), 200), 'el paso montado otra vez se quedó en «Un momento…» para siempre');
+    const dice = plano(B1.caja.innerHTML);
+    assert.equal(dice.indexOf(HL.TEXTOS.terminando), -1, 'el «Un momento» se quedó pegado');
+    assert.ok(dice.indexOf(HL.MOTIVOS.tardo) >= 0, 'no dice que siguió sin ese archivo: ' + dice.slice(0, 400));
+    assert.equal(t.g.enCamino(), false);
+    assert.equal((await t.g.archivos('i1', '3001112233')).lista.length, 0);
+    B1.toque('despues');
+    assert.equal(despues, 1, '«Lo hago después» no se soltó');
+    /* Y la pantalla de donde salió el archivo también lo dice, si sigue a la vista. */
+    assert.ok(plano(A1.caja.innerHTML).indexOf(HL.MOTIVOS.tardo) >= 0);
+  });
 });
 
 describe('la subida de la cola, con la sesión de la cuenta', () => {

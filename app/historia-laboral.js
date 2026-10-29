@@ -297,6 +297,10 @@
     vacio: 'Ese archivo está vacío.',
     no_es_archivo: 'No pudimos leer ese archivo. Prueba otra vez o escoge otro.',
     lectura: 'No pudimos leer ese archivo en este teléfono. Prueba con otro.',
+    /* 28-oct-2026 (arreglador final, L2 de la ronda 3) — el tope de
+       SEGUNDOS_TOPE: se sigue sin ese archivo, y se dice. */
+    tardo: 'Ese archivo no terminó de abrirse en este teléfono en ' + SEGUNDOS_TOPE + ' segundos, así que seguimos sin él. ' +
+      'Escógelo otra vez o prueba con otro.',
     sin_autorizacion: 'Primero marca la autorización de arriba.',
     freno: 'Hiciste muchos cambios seguidos. Espera unos minutos y vuelve a intentar.',
     sin_sesion: 'Se cerró tu sesión. Entra otra vez y vuelve a intentar.',
@@ -717,7 +721,11 @@
        Por eso la cuenta va aquí, que es uno solo por página, y no en la
        pantalla: el paso la anota (pasoDelRegistro) y el que se monte después
        espera a que termine. */
-    var EN_CAMINO = 0, AL_TERMINAR = [];
+    /* 28-oct-2026 (arreglador final, L2 de la ronda 3) — y LO QUE NO ENTRÓ
+       (MALOS_EN_CAMINO: los motivos que devuelve el trabajo, como 'tardo'):
+       el paso montado otra vez lo dice al terminar, porque la pantalla de
+       donde salió ya no está a la vista. */
+    var EN_CAMINO = 0, AL_TERMINAR = [], MALOS_EN_CAMINO = [];
 
     function abrir() {
       if (dbP) return dbP;
@@ -951,21 +959,23 @@
          la línea de «Lo hago después»: si hay archivos, ya se escribió. */
       enMemoria: function () { return !persistido; },
       /** Ver «LO QUE VA EN CAMINO»: con `p`, lo anota hasta que termine; sin
-          nada, dice si queda algo en camino. */
+          nada, dice si queda algo en camino. Si `p` termina con una lista de
+          motivos (lo que no entró), se guarda para quien espera. */
       enCamino: function (p) {
         if (!arguments.length) return EN_CAMINO > 0;
         EN_CAMINO++;
-        var fin = function () {
+        var fin = function (malos) {
+          if (Array.isArray(malos)) MALOS_EN_CAMINO = MALOS_EN_CAMINO.concat(malos);
           EN_CAMINO = Math.max(0, EN_CAMINO - 1);
           if (EN_CAMINO) return;
-          var l = AL_TERMINAR; AL_TERMINAR = [];
-          l.forEach(function (f) { try { f(); } catch (e) {} });
+          var l = AL_TERMINAR, m = MALOS_EN_CAMINO; AL_TERMINAR = []; MALOS_EN_CAMINO = [];
+          l.forEach(function (f) { try { f(m.slice()); } catch (e) {} });
         };
-        Promise.resolve(p).then(fin, fin);
+        Promise.resolve(p).then(fin, function () { fin(); });
         return true;
       },
-      /** `f` cuando ya no quede nada en camino (ya mismo, si no hay nada). */
-      alTerminar: function (f) { if (EN_CAMINO > 0) AL_TERMINAR.push(f); else f(); }
+      /** `f(malos)` cuando ya no quede nada en camino (ya mismo, sin malos, si no hay nada). */
+      alTerminar: function (f) { if (EN_CAMINO > 0) AL_TERMINAR.push(f); else f([]); }
     };
     return g;
   }
@@ -1369,12 +1379,20 @@
       return q;
     };
     /* Preparar, en orden (el tipo por sus bytes, el achique), SIN guardar
-       nada todavía: {listos, malos}. */
+       nada todavía: {listos, malos}.
+       28-oct-2026 (arreglador final, L2 de la ronda 3) — CADA ARCHIVO CON SU
+       TOPE. Si la lectura no termina nunca (un archivo que la nube del
+       teléfono no baja), la cadena no terminaba, lo que va en camino no
+       bajaba de 1, y el paso montado otra vez se quedaba en «Un momento…» con
+       los botones apagados, para siempre. Al tope se sigue sin ese archivo
+       ('tardo', y se dice); si su lectura termina después, se ignora: no se
+       guarda nada que la pantalla ya no cuenta. */
     var prepararTodos = function (lista) {
       var listos = [], malos = [];
       return lista.reduce(function (p, b) {
         return p.then(function () {
-          return prepararArchivo(b).then(function (r) { if (r.ok) listos.push(r.archivo); else malos.push(r.motivo); });
+          return conTope(prepararArchivo(b), msTope, { ok: false, motivo: 'tardo' })
+            .then(function (r) { if (r.ok) listos.push(r.archivo); else malos.push(r.motivo); });
         });
       }, Promise.resolve()).then(function () { return { listos: listos, malos: malos }; });
     };
@@ -1526,7 +1544,7 @@
       if (!pedido) return decir(motivoEnPalabras('pegar_vacio'));
       pedido.then(function (b) { return mostrarPegado([b]); }, function () { decir(motivoEnPalabras('pegar_vacio')); });
     });
-    return { pintar: pintar, decir: decir, vm: vm };
+    return { pintar: pintar, decir: decir, decirMalos: decirMalos, vm: vm };
   }
 
   /* ------------------------------------------------- el paso del registro */
@@ -1588,11 +1606,15 @@
        suelto, y la línea decía «Tu autorización se guarda…» con tres archivos
        que llegaban un segundo después y subían al abrir la cuenta. Ahora
        espera a lo que va en camino, lo dice, y al terminar los enseña. */
+    /* 28-oct-2026 (arreglador final, L2 de la ronda 3) — y dice lo que no
+       entró (decirMalos, que pinta): con el tope, un archivo que no terminó
+       de leerse se queda por fuera, y el paso que lo esperaba lo cuenta. */
     if (g.enCamino && g.enCamino()) {
       vm.ocupado = true; vm.aviso = TEXTOS.terminando; vm.avisoClase = 'info';
-      g.alTerminar(function () {
+      g.alTerminar(function (malos) {
         vm.ocupado = false; vm.aviso = ''; vm.avisoClase = '';
-        h.leer().then(ctl.pintar, ctl.pintar);
+        var decirlo = function () { ctl.decirMalos(malos || []); };
+        h.leer().then(decirlo, decirlo);
       });
     }
     /* 28-oct-2026 (arreglo de los leves, P10) — ¿se puede seguir? No con lo
@@ -1759,6 +1781,7 @@
     VERSION_AUTORIZACION: VERSION_AUTORIZACION,
     LIMITES: LIMITES,
     HORAS_ARCHIVOS: HORAS_ARCHIVOS,
+    SEGUNDOS_TOPE: SEGUNDOS_TOPE,
     DIAS_ESTADO: DIAS_ESTADO,
     LLAVE_ESTADO: LLAVE_ESTADO,
     minutosFuera: minutosFuera,

@@ -241,7 +241,9 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         «Lo hago después» pregunta como «Continuar»
                         (puedeSeguir) con lo pegado sin contestar, y los dos
                         esperan mientras lo pegado se mira (leer lo copiado
-                        tiene tope: SEGUNDOS_TOPE).
+                        tiene tope: SEGUNDOS_TOPE). Cada archivo también:
+                        el que no termina de leerse en 30 s se queda por
+                        fuera ('tardo'), y el paso que lo esperaba lo dice.
                         Pruebas: pruebas/el-fondo-de-pensiones*.test.js.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
