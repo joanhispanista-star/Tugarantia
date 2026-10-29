@@ -92,7 +92,7 @@
   'use strict';
 
   /* La versión del texto de la autorización: la fecha de la política que la
-     describe (legal/privacidad.html, «Lo que cambió el 30 de octubre de
+     describe (legal/privacidad.html, «Lo que cambió el 29 de octubre de
      2026»). Si la política sale otro día, se mueven las dos juntas: lo vigila
      pruebas/el-fondo-de-pensiones.test.js. NO es VERSION_AUTORIZACION de
      app/cuenta.js: esa es la general, y no sube (a nadie se le vuelve a pedir
@@ -104,8 +104,11 @@
      política publicada decía que todavía no regía. La fecha es la de
      PUBLICACIÓN (la regla del 15-oct): si el lote se corre de día, se mueve
      aquí, en la casilla y en la política y los términos, y la prueba
-     «el día en que el lote sale al sitio» dice qué más. */
-  var VERSION_AUTORIZACION = '2026-10-30';
+     «el día en que el lote sale al sitio» dice qué más.
+     29-oct-2026 — Joan pidió publicarlo hoy («hazlo hoy»): sale el jueves 29
+     y no el viernes 30, así que la fecha se movió aquí, en la casilla, en la
+     política y en los términos. */
+  var VERSION_AUTORIZACION = '2026-10-29';
 
   /* Los topes son los de la base (pension_subir): aquí se miran antes para
      decirlo sin gastar la subida, y allá otra vez. */
@@ -1356,7 +1359,7 @@
   function autorizacionHTML(marcada) {
     return '<label class="permiso"><input type="checkbox" id="hlAut" data-hl="aut"' + (marcada ? ' checked' : '') + '><span>' +
       '<b>' + esc(TEXTOS.autorizacion) + '</b>' +
-      '<span class="muted">' + esc(TEXTOS.autorizacionDetalle) + ' Versión del 30 de octubre de 2026 · ' +
+      '<span class="muted">' + esc(TEXTOS.autorizacionDetalle) + ' Versión del 29 de octubre de 2026 · ' +
       '<a href="../legal/privacidad.html#pension" target="_blank" rel="noopener">qué dice la política</a>.</span></span></label>';
   }
   function fondosHTML(fondos) {

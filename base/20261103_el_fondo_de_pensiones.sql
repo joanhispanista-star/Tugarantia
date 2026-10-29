@@ -1,9 +1,9 @@
 -- ===========================================================================
 -- TU FONDO DE PENSIONES: LA HISTORIA LABORAL, OPCIONAL — 28 de octubre de 2026
--- (se publica con el lote del viernes 30 de octubre de 2026: Joan, 28-oct en la
--- noche. El nombre del archivo se queda con su 20261103, el día del piloto que se
+-- (se publica con el lote del jueves 29 de octubre de 2026: Joan, 28-oct en la
+-- noche, y el 29-oct «hazlo hoy». El nombre del archivo se queda con su 20261103, el día del piloto que se
 -- había propuesto: es el nombre que dice la receta. La versión de la autorización
--- sí es la del día que sale, 2026-10-30: ver app/historia-laboral.js)
+-- sí es la del día que sale, 2026-10-29: ver app/historia-laboral.js)
 --
 -- PARA JOAN: Supabase → SQL Editor → New query → pegar TODO este archivo → Run.
 -- Se puede correr dos veces: la segunda no cambia nada. Va DESPUÉS de todo lo
@@ -622,9 +622,9 @@ begin
   insert into pension_prueba values ('sin_autorizacion', j ->> 'motivo' = 'sin_autorizacion'
     and not exists (select 1 from public.pension_archivos where celular = v_cel));
   -- Con la autorización: un fondo inventado no; uno de la lista sí.
-  j := public.pension_autorizar(array['fondo_inventado'], '2026-10-30', null);
+  j := public.pension_autorizar(array['fondo_inventado'], '2026-10-29', null);
   insert into pension_prueba values ('fondo_inventado', j ->> 'motivo' = 'fondos');
-  j := public.pension_autorizar(array['colpensiones', 'porvenir'], '2026-10-30', null);
+  j := public.pension_autorizar(array['colpensiones', 'porvenir'], '2026-10-29', null);
   insert into pension_prueba values ('autoriza', (j ->> 'ok')::boolean);
   -- Lo que no es PDF ni imagen no entra, aunque diga que sí.
   j := public.pension_subir('data:application/pdf;base64,' || encode(convert_to('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>', 'UTF8'), 'base64'));

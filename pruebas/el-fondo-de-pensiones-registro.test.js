@@ -250,7 +250,7 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     const sub = l.find(x => /rpc\/pension_subir/.test(x.url));
     assert.ok(aut, 'la autorización del fondo no salió');
     assert.deepEqual(aut.cuerpo.p_fondos, ['colpensiones', 'porvenir']);
-    assert.equal(aut.cuerpo.p_version, '2026-10-30');
+    assert.equal(aut.cuerpo.p_version, '2026-10-29');
     assert.match(aut.auth, /^Bearer tok-573001112233@tugarantia\.net-/, 'no salió con la sesión de la cuenta de María');
     assert.ok(sub, 'el PDF no salió');
     assert.equal(sub.cuerpo.p_archivo, PDF64);

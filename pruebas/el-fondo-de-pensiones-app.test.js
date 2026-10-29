@@ -130,7 +130,7 @@ describe('lo que hace, con su sesión', () => {
     const aut = pension(A).find(l => /pension_autorizar$/.test(l.url));
     assert.ok(aut, 'marcar la casilla no guardó la autorización');
     assert.deepEqual(aut.cuerpo.p_fondos, []);
-    assert.equal(aut.cuerpo.p_version, '2026-10-30');
+    assert.equal(aut.cuerpo.p_version, '2026-10-29');
     assert.equal(aut.cab.Authorization, 'Bearer token-de-ana');
     assert.match(A.elem('hlCuerpo').innerHTML, /data-hl="fondo" value="colpensiones"/, 'con la autorización no apareció la lista de fondos');
     /* Y la salida, YA: la casilla promete «puedo quitarla cuando quiera». El
