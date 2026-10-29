@@ -722,13 +722,25 @@
       });
       return dbP;
     }
+    /* 28-oct-2026 (arreglador final, G1 de la ronda 3) — LO DE LA MEMORIA
+       MANDA CUANDO UNA ESCRITURA FALLÓ. Si IndexedDB no deja escribir (un
+       Android casi sin espacio: la lista entera se reescribe con cada archivo,
+       y con el segundo ya no cabe), lo escogido queda en MEM, y es lo más nuevo
+       que hay. La lectura prefería la copia de IndexedDB, vieja: la lista
+       enseñaba el PDF solo, el pantallazo desaparecía sin aviso, y «Abrir mi
+       cuenta» subía uno mientras la línea de «Lo hago después» decía dos. Visto
+       en Chrome sin ventana. Ahora, `llave in MEM` quiere decir «la copia de la
+       página es la buena»: un valor, o null si lo que falló fue soltarla (sin
+       esa marca, lo soltado volvía a salir de la copia vieja). Una escritura
+       que sí entra quita la marca: desde ahí manda IndexedDB otra vez. */
+    var deMem = function (llave) { return Object.prototype.hasOwnProperty.call(MEM, llave); };
     function leer(llave) {
       return abrir().then(function (d) {
-        if (!d) return MEM[llave] || null;
+        if (!d || deMem(llave)) return MEM[llave] || null;
         return new Promise(function (res) {
           try {
             var r = d.transaction('lotes', 'readonly').objectStore('lotes').get(llave);
-            r.onsuccess = function () { res(r.result || MEM[llave] || null); };
+            r.onsuccess = function () { res(deMem(llave) ? MEM[llave] || null : r.result || null); };
             r.onerror = function () { res(MEM[llave] || null); };
           } catch (e) { res(MEM[llave] || null); }
         });
@@ -737,13 +749,14 @@
     function escribir(llave, valor) {
       return abrir().then(function (d) {
         if (!d) { if (valor) MEM[llave] = valor; else delete MEM[llave]; return false; }
+        var enMem = function () { persistido = false; MEM[llave] = valor || null; };
         return new Promise(function (res) {
           try {
             var tx = d.transaction('lotes', 'readwrite'), st = tx.objectStore('lotes');
             if (valor) st.put(valor, llave); else st['delete'](llave);
             tx.oncomplete = function () { delete MEM[llave]; res(true); };
-            tx.onerror = tx.onabort = function () { persistido = false; if (valor) MEM[llave] = valor; else delete MEM[llave]; res(false); };
-          } catch (e) { persistido = false; if (valor) MEM[llave] = valor; else delete MEM[llave]; res(false); }
+            tx.onerror = tx.onabort = function () { enMem(); res(false); };
+          } catch (e) { enMem(); res(false); }
         });
       });
     }

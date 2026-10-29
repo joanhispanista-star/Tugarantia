@@ -16,8 +16,16 @@
  * `datos` es un Map a la vista: la prueba siembra lo que había en el teléfono
  * y mira lo que quedó. Los valores se copian (como el clon estructurado), así
  * que nadie los cambia por la espalda.
+ *
+ * 28-oct-2026 (arreglador final) — `opciones.fallaPut(llave, valor)`: si
+ * devuelve true, esa escritura no queda y la transacción aborta, como un
+ * QuotaExceededError en un teléfono casi sin espacio. Hace falta para la
+ * ronda 3 (G1): el PDF cabía, el pantallazo no, y la línea de «Lo hago
+ * después» contaba los dos mientras subía uno. `opciones.fallaDelete(llave)`,
+ * lo mismo con un borrado.
  * ======================================================================== */
-function idbDeMentira(inicial) {
+function idbDeMentira(inicial, opciones) {
+  const o = opciones || {};
   const datos = new Map(Object.entries(inicial || {}).map(([k, v]) => [k, copia(v)]));
   const luego = f => setImmediate(f);
   function copia(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
@@ -25,8 +33,10 @@ function idbDeMentira(inicial) {
     createObjectStore() {},
     transaction() {
       const tx = { oncomplete: null, onerror: null, onabort: null };
-      let pendientes = 0;
-      const termina = () => { if (--pendientes === 0) luego(() => { if (tx.oncomplete) tx.oncomplete(); }); };
+      let pendientes = 0, aborta = false;
+      const termina = () => {
+        if (--pendientes === 0) luego(() => { if (aborta) { if (tx.onabort) tx.onabort(); } else if (tx.oncomplete) tx.oncomplete(); });
+      };
       const pedido = hacer => {
         pendientes++;
         const r = { result: undefined, onsuccess: null, onerror: null };
@@ -35,8 +45,14 @@ function idbDeMentira(inicial) {
       };
       tx.objectStore = () => ({
         get: k => pedido(() => copia(datos.get(k))),
-        put: (v, k) => pedido(() => { datos.set(k, copia(v)); }),
-        delete: k => pedido(() => { datos.delete(k); }),
+        put: (v, k) => {
+          if (o.fallaPut && o.fallaPut(k, v)) { aborta = true; return pedido(() => undefined); }
+          return pedido(() => { datos.set(k, copia(v)); });
+        },
+        delete: k => {
+          if (o.fallaDelete && o.fallaDelete(k)) { aborta = true; return pedido(() => undefined); }
+          return pedido(() => { datos.delete(k); });
+        },
         openCursor: () => {
           pendientes++;
           const r = { result: null, onsuccess: null };

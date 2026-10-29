@@ -233,6 +233,11 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         mientras algo se prepara o se guarda, y el paso que
                         se monta con algo en camino («Continuar» y «Volver»
                         a mitad) espera a que llegue (enCamino, guardadero).
+                        (Ronda 3) La línea de «Lo hago después» cuenta la
+                        lista que «Abrir mi cuenta» va a encolar (play/,
+                        pensionDespues lee g.archivos), no archivos_n; y si
+                        IndexedDB no deja escribir, la copia de la memoria de
+                        la página manda sobre la vieja de IndexedDB (leer).
                         Pruebas: pruebas/el-fondo-de-pensiones*.test.js.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la

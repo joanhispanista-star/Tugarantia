@@ -804,6 +804,45 @@ describe('«Lo hago después» dice lo que va a pasar con lo escogido', () => {
   });
 });
 
+/* 28-oct-2026 (arreglador final, G1 de la ronda 3) — LO QUE SE CUENTA ES LO
+   QUE SUBE. Un Android casi sin espacio guardó el PDF y no el pantallazo (la
+   lista entera se reescribe, y con el segundo ya no cabía): la escritura
+   falló y la lista buena quedó en la memoria de la página, pero la lectura
+   prefería la copia de IndexedDB, vieja. La lista enseñaba 1 sin aviso, la
+   línea de «Lo hago después» decía 2 (archivos_n, anotado antes de escribir)
+   y al abrir la cuenta subía 1. Visto en Chrome sin ventana. Con el código de
+   antes esto falla. */
+describe('G1: la lista, la línea y la cola cuentan lo mismo aunque el teléfono no deje guardar', () => {
+  const { idbDeMentira } = require('./idb-de-mentira.js');
+  const T0 = Date.UTC(2026, 9, 30, 15, 0, 0);
+  const almacen = datos => ({ getItem: k => (k in datos ? datos[k] : null), setItem: (k, v) => { datos[k] = String(v); }, removeItem: k => { delete datos[k]; } });
+  test('el segundo archivo no cabe en IndexedDB: los dos siguen en la página, la lista los enseña y la cola sube los dos', async () => {
+    const idb = idbDeMentira({}, { fallaPut: (k, v) => k === 'reg' && !!(v && v.archivos && v.archivos.length >= 2) });
+    const g = HL.guardadero({ ls: almacen({}), idb, ahora: () => T0 });
+    const e = g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('2026-10-30T15:00:00Z'); e.fondos = ['porvenir']; g.guardarEstado(e);
+    assert.equal((await g.agregar('i1', '3001112233', A('pdf', '%PDF-cabe'))).ok, true);
+    assert.equal((await g.agregar('i1', '3001112233', A('png', '\x89PNG\r\n\x1a\nno-cabe'))).ok, true);
+    assert.equal(idb.datos.get('reg').archivos.length, 1, 'la prueba no prueba nada: el teléfono sí guardó el segundo');
+    const r = await g.archivos('i1', '3001112233');
+    assert.deepEqual(r.lista.map(x => x.tipo), ['pdf', 'png'], 'la lista lee la copia vieja de IndexedDB y pierde el pantallazo sin decirlo');
+    assert.equal(g.enMemoria(), true, 'no sabe que la lista vive en la memoria de la página');
+    assert.equal(await g.soloEnMemoria(), true, 'la lista no diría la condición de la memoria');
+    assert.equal(await g.encolar('i1', '3001112233'), true);
+    assert.equal((await g.cola('3001112233')).archivos.length, 2, 'la cola sube menos de lo que la lista enseñó');
+  });
+  test('si lo que falla es soltarlos, la página no los vuelve a leer de la copia vieja', async () => {
+    let romper = false;
+    const idb = idbDeMentira({}, { fallaDelete: () => romper });
+    const g = HL.guardadero({ ls: almacen({}), idb, ahora: () => T0 });
+    const e = g.estado('i1', '3001112233'); e.aut = HL.armarAutorizacion('2026-10-30T15:00:00Z'); g.guardarEstado(e);
+    await g.agregar('i1', '3001112233', A('pdf', '%PDF-uno'));
+    romper = true;   // el teléfono deja de dejar escribir: soltar no alcanza a borrar
+    await g.soltarArchivos();
+    assert.ok(idb.datos.has('reg'), 'la prueba no prueba nada: el borrado sí se hizo');
+    assert.equal((await g.archivos('i1', '3001112233')).lista.length, 0, 'lo soltado vuelve a aparecer desde la copia vieja');
+  });
+});
+
 describe('la subida de la cola, con la sesión de la cuenta', () => {
   const preparar = async archivos => {
     const t = telefono();

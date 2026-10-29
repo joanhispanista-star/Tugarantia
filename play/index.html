@@ -3270,25 +3270,42 @@ function montarPasoPension() {
    lo que ya escogió, leído del guardadero, que es de donde «Abrir mi cuenta»
    lo va a encolar (encolarLaHistoriaLaboral), y no de la pantalla. */
 var PISTA_DESPUES = null;
+/* 28-oct-2026 (arreglador final, G1 de la ronda 3) — LA LÍNEA CUENTA LO QUE
+   «ABRIR MI CUENTA» VA A SUBIR, leído de donde encolar lo lee (g.archivos), y
+   no de archivos_n, que se anota antes de escribir y vive en localStorage.
+   Contaban distinto justo cuando el teléfono no deja guardar: con el PDF
+   guardado y el pantallazo sin espacio, la línea decía 2 y subía 1; sin
+   IndexedDB y con la página vuelta a abrir, decía 2 y subían 0 (los archivos
+   se habían ido con la memoria de la página). Visto en Chrome sin ventana.
+   Leer la lista toma un instante (IndexedDB contesta en otra vuelta): si en
+   ese rato la persona ya se movió de paso, este toque no salta nada. */
 function pensionDespues() {
   if (viajando()) return;
-  PISTA_DESPUES = loEscogidoEnElPaso();
-  pintarRegistro(PASO + 1);
+  var g = guardaderoPension(), i = PASO;
+  var seguir = function (n) {
+    if (VISTA !== 'registro' || PASO !== i) return;
+    PISTA_DESPUES = loEscogidoEnElPaso(n);
+    pintarRegistro(i + 1);
+  };
+  if (!g) return seguir(0);
+  g.archivos(String(REGISTRO.intento || ''), String(REGISTRO.celular || ''))
+    .then(function (r) { seguir(r && r.lista ? r.lista.length : 0); }, function () { seguir(0); });
 }
 /* {aut, n}: la autorización de ESTE registro (su intento y su celular, los
-   del paso: montarPasoPension) y cuántos archivos esperan en el teléfono.
+   del paso: montarPasoPension) y `n`, cuántos archivos van a subir (los que
+   pensionDespues acaba de leer de la lista).
    28-oct-2026 (segunda revisión, ronda 2) — y `memoria`: si el teléfono no
    dejó guardarlos y viven solo en la página (la línea lo dice así, y no con
    los minutos de la regla). La línea nunca se arma con algo en camino: el
    paso apaga «Lo hago después» mientras tanto (app/historia-laboral.js). */
-function loEscogidoEnElPaso() {
+function loEscogidoEnElPaso(n) {
   var g = guardaderoPension(), intento = String(REGISTRO.intento || ''), cel = String(REGISTRO.celular || '');
   var lo = { aut: null, n: 0, memoria: false };
   if (!g) return lo;
   try {
     var e = g.estado(intento, cel);
     lo.aut = (e && e.aut) || null;
-    lo.n = g.hayArchivosGuardados(intento, cel) ? (Number(e.archivos_n) || 0) : 0;
+    lo.n = Math.max(0, Math.floor(Number(n) || 0));
     lo.memoria = !!(g.enMemoria && g.enMemoria());
   } catch (x) { /* sin guardadero: como sin nada escogido */ }
   return lo;

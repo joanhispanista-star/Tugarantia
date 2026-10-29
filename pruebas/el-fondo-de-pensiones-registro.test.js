@@ -37,6 +37,10 @@ function escoger(P, fondos, archivos) {
   (archivos || []).forEach(a => P.ev('guardaderoPension().agregar(REGISTRO.intento, REGISTRO.celular, ' + JSON.stringify(a) + ')'));
 }
 const UN_PDF = { tipo: 'pdf', bytes: 38, base64: PDF64, sha256: 'h1' };
+/* 28-oct-2026 (arreglador final) — un pantallazo y un segundo PDF, para G1. */
+const PNG64 = Buffer.from('\x89PNG\r\n\x1a\n pantallazo de mentira', 'binary').toString('base64');
+const UN_PNG = { tipo: 'png', bytes: 29, base64: PNG64, sha256: 'h-png' };
+const OTRO_PDF = { tipo: 'pdf', bytes: 40, base64: Buffer.from('%PDF-1.4\n% otro\n%%EOF\n', 'binary').toString('base64'), sha256: 'h2' };
 
 describe('dónde va, y que nunca frena el registro', () => {
   test('después de «De qué vives» y antes de la plata; ni en PlataChat ni sin sus archivos', () => {
@@ -194,6 +198,7 @@ describe('lo que sobrevive y lo que se va', () => {
     P.ev("pintarRegistro(indiceDe('pension'))");
     await B.asentar(5);
     P.ev('pensionDespues()');
+    await B.asentar(5);   // 28-oct-2026 (arreglador final, G1): la línea lee la lista antes de pasar
     assert.equal(B.pasoActual(P), 'cobro');
     /* La línea ya decía la condición (aquí, sin IndexedDB, la de la memoria de la página). */
     assert.match(B.texto(B.cuerpo(P)), /Tu autorización y 1 archivo se guardan con tu registro cuando toques «Abrir mi cuenta»\. Hasta entonces los archivos esperan en esta página/);
@@ -317,9 +322,10 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
      recién abierta tampoco decía nada del fondo a quien lo saltó: la tarjeta
      está al fondo del Perfil, debajo de la contraseña. Con el código de antes
      no hay línea y estas dos fallan. */
-  test('al tocar «Lo hago después», el paso siguiente abre con una línea que dice dónde subirla; una sola vez', () => {
+  test('al tocar «Lo hago después», el paso siguiente abre con una línea que dice dónde subirla; una sola vez', async () => {
     const P = enElPaso();
     P.ev('pensionDespues()');
+    await B.asentar(5);   // 28-oct-2026 (arreglador final, G1): la línea lee la lista antes de pasar
     assert.equal(B.pasoActual(P), 'cobro');
     const t = B.texto(B.cuerpo(P));
     assert.match(t, /Lo dejaste para después\. La subes cuando quieras desde tu cuenta: Perfil → «📄 Tu historia laboral» \(en la app instalada, en Inicio\)\./);
@@ -349,6 +355,7 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     P.ev("pintarRegistro(indiceDe('pension'))");
     await B.asentar(5);
     P.ev('pensionDespues()');
+    await B.asentar(5);   // 28-oct-2026 (arreglador final, G1): la línea lee la lista antes de pasar
     assert.equal(B.pasoActual(P), 'cobro');
     const t = B.texto(B.cuerpo(P));
     assert.equal(/Lo dejaste para después/.test(t), false, 'le dice que no dio nada, y lo escogido va a subir: ' + t.slice(0, 300));
@@ -383,15 +390,80 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     await B.asentar(10);
     assert.ok(idb.datos.has('reg'), 'el PDF no quedó en IndexedDB');
     P.ev('pensionDespues()');
+    await B.asentar(5);   // 28-oct-2026 (arreglador final, G1): la línea lee la lista antes de pasar
     assert.equal(B.pasoActual(P), 'cobro');
     const min = P.ev('EC.MINUTOS_VUELTA_DE_LA_CAMARA');
     assert.match(B.texto(B.cuerpo(P)), new RegExp('Tu autorización y 1 archivo se guardan con tu registro cuando toques «Abrir mi cuenta»\\. ' +
       'Hasta entonces los archivos esperan en este teléfono: si sales de esta página más de ' + min + ' minutos y el teléfono la cierra, se borran\\.'));
   });
+  /* 28-oct-2026 (arreglador final, G1 de la ronda 3) — LA LÍNEA CUENTA LO
+     QUE «ABRIR MI CUENTA» VA A SUBIR. Salía de archivos_n, que se anota antes
+     de escribir, y no de la lista que se encola. Dos caminos vistos en Chrome
+     sin ventana: (a) el teléfono casi sin espacio guarda el PDF y no el
+     pantallazo: la línea decía 2 y subía 1; (b) sin IndexedDB, la página
+     vuelta a abrir dentro de los minutos de la regla: los archivos se fueron
+     con la memoria de la página, y la línea seguía diciendo 2 con 0 en la
+     base. Con el código de antes, las dos fallan. */
+  test('G1 (a): el teléfono no guarda el pantallazo: la línea dice los dos con la condición de la memoria, y suben los dos', async () => {
+    const { idbDeMentira } = require('./idb-de-mentira.js');
+    const idb = idbDeMentira({}, { fallaPut: (k, v) => k === 'reg' && !!(v && v.archivos && v.archivos.length >= 2) });
+    const P = B.abrir({ indexedDB: idb });
+    const llamadas = B.nube(P);
+    B.mariaHastaElPermiso(P, false);
+    escoger(P, ['porvenir'], [UN_PDF]);
+    await B.asentar(10);
+    escoger(P, ['porvenir'], [UN_PNG]);
+    await B.asentar(10);
+    assert.equal(idb.datos.get('reg').archivos.length, 1, 'la prueba no prueba nada: el teléfono guardó los dos');
+    P.ev("pintarRegistro(indiceDe('pension'))");
+    await B.asentar(10);
+    P.ev('pensionDespues()');
+    await B.asentar(10);
+    assert.equal(B.pasoActual(P), 'cobro');
+    assert.match(B.texto(B.cuerpo(P)), /Tu autorización y 2 archivos se guardan con tu registro cuando toques «Abrir mi cuenta»\. Hasta entonces los archivos esperan en esta página: este teléfono no deja guardarlos, y si la página se cierra tendrás que escogerlos otra vez\./);
+    P.ev("pintarRegistro(indiceDe('permiso')); $('autGeneral').checked = true;");
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(40);
+    assert.equal(P.ev('VISTA'), 'listo', 'María no abrió su cuenta: ' + B.texto(B.caja(P)));
+    assert.equal(llamadas().filter(x => /rpc\/pension_subir/.test(x.url)).length, 2, 'la línea dijo 2 archivos y subió otra cosa');
+    assert.match(avisoPension(P), /Tu historia laboral llegó \(2 archivos\)\./);
+  });
+  test('G1 (b): sin IndexedDB, la página vuelta a abrir: la línea no cuenta los archivos que se fueron con la memoria', async () => {
+    const almacen = {}, sesion = {};
+    const P = B.abrir({ almacen, sesion });
+    B.mariaHastaElPermiso(P, false);
+    escoger(P, ['porvenir'], [UN_PDF]);
+    await B.asentar(5);
+    escoger(P, ['porvenir'], [OTRO_PDF]);
+    await B.asentar(5);
+    assert.equal(P.ev('guardaderoPension().hayArchivosGuardados(REGISTRO.intento, REGISTRO.celular)'), true);
+    /* Tres minutos después la pestaña se vuelve a abrir: dentro de la regla, nada se suelta. */
+    const D0 = Date, d = 3 * 60e3;
+    class Luego extends D0 { constructor(...a) { if (a.length) super(...a); else super(D0.now() + d); } static now() { return D0.now() + d; } }
+    const Q = B.abrir({ almacen, sesion, Date: Luego });
+    const llamadas = B.nube(Q);
+    await B.asentar(10);
+    assert.equal(Q.ev('PENSION_PERDIDOS'), false, 'la prueba no prueba nada: la regla de la cámara se los llevó');
+    Q.ev("pintarRegistro(indiceDe('pension'))");
+    await B.asentar(10);
+    Q.ev('pensionDespues()');
+    await B.asentar(10);
+    assert.equal(B.pasoActual(Q), 'cobro');
+    const t = B.texto(B.cuerpo(Q));
+    assert.equal(/2 archivos/.test(t), false, 'la línea cuenta archivos que ya no existen: ' + t.slice(0, 300));
+    assert.match(t, /Tu autorización se guarda con tu registro cuando toques «Abrir mi cuenta»\./);
+    Q.ev("pintarRegistro(indiceDe('permiso')); $('autGeneral').checked = true;");
+    B.tocar(Q, 'Abrir mi cuenta');
+    await B.asentar(40);
+    assert.equal(Q.ev('VISTA'), 'listo', 'María no abrió su cuenta: ' + B.texto(B.caja(Q)));
+    assert.equal(llamadas().filter(x => /rpc\/pension_subir/.test(x.url)).length, 0);
+    assert.match(avisoPension(Q), /Guardamos tu autorización y tu fondo \(Porvenir\)\./);
+  });
   test('«Lo hago después» con la autorización y sin archivos dice que la autorización se guarda; con varios, cuántos', async () => {
     const P = enElPaso();
     escoger(P, ['porvenir']);
     P.ev('pensionDespues()');
+    await B.asentar(5);   // 28-oct-2026 (arreglador final, G1): la línea lee la lista antes de pasar
     const t = B.texto(B.cuerpo(P));
     assert.equal(/Lo dejaste para después/.test(t), false, t.slice(0, 300));
     assert.match(t, /Tu autorización se guarda con tu registro cuando toques «Abrir mi cuenta»\. Si cambiaste de idea, toca «Volver» y desmarca la autorización\./);
@@ -402,6 +474,7 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     escoger(Q, ['colpensiones'], [{ tipo: 'pdf', bytes: 40, base64: Buffer.from('%PDF-1.4\n% otro\n%%EOF\n', 'binary').toString('base64'), sha256: 'h2' }]);
     await B.asentar(5);
     Q.ev('pensionDespues()');
+    await B.asentar(5);   // 28-oct-2026 (arreglador final, G1): la línea lee la lista antes de pasar
     assert.match(B.texto(B.cuerpo(Q)), /Tu autorización y 2 archivos se guardan con tu registro/);
   });
 
