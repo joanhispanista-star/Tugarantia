@@ -254,10 +254,21 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         tiene tope: SEGUNDOS_TOPE). Cada archivo también:
                         el que no termina de leerse en 30 s se queda por
                         fuera ('tardo'), y el paso que lo esperaba lo dice.
-                        «Abrir mi cuenta» encola DESPUÉS de lo que va en
-                        camino (encolar espera alTerminar), y agregar no
+                        «Abrir mi cuenta» deja la cola EN EL ACTO, con la
+                        autorización y lo ya guardado, y lo que seguía en
+                        camino se le SUMA al terminar (ENCOLADO, alaCola) si
+                        la autorización de ese registro sigue vigente; la
+                        subida lo espera (colaLista), dice lo que no entró
+                        (noLlegaron) y es una sola aunque la pidan «Abrir mi
+                        cuenta» e «Ir a mi cuenta» (play/, PENSION_SUBIDA);
+                        al terminar, la tarjeta del Perfil que quedó a la
+                        vista se vuelve a mirar.
+                        Soltar el registro nunca toca la cola, y agregar no
                         escribe nada sin la autorización vigente de ese
-                        registro en el guardadero: nada queda huérfano.
+                        registro: nada queda huérfano. (29-oct: desde
+                        533e232 la cola esperaba lo que iba en camino, y en
+                        esa espera «Ir a mi cuenta» soltaba el PDF ya
+                        guardado y una recarga se llevaba la autorización.)
                         Desmarcar la casilla con archivos preparándose dice
                         una sola vez lo que pasó (desautorizado), sin «(y 4
                         más)» ni pedirle que la vuelva a marcar.

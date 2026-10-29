@@ -642,3 +642,86 @@ describe('al abrir la cuenta: sube con la sesión de ESA cuenta, y se dice', () 
     assert.match(B.texto(B.cuerpo(P)), /no accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a tus fotos guardadas\. Solo la cámara en el momento de tomar la foto, tu ubicación una sola vez si la autorizas, y los archivos que tú mismo escojas si subes tu historia laboral\./);
   });
 });
+
+/* 29-oct-2026 (arreglador, el grave de la verificación final, ronda 2) —
+   «ABRIR MI CUENTA» CON ALGO TODAVÍA EN CAMINO, en la página de verdad. Desde
+   533e232, encolar esperaba a lo que iba en camino antes de leer lo ya
+   guardado: «Ir a mi cuenta» en esa espera soltaba el PDF que el paso había
+   prometido subir («Guardamos tu autorización y tu fondo (Porvenir)…», 0 en
+   la base), una recarga se llevaba también la autorización (la base sin
+   fila), y las dos llamadas a subirLaHistoriaLaboralYDecirlo subían todo dos
+   veces («autorizar 2, subir 6»). Visto en Chrome sin ventana, Android e
+   iPhone, CPU ×6. Lo que va en camino se anota en el guardadero como lo anota
+   el paso (enCamino) y se guarda al terminar como lo guarda el paso (agregar).
+   Y la tarjeta del Perfil que quedó a la vista mientras se esperaba se vuelve
+   a mirar al terminar: decía lo que la base tenía antes de subir.
+   Con el código de antes (b9617bb), las dos fallan. */
+describe('«Abrir mi cuenta» con algo todavía en camino (el grave de la verificación final)', () => {
+  const { idbDeMentira } = require('./idb-de-mentira.js');
+  const enCaminoEnElPaso = (P, a) => P.ev('(function () { var g = guardaderoPension(), i = REGISTRO.intento, c = REGISTRO.celular, soltar;' +
+    ' g.enCamino(new Promise(function (r) { soltar = r; }).then(function () { return g.agregar(i, c, ' + JSON.stringify(a) + '); })' +
+    '.then(function (x) { return x && x.ok ? [] : [(x && x.motivo) || "rechazo"]; })); window.__soltarElQueTarda = soltar; })()');
+  const subidas = l => l.filter(x => /rpc\/pension_subir/.test(x.url)).map(x => x.cuerpo.p_archivo);
+  const autorizaciones = l => l.filter(x => /rpc\/pension_autorizar/.test(x.url)).length;
+
+  test('«Ir a mi cuenta» con un pantallazo preparándose: el PDF ya guardado y el pantallazo suben, una vez cada uno, y las dos cajas dicen lo que pasa', async () => {
+    const idb = idbDeMentira();
+    const P = B.abrir({ indexedDB: idb });
+    const llamadas = B.nube(P);
+    B.mariaHastaElPermiso(P, false);
+    escoger(P, ['porvenir'], [UN_PDF]);
+    await B.asentar(10);
+    enCaminoEnElPaso(P, UN_PNG);
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    assert.equal(P.ev('VISTA'), 'listo', 'María no abrió su cuenta: ' + B.texto(B.caja(P)));
+    /* «Tu cuenta quedó creada» dice que espera lo que se prepara, y nada sube todavía. */
+    assert.match(avisoPension(P), /Un momento: estamos terminando de preparar los archivos de tu historia laboral que escogiste…/,
+      '«Tu cuenta quedó creada» no dice qué pasa con la historia laboral: ' + avisoPension(P));
+    assert.equal(llamadas().some(x => /rpc\/pension_/.test(x.url)), false, 'subió antes de que entrara lo que se preparaba');
+    assert.ok(idb.datos.get('cola:' + B.CEL_MARIA), 'la cola de la cuenta no quedó en el teléfono al abrirla');
+    /* «Ir a mi cuenta» con el pantallazo todavía en camino. */
+    B.tocar(P, 'Ir a mi cuenta');
+    await B.asentar(20);
+    assert.equal(P.ev('VISTA'), 'cuenta');
+    assert.match(avisoPension(P), /Un momento: estamos terminando de preparar/, 'la caja de la cuenta no dice que espera');
+    /* Mira su Perfil mientras tanto: la tarjeta dice lo que la base tiene AHORA. */
+    P.ev("irA('perfil')");
+    await B.asentar(20);
+    const mia = () => llamadas().filter(x => /rpc\/pension_mia/.test(x.url)).length;
+    const miaAntes = mia();
+    assert.ok(miaAntes >= 1, 'el Perfil no montó la tarjeta «Tu historia laboral»');
+    P.ev('window.__soltarElQueTarda()');
+    await B.asentar(60);
+    const l = llamadas();
+    assert.equal(autorizaciones(l), 1, 'la autorización subió ' + autorizaciones(l) + ' veces');
+    assert.deepEqual(subidas(l), [PDF64, PNG64], 'no subieron el PDF ya guardado y el pantallazo, una vez cada uno');
+    assert.match(avisoPension(P), /Tu historia laboral llegó \(2 archivos\)\./);
+    assert.ok(mia() > miaAntes, 'la tarjeta del Perfil se quedó con lo que la base tenía antes de subir');
+    assert.equal(idb.datos.size, 0, 'algo quedó en el teléfono: ' + [...idb.datos.keys()]);
+  });
+
+  test('la página se recarga con un pantallazo preparándose: al volver a abrirla, la autorización y el PDF ya guardado suben, y la cuenta lo dice', async () => {
+    const idb = idbDeMentira(), almacen = {}, sesion = {};
+    const P = B.abrir({ indexedDB: idb, almacen, sesion });
+    B.nube(P);
+    B.mariaHastaElPermiso(P, false);
+    escoger(P, ['porvenir'], [UN_PDF]);
+    await B.asentar(10);
+    enCaminoEnElPaso(P, UN_PNG);   // no termina: la página se cierra antes
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    assert.equal(P.ev('VISTA'), 'listo', 'María no abrió su cuenta: ' + B.texto(B.caja(P)));
+    /* Android cierra la pestaña mientras ella va a WhatsApp, y la vuelve a
+       abrir: el mismo teléfono (almacén, sesión e IndexedDB), otra página. */
+    const Q = B.abrir({ indexedDB: idb, almacen, sesion, hash: '' });
+    const llamadas = B.nube(Q);
+    await B.asentar(60);
+    assert.equal(Q.ev('VISTA'), 'cuenta', 'la página vuelta a abrir no entró a la cuenta');
+    const l = llamadas();
+    assert.equal(autorizaciones(l), 1, 'la recarga se llevó la autorización');
+    assert.deepEqual(subidas(l), [PDF64], 'la recarga se llevó el PDF ya guardado');
+    assert.match(avisoPension(Q), /Tu historia laboral llegó \(1 archivo\)\./);
+    assert.equal(idb.datos.size, 0, 'algo quedó en el teléfono: ' + [...idb.datos.keys()]);
+  });
+});

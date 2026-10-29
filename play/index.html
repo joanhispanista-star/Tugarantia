@@ -685,8 +685,14 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
    21-oct se publica junto (el lote del 27-oct, publicar-27), así que el
    sello es uno: el del cambio más nuevo.
    28-oct-2026: «Tu fondo de pensiones», el paso opcional después de «De qué
-   vives» (app/historia-laboral.js y app/fondos-pension.js, nuevos). */
-var VERSION_PLAY = '2026-10-28';
+   vives» (app/historia-laboral.js y app/fondos-pension.js, nuevos).
+   29-oct-2026 (sale con el mismo lote, el del 30): «Abrir mi cuenta» con un
+   archivo de la historia laboral todavía preparándose ya no pierde lo
+   guardado si la persona toca «Ir a mi cuenta» o la página se recarga, y la
+   historia laboral sube una sola vez. Si alguien dice que su PDF no llegó
+   después de abrir la cuenta, esta fecha dice si tenía la versión que lo
+   arregla. */
+var VERSION_PLAY = '2026-10-29';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
@@ -3414,20 +3420,54 @@ function pintarPistaDeLaCuentaNueva() {
    pasó. Suelta (rpcSesion con su último argumento): lo que anota es de la
    cola de ESA cuenta, aunque la persona salga antes de la respuesta; lo que
    pinta, solo si la sesión sigue siendo esa. */
+/* 29-oct-2026 (arreglador, el grave de la verificación final) — UNA SOLA
+   SUBIDA A LA VEZ. «Abrir mi cuenta» y «Ir a mi cuenta» (pintarCuenta) la
+   llaman las dos; esperaban la misma promesa y subían todo dos veces a la
+   vez: pension_autorizar dos veces y cada archivo dos (el segundo,
+   «ya_estaba»), gastando el freno de 30 escrituras de la base. Visto en
+   Chrome sin ventana (Android e iPhone, CPU ×6): «autorizar 2, subir 6» con
+   cuatro archivos. Ahora la segunda se suma a la que va (PENSION_SUBIDA):
+   repite en su caja lo que la primera está diciendo y pinta el mismo
+   resultado. Y si al abrir la cuenta algo seguía preparándose, la cola lo
+   espera (app/historia-laboral.js, ENCOLADO y subirCola), y la caja lo dice
+   (TEXTOS.terminandoCola) en vez de «Subiendo…» o de nada. */
+var PENSION_SUBIDA = null;
 function subirLaHistoriaLaboralYDecirlo() {
   var g = guardaderoPension();
   if (!g || MARCA === 'platachat') return Promise.resolve();
-  var ses = SESION, cel = celularDeSesion() || (REGISTRADO && REGISTRADO.celular) || '';
+  var ses = SESION, cel = String(celularDeSesion() || (REGISTRADO && REGISTRADO.celular) || '');
   if (!ses || !ses.access_token || !cel) return Promise.resolve();
-  return (PENSION_ENCOLADA || Promise.resolve()).then(function () { return g.cola(cel); }).then(function (c) {
-    if (!c) return null;
-    if (SESION === ses) pintarAvisoPension('<b>Subiendo tu historia laboral…</b>', '');
-    return HL.subirCola(g, cel, function (fn, cuerpo) { return rpcSesion(fn, cuerpo, ses, true); });
-  }).then(function (r) {
+  var decirLoQuePaso = function (r) {
     if (!r || SESION !== ses) return;
     var a = HL.avisoDeLaCola(r);
     pintarAvisoPension(a.html, a.clase, r.estado !== 'apagado');
-  }, function () {});
+  };
+  var va = PENSION_SUBIDA;
+  if (va && va.cel === cel) {
+    if (va.dice && SESION === ses) pintarAvisoPension(va.dice, '');
+    return va.p.then(decirLoQuePaso, function () {});
+  }
+  var s = { cel: cel, dice: '', p: null };
+  var decir = function (html) { s.dice = html; if (SESION === ses) pintarAvisoPension(html, ''); };
+  s.p = (PENSION_ENCOLADA || Promise.resolve()).then(function () { return g.cola(cel); }).then(function (c) {
+    if (!c) return null;
+    decir('<b>' + esc(g.colaEnEspera && g.colaEnEspera(cel) ? HL.TEXTOS.terminandoCola : 'Subiendo tu historia laboral…') + '</b>');
+    return HL.subirCola(g, cel, function (fn, cuerpo) { return rpcSesion(fn, cuerpo, ses, true); },
+      { alSubir: function () { decir('<b>Subiendo tu historia laboral…</b>'); } });
+  });
+  PENSION_SUBIDA = s;
+  var fin = function () { if (PENSION_SUBIDA === s) PENSION_SUBIDA = null; };
+  /* Y la tarjeta del Perfil, si quedó a la vista con esta sesión mientras la
+     cola esperaba o subía: decía lo que la base tenía ANTES («Todavía no nos
+     la das»), y la espera de lo que va en camino puede durar el tope de un
+     archivo. Cerrada, se vuelve a mirar; abierta no se toca (la persona la
+     está usando), como al volver al Perfil (montarHistoriaLaboralEnPerfil). */
+  var mirarLaTarjeta = function (r) {
+    var t = HL_TARJETA_PLAY, vm = t && t.tarjeta && t.tarjeta.vm;
+    if (!r || r.estado === 'nada' || !t || t.ses !== ses || !vm || vm.abierta || vm.cargando || vm.apagado) return;
+    t.tarjeta.recargar().then(null, function () { /* se queda lo que decía */ });
+  };
+  return s.p.then(function (r) { fin(); decirLoQuePaso(r); mirarLaTarjeta(r); }, fin);
 }
 function pintarAvisoPension(html, clase, conCamino) {
   var a = $('avisoPension');

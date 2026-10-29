@@ -955,7 +955,7 @@ describe('lo que se hace a mitad del paso (ronda 3)', () => {
     assert.ok(plano(A1.caja.innerHTML).indexOf(HL.MOTIVOS.tardo) >= 0);
   });
 
-  test('L3 · «Abrir mi cuenta» con un pantallazo todavía preparándose: la cola lo espera y lo sube, y nada queda huérfano', async () => {
+  test('L3 · «Abrir mi cuenta» con un pantallazo todavía preparándose: la cola lo suma al terminar y lo sube, y nada queda huérfano', async () => {
     const idb = idbDeMentira();
     const t = autorizado(idb);
     const A1 = cajaDeMentira();
@@ -968,6 +968,10 @@ describe('lo que se hace a mitad del paso (ronda 3)', () => {
     await hasta(() => false, 20);
     p.soltar();
     assert.equal(await encolado, true);
+    /* 29-oct-2026 (el grave de la verificación final) — la cola se escribe
+       en el acto, y lo que llega tarde se le suma al terminar: está completa
+       cuando colaLista se cumple, que es lo que la subida espera (subirCola). */
+    await t.g.colaLista('3001112233');
     const c = await t.g.cola('3001112233');
     assert.equal(c && c.archivos.length, 1, 'el pantallazo que se preparaba no quedó en la cola: no sube');
     assert.ok(await hasta(() => !idb.datos.has('reg'), 200), 'quedó huérfano en el IndexedDB del teléfono');
@@ -975,6 +979,7 @@ describe('lo que se hace a mitad del paso (ronda 3)', () => {
     assert.equal((await t.g.agregar('i1', '3001112233', A('pdf', '%PDF-tarde'))).ok, false, 'después de abrir la cuenta, lo que llega tarde se guarda igual');
     await hasta(() => false, 20);
     assert.equal(idb.datos.has('reg'), false, 'lo que llegó tarde quedó huérfano en el teléfono');
+    assert.equal((await t.g.cola('3001112233')).archivos.length, 1, 'cuando ya no quedaba nada en camino, otro archivo entró a la cola');
   });
 
   test('L4 · desmarcar la autorización con tres preparándose: un solo aviso, limpio, y nada queda en el teléfono', async () => {
@@ -1105,6 +1110,130 @@ describe('lo que se hace a mitad del paso (ronda 3)', () => {
       assert.ok(await hasta(() => !/id="hlPegado"/.test(caja.innerHTML), 200));
       assert.equal(ctl.puedeSeguir(), true);
     });
+  });
+});
+
+/* 29-oct-2026 (arreglador, el grave de la verificación final, ronda 2) —
+   «ABRIR MI CUENTA» CON ALGO TODAVÍA EN CAMINO. Desde 533e232 (L3), encolar
+   esperaba a lo que iba en camino ANTES de leer lo ya guardado, y en esa
+   espera:
+     · «Ir a mi cuenta» (pintarCuenta → soltarLoSensibleDelRegistro →
+       soltarArchivos) borraba 'reg', y con él el PDF que el paso había
+       prometido subir: la base quedaba con la autorización y 0 archivos, y
+       la cuenta decía «Guardamos tu autorización y tu fondo…»;
+     · si la página se recargaba, la cola nunca se escribía: se perdían el PDF
+       y la autorización (la base, sin fila; la cuenta, callada).
+   Visto en Chrome sin ventana (Android de 412 px e iPhone de 390 px, CPU ×6).
+   Ahora la cola se escribe EN EL ACTO con la autorización y lo ya guardado,
+   lo que llega tarde se le suma si la autorización de ese registro sigue
+   vigente, y la subida lo espera y dice lo que no entró. Con el código de
+   antes (b9617bb), las cuatro fallan. */
+describe('«Abrir mi cuenta» con algo todavía en camino no pierde lo ya guardado (el grave de la verificación final)', () => {
+  const { hasta } = require('./esperar.js');
+  const { idbDeMentira } = require('./idb-de-mentira.js');
+  const CEL = '3001112233';
+  const T0 = Date.UTC(2026, 9, 30, 15, 0, 0);
+  const PANTALLAZO = pngDe(IHDR, trozoPng('IDAT', 'pantallazo que tarda en prepararse'), trozoPng('IEND', ''));
+  const almacen = datos => ({ getItem: k => (k in datos ? datos[k] : null), setItem: (k, v) => { datos[k] = String(v); }, removeItem: k => { delete datos[k]; } });
+  function lento(contenido) {
+    let soltar;
+    const listo = new Promise(r => { soltar = r; });
+    const bytes = Uint8Array.from(contenido);
+    return { blob: { name: 'Screenshot_20261030.png', arrayBuffer: () => listo.then(() => bytes.buffer) }, soltar: () => soltar() };
+  }
+  /* María, autorizada, con su PDF ya guardado en el teléfono y un pantallazo
+     todavía preparándose en el paso de verdad (pasoDelRegistro). */
+  async function conAlgoEnCamino(datos, idb, mas) {
+    const o = mas || {};
+    const g = HL.guardadero({ ls: almacen(datos), idb, ahora: () => T0 });
+    const e = g.estado('i1', CEL); e.aut = HL.armarAutorizacion('2026-10-30T15:00:00Z'); e.fondos = ['porvenir']; g.guardarEstado(e);
+    assert.equal((await g.agregar('i1', CEL, A('pdf', '%PDF-ya-guardado'))).ok, true);
+    const { caja, escoger } = cajaDeMentira();
+    HL.pasoDelRegistro(caja, { guardadero: g, intento: 'i1', celular: CEL, ahora: () => T0, msTope: o.msTope });
+    const p = lento(PANTALLAZO);
+    escoger([o.blob || p.blob]);
+    assert.equal(g.enCamino(), true, 'la prueba no prueba nada: no hay nada en camino');
+    return { g, p };
+  }
+  /* Hasta que no quede nada en camino (y lo que llegó, guardado donde vaya). Vale
+     con el código de antes y con el de ahora: así la prueba falla por lo que
+     queda, no por cómo se espera. */
+  const terminado = async g => { assert.ok(await hasta(() => !g.enCamino(), 400), 'lo que iba en camino no terminó'); await hasta(() => false, 30); };
+
+  test('«Ir a mi cuenta» enseguida, mientras se prepara: el PDF ya guardado y el pantallazo que llega después suben juntos, una vez cada uno', async () => {
+    const idb = idbDeMentira();
+    const { g, p } = await conAlgoEnCamino({}, idb);
+    /* «Abrir mi cuenta» salió bien, y en la misma vuelta «Ir a mi cuenta»:
+       pintarCuenta suelta lo sensible del registro (soltarArchivos). */
+    const encolado = g.encolar('i1', CEL);
+    g.soltarArchivos();
+    await hasta(() => false, 20);
+    p.soltar();
+    assert.equal(await encolado, true);
+    await terminado(g);
+    const c = await g.cola(CEL);
+    assert.ok(c && c.aut && c.aut.version, 'la autorización no quedó en la cola');
+    assert.deepEqual(c.archivos.map(x => x.tipo), ['pdf', 'png'], 'no quedaron en la cola el PDF ya guardado y el pantallazo que llegó después');
+    assert.equal(idb.datos.has('reg'), false, 'quedó algo huérfano en el registro del teléfono');
+    const llamadas = [];
+    const r = await HL.subirCola(g, CEL, fn => { llamadas.push(fn); return Promise.resolve({ ok: true }); });
+    assert.deepEqual(llamadas, ['pension_autorizar', 'pension_subir', 'pension_subir']);
+    assert.equal(HL.avisoDeLaCola(r).html, '<b>Tu historia laboral llegó</b> (2 archivos).');
+    assert.equal(idb.datos.size, 0, 'algo quedó en el teléfono después de subir: ' + [...idb.datos.keys()]);
+  });
+
+  test('la página se recarga mientras se prepara: la autorización y el PDF ya guardado siguen en el teléfono, y la página nueva los sube', async () => {
+    const idb = idbDeMentira(), datos = {};
+    /* El pantallazo no termina de prepararse: la página se cierra antes (el
+       tope corto es solo para no dejar un reloj de 30 s colgando la prueba). */
+    const { g } = await conAlgoEnCamino(datos, idb, { msTope: 300 });
+    g.encolar('i1', CEL);
+    await hasta(() => false, 20);
+    /* La página vuelta a abrir (Android cerró la pestaña mientras ella iba a
+       WhatsApp): el mismo teléfono, otra memoria. Lo que la otra preparaba murió con ella. */
+    const g2 = HL.guardadero({ ls: almacen(datos), idb, ahora: () => T0 });
+    const c = await g2.cola(CEL);
+    assert.ok(c && c.aut && c.aut.version, 'la recarga se llevó la autorización');
+    assert.deepEqual(c.archivos.map(x => x.tipo), ['pdf'], 'la recarga se llevó el PDF ya guardado');
+    const llamadas = [];
+    await HL.subirCola(g2, CEL, fn => { llamadas.push(fn); return Promise.resolve({ ok: true }); });
+    assert.deepEqual(llamadas, ['pension_autorizar', 'pension_subir']);
+    assert.equal(idb.datos.size, 0);
+  });
+
+  test('lo que llega tarde solo entra con la autorización vigente: si la retiró en esos segundos, no se guarda en ninguna parte', async () => {
+    const idb = idbDeMentira();
+    const { g, p } = await conAlgoEnCamino({}, idb);
+    const encolado = g.encolar('i1', CEL);
+    await hasta(() => false, 20);
+    /* La retira en el Perfil: la tarjeta borra la cola de ESTA cuenta en el teléfono (soltarLaCola). */
+    await g.guardarCola(CEL, null);
+    p.soltar();
+    await encolado;
+    await terminado(g);
+    assert.equal(await g.cola(CEL), null, 'lo que llegó tarde armó una cola para quien retiró su autorización: subiría y la volvería a dar');
+    assert.equal(idb.datos.size, 0, 'lo que llegó tarde quedó en el teléfono: ' + [...idb.datos.keys()]);
+  });
+
+  test('lo que estaba en camino y no alcanzó a abrirse (el tope) se dice en la caja de la cuenta, con dónde escogerlo otra vez', async () => {
+    const idb = idbDeMentira();
+    const colgado = { name: 'colgado.png', arrayBuffer: () => new Promise(() => {}) };
+    const { g } = await conAlgoEnCamino({}, idb, { msTope: 150, blob: colgado });
+    const encolado = g.encolar('i1', CEL);
+    await hasta(() => false, 20);
+    /* Mientras tanto la cuenta recién abierta dice por qué espera (play/, TEXTOS.terminandoCola). */
+    assert.equal(!!(g.colaEnEspera && g.colaEnEspera(CEL)), true, 'la cuenta no sabría que la cola espera algo que se está preparando');
+    assert.equal(await encolado, true);
+    let empezo = 0;
+    const r = await HL.subirCola(g, CEL, () => Promise.resolve({ ok: true }), { alSubir: () => { empezo++; } });
+    assert.equal(empezo, 1, 'no avisó cuando dejó de esperar y empezó a subir');
+    assert.deepEqual([r.subidos, (r.noLlegaron || []).map(x => x.motivo)], [1, ['tardo']]);
+    const dice = HL.avisoDeLaCola(r).html.replace(/<[^>]+>/g, '');
+    assert.ok(dice.indexOf('Tu historia laboral llegó (1 archivo). No entró un archivo: ' + HL.MOTIVOS.tardo) === 0, dice);
+    assert.ok(dice.indexOf(HL.TEXTOS.dondeFalte) > 0, 'no dice dónde escogerlo otra vez: ' + dice);
+    assert.equal(g.colaEnEspera(CEL), false);
+    /* Se dice una vez: otra subida después no lo repite. */
+    assert.deepEqual(await g.colaLista(CEL), []);
   });
 });
 

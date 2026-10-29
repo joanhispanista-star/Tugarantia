@@ -67,6 +67,9 @@
  *     la memoria de la página, y la pantalla lo dice.
  *   · Al abrir la cuenta pasan a la COLA de esa cuenta (su celular), y solo la
  *     sesión de esa cuenta los sube. Ningún otro registro la toca.
+ *     29-oct-2026 — la cola se escribe en el acto con lo ya guardado; lo que
+ *     todavía se estaba preparando se le suma al terminar, y la subida lo
+ *     espera (ver ENCOLADO, en el guardadero). Salir del registro no la toca.
  *   · 28-oct-2026 (arreglo, ronda 1) — EL PASO MANDA A LA PERSONA AFUERA, Y
  *     AFUERA CORRE EL RELOJ DE LA CÁMARA. Al volver, la página se rige por la
  *     regla de las fotos (app/escaner-cedula.js, MINUTOS_VUELTA_DE_LA_CAMARA):
@@ -283,7 +286,12 @@
       'tu cuenta: Perfil → «📄 Tu historia laboral» (en la app instalada, en Inicio).',
     /* 28-oct-2026 (segunda revisión, ronda 2) — el paso que se monta con
        archivos todavía en camino (ver «LO QUE VA EN CAMINO»). */
-    terminando: 'Un momento: estamos terminando con los archivos que escogiste…'
+    terminando: 'Un momento: estamos terminando con los archivos que escogiste…',
+    /* 29-oct-2026 (arreglador, el grave de la verificación final) — lo mismo
+       en la caja de la cuenta recién abierta, donde ya no se ve el paso: si al
+       tocar «Abrir mi cuenta» algo seguía preparándose, la subida lo espera
+       (ver ENCOLADO, en el guardadero) y la caja dice por qué. */
+    terminandoCola: 'Un momento: estamos terminando de preparar los archivos de tu historia laboral que escogiste…'
   };
 
   var MOTIVOS = {
@@ -730,6 +738,21 @@
        el paso montado otra vez lo dice al terminar, porque la pantalla de
        donde salió ya no está a la vista. */
     var EN_CAMINO = 0, AL_TERMINAR = [], MALOS_EN_CAMINO = [];
+    /* 29-oct-2026 (arreglador, el grave de la verificación final, ronda 2) —
+       EL REGISTRO QUE «ABRIR MI CUENTA» YA PASÓ A LA COLA. Desde 533e232,
+       encolar esperaba a lo que iba en camino ANTES de leer lo ya guardado, y
+       en esa espera «Ir a mi cuenta» (pintarCuenta → soltarLoSensibleDelRegistro
+       → soltarArchivos) borraba 'reg' con el PDF que el paso había prometido
+       subir; si la página se recargaba, la cola nunca se escribía y se perdía
+       también la autorización. Visto en Chrome sin ventana (Android de 412 px e
+       iPhone de 390 px, CPU ×6): la base quedaba con 0 archivos, o sin fila.
+       Ahora encolar deja la cola EN EL ACTO (la autorización y lo ya guardado,
+       como antes de 533e232), y lo que llega tarde se SUMA a esa cola (alaCola)
+       mientras esto dice de qué registro es: `abierto` hasta que no quede nada
+       en camino. Soltar el registro nunca toca la cola. `lista` se cumple
+       cuando ya no puede entrar nada más, con los motivos de lo que no entró
+       (la subida lo dice: subirCola). */
+    var ENCOLADO = null;
 
     function abrir() {
       if (dbP) return dbP;
@@ -813,6 +836,42 @@
       return !!(x && intento && celular && x.intento === String(intento) && x.celular === String(celular) &&
                 ahora() - Number(x.t) >= 0 && ahora() - Number(x.t) < horas * 3600e3);
     }
+    /* Lo escogido y los archivos del registro se van; la cola, no. Es olvidar
+       SIN subir la generación: lo que venía en camino de ESTE registro no es
+       de una persona anterior, y tiene que poder sumarse a la cola. */
+    function soltarElRegistro() {
+      ESTADO_MEM = null;
+      try { if (ls) ls.removeItem(LLAVE_ESTADO); } catch (x) {}
+      return escribir('reg', null);
+    }
+    /* Las escrituras de la cola de un registro encolado van en fila (cadena):
+       sumar lo que llega tarde es leer y volver a escribir, y dos a la vez, o
+       un borrado en medio (retirar la autorización), perderían uno. */
+    function enFila(enc, f) {
+      var p = enc.cadena.then(f);
+      enc.cadena = p.then(null, function () {});
+      return p;
+    }
+    /* Lo que llega tarde, a la cola, SOLO si la autorización de ESE registro
+       sigue vigente: su cola sigue ahí (retirar la autorización la borra), es
+       de ese registro y de ese celular, y no ha vencido. Si no, no se guarda
+       en ninguna parte: nada huérfano en el teléfono. */
+    function alaCola(enc, a) {
+      return enFila(enc, function () {
+        return leer('cola:' + enc.celular).then(function (c) {
+          var vigente = !!(c && typeof c === 'object' && c.celular === enc.celular && c.intento === enc.intento &&
+            c.aut && c.aut.version && ahora() - Number(c.t) >= 0 && ahora() - Number(c.t) < HORAS_ARCHIVOS * 3600e3);
+          if (!vigente) return { ok: false, motivo: 'sin_autorizacion' };
+          var lista = Array.isArray(c.archivos) ? c.archivos : [];
+          var rv = revisarNuevo(lista, a && a.tipo, a && a.bytes, a && a.sha256);
+          if (!rv.ok) return rv;
+          if (lista.some(function (x) { return x.base64 === a.base64; })) return { ok: false, motivo: 'repetido' };
+          var id = ahora().toString(36) + Math.random().toString(36).slice(2, 8);
+          c.archivos = lista.concat([{ id: id, tipo: a.tipo, bytes: a.bytes, base64: a.base64, sha256: a.sha256 || '' }]);
+          return escribir('cola:' + enc.celular, c).then(function () { return { ok: true, motivo: '', id: id }; });
+        });
+      });
+    }
     var g = {
       /** Lo escogido en ESTE registro (intento y celular); si no, uno nuevo. */
       estado: function (intento, celular) {
@@ -850,6 +909,14 @@
         var gen = GEN;
         return g.archivos(intento, celular).then(function (r) {
           if (gen !== GEN) return { ok: false, motivo: 'repetido' };
+          /* 29-oct-2026 (arreglador, el grave de la verificación final) — lo
+             que estaba en camino cuando «Abrir mi cuenta» se llevó ESTE
+             registro a la cola entra a la cola (ver ENCOLADO). Se mira aquí,
+             después de leer, y no al llamar: si «Abrir mi cuenta» llegó en
+             medio, su lectura de 'reg' ya está pedida, y escribir ahí sería
+             perderlo. */
+          var enc = ENCOLADO;
+          if (enc && enc.abierto && enc.intento === String(intento) && enc.celular === String(celular)) return alaCola(enc, a);
           /* 28-oct-2026 (arreglador final, L3 y L4 de la ronda 3) — SIN LA
              AUTORIZACIÓN VIGENTE DE ESTE REGISTRO NO ENTRA NADA, y se mira aquí,
              justo antes de escribir, en lo escogido del guardadero (no en la
@@ -897,26 +964,46 @@
        * esa cuenta. Sin la autorización no se encola nada (y se suelta). Lo
        * escogido se lee YA, antes de cualquier espera: el registro en memoria
        * se cierra en la línea siguiente de quien llama.
+       * Se cumple (true) cuando la cola quedó escrita, EN EL ACTO; lo que
+       * seguía en camino entra después (colaLista dice cuándo).
        */
       encolar: function (intento, celular) {
         var e = g.estado(intento, celular);
         var aut = e.aut, fondos = (e.fondos || []).slice();
-        /* 28-oct-2026 (arreglador final, L3 de la ronda 3) — PRIMERO LO QUE VA
-           EN CAMINO. Quien ya había llenado los pasos 9 a 11, volvía al 8,
-           escogía tres pantallazos pesados y seguía de una (cuatro toques en
-           1,7 s, CPU ×6) abría la cuenta antes de que terminaran: la cola
-           salía vacía («Guardamos tu autorización y tu fondo…», 0 en la base)
-           y los tres se escribían después en un registro ya cerrado, huérfanos
-           en el teléfono. La cuenta no espera por esto (ya está creada); la
-           cola sí, y cada archivo tiene su tope (SEGUNDOS_TOPE). */
-        return new Promise(function (listo) { g.alTerminar(function () { listo(); }); }).then(function () {
-          return g.archivos(intento, celular);
-        }).then(function (r) {
-          if (!aut || !aut.version) return g.olvidar().then(function () { return false; });
-          var cola = { celular: String(celular), t: ahora(), aut: aut, fondos: fondos, autorizada: false,
+        if (!aut || !aut.version) return g.olvidar().then(function () { return false; });
+        /* 28-oct-2026 (arreglador final, L3 de la ronda 3) — quien ya había
+           llenado los pasos 9 a 11, volvía al 8, escogía tres pantallazos
+           pesados y seguía de una (cuatro toques en 1,7 s, CPU ×6) abría la
+           cuenta antes de que terminaran: la cola salía vacía y los tres se
+           escribían después en un registro ya cerrado, huérfanos en el
+           teléfono.
+           29-oct-2026 (arreglador, el grave de la verificación final) — el
+           arreglo de entonces fue ESPERARLOS antes de leer lo ya guardado, y
+           en esa espera «Ir a mi cuenta» soltaba el PDF ya guardado, y una
+           recarga se llevaba la autorización (ver ENCOLADO). Ahora la cola
+           se escribe ya, con lo guardado, y lo que va en camino se le suma al
+           terminar (agregar → alaCola). ENCOLADO se anota ANTES de leer: lo
+           que termine de prepararse desde aquí ya no puede caer en 'reg'. Lo
+           que no entró antes de este toque ya lo dijo el paso (`desde`). */
+        var cel = String(celular), cerrar = null;
+        var enc = { intento: String(intento), celular: cel, abierto: true, dicho: false, cadena: null, lista: null };
+        enc.lista = new Promise(function (r) { cerrar = r; });
+        ENCOLADO = enc;
+        var desde = MALOS_EN_CAMINO.length;
+        var escrita = g.archivos(intento, celular).then(function (r) {
+          var cola = { celular: cel, intento: enc.intento, t: ahora(), aut: aut, fondos: fondos, autorizada: false,
                        archivos: r.lista.map(function (a) { return { id: a.id, tipo: a.tipo, bytes: a.bytes, base64: a.base64, sha256: a.sha256 }; }) };
-          return escribir('cola:' + celular, cola).then(function () { return g.olvidar(); }).then(function () { return true; });
+          return escribir('cola:' + cel, cola);
+        }).then(function () { return soltarElRegistro(); });
+        enc.cadena = escrita.then(null, function () {});
+        /* Cuando ya no quede nada en camino (y lo último que llegó ya esté en
+           la cola), el registro se cierra del todo. Con nada en camino, eso es
+           en cuanto la cola queda escrita. */
+        g.alTerminar(function (malos) {
+          var tarde = (malos || []).slice(desde);
+          enc.cadena.then(function () { enc.abierto = false; cerrar(tarde); });
         });
+        return escrita.then(function () { return true; });
       },
       cola: function (cel) {
         if (!cel) return Promise.resolve(null);
@@ -926,7 +1013,36 @@
           return escribir('cola:' + cel, null).then(function () { return null; });
         });
       },
-      guardarCola: function (cel, c) { return escribir('cola:' + cel, c || null); },
+      /* 29-oct-2026 — en fila con lo que llega tarde mientras el registro
+         encolado siga abierto: si la persona retira su autorización en esos
+         segundos (la tarjeta del Perfil borra la cola), lo que llegue después
+         ya no encuentra cola y no se guarda. */
+      guardarCola: function (cel, c) {
+        var enc = ENCOLADO;
+        if (enc && enc.abierto && enc.celular === String(cel)) return enFila(enc, function () { return escribir('cola:' + cel, c || null); });
+        return escribir('cola:' + cel, c || null);
+      },
+      /** 29-oct-2026 — ¿La cola de `cel` todavía espera algo que se está preparando en esta página? */
+      colaEnEspera: function (cel) {
+        var enc = ENCOLADO;
+        return !!(enc && enc.abierto && enc.celular === String(cel) && EN_CAMINO > 0);
+      },
+      /**
+       * 29-oct-2026 — Se cumple cuando ya no puede entrar nada más a la cola de
+       * `cel` desde esta página (ya mismo, si no hay nada en camino), con los
+       * motivos de lo que estaba en camino al abrir la cuenta y no entró
+       * ('tardo', 'repetido'…). Esos motivos se entregan UNA vez: quien sube
+       * la cola los dice, y otra subida después no los repite.
+       */
+      colaLista: function (cel) {
+        var enc = ENCOLADO;
+        if (!enc || enc.celular !== String(cel)) return Promise.resolve([]);
+        return enc.lista.then(function (tarde) {
+          if (enc.dicho) return [];
+          enc.dicho = true;
+          return tarde || [];
+        });
+      },
       /**
        * 28-oct-2026 (arreglo de los leves, P7) — EL BARRIDO DE LO VENCIDO.
        * «Caducan al día» era perezoso: la cola de una cuenta ('cola:<celular>')
@@ -1024,51 +1140,64 @@
    * del teléfono. Antes caía en 'sin_red' y, cada vez que entraba, la
    * pantalla le decía «no alcanzó a subir… Lo volvemos a intentar» con la
    * historia laboral de alguien que ya dijo que no.
+   * 29-oct-2026 (arreglador, el grave de la verificación final) — PRIMERO LO
+   * QUE VA EN CAMINO. Si al abrir la cuenta algo se estaba preparando, entra
+   * a la cola al terminar (ver ENCOLADO, en el guardadero), y la subida lo
+   * espera (g.colaLista): subir antes y borrar la cola al final lo dejaría
+   * por fuera. Lo que de eso no entró (el que no terminó de abrirse, uno
+   * repetido) va en `noLlegaron`, y el aviso lo dice. `o.alSubir()`, si
+   * viene, avisa cuando ya no se espera nada y empieza a subir.
    */
-  function subirCola(g, cel, llamar) {
-    return g.cola(cel).then(function (c) {
-      if (!c) return { estado: 'nada', subidos: 0, rechazados: [], total: 0, pendientes: 0 };
-      var res = { estado: 'ok', subidos: 0, rechazados: [], total: c.archivos.length, pendientes: 0 };
-      var autorizar = c.autorizada ? Promise.resolve() :
-        Promise.resolve(llamar('pension_autorizar', { p_fondos: c.fondos || [], p_version: c.aut.version, p_momento: c.aut.momento || null }))
-          .then(function (j) {
-            if (j && j.ok === false && j.motivo === 'fondos' && (c.fondos || []).length) {
-              c.fondos = [];
-              return llamar('pension_autorizar', { p_fondos: [], p_version: c.aut.version, p_momento: c.aut.momento || null });
-            }
-            return j;
-          })
-          .then(function (j) {
-            if (j && j.ok === true) { c.autorizada = true; return g.guardarCola(cel, c); }
-            throw { motivo: (j && j.motivo) || 'rechazo' };
-          });
-      return autorizar.then(function () {
-        return c.archivos.slice().reduce(function (p, a) {
-          return p.then(function () {
-            return Promise.resolve(llamar('pension_subir', { p_archivo: a.base64 })).then(function (j) {
-              var fuera = function () { c.archivos = c.archivos.filter(function (x) { return x.id !== a.id; }); return g.guardarCola(cel, c); };
-              if (j && j.ok === true) { res.subidos++; return fuera(); }
-              if (j && RECHAZOS_FINALES.indexOf(j.motivo) >= 0) { res.rechazados.push({ tipo: a.tipo, motivo: j.motivo }); return fuera(); }
+  function subirCola(g, cel, llamar, o) {
+    var esperar = (g && typeof g.colaLista === 'function') ? g.colaLista(cel) : null;
+    return Promise.resolve(esperar).then(null, function () { return []; }).then(function (tarde) {
+      return g.cola(cel).then(function (c) {
+        if (!c) return { estado: 'nada', subidos: 0, rechazados: [], total: 0, pendientes: 0 };
+        if (o && typeof o.alSubir === 'function') { try { o.alSubir(); } catch (e) {} }
+        var res = { estado: 'ok', subidos: 0, rechazados: [], total: c.archivos.length, pendientes: 0,
+                    noLlegaron: (tarde || []).filter(function (m) { return m && m !== 'sin_autorizacion'; })
+                      .map(function (m) { return { tipo: '', motivo: m }; }) };
+        var autorizar = c.autorizada ? Promise.resolve() :
+          Promise.resolve(llamar('pension_autorizar', { p_fondos: c.fondos || [], p_version: c.aut.version, p_momento: c.aut.momento || null }))
+            .then(function (j) {
+              if (j && j.ok === false && j.motivo === 'fondos' && (c.fondos || []).length) {
+                c.fondos = [];
+                return llamar('pension_autorizar', { p_fondos: [], p_version: c.aut.version, p_momento: c.aut.momento || null });
+              }
+              return j;
+            })
+            .then(function (j) {
+              if (j && j.ok === true) { c.autorizada = true; return g.guardarCola(cel, c); }
               throw { motivo: (j && j.motivo) || 'rechazo' };
             });
-          });
-        }, Promise.resolve());
-      }).then(function () {
-        /* 28-oct-2026 (arreglo de los leves, P2) — y con qué fondos quedó (la
-           base pudo no aceptarlos): el aviso dice lo que pasó con ellos. */
-        res.fondos = (c.fondos || []).slice();
-        return g.guardarCola(cel, null).then(function () { return res; });
-      }, function (e) {
-        var st = e && e.status, m = e && e.motivo;
-        if (m === 'sin_autorizacion') {
-          res.estado = 'retirada'; res.pendientes = 0;
+        return autorizar.then(function () {
+          return c.archivos.slice().reduce(function (p, a) {
+            return p.then(function () {
+              return Promise.resolve(llamar('pension_subir', { p_archivo: a.base64 })).then(function (j) {
+                var fuera = function () { c.archivos = c.archivos.filter(function (x) { return x.id !== a.id; }); return g.guardarCola(cel, c); };
+                if (j && j.ok === true) { res.subidos++; return fuera(); }
+                if (j && RECHAZOS_FINALES.indexOf(j.motivo) >= 0) { res.rechazados.push({ tipo: a.tipo, motivo: j.motivo }); return fuera(); }
+                throw { motivo: (j && j.motivo) || 'rechazo' };
+              });
+            });
+          }, Promise.resolve());
+        }).then(function () {
+          /* 28-oct-2026 (arreglo de los leves, P2) — y con qué fondos quedó (la
+             base pudo no aceptarlos): el aviso dice lo que pasó con ellos. */
+          res.fondos = (c.fondos || []).slice();
           return g.guardarCola(cel, null).then(function () { return res; });
-        }
-        res.estado = st === 404 ? 'apagado'
-          : (st === 401 || st === 403 || m === 'sin_sesion' || (e && e.sinSesion)) ? 'sesion'
-          : m === 'freno' ? 'freno' : m === 'lleno' ? 'lleno' : 'sin_red';
-        res.pendientes = c.archivos.length;
-        return res;
+        }, function (e) {
+          var st = e && e.status, m = e && e.motivo;
+          if (m === 'sin_autorizacion') {
+            res.estado = 'retirada'; res.pendientes = 0;
+            return g.guardarCola(cel, null).then(function () { return res; });
+          }
+          res.estado = st === 404 ? 'apagado'
+            : (st === 401 || st === 403 || m === 'sin_sesion' || (e && e.sinSesion)) ? 'sesion'
+            : m === 'freno' ? 'freno' : m === 'lleno' ? 'lleno' : 'sin_red';
+          res.pendientes = c.archivos.length;
+          return res;
+        });
       });
     });
   }
@@ -1077,12 +1206,18 @@
     if (!r || r.estado === 'nada') return { clase: '', html: '' };
     var quedan = 'Lo volvemos a intentar cuando entres a tu cuenta en este teléfono, hasta mañana. Si no, súbela desde tu cuenta en la app.';
     if (r.estado === 'ok') {
-      var malos = r.rechazados.length
-        ? ' No entró ' + (r.rechazados.length === 1 ? 'un archivo' : r.rechazados.length + ' archivos') + ': ' +
-          esc(motivoEnPalabras(r.rechazados[0].motivo === 'demasiados' ? 'demasiados' : r.rechazados[0].motivo)) : '';
-      if (r.subidos) return { clase: 'verde', html: '<b>Tu historia laboral llegó</b> (' + esc(resumenDe(r.subidos, r)) + ').' + malos };
-      if (r.rechazados.length) return { clase: 'ambar', html: '<b>Tu historia laboral no entró.</b>' + malos };
-      return { clase: 'verde', html: guardamosSinArchivos(r.fondos) };
+      /* 29-oct-2026 (arreglador, el grave de la verificación final) — y lo que
+         se estaba preparando al abrir la cuenta y no llegó a la cola
+         (noLlegaron, ver subirCola): la persona lo escogió y el paso ya no está
+         a la vista para decirlo. Con dónde escogerlo otra vez: el Perfil. */
+      var tarde = r.noLlegaron || [], fuera = r.rechazados.concat(tarde);
+      var malos = fuera.length
+        ? ' No entró ' + (fuera.length === 1 ? 'un archivo' : fuera.length + ' archivos') + ': ' +
+          esc(motivoEnPalabras(fuera[0].motivo === 'demasiados' ? 'demasiados' : fuera[0].motivo)) : '';
+      var donde = tarde.length ? ' ' + esc(TEXTOS.dondeFalte) : '';
+      if (r.subidos) return { clase: 'verde', html: '<b>Tu historia laboral llegó</b> (' + esc(resumenDe(r.subidos, r)) + ').' + malos + donde };
+      if (r.rechazados.length) return { clase: 'ambar', html: '<b>Tu historia laboral no entró.</b>' + malos + donde };
+      return { clase: tarde.length ? 'ambar' : 'verde', html: guardamosSinArchivos(r.fondos) + malos };
     }
     /* 28-oct-2026 (arreglo de los leves, P13) — sin «súbela desde tu cuenta»:
        con la base así, la tarjeta de la cuenta tampoco aparece. Y lo que de
@@ -1839,7 +1974,7 @@
   }
 
   return {
-    VERSION: '2026-10-28',
+    VERSION: '2026-10-29',
     VERSION_AUTORIZACION: VERSION_AUTORIZACION,
     LIMITES: LIMITES,
     HORAS_ARCHIVOS: HORAS_ARCHIVOS,
