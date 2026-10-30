@@ -1360,10 +1360,11 @@ describe('segunda revisión del 17-oct: el tablero de quincenas cuenta el crédi
     P.ev('renderKpis()');
     assert.match(textoDe(P, 'kpis'), /Invertido en el ciclo \$650\.000/);
     P.ev('renderCiclos()');
-    /* Quincena · Invertido · Por cobrar (455.000 el 30-oct) · Ganancia · Descuentos · Vencen. */
-    assert.match(textoDe(P, 'tblCiclos'), /31 de oct de 2026 actual \$650\.000 \$455\.000 \$0 — 1/);
+    /* Quincena · Invertido · Por cobrar (455.000 el 30-oct) · Ganancia · Descuentos · Capital perdido · Vencen.
+       30-oct-2026 — «Capital perdido» es la columna nueva, pegada a los descuentos. */
+    assert.match(textoDe(P, 'tblCiclos'), /31 de oct de 2026 actual \$650\.000 \$455\.000 \$0 — — 1/);
     /* La cuota 2 todavía no es la que vence: en la del 17-nov no cuenta. */
-    assert.match(textoDe(P, 'tblCiclos'), /17 de nov de 2026 \$0 \$0 \$0 — 0/);
+    assert.match(textoDe(P, 'tblCiclos'), /17 de nov de 2026 \$0 \$0 \$0 — — 0/);
   });
 
   test('cobrada la cuota 1, el crédito pasa a la quincena del 17-nov', () => {
@@ -1371,7 +1372,7 @@ describe('segunda revisión del 17-oct: el tablero de quincenas cuenta el crédi
     abrirCobro(P, '2026-10-30'); P.ev("registrarCobro('p1')");
     assert.equal(P.ev("invertidoEnQuincena('2026-11-17')"), 325000);
     P.ev('renderCiclos()');
-    assert.match(textoDe(P, 'tblCiclos'), /17 de nov de 2026 (actual )?\$325\.000 \$390\.000 \$0 — 1/);
+    assert.match(textoDe(P, 'tblCiclos'), /17 de nov de 2026 (actual )?\$325\.000 \$390\.000 \$0 — — 1/);
   });
 });
 

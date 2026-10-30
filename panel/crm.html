@@ -422,6 +422,17 @@
   .pista-monto:empty{display:none}
   .pista-monto{margin-top:8px;padding:8px 10px;border-radius:8px;font-size:12.5px;line-height:1.45;
     color:var(--tinta);background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35)}
+  /* 30-oct-2026 — EL RECUADRO DE «SE LO PERDONÉ»: lo que se le perdona, partido
+     en mora, costo y capital (el capital en rojo: es pérdida), y la casilla que
+     la reconoce. Va en papel y no en ámbar para que las cifras se lean como
+     cuentas y no como un aviso más. */
+  .perdon-cierre{background:var(--papel);border:1px solid var(--ambar-medio);border-radius:10px;padding:11px 13px;margin:8px 0 10px}
+  .perdon-cierre .tit{font-weight:800;color:var(--tinta);font-size:14px;margin-bottom:4px}
+  .perdon-cierre .calc-row span:first-child{color:var(--tinta-2)}
+  .perdon-cierre .nota{font-size:12.5px;color:var(--gris);margin-top:4px;line-height:1.45}
+  .casilla-perdida{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;margin:8px 0 4px;border-radius:9px;
+    border:1px solid var(--rojo);background:var(--rojo-tinte);font-size:13.5px;cursor:pointer;color:var(--tinta)}
+  .casilla-perdida input{width:auto;margin:2px 0 0;flex:none}
   .sub-h{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--amarillo-tinta);font-weight:800;margin:20px 0 10px;border-top:1px solid var(--linea);padding-top:16px}
   .sub-h:first-child{border:none;padding-top:0;margin-top:0}
   /* La calculadora del crédito quincenal: roja, como el producto. */
@@ -2178,12 +2189,22 @@ function renderKpis(){
      informe: quedaba solo en la ficha de cada cliente, de a uno. La cuenta la
      hace el puente (descuentosDeQuincena), no este archivo. */
   const descCiclo=PUENTE.descuentosDeQuincena(DB,cg);
+  /* 30-oct-2026 — Y EL CAPITAL PERDIDO, PEGADO A LOS DESCUENTOS Y APARTE DE LA
+     GANANCIA. Desde hoy «Se lo perdoné» puede cerrar un crédito con menos del
+     capital (decisión de Joan), y esa plata no es un descuento de la ganancia
+     del ciclo: es plata suya que no vuelve. Se cuenta aparte, nunca mezclada
+     con la ganancia (la pérdida no se esconde). Lo cuenta el puente
+     (capitalPerdidoDeQuincena), con la misma fila que la ganancia del cierre.
+     typeof: con el app/puente.js viejo de la caché la tarjeta no aparece, en
+     vez de tumbar el tablero. */
+  const capCiclo=(typeof PUENTE.capitalPerdidoDeQuincena==='function')?PUENTE.capitalPerdidoDeQuincena(DB,cg):null;
   const moraA=DB.prestamos.filter(p=>estadoPrestamo(p)==='mora');
   document.getElementById('kpis').innerHTML=`
     <div class="kpi"><div class="et">💼 Capital en la calle</div><div class="nm">${COP(capCalle)}</div><div class="x">${act.length} créditos activos</div></div>
     <div class="kpi gan"><div class="et">💰 Ganancia cobrada (total)</div><div class="nm">${COP(ganTotal)}</div><div class="x">costos + prórrogas</div></div>
     <div class="kpi gan"><div class="et">📈 Ganancia ciclo actual</div><div class="nm">${COP(ganCiclo)}</div><div class="x">quincena ${fmtCorto(cg)}</div></div>
     <div class="kpi"><div class="et">🎁 Descuentos dados</div><div class="nm">${COP(descCiclo.total)}</div><div class="x">${descCiclo.total?`${descCiclo.clientes} cliente${descCiclo.clientes===1?'':'s'} · ya restados de la ganancia`:`ninguno en ${fmtCorto(cg)}`}</div></div>
+    ${capCiclo?`<div class="kpi ${capCiclo.capital?'alert':''}"><div class="et">💸 Capital perdido</div><div class="nm">${COP(capCiclo.capital)}</div><div class="x">${capCiclo.capital?`${capCiclo.clientes} cliente${capCiclo.clientes===1?'':'s'} · plata tuya que no vuelve: no se resta de la ganancia`:`ninguno en ${fmtCorto(cg)}`}</div></div>`:''}
     <div class="kpi dark"><div class="et">🏦 Invertido en el ciclo</div><div class="nm">${COP(invCiclo)}</div><div class="x">capital activo en ${fmtCorto(cg)}</div></div>
     <div class="kpi alert"><div class="et">⚠️ En mora</div><div class="nm">${COP(moraA.reduce((s,p)=>s+vencidoHoy(p),0))}</div><div class="x">${moraA.length} vencidos</div></div>`;
 
@@ -5239,16 +5260,19 @@ function renderCiclos(){
      muestra la columna anterior es NETA (gananciaPago es la plata que entró y
      pr.monto ya viene rebajado del motor). Sin ese subtítulo, la pantalla
      invitaría a restar dos veces. */
-  c.innerHTML=`<table><thead><tr><th>Quincena</th><th>Invertido (capital activo)</th><th>Por cobrar</th><th>Ganancia del ciclo</th><th>Descuentos dados<br><span class="muted" style="font-weight:400">ya restados de la ganancia</span></th><th>Vencen</th></tr></thead><tbody>${
+  c.innerHTML=`<table><thead><tr><th>Quincena</th><th>Invertido (capital activo)</th><th>Por cobrar</th><th>Ganancia del ciclo</th><th>Descuentos dados<br><span class="muted" style="font-weight:400">ya restados de la ganancia</span></th><th>Capital perdido<br><span class="muted" style="font-weight:400">no está en la ganancia: no vuelve</span></th><th>Vencen</th></tr></thead><tbody>${
     /* 17-oct-2026, segunda revisión — «Vencen» con la misma vara que «Por
        cobrar»: con cuotas, la quincena que contiene la fecha de la cuota. La
        cuota del 30-oct no es de ninguna fila «30-oct» (no existe) y no salía
        contada en ninguna. */
-    qs.map(q=>{ const vencen=DB.prestamos.filter(p=>{ if(p.pagado)return false; const c=PUENTE.corteDelCredito(p); return (tienePlan(p)?PUENTE.quincenaDe(c):c)===q; }).length,esA=q===cg,d=PUENTE.descuentosDeQuincena(DB,q);
+    qs.map(q=>{ const vencen=DB.prestamos.filter(p=>{ if(p.pagado)return false; const c=PUENTE.corteDelCredito(p); return (tienePlan(p)?PUENTE.quincenaDe(c):c)===q; }).length,esA=q===cg,d=PUENTE.descuentosDeQuincena(DB,q),
+        /* 30-oct-2026 — el capital perdido de la quincena, al lado de su contra-cuenta y fuera de la ganancia. */
+        k=(typeof PUENTE.capitalPerdidoDeQuincena==='function')?PUENTE.capitalPerdidoDeQuincena(DB,q):{capital:0,clientes:0};
       return `<tr style="${esA?'background:var(--rojo-tinte)':''}"><td><b>${fmtFecha(q)}</b>${esA?' <span class="chip mora">actual</span>':''}</td>
       <td class="num">${COP(invertidoEnQuincena(q))}</td><td class="num">${COP(porCobrarEnQuincena(q))}</td>
       <td class="gano">${COP(gananciaDeQuincena(q))}</td>
       <td class="num">${d.total?`${COP(d.total)}<div class="muted">${d.mora?'mora '+COP(d.mora):''}${d.mora&&d.costo?' · ':''}${d.costo?'costo '+COP(d.costo):''} · ${d.clientes} cliente${d.clientes===1?'':'s'}</div>`:'—'}</td>
+      <td class="num">${k.capital?`<span class="pierde">${COP(k.capital)}</span><div class="muted">${k.clientes} cliente${k.clientes===1?'':'s'}</div>`:'—'}</td>
       <td class="num">${vencen}</td></tr>`;}).join('')}</tbody></table>`;
 }
 
@@ -5731,6 +5755,11 @@ function verCliente(id){
      desde ahí miente para siempre. Tenerlo en la ficha es lo que convierte un
      favor suelto en una política. */
   const dsc=PUENTE.descuentosDelSocio(DB,s), perdones={length:dsc.veces}, perdonado=dsc.monto;
+  /* 30-oct-2026 — el capital que has perdido con este cliente (cierres con
+     «Se lo perdoné» por menos del capital y perdones de capital de sus pactos),
+     en su propio renglón y en rojo: va dentro de los descuentos de arriba, pero
+     no es lo mismo perdonarle tu ganancia que perderle tu plata. */
+  const capPerdido=(typeof PUENTE.capitalPerdidoDelSocio==='function')?PUENTE.capitalPerdidoDelSocio(DB,s):{capital:0,creditos:0};
   /* 22-oct-2026 — de qué fue el perdón, con el capital que perdonó un pago
      acordado (el monto del puente lo trae; costo y mora van aparte). Decía
      « de mora» de un perdón que era todo capital. */
@@ -5841,6 +5870,7 @@ function verCliente(id){
     <div class="info-row"><span class="k">Cupo quincenal <span class="muted">(su garantía, uno a uno)</span></span><span class="vv"><b>${COP(qCupo.cupo)}</b>${qCupo.freno.aplicado?` <span class="muted">(topado por el freno de ingreso: sin él sería ${COP(qCupo.freno.cupo_sin_freno)})</span>`:''}</span></div>
     <div class="info-row"><span class="k">Riesgo (sugerido)</span><span class="vv"><span class="chip ${r.cls}">${r.txt}</span> <span class="muted">${npr} prórroga${npr!==1?'s':''} de ${ps.length} crédito${ps.length!==1?'s':''}</span></span></div>
     ${perdones.length?`<div class="info-row"><span class="k">Descuentos que le has dado</span><span class="vv"><b>${COP(perdonado)}</b> <span class="muted">en ${perdones.length} perdón${perdones.length!==1?'es':''}${partesDelPerdon(dsc)}, con motivo anotado</span></span></div>`:''}
+    ${capPerdido.capital?`<div class="info-row"><span class="k">Capital perdido con él</span><span class="vv"><b class="pierde">${COP(capPerdido.capital)}</b> <span class="muted">en ${capPerdido.creditos} crédito${capPerdido.creditos!==1?'s':''} · plata tuya que no vuelve (ya va dentro de los descuentos de arriba)</span></span></div>`:''}
     ${aFavorTotal>0?`<div class="info-row"><span class="k">Te ha pagado de más</span><span class="vv"><b>${COP(aFavorTotal)}</b> <span class="muted">anotado en sus créditos · NO se descuenta solo del siguiente: se lo aplicas tú a mano o se lo devuelves</span></span></div>`:''}
     ${fila('Celular',waNum(s)+(s.whatsappIgual?' (es WhatsApp)':(s.whatsappNumero?' · WA: '+s.whatsappNumero:'')))}
     ${fila('Celular 2 (opcional)',s.telefono2)}
@@ -6651,7 +6681,12 @@ function verCredito(id){
   const vencidaDe=n=>vencidas.find(v=>Number(v.n)===Number(n));
   const cuotaHTML=c=>{
     const v=!c.pagado&&vencidaDe(c.n);
-    const chip=c.pagado
+    /* 30-oct-2026 — la cuota cerrada con «Se lo perdoné» y pérdida de capital
+       dice lo que se perdió, y su cifra es lo que ENTRÓ por ella (su total menos
+       el capital perdido, más la mora que sí entró). */
+    const chip=(c.pagado&&Number(c.capitalPerdido)>0)
+      ? `<span class="chip mora">Cerrada con perdón ${fmtFecha(c.fechaPagado)} · se perdieron ${COP(c.capitalPerdido)} de capital</span>`
+      : c.pagado
       ? ((c.saldadoAntes&&c.costoPactado!=null)
           ? `<span class="chip pagado">Saldada antes · ${Number(c.costo)>0?`costo ${COP(c.costo)} de ${COP(c.costoPactado)} pactados`:`sin costo (pactado ${COP(c.costoPactado)})`}</span>`
           : `<span class="chip pagado">Pagada ${fmtFecha(c.fechaPagado)}${c.saldadoAntes?' · al saldar':''}</span>`)
@@ -6660,7 +6695,7 @@ function verCredito(id){
       const partes=[]; if(a.moraPagada) partes.push('mora '+COP(a.moraPagada)); if(a.costoPagado) partes.push('costo '+COP(a.costoPagado)); if(a.monto) partes.push('capital '+COP(a.monto));
       return `<div class="info-row" style="padding-left:14px"><span class="k muted">↳ abono del ${fmtFecha(a.fecha)}</span><span class="vv">${COP(a.recibido)} <span class="muted">(${partes.join(' + ')||'—'})</span></span></div>`;
     }).join('');
-    return `<div class="info-row"><span class="k">Cuota ${c.n} · ${fmtFecha(c.fecha)}${c.pct?` · ${c.pct}%`:''}${c.recargo?` <span class="muted">+${COP(c.recargo)} de mora</span>`:''}</span><span class="vv"><b class="num">${COP(c.total+(c.recargo||0))}</b> ${chip}</span></div>${abonos}`;
+    return `<div class="info-row"><span class="k">Cuota ${c.n} · ${fmtFecha(c.fecha)}${c.pct?` · ${c.pct}%`:''}${c.recargo?` <span class="muted">+${COP(c.recargo)} de mora</span>`:''}</span><span class="vv"><b class="num">${COP(c.total+(c.recargo||0)-(Number(c.capitalPerdido)||0))}</b> ${chip}</span></div>${abonos}`;
   };
   /* 22-oct-2026 — el próximo pago que acordó Joan: por dentro es una cuota,
      pero se nombra por lo que es, y cada vez que se pactó dice quién, cuándo,
@@ -6729,13 +6764,18 @@ function verCredito(id){
     ${acuerdoDe(p)?`<div class="alerta ${acuerdoIncumplido(p)?'warn':'info'}"><b>🤝 Acuerdo pactado:</b> paga la prórroga de <b>${COP(p.acuerdo.monto)}</b> el <b>${fmtFecha(p.acuerdo.pactadaPara)}</b>.${acuerdoIncumplido(p)?' <b>Ese día no pagó</b>: el precio pactado venció y corre lo causado real.':' El precio queda congelado si cumple.'}
       <div style="margin-top:8px"><button class="btn btn-sm btn-negro" onclick="cumplirAcuerdo('${p.id}')">✓ Cumplió: recibí la prórroga</button>
       <button class="btn btn-ghost btn-sm" onclick="romperAcuerdo('${p.id}')">✕ Deshacer</button></div></div>`:''}
-    <div class="info-row"><span class="k">${cP?'Capital pendiente del crédito':'Capital'}</span><b>${COP(capitalActual(p))}</b></div>
+    ${(p.pagado&&PUENTE.perdidaDelCierre&&PUENTE.perdidaDelCierre(p))
+      /* 30-oct-2026 — cerrado con pérdida, «Capital» (lo que no se pagó) se leería
+         como una deuda viva: se dice lo prestado, y la pérdida va en su renglón. */
+      ?`<div class="info-row"><span class="k">Capital prestado</span><b>${COP(p.capital)}</b></div>`
+      :`<div class="info-row"><span class="k">${cP?'Capital pendiente del crédito':'Capital'}</span><b>${COP(capitalActual(p))}</b></div>`}
     ${filaCosto}
     ${filasSaldo}
     ${filaGanancia}
     <div class="info-row"><span class="k">Desembolso</span><b>${fmtFecha(p.fechaDesembolso)}</b></div>
     <div class="info-row"><span class="k">${p.pagado?'Pagado el':(pactoV?'Paga (fecha acordada)':cP?`Vence la cuota ${cP.n}`:'Vence (quincena)')}</span><b>${p.pagado?fmtFecha(p.fechaPagado):fmtFecha(PUENTE.corteDelCredito(p))}</b></div>
-    ${(()=>{ /* solo los perdones del CIERRE: los de prórroga van en su renglón */ const cc=(p.condonaciones||[]).filter(c=>c&&c.sobre!=='prorroga'&&c.sobre!=='pacto'); /* 22-oct-2026: ni el capital perdonado al pactar, que no es un perdón del cierre */ return p.pagado&&p.montoRecibido!=null&&cc.length?`<div class="info-row"><span class="k">Entró de verdad</span><span class="vv"><b>${COP(p.montoRecibido)}</b> <span class="muted">con ${COP(cc.reduce((t,c)=>t+(Number(c.costo)||0)+(Number(c.mora)||0),0))} perdonados al cerrar: ${escHTML(cc.map(c=>c.motivo).filter(Boolean).join(' · '))}</span></span></div>`:''; })()}
+    ${(()=>{ /* solo los perdones del CIERRE: los de prórroga van en su renglón */ const vig=PUENTE.condonacionDelCierre?PUENTE.condonacionDelCierre(p):null; const cc=(p.condonaciones||[]).filter(c=>c&&c.sobre!=='prorroga'&&c.sobre!=='pacto'&&(c.sobre!=='cierre'||!(Number(c.capital)>0)||c===vig)); /* 22-oct-2026: ni el capital perdonado al pactar, que no es un perdón del cierre. 30-oct-2026: y del cierre con «Se lo perdoné», solo el vigente (el de un cierre que perdió el choque de la nube no ocurrió), con su capital dicho aparte */ const mc=cc.reduce((t,c)=>t+(Number(c.costo)||0)+(Number(c.mora)||0),0), cap=cc.reduce((t,c)=>t+(Number(c.capital)||0),0); return p.pagado&&p.montoRecibido!=null&&cc.length?`<div class="info-row"><span class="k">Entró de verdad</span><span class="vv"><b>${COP(p.montoRecibido)}</b> <span class="muted">con ${COP(mc+cap)} perdonados al cerrar${cap?` (${COP(mc)} de mora y costo + <span class="pierde">${COP(cap)} de capital</span>)`:''}: ${escHTML(cc.map(c=>c.motivo).filter(Boolean).join(' · '))}</span></span></div>`:''; })()}
+    ${PUENTE.perdidaDelCierre&&PUENTE.perdidaDelCierre(p)?`<div class="info-row"><span class="k">Capital perdido al cerrar</span><span class="vv"><b class="pierde">${COP(PUENTE.perdidaDelCierre(p))}</b> <span class="muted">· plata tuya que no vuelve: de los ${COP(p.capital)} prestados volvieron ${COP(PUENTE.capitalRecuperadoDe(p))}</span></span></div>`:''}
     ${p.saldoAFavor>0?`<div class="info-row"><span class="k">Pagó de más</span><span class="vv"><b>${COP(p.saldoAFavor)}</b> <span class="muted">a su favor · anotado acá, NO se aplica solo al crédito siguiente</span></span></div>`:''}
     ${pr?`<div class="sub-h">Prórrogas</div>${pr}`:''}
     ${abs?`<div class="sub-h">Abonos a capital</div>${abs}`:''}
@@ -6871,8 +6911,17 @@ function calcPago(id){
   const e=estadoDelCobro(p,liq), d=e.d;
   if(e.tipo==='prorroga') return calcProrroga(id,p,liq,e,s);
   const lbl=document.getElementById('pgMontoLbl'); if(lbl)lbl.textContent='¿Cuánto pagó?';
-  const perdon=(e.modo==='perdon'&&e.falta>0)?PUENTE.repartoDelDescuento(liq,e.falta,e.sobre):null;
-  const q=PUENTE.cuentasDelCobro(DB,p,liq,(perdon&&!perdon.excede)?{condonaCosto:perdon.costo,condonaMora:perdon.mora}:{});
+  /* 30-oct-2026 — `cierra`: «Se lo perdoné» cierra el crédito, y desde hoy sin
+     tope de capital (decisión de Joan). Lo que pase de mora + costo es capital
+     que se pierde, y el puente lo reparte y lo cuenta (condonaCapital). Solo en
+     el quincenal: en los de cuotas el perdón es del crédito entero y lo pinta
+     perdonDeLaHoja, más abajo. */
+  const perdon=(e.modo==='perdon'&&e.falta>0&&!c)?PUENTE.repartoDelDescuento(liq,e.falta,e.sobre,{cierra:true}):null;
+  const q=PUENTE.cuentasDelCobro(DB,p,liq,(perdon&&!perdon.excede)?{condonaCosto:perdon.costo,condonaMora:perdon.mora,condonaCapital:perdon.capital}:{});
+  /* Y en los de cuotas, el cierre con perdón del crédito entero, si Joan lo
+     eligió: una sola lectura para el bloque de arriba, la pregunta y el botón. */
+  const pdP=(c&&e.modo==='perdon'&&!e.vacio)?perdonDeLaHoja(p,f||hoyISO(),e):null;
+  const conPdP=!!(pdP&&pdP.debia.total>0&&['monto_invalido','no_falta','fecha_anterior','sin_cuotas','pagado','error'].indexOf(pdP.motivo)<0);
   /* La prórroga la contesta el MOTOR para ESTA fecha —cuánto cuesta, a qué
      corte pasa, si le queda alguna— y ya con el % de la mora restado del
      recargo: el % sigue siendo el descuento de la prórroga y del acuerdo. */
@@ -6887,11 +6936,15 @@ function calcPago(id){
      pero no es «un crédito a cuotas» y la hoja no lo llama así. */
   const pactoH=alta&&PUENTE.esPacto&&PUENTE.esPacto(p);
   const aviso=pactoH
-    ? `<div class="alerta info">Este crédito tiene un <b>próximo pago acordado</b>: ${COP(montoEnSuFecha(p))} el <b>${fmtFecha(c.fecha)}</b>. No se prorroga y no tiene descuento. Si trae <b>una parte</b>, escríbela en «¿Cuánto pagó?»: va primero a la mora, después al costo y después al capital, y lo que falta sigue con la misma fecha. Mientras no venza, lo puedes volver a acordar con «✏️ Ajustar el próximo pago».</div>`
+    /* 30-oct-2026 — decía «no tiene descuento», y desde hoy lo tiene: «Se lo
+       perdoné» cierra el crédito entero con lo que traiga (decisión de Joan).
+       Se dice aquí, que es donde Joan mira: una salida que nadie sabe que
+       existe, no existe. */
+    ? `<div class="alerta info">Este crédito tiene un <b>próximo pago acordado</b>: ${COP(montoEnSuFecha(p))} el <b>${fmtFecha(c.fecha)}</b>. No se prorroga. Si trae <b>una parte</b>, escríbela en «¿Cuánto pagó?»: va primero a la mora, después al costo y después al capital, y lo que falta sigue con la misma fecha. Mientras no venza, lo puedes volver a acordar con «✏️ Ajustar el próximo pago». Y si no puede pagar más, «<b>Se lo perdoné</b>» cierra el crédito con lo que traiga.</div>`
     : alta
-    ? `<div class="alerta info">Este crédito es <b>a cuotas</b>: va por la cuota <b>${c.n} de ${cs.length}</b>. No se prorroga y no tiene descuento: se cobra cuota por cuota. Si trae <b>una parte</b>, escríbela en «¿Cuánto pagó?»: va primero a la mora, después al costo y después al capital, y lo que falta sigue en esta cuota y en su fecha. Si quiere <b>pagarlo todo</b>, el costo de las cuotas que no han empezado no se cobra.</div>`
+    ? `<div class="alerta info">Este crédito es <b>a cuotas</b>: va por la cuota <b>${c.n} de ${cs.length}</b>. No se prorroga: se cobra cuota por cuota. Si trae <b>una parte</b>, escríbela en «¿Cuánto pagó?»: va primero a la mora, después al costo y después al capital, y lo que falta sigue en esta cuota y en su fecha. Si quiere <b>pagarlo todo</b>, el costo de las cuotas que no han empezado no se cobra. Y si no puede pagar más, «<b>Se lo perdoné</b>» cierra el crédito entero con lo que traiga.</div>`
     : c
-    ? `<div class="alerta info">Este crédito está en <b>plan de pagos</b>: va por la cuota <b>${c.n} de ${cs.length}</b>. De acá no se sale prorrogando; se cobran las cuotas una por una. El cobro con descuento no está disponible para los planes: una cuota trae su costo y su garantía materializados.</div>`
+    ? `<div class="alerta info">Este crédito está en <b>plan de pagos</b>: va por la cuota <b>${c.n} de ${cs.length}</b>. De acá no se sale prorrogando; se cobran las cuotas una por una. Si no puede pagar más, escribe lo que trajo en «¿Cuánto pagó?» y «<b>Se lo perdoné</b>» cierra el crédito entero con esa plata: el resto —el costo que el plan tiene fijo, la mora y, si no alcanza, capital— se le perdona, con su motivo.</div>`
     : (pr&&!pr.ok
       ? `<div class="alerta warn"><b>Ya usó sus ${pr.prorrogas_permitidas} prórroga(s)</b> — es lo que da el nivel ${pr.nivel_socio}. Si no puede pagar todo, la salida es el <b>plan de pagos</b> del §8: el capital en ${MotorReglas.CUOTAS_PLAN_DE_PAGOS} cortes con un costo reducido del ${Math.round(MotorReglas.TASA_PLAN_DE_PAGOS*100)}%.</div>`
       : (pr
@@ -6933,11 +6986,21 @@ function calcPago(id){
   const filaDesc=q.condonado_total>0
     ? `<div class="calc-row"><span style="color:var(--ambar)">Descuento${q.condonado_mora&&q.condonado_costo?' (mora + costo)':q.condonado_costo?' del costo':' de la mora'}</span><span class="v" style="color:var(--ambar)">− ${COP(q.condonado_total)}</span></div>`
     : '';
-  const avisoDesc=q.condonado_total>0
+  /* 30-oct-2026 — el capital que se pierde va en su propio renglón, en rojo, y
+     no dentro del «Descuento»: no es un descuento de la ganancia, es plata de
+     Joan que no vuelve (decisión de Joan: la pérdida nunca se esconde). */
+  const filaCapitalPerdido=q.condonado_capital>0
+    ? `<div class="calc-row"><span class="pierde">Capital que pierdes <span style="font-weight:400">(no alcanzó ni para el capital)</span></span><span class="v pierde">− ${COP(q.condonado_capital)}</span></div>`
+    : '';
+  const avisoDesc=q.condonado_total>0&&!q.condonado_capital
     ? `<div class="alerta warn solo-tuyo"><b class="tit-solo">Solo para ti · lo que cuesta este perdón</b>
       De los ${COP(q.condonado_total)} perdonados, <b>${COP(q.de_tu_ganancia)}</b> salen de tu ganancia
       y <b>${COP(q.de_su_cupo)}</b> son garantía que él deja de recibir (le queda ${COP(q.garantia)}; sin perdón serían ${COP(q.garantia_sin_descuento)}). Queda anotado en el crédito con su motivo.</div>`
-    : '';
+    : (q.condonado_capital>0
+      ? `<div class="alerta warn solo-tuyo"><b class="tit-solo">Solo para ti · lo que cuesta este perdón</b>
+      De los ${COP(q.condonado_total+q.condonado_capital)} perdonados, <b>${COP(q.de_tu_ganancia)}</b> salen de tu ganancia,
+      <b>${COP(q.de_su_cupo)}</b> son garantía que él deja de recibir y <b class="pierde">${COP(q.condonado_capital)}</b> son capital tuyo que no vuelve. No le queda garantía de este crédito (sin perdón serían ${COP(q.garantia_sin_descuento)}). Queda anotado en el crédito con su motivo.</div>`
+      : '');
   const total=c?liq.total_a_pagar:q.total_a_recibir;
   /* 16-oct-2026 — lo que ya entró a esta cuota en abonos (lo parte el puente).
      Las cifras de abajo ya son lo que FALTA: liquidarCiclo descuenta los abonos. */
@@ -6975,6 +7038,13 @@ function calcPago(id){
     const g=garantiaYRepartoDelTodo(p,c,dA.todo);
     garantia=g.garantia; aRepartir=g.aRepartir; rotuloGar='Garantía que le deja pagar todo';
   }
+  /* 30-oct-2026 — «Se lo perdoné» por menos del capital: no entró costo, así
+     que no hay reparto que enseñar («de los $0 que entran») ni garantía. Y en
+     los de cuotas, con el cierre con perdón elegido, la garantía de la hoja es
+     la de ESE cierre: una garantía por hoja (17-oct). */
+  if(!c&&q.condonado_capital>0){ aRepartir=null; notaGar=' <span class="muted">(pagó menos que el capital: no entró costo, y la garantía sale del costo que entra)</span>'; }
+  if(conPdP){ garantia=pdP.garantia; rotuloGar='Garantía que le deja cerrarlo así'; aRepartir=null;
+    notaGar=` <span class="muted">(${pdP.garantia?'solo del costo que entra':'no entra costo: no suma'})</span>`; }
   const reparto=(s&&aRepartir)?bloqueReparto(s,aRepartir.costo,liq.acredita_en_fecha,'quincenal',aRepartir.mora,PUENTE.fechaDelCredito(p)):'';
   /* 17-oct-2026, revisión — CON ABONOS, CADA RÓTULO DICE QUE ES LO QUE FALTA.
      «Costo de la cuota (20%)» al lado de lo que quedaba después de un abono se
@@ -7000,6 +7070,7 @@ function calcPago(id){
       <div class="calc-row"><span>${rotCosto}</span><span class="v gano">${COP(liq.costo)}</span></div>
       ${liq.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">${rotRecargo}</span><span class="v" style="color:var(--ambar)">${COP(liq.recargo_mora)}</span></div>`:''}
       ${filaDesc}
+      ${filaCapitalPerdido}
       <div class="calc-row"><span><b>${pactoH?(conAbonos?'Lo que falta del pago acordado':'Total del pago acordado'):c?(conAbonos?'Lo que falta de la cuota':'Total de la cuota'):'Total para saldar'}</b></span><span class="v"><b>${COP(total)}</b></span></div>
       <div class="calc-row"><span>${rotuloGar}</span><span class="v">${COP(garantia)}${notaGar}</span></div>
     </div>
@@ -7010,16 +7081,22 @@ function calcPago(id){
      16-oct-2026 — en el crédito a cuotas también se muestra: si trae menos que
      la cuota, es un abono a ESA cuota (PUENTE.abonoACuota). 17-oct: y si la
      cuota no se puede cerrar ese día, arranca vacío (estadoDelCobro). */
-  const conMonto=!c||alta;
+  /* 30-oct-2026 — y en el plan del §8 también: «Se lo perdoné» cierra el
+     crédito entero con lo que trajo, y para eso hay que poder escribirlo. Sin
+     tocarlo, arranca con la cuota y el cobro es el de siempre. */
+  const conMonto=true;
   const mBox=document.getElementById('pgMontoBox'); if(mBox)mBox.style.display=conMonto?'':'none';
   const inp=document.getElementById('pgMonto');
   if(inp&&conMonto&&_cobro.monto==null&&!_cobro.vacio) inp.value=e.monto==null?'':String(e.monto);
   const pista=document.getElementById('pgPista');
   /* 17-oct-2026, revisión — y si trae TODO, escribirlo basta: la hoja lo
      reconoce y lo registra como pago total (decisionCuotaDeAlta). Dicho acá,
-     porque una salida que nadie sabe que existe no existe. */
-  if(pista) pista.innerHTML=alta?'<b>¿Trajo una parte?</b> Escribe lo que entregó: va primero a la mora, después al costo y después al capital, y lo que falta sigue en esta cuota y en su fecha. <b>¿Trajo todo el crédito?</b> Escribe ese total y se registra como pago total.'
-    :c?'':'<b>Tú le pones el precio.</b> Escribe el valor que quieras —incluso <b>0</b>— y la diferencia se le perdona, con su motivo.';
+     porque una salida que nadie sabe que existe no existe.
+     30-oct-2026 — y el perdón, por la misma razón: Joan pidió poder «dejar
+     escrito el monto que paga el cliente después del descuento». */
+  if(pista) pista.innerHTML=alta?'<b>¿Trajo una parte?</b> Escribe lo que entregó: va primero a la mora, después al costo y después al capital, y lo que falta sigue en esta cuota y en su fecha. <b>¿Trajo todo el crédito?</b> Escribe ese total y se registra como pago total. <b>¿No puede pagar más?</b> Escribe lo que trajo y toca «Se lo perdoné»: cierra el crédito entero con esa plata.'
+    :c?'<b>¿Trajo la cuota?</b> Déjala como está. <b>¿No puede pagar más?</b> Escribe lo que trajo —incluso <b>0</b>— y toca «Se lo perdoné»: cierra el crédito entero con esa plata, y lo demás se le perdona con su motivo.'
+    :'<b>Tú le pones el precio.</b> Escribe el valor que quieras —incluso <b>0</b>— y la diferencia se le perdona, con su motivo.';
   const at=document.getElementById('pgAtajos');
   if(at) at.innerHTML=c?'':`${liq.recargo_mora?`<button class="btn btn-ghost btn-sm" onclick="atajoMonto('${p.id}',${Math.round(liq.total_a_pagar-liq.recargo_mora)})">Sin la mora (${COP(liq.total_a_pagar-liq.recargo_mora)})</button>`:'<span></span>'}${liq.capital>0&&liq.capital<liq.total_a_pagar?`<button class="btn btn-ghost btn-sm" onclick="atajoMonto('${p.id}',${Math.round(liq.capital)})">Solo el capital (${COP(liq.capital)})</button>`:'<span></span>'}`;
   /* EL BOTÓN PRIMARIO NO SE MUEVE NUNCA: siempre acá, debajo del monto. Lo que
@@ -7056,9 +7133,16 @@ function calcPago(id){
     const btnTodo=(tTodo!=null&&dA.tipo!=='todo')
       ? `<button class="btn btn-negro" onclick="pagarTodoElCredito('${p.id}')" title="Capital de todas las cuotas, el costo de las que ya empezaron y la mora: el costo de las que no han empezado no se cobra">💰 Pagó todo el crédito (${COP(tTodo)})</button>`
       : '<span></span>';
-    if(acc) acc.innerHTML=`<div class="two"><button class="btn ${dA.listo?'btn-rojo':'btn-ghost'}" id="pgBtn" ${dA.listo?'':'disabled'} onclick="registrarCobro('${p.id}')">${escHTML(dA.txt)}</button>${btnTodo}</div>${btnAjustar}`;
+    /* 30-oct-2026 — con «Se lo perdoné» elegido, el botón primario es el
+       cierre con perdón: la misma decisión que usa registrarCobro. */
+    const dP=e.modo==='perdon'?decisionDelPerdon(pdP):null, dB=dP||dA;
+    if(acc) acc.innerHTML=`<div class="two"><button class="btn ${dB.listo?'btn-rojo':'btn-ghost'}" id="pgBtn" ${dB.listo?'':'disabled'} onclick="registrarCobro('${p.id}')">${escHTML(dB.txt)}</button>${btnTodo}</div>${btnAjustar}`;
     const dif=document.getElementById('pgDif');
     let difHTML='';
+    if(dP){
+      if(dif) dif.innerHTML=hojaDelPerdon(p,pdP,e,conPdP);
+      return;
+    }
     if(dA.tipo==='abono'){
       /* 17-oct-2026, segunda revisión — antes de que empiece su quincena, lo
          que queda HOY es solo capital: se dice eso y lo que la cuota valdrá en
@@ -7080,11 +7164,34 @@ function calcPago(id){
       const tranquilo=e.vacio&&ci&&ci.motivo==='no_ha_empezado';
       difHTML=`<div class="alerta ${tranquilo?'info':'warn'}">${escHTML(dA.detalle)}</div>`;
     }
+    /* 30-oct-2026 — «Se lo perdoné», ofrecido cuando lo escrito es menos de lo
+       que cuesta saldarlo hoy: con un abono a la vista, el abono sigue siendo lo
+       de siempre y el perdón es una salida que Joan elige, nunca una que se
+       adivina. Con el campo sin tocar (la cuota de siempre) no se ofrece: el
+       cobro de siempre se ve como siempre. */
+    const tecleado=_cobro.id===p.id&&_cobro.monto!=null;
+    if(!e.vacio&&e.monto!=null&&e.monto>=0&&tTodo!=null&&e.monto<tTodo&&(dA.tipo!=='cuota'||tecleado)) difHTML+=ofertaDelPerdon(p,e.monto,tTodo);
     if(dif) dif.innerHTML=difHTML;
     return;
   }
-  if(acc) acc.innerHTML=`<div class="two"><button class="btn btn-rojo" id="pgBtn" onclick="registrarCobro('${p.id}')">${c?`✓ Pagó la cuota ${c.n} (${COP(liq.total_a_pagar)})`:`✓ Pagó todo (${COP(total)})`}</button>${btnProrroga}</div>${btnAbono}${btnPactar}${btnAjustar}`;
-  if(!c) pintarDif(id); else { const dif=document.getElementById('pgDif'); if(dif) dif.innerHTML=''; }
+  /* 30-oct-2026 — el plan del §8, con su campo: la cuota como siempre si no se
+     toca, y «Se lo perdoné» para cerrar el crédito entero con otra cifra. */
+  if(c){
+    const d8=decisionDelPlan8(p,liq,e,pdP);
+    if(acc) acc.innerHTML=`<div class="two"><button class="btn ${d8.listo?'btn-rojo':'btn-ghost'}" id="pgBtn" ${d8.listo?'':'disabled'} onclick="registrarCobro('${p.id}')">${escHTML(d8.txt)}</button>${btnProrroga}</div>`;
+    const dif=document.getElementById('pgDif'); if(!dif) return;
+    if(e.modo==='perdon') dif.innerHTML=hojaDelPerdon(p,pdP,e,conPdP);
+    else if(e.vacio) dif.innerHTML=`<div class="alerta warn">Escribe cuánto pagó. Si pagó la cuota ${c.n}, son ${COP(liq.total_a_pagar)}.</div>`;
+    else if(e.falta!==0){
+      const debe=PUENTE.cierreConPerdon(DB,p,f||hoyISO(),e.monto,{}).debia.total;
+      dif.innerHTML=`<div class="alerta warn"><b>${e.falta>0?`Faltan ${COP(e.falta)} para la cuota ${c.n}.`:`Es más que la cuota ${c.n} (${COP(liq.total_a_pagar)}).`}</b> En el plan del §8 se cobra cuota por cuota: no hay abonos sueltos.</div>`
+        +(e.monto>=0&&e.monto<debe?ofertaDelPerdon(p,e.monto,debe):`<div class="alerta warn">Con ${COP(e.monto)} paga todo lo que debe el crédito (${COP(debe)}) o más: cóbrale la cuota ${c.n} y después las otras, una por una.</div>`)
+        +`<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px" onclick="modoCobro('${p.id}','error')">Me equivoqué: volver a ${COP(liq.total_a_pagar)}</button>`;
+    } else dif.innerHTML='';
+    return;
+  }
+  if(acc) acc.innerHTML=`<div class="two"><button class="btn btn-rojo" id="pgBtn" onclick="registrarCobro('${p.id}')">${`✓ Pagó todo (${COP(total)})`}</button>${btnProrroga}</div>${btnAbono}${btnPactar}${btnAjustar}`;
+  pintarDif(id);
 }
 /* 16-oct-2026 — LA decisión del cobro de un crédito a cuotas: con la cuota
    entera es la cuota (cobrarCuotaDelPlan, que la cierra y pasa el corte a la
@@ -7172,8 +7279,145 @@ function garantiaYRepartoDelTodo(p,c,todo){
      (decisionDelCobro): la que pinta el botón es la misma que registra. Si el
      botón dice que se puede, se puede; si no, dice por qué.
    ========================================================================= */
-let _cobro={ id:null, tipo:'cobro', monto:null, vacio:false, modo:null, sobre:'mora', motivo:'' };
-function reiniciarCobro(id){ _cobro={ id, tipo:'cobro', monto:null, vacio:false, modo:null, sobre:'mora', motivo:'' }; }
+let _cobro={ id:null, tipo:'cobro', monto:null, vacio:false, modo:null, sobre:'mora', motivo:'', entiende:0 };
+function reiniciarCobro(id){ _cobro={ id, tipo:'cobro', monto:null, vacio:false, modo:null, sobre:'mora', motivo:'', entiende:0 }; }
+
+/* =========================================================================
+   30-oct-2026 — «SE LO PERDONÉ» CIERRA CON CUALQUIER MONTO. Joan, con una
+   cliente de varios créditos delante: «quiero poder dejar escrito el monto que
+   paga el cliente después del descuento que yo haga… tengo clientes que tienen
+   dificultades». Hasta hoy el perdón topaba en mora + costo («perdonar capital
+   no es un descuento: es una pérdida», 2-sep) y en los créditos con cuotas no
+   había ninguno.
+
+   La ley es del puente (PUENTE.cierreConPerdon): la plata va primero al
+   capital, lo que no alcanza de capital es pérdida y entonces mora y costo se
+   perdonan enteros, la garantía sale solo del costo que entró, y vale en los
+   cuatro tipos. Esta hoja la PREGUNTA, pinta lo que contesta y guarda sus
+   registros tal cual. Lo que exige —y el puente vuelve a exigir—:
+   · el motivo, como cualquier perdón;
+   · si pierde capital, la casilla «Entiendo que pierdo $X de capital». Se
+     guarda la CIFRA que se marcó (_cobro.entiende): si Joan cambia el monto, X
+     cambia y la casilla queda sin marcar sola. Una casilla marcada para 50.000
+     no puede valer para 150.000;
+   · el botón dice lo que va a pasar: «Cerrar el crédito: recibió $X».
+   En el quincenal, el perdón que cabe en mora + costo sigue por el camino de
+   siempre (pagarTotal, con su forma de siempre): por aquí pasa solo el que toca
+   capital. En los de cuotas, todo perdón pasa por aquí.
+   ========================================================================= */
+function perdonDeLaHoja(p,f,e){
+  const base={sobre:e.sobre,motivo:e.motivo,quien:'computador'};
+  const r0=PUENTE.cierreConPerdon(DB,p,f,e.monto,base);
+  const x=r0.perdona.capital;
+  return (x>0&&Number(e.entiende)===x)?PUENTE.cierreConPerdon(DB,p,f,e.monto,Object.assign({entiende:true},base)):r0;
+}
+function decisionDelPerdon(r){
+  if(r&&r.ok) return {listo:true,txt:`Cerrar el crédito: recibió ${COP(r.monto)}`,r};
+  const m=r&&r.motivo;
+  const txt=({falta_motivo:'Falta el motivo del perdón',
+    falta_entiende:r?`Marca «Entiendo que pierdo ${COP(r.perdona.capital)} de capital»`:'',
+    no_falta:'Con eso no falta nada: no hay qué perdonar',
+    monto_invalido:'Escribe cuánto pagó',
+    fecha_anterior:'Esa fecha es anterior a un pago ya anotado'})[m]||'Así no se puede cerrar';
+  return {listo:false,txt,r};
+}
+/* El §8 con su campo: sin tocarlo, «Pagó la cuota» como siempre; con otra
+   cifra, solo «Se lo perdoné» (en el §8 no hay abonos sueltos). */
+function decisionDelPlan8(p,liq,e,pd){
+  const c=cuotaPlan(p);
+  if(e.modo==='perdon') return decisionDelPerdon(pd||perdonDeLaHoja(p,liq.fecha,e));
+  if(e.vacio) return {listo:false,txt:'Escribe cuánto pagó'};
+  if(e.falta===0) return {listo:true,txt:`✓ Pagó la cuota ${c.n} (${COP(liq.total_a_pagar)})`};
+  return {listo:false,txt:e.falta>0?`Faltan ${COP(e.falta)} para la cuota: ¿qué pasó?`:`Eso es más que la cuota ${c.n}`};
+}
+/* LA decisión de la hoja, para los cuatro tipos: la usan el botón (pintarBoton)
+   y registrarCobro, para que no puedan contestar distinto. */
+function decisionDeLaHoja(p,liq,e){
+  if(!cuotaPlan(p)) return decisionDelCobro(p,liq,e);
+  if(PUENTE.esPlanDeAlta(p)) return e.modo==='perdon'?decisionDelPerdon(perdonDeLaHoja(p,liq.fecha,e)):decisionCuotaDeAlta(p,liq.fecha,e);
+  return decisionDelPlan8(p,liq,e);
+}
+/* La salida, dicha donde Joan mira después de escribir lo que trajo. */
+function ofertaDelPerdon(p,monto,debe){
+  return `<div class="alerta info" style="margin-top:6px"><b>¿No puede pagar más?</b> «Se lo perdoné» cierra el crédito entero con ${COP(monto)} y le perdona lo que falta para los ${COP(debe)} que debe hoy (${COP(debe-monto)}).
+    <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px" onclick="modoCobro('${p.id}','perdon')">Se lo perdoné: cerrar el crédito con ${COP(monto)}</button></div>`;
+}
+/* EL RECUADRO de la maqueta que vio Joan: «Lo que le perdonas: $125.000 · Mora
+   15.000 · Costo 60.000 · Capital (pérdida: plata tuya que no vuelve) 50.000 ·
+   No le suma garantía». Las cifras son las del puente, ninguna se suma acá. */
+function recuadroDelPerdon(r){
+  const filas=[];
+  if(r.perdona.mora) filas.push(`<div class="calc-row"><span>Mora</span><span class="v">${COP(r.perdona.mora)}</span></div>`);
+  if(r.perdona.costo) filas.push(`<div class="calc-row"><span>Costo${r.tipo==='plan_de_pagos'?' <span class="muted">(el que el plan del §8 tiene fijo)</span>':''}</span><span class="v">${COP(r.perdona.costo)}</span></div>`);
+  if(r.perdona.capital) filas.push(`<div class="calc-row"><span class="pierde">Capital <span style="font-weight:400">(pérdida: plata tuya que no vuelve)</span></span><span class="v pierde">${COP(r.perdona.capital)}</span></div>`);
+  const todo=r.tipo!=='quincenal';
+  return `<div class="perdon-cierre">
+    <div class="tit">Lo que le perdonas: ${COP(r.perdona.total)}</div>
+    ${filas.join('')}
+    <div class="nota"><b>${r.garantia?`Le deja ${COP(r.garantia)} de garantía`:'No le suma garantía'}</b>${r.garantia?': solo del costo que entra.':(r.perdona.capital?': no alcanzó ni para el capital, y la garantía sale del costo que entra.':'.')}</div>
+    <div class="nota">Debía hoy ${COP(r.debia.total)}${todo?' por todo el crédito':''} (${COP(r.debia.capital)} de capital + ${COP(r.debia.costo)} de costo${r.debia.mora?` + ${COP(r.debia.mora)} de mora`:''}). Entran ${COP(r.monto)}${r.monto?', primero al capital':''}. El crédito queda <b>cerrado</b>.${r.costo_que_no_se_cobra?` No cuenta ${COP(r.costo_que_no_se_cobra)} de costo de cuotas que no han empezado: no se deben.`:''}</div>
+  </div>`;
+}
+/* Lo que el perdón le cuesta a cada uno. Las tres cifras suman lo perdonado:
+   no hay plata perdonada sin dueño en la pantalla. */
+function soloParaTiDelPerdon(r){
+  return `<div class="alerta warn solo-tuyo"><b class="tit-solo">Solo para ti · lo que cuesta este perdón</b>
+    De los ${COP(r.perdona.total)} perdonados, <b>${COP(r.de_tu_ganancia)}</b> salen de tu ganancia${r.perdona.capital?',':' y'}
+    <b>${COP(r.de_su_cupo)}</b> son garantía que él deja de recibir${r.perdona.capital?` y <b class="pierde">${COP(r.perdona.capital)}</b> son capital tuyo que no vuelve`:''}.
+    ${r.ganancia?`Con esto, este crédito te deja <b class="${claseGanancia(r.ganancia.ganancia)}">${COPsigno(r.ganancia.ganancia)} · ${pctGanancia(r.ganancia.pct)}</b>.`:''} Queda anotado en el crédito con su motivo.</div>`;
+}
+/* El motivo y, si pierde capital, la casilla. Cada tecla repinta solo el
+   botón (pintarBoton): el campo no se borra a mitad de palabra. */
+function preguntasDelPerdon(p,r,e){
+  const dsc=PUENTE.descuentosDelSocio(DB,DB.socios.find(x=>x.id===p.socioId));
+  const x=r.perdona.capital;
+  return `${dsc.veces?`<div class="alerta warn">Ya lleva <b>${dsc.veces} descuento${dsc.veces!==1?'s':''}</b> por ${COP(dsc.monto)}.</div>`:''}
+    <div class="field"><label>¿Por qué se lo perdonas?</label>
+      <input id="pgMotivo" type="text" maxlength="120" value="${escHTML(e.motivo)}" placeholder="se quedó sin trabajo, cliente viejo…" oninput="_cobro.motivo=this.value;pintarBoton('${p.id}')"></div>
+    ${x>0?`<label class="casilla-perdida"><input type="checkbox" id="pgEntiende" ${Number(e.entiende)===x?'checked':''} onchange="_cobro.id='${p.id}';_cobro.entiende=this.checked?${x}:0;pintarBoton('${p.id}')"><span>Entiendo que pierdo <b>${COP(x)}</b> de capital</span></label>`:''}`;
+}
+/* La hoja del perdón en un crédito con cuotas: el recuadro, lo que cuesta, las
+   preguntas y la vuelta atrás. Si el puente no puede ni hacer la cuenta, lo
+   dice con su frase. */
+function hojaDelPerdon(p,r,e,conCifras){
+  const volver=`<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px" onclick="modoCobro('${p.id}','ninguno')">No se lo perdoné: volver</button>`;
+  if(!conCifras) return `<div class="alerta warn">${escHTML((r&&r.detalle)||'Así no se puede cerrar.')}</div>${volver}`;
+  return recuadroDelPerdon(r)+soloParaTiDelPerdon(r)+preguntasDelPerdon(p,r,e)+volver;
+}
+/* Guardar el cierre con perdón: los registros del puente, tal cual, en UN
+   guardar() —como pagarTodoElCredito—. La hoja y este botón leen la MISMA
+   decisión (perdonDeLaHoja); si el puente dice que no, no se toca nada. */
+function cerrarConPerdon(id){
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  const f=gv('pgFecha')||hoyISO(), liq=liqCredito(p,f), e=estadoDelCobro(p,liq);
+  const r=perdonDeLaHoja(p,f,e);
+  if(!r.ok||!r.registros) return alert((r.detalle||'No pude cerrar este crédito.')+'\n\nNo registré nada.');
+  const reg=r.registros, s=DB.socios.find(x=>x.id===p.socioId);
+  const partes=[];
+  if(r.perdona.mora) partes.push('• Mora: '+COP(r.perdona.mora));
+  if(r.perdona.costo) partes.push('• Costo: '+COP(r.perdona.costo));
+  if(r.perdona.capital) partes.push('• CAPITAL: '+COP(r.perdona.capital)+' — pérdida: plata tuya que no vuelve');
+  const entra=[COP(r.aplica.capital)+' de capital']; if(r.aplica.costo) entra.push(COP(r.aplica.costo)+' de costo'); if(r.aplica.mora) entra.push(COP(r.aplica.mora)+' de mora');
+  if(!confirm(`Cerrar el crédito de ${p.socioNombre}: recibió ${COP(r.monto)}\n\n`
+    +`Debía hoy ${COP(r.debia.total)}${r.tipo!=='quincenal'?' (todo el crédito)':''}: ${COP(r.debia.capital)} de capital + ${COP(r.debia.costo)} de costo${r.debia.mora?' + '+COP(r.debia.mora)+' de mora':''}.\n`
+    +`La plata va primero al capital: ${entra.join(' + ')}.\n\n`
+    +`Le perdonas ${COP(r.perdona.total)}:\n${partes.join('\n')}\n• Motivo: ${reg.condonacion.motivo}\n\n`
+    +(r.garantia?`Le deja ${COP(r.garantia)} de garantía (solo del costo que entra).`:'No le suma garantía.')
+    +(r.ganancia?`\nEste crédito te deja ${COPsigno(r.ganancia.ganancia)} (${pctGanancia(r.ganancia.pct)} de lo prestado).`:'')
+    +'\n\nEl crédito queda CERRADO. ¿Lo registro?')) return;
+  const cs=cuotasPlan(p);
+  (reg.cuotas||[]).forEach(x=>{ const c=cs.find(q=>Number(q.n)===Number(x.n)); if(c) Object.assign(c,x); });
+  p.abonosCapital=p.abonosCapital||[];
+  (reg.abonos||[]).forEach(a=>p.abonosCapital.push(a));
+  /* Lista que SOLO SUMA (panel/nube.js), con su parte de capital aparte. */
+  p.condonaciones=p.condonaciones||[]; p.condonaciones.push(reg.condonacion);
+  Object.assign(p,reg.credito);
+  /* El comprobante dice lo que ENTRÓ, con el id del cierre: dos cierres del
+     mismo monto el mismo día son dos fotos (la identidad de la nube). */
+  addComp(p,'pago',r.monto,reg.condonacion.id);
+  reiniciarCobro(id); guardar(); cerrarModal(); render();
+  if(s&&confirm('Crédito cerrado: recibió '+COP(r.monto)+(r.perdona.capital?' y perdiste '+COP(r.perdona.capital)+' de capital':'')+'.\n\n¿Enviar recibo por WhatsApp?')) gestionar(id,'recibo');
+}
 
 function estadoDelCobro(p,liq){
   const total=Math.round(liq.total_a_pagar);
@@ -7197,7 +7441,7 @@ function estadoDelCobro(p,liq){
      la cuota valdría en su fecha dejaba el botón ofreciendo algo que no se
      puede registrar. Queda vacío y la hoja dice por qué (decisionCuotaDeAlta). */
   if(cuotaPlan(p)&&PUENTE.esPlanDeAlta(p)&&!(mio&&_cobro.monto!=null)&&!vacio&&!PUENTE.cierreDeCuota(p,liq.fecha).ok)
-    return { tipo:'cobro', total, monto:null, falta:0, modo:null, sobre:'mora', motivo:'', d, vacio:true, implicito:false, sinDefecto:true };
+    return { tipo:'cobro', total, monto:null, falta:0, modo:null, sobre:'mora', motivo:'', d, vacio:true, implicito:false, sinDefecto:true, entiende:0 };
   const monto=(mio&&_cobro.monto!=null)?_cobro.monto:total-d.mora;
   const falta=total-monto;
   let modo=mio?_cobro.modo:null, sobre=(mio&&_cobro.sobre)||'mora', motivo=mio?String(_cobro.motivo||''):'';
@@ -7206,7 +7450,10 @@ function estadoDelCobro(p,liq){
   let implicito=false;
   if(modo==null&&d.mora>0&&falta>0&&falta===d.mora){ modo='perdon'; implicito=true; }
   if(modo==='perdon'&&!motivo.trim()) motivo=String(d.motivo||'');
-  return { tipo:'cobro', total, monto, falta, modo, sobre, motivo, d, vacio, implicito };
+  /* 30-oct-2026 — la cifra de capital que Joan marcó con «Entiendo que pierdo
+     $X» (0 si no marcó nada): vale solo para ESA cifra (perdonDeLaHoja). */
+  const entiende=mio?(Number(_cobro.entiende)||0):0;
+  return { tipo:'cobro', total, monto, falta, modo, sobre, motivo, d, vacio, implicito, entiende };
 }
 /* LA decisión: qué dice el botón y si se puede registrar. La usan la pantalla
    y registrarCobro, para que no puedan contestar distinto. */
@@ -7231,8 +7478,13 @@ function decisionDelCobro(p,liq,e){
                             :{listo:false,txt:`Falta decir qué hacer con los ${COP(sobra)} de más`};
   }
   if(e.modo==='perdon'){
-    const r=PUENTE.repartoDelDescuento(liq,e.falta,e.sobre);
-    if(r.excede) return {listo:false,txt:'Ese descuento no cabe en este ciclo'};
+    /* 30-oct-2026 — «Se lo perdoné» cierra el crédito, y ya sin tope: lo que
+       pase de mora + costo es capital que se pierde, y eso lo contesta el
+       puente entero (perdonDeLaHoja), con su motivo y su casilla. Lo que cabe
+       en mora + costo sigue siendo el descuento de siempre. */
+    const r=PUENTE.repartoDelDescuento(liq,e.falta,e.sobre,{cierra:true});
+    if(r.excede) return {listo:false,txt:'Ese monto no se puede registrar'};
+    if(r.capital>0) return decisionDelPerdon(perdonDeLaHoja(p,liq.fecha||gv('pgFecha')||hoyISO(),e));
     if(!e.motivo.trim()) return {listo:false,txt:'Falta el motivo del descuento'};
     return {listo:true,txt:`✓ Registrar ${COP(e.monto)} con ${COP(e.falta)} de descuento`};
   }
@@ -7262,7 +7514,11 @@ function modoCobro(id,m){
   if(m==='error'){
     /* «Me equivoqué» / «Se lo devuelvo»: se vuelve al valor por defecto y se
        olvida lo respondido. Un descuento a medio contestar es peor que ninguno. */
-    _cobro.monto=null; _cobro.vacio=false; _cobro.modo=null; _cobro.motivo='';
+    _cobro.monto=null; _cobro.vacio=false; _cobro.modo=null; _cobro.motivo=''; _cobro.entiende=0;
+  } else if(m==='ninguno'){
+    /* 30-oct-2026 — «No se lo perdoné: volver»: deja el monto escrito (puede ser
+       un abono a la cuota) y olvida el perdón y su casilla. */
+    _cobro.modo=null; _cobro.entiende=0;
   } else if(m==='perdon'&&_cobro.modo==null){
     /* Si el % ya lo había marcado, el clic lo CONFIRMA, no lo apaga. */
     _cobro.modo='perdon';
@@ -7278,7 +7534,10 @@ function pintarBoton(id){
     const da=decisionDelAbono(abonoDeLaHoja(p));
     btn.disabled=!da.listo; btn.className=da.listo?'btn btn-rojo':'btn btn-ghost'; btn.textContent=da.txt; return;
   }
-  const liq=liqCredito(p,gv('pgFecha')||hoyISO()), e=estadoDelCobro(p,liq), dc=decisionDelCobro(p,liq,e);
+  /* 30-oct-2026 — la decisión de los cuatro tipos (decisionDeLaHoja): con el
+     motivo o la casilla del perdón de un crédito con cuotas, este botón se
+     repinta con lo que vale para ESE crédito, no con la cuenta del quincenal. */
+  const liq=liqCredito(p,gv('pgFecha')||hoyISO()), e=estadoDelCobro(p,liq), dc=decisionDeLaHoja(p,liq,e);
   btn.disabled=!dc.listo; btn.className=dc.listo?'btn btn-rojo':'btn btn-ghost'; btn.textContent=dc.txt;
 }
 /* La pregunta de abajo. Los números del descuento (garantía, lo que te cuesta)
@@ -7315,7 +7574,9 @@ function pintarDif(id){
       <button class="btn btn-ghost" style="width:100%;margin-top:6px" onclick="modoAbonoProrroga('${p.id}',${Math.max(0,Math.round(monto))})">💵 Abonó y el resto pasa a la próxima quincena</button>
       <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px" onclick="modoCobro('${p.id}','error')">Me equivoqué: volver a ${COP(e.total-e.d.mora)}</button>`;
     if(e.modo==='perdon'){
-      const r=PUENTE.repartoDelDescuento(liq,falta,e.sobre);
+      /* 30-oct-2026 — sin tope de capital: «Se lo perdoné» cierra el crédito
+         con cualquier monto (decisión de Joan). */
+      const r=PUENTE.repartoDelDescuento(liq,falta,e.sobre,{cierra:true});
       /* Solo se pregunta SOBRE QUÉ cuando de verdad hay dos respuestas posibles. */
       if(r.hay_eleccion){
         h+=`<div class="two" style="margin-top:8px">
@@ -7323,8 +7584,15 @@ function pintarDif(id){
           <button class="btn ${e.sobre==='costo'?'btn-negro':'btn-ghost'} btn-sm" onclick="sobreCobro('${p.id}','costo')">Del costo</button></div>`;
       }
       if(r.excede){
-        h+=`<div class="alerta warn">Ese descuento (${COP(falta)}) no cabe en el costo ni en la mora de este ciclo.
-          Lo máximo que se puede perdonar acá es <b>${COP(r.tope)}</b>. Perdonar capital no es un descuento: es una pérdida, y se registra como «queda debiendo».</div>`;
+        h+=`<div class="alerta warn">Ese monto no se puede registrar: escribe lo que entregó, en pesos (puede ser 0).</div>`;
+      } else if(r.capital>0){
+        /* 30-oct-2026 — TOCA CAPITAL. Hasta hoy esto decía «Perdonar capital no
+           es un descuento: es una pérdida» y no dejaba cerrar. Desde hoy se
+           puede (decisión de Joan del 30-oct), y la pérdida se dice entera: el
+           recuadro de la maqueta, el motivo y la casilla «Entiendo que pierdo
+           $X de capital». Las cifras son del puente (perdonDeLaHoja). */
+        const pd=perdonDeLaHoja(p,f,e);
+        h+=recuadroDelPerdon(pd)+preguntasDelPerdon(p,pd,e);
       } else {
         const partes=[]; if(r.mora) partes.push(COP(r.mora)+' de mora'); if(r.costo) partes.push(COP(r.costo)+' de costo');
         const dsc=PUENTE.descuentosDelSocio(DB,DB.socios.find(x=>x.id===p.socioId));
@@ -8012,10 +8280,20 @@ function registrarCobro(id){
   /* 3-oct-2026 — el abono que pasa a la otra quincena va ANTES que el plan: si
      el crédito está en plan, el puente lo dice y no registra nada. */
   if(_cobro.id===id&&_cobro.tipo==='abonoProrroga') return registrarAbonoProrroga(id);
+  /* 30-oct-2026 — «Se lo perdoné» en un crédito con cuotas (a cuotas, pago
+     acordado o plan del §8): cierra el crédito ENTERO con lo que trajo. */
+  if(cuotaPlan(p)&&_cobro.id===id&&_cobro.modo==='perdon') return cerrarConPerdon(id);
   /* 16-oct-2026 — el crédito a cuotas: la cuota entera o un abono a ella, según
      el monto (decisionCuotaDeAlta, la misma que pintó el botón). */
   if(cuotaPlan(p)&&PUENTE.esPlanDeAlta(p)) return cobrarCuotaDeAlta(id,f);
-  if(cuotaPlan(p)) return pagarTotal(id);            // con plan, el cobro es el de siempre
+  /* Con plan del §8, el cobro es el de siempre (la cuota)… solo si el campo
+     dice la cuota: desde el 30-oct tiene campo, y otra cifra sin «Se lo
+     perdoné» no es nada que registrar. */
+  if(cuotaPlan(p)){
+    const liq8=liqCredito(p,f), d8=decisionDelPlan8(p,liq8,estadoDelCobro(p,liq8));
+    if(!d8.listo) return alert(d8.txt+'.');
+    return pagarTotal(id);
+  }
   const liq=liqCredito(p,f);
   const e=estadoDelCobro(p,liq), dc=decisionDelCobro(p,liq,e);
   if(!dc.listo){ alert(dc.txt+(e.tipo==='prorroga'?'.':'.\n\n«Se lo perdoné» cierra el crédito; «queda debiendo» no lo cierra. No son lo mismo y no lo voy a adivinar.')); return; }
@@ -8037,7 +8315,10 @@ function registrarCobro(id){
     i.value=String(e.monto);
     return abonarCapital(id,f);
   }
-  const r=PUENTE.repartoDelDescuento(liq,e.falta,e.sobre);
+  /* 30-oct-2026 — si el perdón toca capital, es el cierre con perdón del
+     puente (cerrarConPerdon); si cabe en mora + costo, el de siempre. */
+  const r=PUENTE.repartoDelDescuento(liq,e.falta,e.sobre,{cierra:true});
+  if(r.capital>0) return cerrarConPerdon(id);
   return pagarTotal(id,{montoRecibido:e.monto,condonaCosto:r.costo,condonaMora:r.mora,motivo:e.motivo});
 }
 async function subirComprobante(e){ const f=e.target.files[0]; if(!f)return; try{ _compTmp=await comprimir(f); const box=document.getElementById('compBox'); box.classList.add('ok'); let img=box.querySelector('img'); if(!img){img=document.createElement('img');box.appendChild(img);} img.src=_compTmp; box.querySelector('.lbl').textContent='Comprobante listo'; }catch(err){ alert('No pude procesar la imagen.'); } }
@@ -8117,6 +8398,11 @@ function pagarTotal(id,o){
      un lado, y un saldo a favor que un aparato anotó y el otro no tiene que
      ser un CHOQUE que Joan vea, no una copia. */
   p.saldoAFavor=aFavor;
+  /* 30-oct-2026 — y la pérdida de capital, que por este camino es siempre 0
+     (el perdón que toca capital va por cerrarConPerdon). Se escribe SIEMPRE por
+     la misma razón que saldoAFavor: un cierre con pérdida en un aparato y sin
+     ella en el otro tiene que ser un choque, no una copia callada. */
+  p.capitalPerdido=0;
   if(q.condonado_total>0){
     /* Lista que SOLO SUMA (panel/nube.js): un perdón anotado acá y otro en el
        celular se conservan los dos al fusionar. Costo y mora van en campos

@@ -955,9 +955,12 @@ describe('el cobro con monto real en el Panel (7-sep-2026)', () => {
     assert.equal(P.elems.pgBtn.disabled, true);
     P.ev("registrarCobro('p1')");
     assert.equal(credito(P).pagado, false, 'un campo vacío registró el total');
-    /* Perdonar más que costo + mora es perdonar capital: pérdida, no descuento. */
+    /* Perdonar más que costo + mora es perdonar capital: pérdida, no descuento.
+       30-oct-2026 — Joan cambió la regla del 2-sep: «Se lo perdoné» cierra con
+       cualquier monto (pruebas/cerrar-con-perdon-crm.test.js). Lo que sigue sin
+       registrar nada es perdonar capital SIN marcar «Entiendo que pierdo $X». */
     responder(P, liq0.capital - 1, 'perdon', null, 'x');
-    assert.match(boton(P), /no cabe/);
+    assert.match(boton(P), /Entiendo que pierdo \$1 de capital/);
     P.ev("registrarCobro('p1')");
     const p = credito(P);
     assert.equal(p.pagado, false);
