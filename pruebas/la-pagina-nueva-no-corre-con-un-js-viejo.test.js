@@ -475,6 +475,17 @@ describe('2 · Control: SIN la versión en la dirección, el teléfono con v138 
      él mandando, la ventana de la caché HTTP no existe y ese control no tiene
      qué mostrar. La de su propia caché sí sigue: la cierra la dirección. */
   const pideFresco = /function pedidoFresco/.test(SW_MAIN);
+  /* 30-oct-2026 — Y LA VENTANA DE SU CACHÉ SOLO EXISTE SI LO GUARDÓ SIN VERSIÓN.
+     El v138 precargaba 'app/puente.js' pelado y lo contestaba de su caché sin
+     señal. Desde v139 el sw.js publicado lo precarga SOLO con la versión en la
+     dirección ('app/puente.js?v=139') y, sin señal, a la dirección pelada no
+     le contesta nada (Response.error): la ventana que este control reproducía
+     ya no existe en lo publicado, y fallar aquí acusaría al simulador de algo
+     que el sw.js de verdad ya no hace. Era invisible hasta hoy porque nadie
+     había cambiado puente.js ni nube.js desde que v139 está publicado (este
+     control solo corre con esos dos cambiados). Lo que sí podría quedar —la
+     página nueva pidiendo la dirección de antes— lo vigila la sección 3. */
+  const guardaSinVersion = f => archivosDe(SW_MAIN).includes(f);
 
   for (const f of ejemplos) {
     test(f + ': el F5 después de publicar lo saca de la caché HTTP (max-age=600)',
@@ -483,7 +494,8 @@ describe('2 · Control: SIN la versión en la dirección, el teléfono con v138 
       const r = await v138.pedir(ORIGEN + f);
       assert.ok(igual(r.cuerpo, deMain(f)), 'el simulador ya no reproduce la ventana de la caché HTTP');
     });
-    test(f + ': con señal floja el v138 lo contesta de su caché', async () => {
+    test(f + ': con señal floja el v138 lo contesta de su caché',
+      { skip: !guardaSinVersion(f) && 'el sw.js publicado lo guarda solo con la versión en la dirección' }, async () => {
       const { tel, v138 } = await telefonoConV138();
       tel.http.clear();                                   // pasaron los 10 minutos
       tel.red = url => rutaDeUrl(url) !== f;               // justo ese no baja

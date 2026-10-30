@@ -2008,7 +2008,7 @@ const ARCHIVOS = [
   'legal/terminos.html',
   'app/socio.html',
   'app/motor.js?v=141',   // 28-oct-2026 — ?v=141: cambió el M1 de la cartera por tramo (ver la nota de v141)
-  'app/puente.js?v=139',
+  'app/puente.js?v=142',   // 30-oct-2026 — ?v=142: el cierre con descuento (ver la nota de v142)
   /* El chat: lo comparten la app del socio, el CRM y el espejo, igual que el
      motor y el puente. Es la razón de que este service worker viva en la raíz. */
   'app/chat.js',
