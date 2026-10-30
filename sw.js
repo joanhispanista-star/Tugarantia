@@ -1976,7 +1976,24 @@
    algún día hay que llamarla»): pasan a ?v=141 en todas las páginas que los
    piden (revision-registro.js estrena la firma, y panel/revision.html, que no
    pedía nada con versión, estrena la guardia), y aquí. */
-const CACHE = 'tugarantia-v141';
+/* v142 — «CERRAR EL CRÉDITO CON LO QUE JOAN DIGA» (30-oct-2026). «Se lo
+   perdoné» cierra el crédito con cualquier monto, en los cuatro tipos
+   (quincenal, a cuotas, plan del §8 y pago acordado): la plata va primero al
+   capital, lo que no alcanza de capital es pérdida y se cuenta aparte («Capital
+   perdido», al lado de «Descuentos dados»). Cambian dos .js ya publicados:
+   app/puente.js (la ley: cierreConPerdon y las cuentas del capital perdido) y
+   panel/nube.js (la condonación del cierre viaja con su plan, y capitalPerdido
+   es un campo pisable). Los dos pasan a ?v=142 en todas las páginas que los
+   piden (puente.js: app/socio.html, panel/crm.html, panel/espejo.html,
+   panel/subir.html, panel/traer.html y platachat/; nube.js: panel/crm.html,
+   panel/espejo.html, panel/subir.html y panel/traer.html), firman al llegar
+   como siempre, y se precargan así. Cambian páginas (panel/crm.html,
+   panel/espejo.html, panel/subir.html) y VERSION_SITIO sube a v142 en las cinco
+   que se actualizan solas. No hay base nueva: la nube guarda la condonación tal
+   cual (jsonb) y no la valida en el servidor.
+   OJO al integrar: la rama registro-tope (otra sesión, sin publicar) también
+   pensaba en v142. La que se publique de segunda sube a v143. */
+const CACHE = 'tugarantia-v142';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
