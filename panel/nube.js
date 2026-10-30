@@ -147,7 +147,17 @@
                      perdona capital al pactar el próximo pago: ese perdón es
                      del PACTO y no de la lista —se cuenta desde su plan, y no
                      entra a una fila que no conserva su pacto, ver «EL PAGO
-                     ACORDADO VIAJA ENTERO CON SU LADO» en fusionarFila)
+                     ACORDADO VIAJA ENTERO CON SU LADO» en fusionarFila);
+                     desde el 30-oct-2026 también {id, capital, sobre:'cierre'}
+                     cuando Joan cierra el crédito con «Se lo perdoné» por
+                     menos de lo que debía (puente.cierreConPerdon): mora,
+                     costo y CAPITAL perdonados, cada uno en su campo. La
+                     parte de capital es pérdida de Joan y se conserva como
+                     cualquier perdón —`capital` e `id` están en la identidad—;
+                     la cuenta la lee el puente atada a su cierre
+                     (`capitalPerdido` del crédito, un campo pisable), y la
+                     condonación de un cierre con cuotas viaja con su plan
+                     (ver «EL CIERRE CON PERDÓN VIAJA CON SU PLAN»)
 
      14-ago-2026 — POR QUÉ LOS DESCUENTOS SON UNA LISTA Y NO UN CAMPO.
      Un descuento perdonado es un HECHO fechado, igual que una prórroga: pasó, y
@@ -329,7 +339,12 @@
        contra 260.000 «pagó todo» en el computador son dos hechos incompatibles y
        los tiene que separar Joan, no un merge. Sale a la pantalla del choque por
        la vía de siempre (fusionarFila lo devuelve en `pisables`). */
-    'montoRecibido', 'costoCausado', 'moraCausada', 'saldoAFavor'];
+    'montoRecibido', 'costoCausado', 'moraCausada', 'saldoAFavor',
+    /* 30-oct-2026 — el capital que se perdió al cerrar con «Se lo perdoné»
+       (puente.perdidaDelCierre). Lo escribe TODO cierre, también en 0: un
+       cierre con pérdida en un aparato y sin ella en el otro es un choque que
+       decide Joan, y el lado que gana trae su cifra. */
+    'capitalPerdido'];
 
   var CONTADORES = ['cliente', 'credito', 'respaldado'];
 
@@ -1241,6 +1256,32 @@
       }
     }
 
+    /* 30-oct-2026 — EL CIERRE CON PERDÓN VIAJA CON SU PLAN. Cerrar con «Se lo
+       perdoné» un crédito con cuotas (puente.cierreConPerdon) escribe tres
+       hechos de un solo cierre: las cuotas pagadas dentro de `planPagos` (un
+       campo que va entero con el lado que Joan elija), sus abonos (que ya
+       viajan con su plan, regla de arriba) y la condonación del cierre
+       (`sobre:'cierre'`, con su mora, su costo y su capital) en una lista que
+       suma. Si en `fila` («lo mío») se queda el plan del lado que NO cerró, esa
+       condonación sumada sería un perdón de un cierre que no existe: un
+       descuento de mora y costo en la quincena, y un cliente, que no
+       ocurrieron. Así que, con un plan distinto en cada lado, las condonaciones
+       de cierre que solo trae el otro lado no entran a `fila`; la diferencia ya
+       sale en `pisables` por el plan y por `pagado`, y si Joan elige el otro
+       lado, la fusión al revés las trae con su plan. Se conservan enteras —con
+       su parte de capital— en el lado que las anotó. Un crédito sin cuotas no
+       pasa por aquí: su perdón de capital lo lee el puente atado a su cierre
+       (`capitalPerdido`, puente.condonacionDelCierre). */
+    var idCo = mapa.condonaciones;
+    if (idCo && Array.isArray(fila.condonaciones) && tiene(m, 'planPagos') && tiene(s, 'planPagos') &&
+        !igual(m.planPagos, s.planPagos)) {
+      var misCo = {};
+      lista(m.condonaciones).forEach(function (x) { misCo[identidad(x, idCo)] = true; });
+      fila.condonaciones = fila.condonaciones.filter(function (x) {
+        return !(x && typeof x === 'object' && x.sobre === 'cierre') || !!misCo[identidad(x, idCo)];
+      });
+    }
+
     /* 22-oct-2026 (revisión) — EL PAGO ACORDADO VIAJA ENTERO CON SU LADO.
        El pacto (puente.pactarProximoPago) es un plan de una cuota hecho sobre
        lo que el crédito debía ESE día, con lo que ese aparato sabía: sus
@@ -1362,7 +1403,10 @@
     r.prorrogas.forEach(function (x) { dias[texto(x.fecha).slice(0, 10)] = true; });
     lista(trae.condonaciones).forEach(function (x) {
       if (!esObj(x) || conoceCo(x)) return;
-      if (num(x.capital) > 0) r.perdones.push(x);
+      /* 30-oct-2026 — y la del cierre con «Se lo perdoné» (sobre:'cierre'),
+         aunque no perdone capital: es un hecho del cierre de ese plan, y un
+         pacto que no lo conocía no lo trae. */
+      if (num(x.capital) > 0 || x.sobre === 'cierre') r.perdones.push(x);
       else if (x.sobre === 'prorroga' && dias[texto(x.fecha).slice(0, 10)]) r.acompanan.push(x);
     });
     r.total = r.abonos.length + r.prorrogas.length;

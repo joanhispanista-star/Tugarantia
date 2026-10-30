@@ -2042,7 +2042,7 @@ const ARCHIVOS = [
   'app/comisiones.js',
   'app/bases.js',
   'panel/espejo.webmanifest',
-  'panel/nube.js?v=139',
+  'panel/nube.js?v=142',   // 30-oct-2026 — ?v=142: la condonación del cierre viaja con su plan (ver la nota de v142)
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
   'panel/nube-crm.js?v=139',
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
