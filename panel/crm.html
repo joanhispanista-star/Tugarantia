@@ -1453,6 +1453,16 @@ const PLANTILLAS_DEF={
   moraTemprana:{t:'Mora temprana · 1 a 5 días',x:'Recién vencido, con apoyo',m:'Hola {nombre}, esperamos que estés bien. Tu pago de {saldo} quedó pendiente desde el {fecha_pago} y queríamos saber cómo va todo por allá. ¿Lo coordinamos hoy con calma? Si te sirve, también puedes dejar la prórroga de {prorroga}. Aquí estamos para apoyarte.'},
   mora:{t:'Mora · 6 días o más',x:'Respetuoso, buscando acuerdo',m:'Hola {nombre}, ¿cómo has estado? Tu pago de {saldo} sigue pendiente ({dias_mora} días) y de verdad queremos ayudarte a resolverlo. Cuéntanos cómo está tu situación y buscamos juntos un acuerdo que te sirva. Lo importante eres tú.'},
   recibo:{t:'Pago recibido',x:'Confirmación cálida',m:'¡Recibido, {nombre}! Tu pago quedó registrado. De corazón, muchas gracias por tu cumplimiento y por la confianza. Cuando necesites, aquí nos tienes 🙂'},
+  /* 31-oct-2026 (segunda revisión) — EL CIERRE CON PÉRDIDA NO ES UN PAGO, y su
+     mensaje tampoco. Desde el 30-oct «Se lo perdoné» cierra un crédito con lo
+     que Joan escriba, hasta con $0, y después de cerrarlo el CRM le ofrecía el
+     recibo de siempre: «Tu pago quedó registrado… gracias por tu
+     cumplimiento», con $0 entregados. Este dice lo único cierto en todos los
+     casos —el crédito quedó cerrado y de él no debe nada— sin hablar de pago
+     ni de cumplimiento, y sin cifras: con $0 no hay qué «recibimos», y lo
+     perdonado es asunto de Joan. Es confirmación de una operación (art. 8 de
+     la Ley 2300), como el recibo: no es cobranza. */
+  cierre:{t:'Crédito cerrado con descuento',x:'Tras «Se lo perdoné» cuando no devolvió todo el capital',m:'Hola {nombre} 🙂 Te confirmamos que tu crédito quedó cerrado: de ese crédito ya no nos debes nada. Gracias por la confianza; cualquier cosa nos cuentas.'},
   historial:{t:'Su historial de socio',x:'Le manda a su celular todo lo que ha construido contigo',m:'Hola {nombre} 🙂 Te compartimos tu historial de socio, para que lo veas cuando quieras desde tu celular. Ahí sale todo lo que has pagado, la garantía que llevas acumulada, hasta cuánto puedes pedir y con qué tasa. Y algo que queremos que tengas claro: aunque alguna vez te atrases, sigues siendo socio y aquí te seguimos prestando.\n\n{enlace}'},
   prorroga:{t:'Prórroga registrada',x:'Tras dejar la prórroga',m:'Listo {nombre}, ya registramos tu prórroga de {prorroga}, no te preocupes por nada. Tu pago de {saldo} pasa tranquilo para la quincena del {fecha_pago}. Gracias por avisarnos; cualquier cosa nos cuentas.'},
   /* 3-oct-2026 — el recibo del «💵 Abonó y el resto pasa a la próxima
@@ -2128,20 +2138,21 @@ function pctRecuperacionMonto(){ const inv=montoTotalInvertido(); return inv>0?c
 function pctRecuperacionCuentas(){ const tot=DB.prestamos.length,pag=DB.prestamos.filter(p=>p.pagado&&!(PUENTE.cerroConPerdida&&PUENTE.cerroConPerdida(p))).length; return tot>0?pag/tot*100:0; }
 function gananciaProyectadaPendiente(){ return DB.prestamos.filter(p=>!p.pagado).reduce((s,p)=>s+gananciaPendiente(p),0); }
 function totalProrrogasCliente(s){ return DB.prestamos.filter(p=>p.socioId===s.id).reduce((t,p)=>t+(p.prorrogas||[]).length,0); }
-/* 31-oct-2026 — EL PERDÓN NO LE BAJA EL RIESGO. El riesgo mira la mora de los
-   créditos abiertos, y cerrar uno con «Se lo perdoné» le borraba la suya:
-   Lucía, con 16 días de mora, pasaba de Alto a Bajo justo después de que Joan
-   perdiera los 200.000 de su capital, con otro crédito de ella abierto. Un
-   crédito cerrado perdiendo capital no se pagó (PUENTE.cerroConPerdida), así
-   que cuenta con la mora que tenía el día del cierre: ni se borra ni crece. No
-   es una marca nueva (decisión 4 de Joan): quien no llegaba a Alto antes del
-   perdón, no llega por el perdón. Pagar todo, aunque sea tarde, sí lo baja,
-   como siempre. `perdon` lo explica en la ficha, que no ve ninguna mora abierta. */
+/* 31-oct-2026 (segunda revisión) — EL CIERRE CON PÉRDIDA NO MARCA AL CLIENTE.
+   El riesgo sugerido mira la mora de los créditos ABIERTOS y las prórrogas, y
+   un crédito cerrado con «Se lo perdoné» ya no tiene mora abierta: cuenta como
+   el que se pagó tarde, que también deja de pesar. La primera revisión del
+   mismo día lo dejaba en Alto con la mora del día del cierre, «ni se borra ni
+   crece», y medido: perder 1.000 de capital a los 6 días de mora dejaba Alto
+   para siempre, aunque después pagara tres créditos en fecha, mientras que
+   pagarlo todo con 16 días de atraso quedaba Bajo. Y ese «Alto» sale en
+   Clientes y en la ficha, al lado de «＋ Nuevo crédito»: es justo el aviso
+   para créditos nuevos que Joan decidió no ponerle (decisión 4 del 30-oct:
+   «solo queda anotado en el crédito y en los informes»). Lo perdido con él
+   sigue a la vista en su ficha («Capital perdido con él») y en los informes. */
 function riesgoCliente(s){
   const ps=DB.prestamos.filter(p=>p.socioId===s.id); if(!ps.length)return{cls:'riesgo-nuevo',txt:'Nuevo'};
   const npr=totalProrrogasCliente(s),ratio=npr/ps.length,enMora=ps.some(p=>estadoPrestamo(p)==='mora'&&diasMora(p)>=6);
-  const diasPerdon=PUENTE.diasDeMoraAlCerrarConPerdida?Math.max(0,...ps.map(p=>PUENTE.diasDeMoraAlCerrarConPerdida(p))):0;
-  if(!enMora&&diasPerdon>=6&&ratio<=0.5)return{cls:'riesgo-alto',txt:'Alto',perdon:`se cerró con pérdida de capital a los ${diasPerdon} días de mora`};
   if(enMora||ratio>0.5)return{cls:'riesgo-alto',txt:'Alto'};
   if(ratio>0)return{cls:'riesgo-medio',txt:'Medio'};
   return{cls:'riesgo-bajo',txt:'Bajo'};
@@ -2295,9 +2306,16 @@ function kpiFondoCupon(){
      · al-dia  → recordatorio2, que es el aviso "con tiempo" y no promete una
        fecha que no es hoy;
      · pagado  → recibo, que es lo único que se le manda a quien ya pagó.
+
+   31-oct-2026 (segunda revisión) — y el cerrado con «Se lo perdoné» sin
+   devolver todo el capital NO pagó (PUENTE.cerroConPerdida): le toca 'cierre'.
+   La cola y el Calendario no preguntan por créditos pagados (los dejan
+   fuera), pero la pregunta de después de cerrar (cerrarConPerdon) sí, y le
+   ofrecía «Tu pago quedó registrado… gracias por tu cumplimiento» a quien
+   entregó $0. Ahora le pregunta a esta función: un solo sitio decide.
    ========================================================================= */
 function plantillaPara(p){ const e=estadoPrestamo(p);
-  if(e==='pagado')return 'recibo';
+  if(e==='pagado')return (PUENTE.cerroConPerdida&&PUENTE.cerroConPerdida(p))?'cierre':'recibo';
   if(e==='mora')return diasMora(p)>=6?'mora':'moraTemprana'; if(e==='hoy')return 'venceHoy';
   if(e==='proximo')return diasPara(p)>=2?'recordatorio2':'recordatorio1'; return 'recordatorio2'; }
 function waNum(s){ return (s.whatsappIgual?s.telefono:(s.whatsappNumero||s.telefono))||''; }
@@ -5496,6 +5514,8 @@ const TOKENS_POR_PLANTILLA={
   bienvenida:TOKENS_QUINCENAL, recordatorio2:TOKENS_QUINCENAL, recordatorio1:TOKENS_QUINCENAL,
   venceHoy:TOKENS_QUINCENAL, moraTemprana:TOKENS_QUINCENAL, mora:TOKENS_QUINCENAL,
   recibo:TOKENS_QUINCENAL.concat(['nivel']), prorroga:TOKENS_QUINCENAL,
+  /* 31-oct-2026: el cierre con pérdida no dice cifras (ver la plantilla). */
+  cierre:['nombre','negocio'],
   /* 3-oct-2026: {abono} solo lo contesta este recibo (varsDePlantilla). */
   abonoProrroga:TOKENS_QUINCENAL.concat(['abono']),
   /* Estas cuatro van sin crédito delante (p=null): {monto} y {saldo} saldrían
@@ -5900,7 +5920,7 @@ function verCliente(id){
       <div class="muted" style="margin-top:6px;font-size:12px">Él no ve esto por ningún lado: para él su garantía es lo que le deja cada pago, y su cupo es esa garantía, uno a uno.</div></div>
     <div class="info-row"><span class="k">Nivel <span class="muted">(el tramo de su garantía · no le mueve el cupo)</span></span><span class="vv"><b>${escHTML(MotorReglas.nombreNivel(mg.nivel))}</b> <span class="muted">· le da ${nivProrr} prórroga${nivProrr!==1?'s':''} por crédito, y sigue a la garantía: si ella sube o baja, el nivel también</span></span></div>
     <div class="info-row"><span class="k">Cupo quincenal <span class="muted">(su garantía, uno a uno)</span></span><span class="vv"><b>${COP(qCupo.cupo)}</b>${qCupo.freno.aplicado?` <span class="muted">(topado por el freno de ingreso: sin él sería ${COP(qCupo.freno.cupo_sin_freno)})</span>`:''}</span></div>
-    <div class="info-row"><span class="k">Riesgo (sugerido)</span><span class="vv"><span class="chip ${r.cls}">${r.txt}</span> <span class="muted">${npr} prórroga${npr!==1?'s':''} de ${ps.length} crédito${ps.length!==1?'s':''}${r.perdon?` · ${escHTML(r.perdon)}`:''}</span></span></div>
+    <div class="info-row"><span class="k">Riesgo (sugerido)</span><span class="vv"><span class="chip ${r.cls}">${r.txt}</span> <span class="muted">${npr} prórroga${npr!==1?'s':''} de ${ps.length} crédito${ps.length!==1?'s':''}</span></span></div>
     ${perdones.length?`<div class="info-row"><span class="k">Descuentos que le has dado</span><span class="vv"><b>${COP(perdonado)}</b> <span class="muted">en ${perdones.length} perdón${perdones.length!==1?'es':''}${partesDelPerdon(dsc)}, con motivo anotado</span></span></div>`:''}
     ${capPerdido.capital?`<div class="info-row"><span class="k">Capital perdido con él</span><span class="vv"><b class="pierde">${COP(capPerdido.capital)}</b> <span class="muted">en ${capPerdido.creditos} crédito${capPerdido.creditos!==1?'s':''} · plata tuya que no vuelve (ya va dentro de los descuentos de arriba)</span></span></div>`:''}
     ${aFavorTotal>0?`<div class="info-row"><span class="k">Te ha pagado de más</span><span class="vv"><b>${COP(aFavorTotal)}</b> <span class="muted">anotado en sus créditos · NO se descuenta solo del siguiente: se lo aplicas tú a mano o se lo devuelves</span></span></div>`:''}
@@ -7455,7 +7475,14 @@ function cerrarConPerdon(id){
      mismo monto el mismo día son dos fotos (la identidad de la nube). */
   addComp(p,'pago',r.monto,reg.condonacion.id);
   reiniciarCobro(id); guardar(); cerrarModal(); render();
-  if(s&&confirm('Crédito cerrado: recibió '+COP(r.monto)+(r.perdona.capital?' y perdiste '+COP(r.perdona.capital)+' de capital':'')+'.\n\n¿Enviar recibo por WhatsApp?')) gestionar(id,'recibo');
+  /* 31-oct-2026 (segunda revisión) — con pérdida de capital no hubo pago: se
+     ofrece avisarle que el crédito quedó cerrado ('cierre'), no el recibo de
+     «Tu pago quedó registrado… gracias por tu cumplimiento». Sin pérdida (lo
+     perdonado fue mora o costo) devolvió el capital entero y el recibo es el
+     de siempre, como desde el 2-sep. La plantilla la decide plantillaPara, la
+     misma que usan la cola de gestión y el Calendario. */
+  if(s&&confirm('Crédito cerrado: recibió '+COP(r.monto)+(r.perdona.capital?' y perdiste '+COP(r.perdona.capital)+' de capital':'')+'.\n\n'
+    +(r.perdona.capital?'¿Avisarle por WhatsApp que el crédito quedó cerrado?':'¿Enviar recibo por WhatsApp?'))) gestionar(id,plantillaPara(p));
 }
 
 function estadoDelCobro(p,liq){

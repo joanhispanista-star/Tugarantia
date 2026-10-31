@@ -1995,11 +1995,19 @@
    (cerroConPerdida en app/puente.js). Cambian dos .js más ya publicados, y los
    dos estrenan la firma de llegada y se precargan con ?v=142:
    app/comisiones.js (ni «el cliente pagó su primer crédito» ni la recurrencia
-   de un crédito cerrado perdiendo capital, y el castigo de los 20 días llega
-   igual), que pide solo panel/crm.html, y app/gente.js («Tu gente» cuenta lo
-   pagado con la misma vara que la garantía por referidos), que pide solo
-   panel/espejo.html. Cambia también app/socio.html (Historial e insignias:
-   «Cerrado», no «Pagado en fecha»), que ya iba en v142.
+   de un crédito cerrado perdiendo capital), que pide solo panel/crm.html, y
+   app/gente.js («Tu gente» cuenta lo pagado con la misma vara que la garantía
+   por referidos), que pide solo panel/espejo.html. Cambia también
+   app/socio.html (Historial e insignias: «Cerrado», no «Pagado en fecha»), que
+   ya iba en v142.
+   31-oct-2026, la segunda revisión: el castigo de los 20 días cae solo si el
+   crédito llegó abierto a los 20 días (el cierre con pérdida termina el
+   tramo, como cualquier cierre), lo bloqueado del asesor se suelta con el
+   primer crédito que el cliente pague de verdad después, el riesgo sugerido
+   no marca al cliente (decisión 4 de Joan), y después de cerrar con pérdida
+   el CRM ofrece 'cierre' («tu crédito quedó cerrado»), no el recibo de
+   «gracias por tu cumplimiento», y el celular no lo mete en «Pagaron ayer».
+   Los mismos archivos, ya en v142: nada sube de versión.
    OJO al integrar: la rama registro-tope (otra sesión, sin publicar) también
    pensaba en v142. La que se publique de segunda sube a v143. */
 const CACHE = 'tugarantia-v142';

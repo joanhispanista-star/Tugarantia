@@ -5442,7 +5442,7 @@ describe('las plantillas hablan con una sola voz (4-ago-2026)', () => {
                            '\nreturn VOZ_UNICA;')();
   const migrar = t => VOZ.reduce((s, r) => s.replace(r[0], r[1]), t);
 
-  test('son dieciséis y ninguna dice "obligación"', () => {
+  test('son diecisiete y ninguna dice "obligación"', () => {
     /* El número sube cuando se agrega una plantilla, y a propósito rompe la
        prueba cuando pasa: quien agregue una tiene que leer esta batería antes
        de escribirla. La decimotercera es la del código de acceso (10-ago-2026);
@@ -5461,8 +5461,15 @@ describe('las plantillas hablan con una sola voz (4-ago-2026)', () => {
        (cambioResponsable: «desde el 8 de octubre de 2026, la responsable de tus
        datos es NEXECO S.A.S.»). Leída contra esta batería: «Te escribimos…
        Cualquier duda nos cuentas», plural, sin «obligación», sin singular y sin
+       ninguna dirección pegada.
+       31-oct-2026 — DIECISIETE: el aviso de un crédito cerrado con «Se lo
+       perdoné» sin devolver todo el capital (cierre: «Te confirmamos que tu
+       crédito quedó cerrado: de ese crédito ya no nos debes nada»), que
+       reemplaza al recibo de «gracias por tu cumplimiento» cuando no hubo
+       pago. Leída contra esta batería: plural («confirmamos», «nos debes»,
+       «nos cuentas»), sin «obligación», sin singular, sin la marca y sin
        ninguna dirección pegada. */
-    assert.equal(mensajes().length, 16, 'cambió el número de plantillas: revisá la voz');
+    assert.equal(mensajes().length, 17, 'cambió el número de plantillas: revisá la voz');
     // En ninguna plantilla recomendada, y en ningún texto que le llegue al
     // socio. La palabra solo puede quedar viva en la regla que la borra.
     mensajes().forEach(m => assert.ok(!/obligaci[oó]n/i.test(m),

@@ -1080,10 +1080,18 @@ function waLink(tel, msg) {
 }
 
 /* Qué mensaje le toca a este crédito. Es la misma traducción de estadoPrestamo()
-   a una plantilla que hace plantillaPara() en crm.html. */
+   a una plantilla que hace plantillaPara() en crm.html.
+   31-oct-2026 (segunda revisión) — con la misma regla para el cerrado con «Se
+   lo perdoné» sin devolver todo el capital (cerroConPerdida, del puente): no
+   pagó, así que no le toca el recibo de «gracias por tu cumplimiento» sino
+   'cierre'. El texto de 'cierre' nace en el computador, como todos: si todavía
+   no llegó a este teléfono, textoPlantilla abre el chat en blanco y lo dice. */
+function cerroConPerdida(p) {
+  return !!(P && typeof P.cerroConPerdida === 'function' && P.cerroConPerdida(p));
+}
 function plantillaPara(p) {
   var e = estadoPrestamo(p);
-  if (e === 'pagado') return 'recibo';
+  if (e === 'pagado') return cerroConPerdida(p) ? 'cierre' : 'recibo';
   if (e === 'mora') return diasMora(p) >= 6 ? 'mora' : 'moraTemprana';
   if (e === 'hoy') return 'venceHoy';
   if (e === 'proximo') return diasPara(p) >= 2 ? 'recordatorio2' : 'recordatorio1';
@@ -3255,7 +3263,12 @@ function casosDelGrupo(clave) {
       prioridad = 1;
       k = diasPara(p) >= 2 ? 'recordatorio2' : 'recordatorio1';
     }
-    else if (clave === 'pagaron-ayer') { entra = !!p.pagado && p.fechaPagado === ayer; prioridad = 1; k = 'recibo'; }
+    /* 31-oct-2026 (segunda revisión) — el cerrado ayer con «Se lo perdoné» sin
+       devolver todo el capital no PAGÓ: no entra a «Pagaron ayer», que le
+       manda a todos «gracias por tu cumplimiento». El aviso de que su crédito
+       quedó cerrado se lo ofrece el computador al cerrarlo, que es donde se
+       cierra con pérdida. */
+    else if (clave === 'pagaron-ayer') { entra = !!p.pagado && p.fechaPagado === ayer && !cerroConPerdida(p); prioridad = 1; k = 'recibo'; }
     if (!entra) return;
     /* Sin socio no hay ficha, ni teléfono, ni gestiones donde anotar: no hay a
        quién escribirle. Es un dato roto, y se cuenta aparte más abajo. */

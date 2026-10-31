@@ -31,6 +31,21 @@
  * devolvió el capital no es un pago. El perdón de mora y costo con el capital
  * devuelto entero SÍ lo es, como desde el 2-sep: cada sección lo vigila
  * también, para que el arreglo no le cambie nada a lo de antes.
+ *
+ * 31-oct-2026, SEGUNDA REVISIÓN — el primer arreglo se pasó en dos sitios y
+ * dejó uno sin ver:
+ *   · al asesor (sección 1) le dejaba el crédito cerrado con pérdida
+ *     corriendo para siempre: castigo de «Mora de 20 días» por créditos que
+ *     se cerraron el día del corte, o antes, sin un día de mora; y lo
+ *     bloqueado no se soltaba nunca, aunque el cliente pagara en fecha sus
+ *     créditos siguientes, con textos que prometen que se suelta;
+ *   · al cliente (sección 5) lo dejaba en «Alto» para siempre: perder 1.000
+ *     a los 6 días pesaba más que pagar todo con 16 de atraso, y Joan había
+ *     decidido que el cierre no le pone marca (decisión 4);
+ *   · y después de cerrar con pérdida (sección 7), el CRM le ofrecía a Joan
+ *     mandarle al cliente «Tu pago quedó registrado… gracias por tu
+ *     cumplimiento», aunque hubiera entregado $0; y el celular, en «Pagaron
+ *     ayer», también.
  * ==========================================================================*/
 'use strict';
 
@@ -85,11 +100,31 @@ function aCuotas(o) {
   return Object.assign({ capital: 650000, costoPct: 20, fechaDesembolso: '2026-10-16', cicloActual: '2026-10-30',
     prorrogas: [], abonosCapital: [], comprobantes: [], pagado: false, planPagos: P.planPagosDeAlta(plan) }, o);
 }
+/* Los otros dos tipos, con la misma forma de cerrar-con-perdon-crm.test.js:
+   un pago acordado el 10-oct para el 6-nov y un plan del §8 desde el 20-oct. */
+function conPacto(o) {
+  const q = quincenal(Object.assign({ capital: 400000, fechaDesembolso: '2026-10-01', cicloActual: '2026-10-15' }, o));
+  const pa = P.pactarProximoPago({ socios: [], prestamos: [q] }, q, { fecha: '2026-11-06', monto: 450000 }, '2026-10-10');
+  assert.equal(pa.ok, true, 'no se pudo pactar el pago de la prueba: ' + pa.detalle);
+  q.planPagos = pa.registros.planPagos;
+  q.cicloActual = pa.registros.cicloActual;
+  return q;
+}
+function planDel8(o) {
+  const plan = M.construirPlanDePagos({ capital: 300000, fecha_corte: '2026-10-15', estado: 'en_corte' }, { desde: '2026-10-20' });
+  return quincenal(Object.assign({ capital: 300000, fechaDesembolso: '2026-10-01', cicloActual: plan.cuotas[0].fecha_corte,
+    prorrogas: [{ fecha: '2026-10-15', ciclo: '2026-10-15', monto: 60000, mora: 0, aTiempo: true, nuevoCiclo: '2026-10-31' }],
+    planPagos: { creado: '2026-10-20', tasa_por_corte: plan.tasa_por_corte,
+      entrada: { fecha: '2026-10-20', ciclo: '2026-10-15', monto: 60000, mora: 0, aTiempo: true, diasMora: 0 },
+      total_capital: plan.total_capital, total_costo: plan.total_costo, total_a_pagar: plan.total_a_pagar,
+      cuotas: plan.cuotas.map(c => ({ n: c.numero, fecha: c.fecha_corte, capital: c.capital, costo: c.costo,
+        total: c.total, pagado: false, fechaPagado: null, recargo: 0, garantiaGenerada: 0 })) } }, o));
+}
 
 /* ==========================================================================
  * 1. LA COMISIÓN DEL ASESOR
  * ======================================================================== */
-describe('1 · la comisión del asesor: perdonarle la plata al cliente no le paga al asesor ni le borra el castigo', () => {
+describe('1 · la comisión del asesor: perdonarle la plata al cliente no le paga al asesor, ni le borra un castigo que ya llegó, ni le inventa uno', () => {
   const S = { id: 'sA', numero: 1, nombre: 'Clienta Inventada', telefono: '3000000020', gestiones: [] };
   const asign = [{ socio_id: 'sA', asesor_id: 'asesor-1', desde: '2026-08-30' }];
   const primero = () => quincenal({ id: 'pA', numero: 1, socioId: 'sA', socioNombre: S.nombre, capital: 300000,
@@ -101,23 +136,85 @@ describe('1 · la comisión del asesor: perdonarle la plata al cliente no le pag
   const corto = L => ({ bloqueado: L.saldo.bloqueado, libre: L.saldo.libre, castigos: L.saldo.castigos,
     puede: L.desbloquear.puede });
 
-  test('el primer crédito cerrado con $0 el día 19 de mora: ni «pagó su primer crédito», ni desbloqueo, y el castigo llega el día 20', () => {
+  test('el primer crédito cerrado con $0 el día 19 de mora: ni «pagó su primer crédito», ni desbloqueo, ni castigo (no llegó a 20 días)', () => {
     const cerrado = cerrar({ socios: [S], prestamos: [primero()] }, primero(), '2026-11-03', 0);
     assert.equal(P.perdidaDelCierre(cerrado), 300000, 'precondición: se perdió todo el capital');
-    const L = libro([cerrado], '2026-11-05');
+    const L = libro([cerrado], '2026-12-31');
     assert.ok(!L.movs.some(m => m.tipo === 'pago'),
       'le anotó al asesor «el cliente pagó su primer crédito» de un cliente que no pagó nada');
-    const castigo = L.movs.find(m => m.tipo === 'castigo_mora');
-    assert.ok(castigo, 'el cierre con pérdida le borró al asesor el castigo de los 20 días');
-    assert.equal(castigo.fecha, '2026-11-04');
-    assert.equal(castigo.monto, -10000);
-    /* El motivo dice lo que pasó: el crédito no llegó abierto al día 20. */
-    assert.match(castigo.motivo, /no pagó todo en menos de 20 días de mora/);
-    assert.match(castigo.motivo, /se cerró con pérdida de capital/);
     assert.equal(L.desbloquear.puede, false, 'le dejó desbloquear los 15.000');
-    /* Exactamente lo mismo que si el crédito siguiera abierto y sin pagar. */
-    assert.deepEqual(corto(L), corto(libro([primero()], '2026-11-05')));
-    assert.deepEqual(corto(L), { bloqueado: 5000, libre: 0, castigos: 10000, puede: false });
+    /* 31-oct-2026 (segunda revisión) — el cierre termina el tramo, como
+       cualquier cierre: el crédito no llegó abierto al día 20, y la regla que
+       el asesor tiene escrita es «si un crédito tuyo llega a 20 días sin
+       pagar». Ni el día 20 ni dos meses después. */
+    assert.ok(!L.movs.some(m => m.tipo === 'castigo_mora'),
+      'castigó al asesor por 20 días de mora que el crédito no alcanzó a tener');
+    assert.deepEqual(corto(L), { bloqueado: 15000, libre: 0, castigos: 0, puede: false });
+    /* Y el botón dice algo que todavía es verdad: si paga otro, se suelta (abajo). */
+    assert.match(L.desbloquear.motivo, /se desbloquean cuando pague/);
+  });
+
+  test('cerrado el día del corte perdiendo 10.000, sin un día de mora: ningún castigo, y lo bloqueado se suelta con el siguiente crédito que pague', () => {
+    /* El caso de la segunda revisión: devolvió 290.000 de 300.000 el mismo
+       15-oct del corte y Joan le perdonó 10.000 de capital y el costo. Antes
+       del arreglo: «Mora de 20 días» el 4-nov, y los 15.000 bloqueados para
+       siempre aunque pagara en fecha los dos créditos siguientes, con «Los
+       15.000 se desbloquean cuando pague» en el botón. */
+    const c1 = cerrar({ socios: [S], prestamos: [primero()] }, primero(), '2026-10-15', 290000);
+    assert.equal(P.perdidaDelCierre(c1), 10000, 'precondición: perdió 10.000 de capital');
+    const solo = libro([c1], '2026-12-31');
+    assert.ok(!solo.movs.some(m => m.tipo === 'castigo_mora'),
+      'castigó al asesor con «Mora de 20 días» por un crédito que nunca tuvo un día de mora');
+    assert.equal(solo.desbloquear.puede, false, 'todavía no ha pagado nada: no se desbloquea');
+    const c2 = pagarTodo(quincenal({ id: 'pB', numero: 2, socioId: 'sA', socioNombre: S.nombre, capital: 300000,
+      fechaDesembolso: '2026-10-16', cicloActual: '2026-10-31' }), '2026-10-31');
+    const c3 = pagarTodo(quincenal({ id: 'pC', numero: 3, socioId: 'sA', socioNombre: S.nombre, capital: 300000,
+      fechaDesembolso: '2026-11-01', cicloActual: '2026-11-17' }), '2026-11-17');
+    const L = libro([c1, c2, c3], '2026-12-31');
+    assert.ok(!L.movs.some(m => m.tipo === 'castigo_mora'));
+    assert.equal(L.desbloquear.puede, true,
+      'pagó en fecha dos créditos y los 15.000 seguían bloqueados: «se desbloquean cuando pague» era mentira');
+    assert.equal(L.desbloquear.monto, 15000);
+    /* El pago que desbloquea es el del segundo, con un motivo que dice lo que pasó… */
+    const pago = L.movs.find(m => m.tipo === 'pago');
+    assert.equal(pago.credito_id, 'pB');
+    assert.equal(pago.fecha, '2026-10-31');
+    assert.equal(pago.monto, 10000);
+    assert.match(pago.motivo, /el primero se cerró con pérdida de capital/);
+    /* …y ese crédito no cobra además la recurrencia: un hecho, un movimiento. */
+    const tipos = L.movs.map(m => m.tipo + ':' + m.credito_id);
+    assert.ok(!tipos.includes('recurrencia:pB'), 'el mismo pago le pagó dos comisiones');
+    assert.ok(tipos.includes('recurrencia:pC'));
+    assert.deepEqual(corto(L), { bloqueado: 15000, libre: 15000, castigos: 0, puede: true });
+    /* La ficha de la persona dice la misma cifra arriba y en la fila. */
+    assert.equal(L.saldo.bloqueado, L.desbloquear.monto);
+  });
+
+  test('cerrado con pérdida ANTES del corte, y en los otros tres tipos, sin llegar a 20 días de mora: ningún castigo, ni con el tiempo', () => {
+    const db = p => ({ socios: [S], prestamos: [p] });
+    const casos = [
+      ['quincenal, el 10-oct (corte 15-oct)', primero(), '2026-10-10', 250000],
+      ['a cuotas, el 30-oct (su primera cuota)', aCuotas({ id: 'pA', numero: 1, socioId: 'sA', socioNombre: S.nombre }), '2026-10-30', 500000],
+      ['pago acordado, el 6-nov (el día pactado)', conPacto({ id: 'pA', numero: 1, socioId: 'sA', socioNombre: S.nombre }), '2026-11-06', 300000],
+      ['plan del §8, el 20-oct', planDel8({ id: 'pA', numero: 1, socioId: 'sA', socioNombre: S.nombre }), '2026-10-20', 200000]
+    ];
+    casos.forEach(([nombre, p, fecha, monto]) => {
+      const c = cerrar(db(p), p, fecha, monto);
+      assert.ok(P.perdidaDelCierre(c) > 0, 'precondición (' + nombre + '): perdió capital');
+      const L = libro([c], '2027-01-31');
+      assert.ok(!L.movs.some(m => m.tipo === 'castigo_mora'),
+        nombre + ': castigo de «Mora de 20 días» por un crédito cerrado sin llegar a 20 días de mora');
+      assert.ok(!L.movs.some(m => m.tipo === 'pago'), nombre + ': no pagó, no hay «pagó»');
+    });
+  });
+
+  test('lo de antes no cambia: si el primero sigue abierto, el pago que desbloquea lo espera a él, aunque pague otros', () => {
+    const p2 = pagarTodo(quincenal({ id: 'pB', numero: 2, socioId: 'sA', socioNombre: S.nombre, capital: 300000,
+      fechaDesembolso: '2026-10-05', cicloActual: '2026-10-20' }), '2026-10-20');
+    const L = libro([primero(), p2], '2026-10-25');
+    assert.ok(!L.movs.some(m => m.tipo === 'pago'), 'el primero no se ha pagado: no hay «pagó su primer crédito»');
+    assert.ok(L.movs.some(m => m.tipo === 'recurrencia' && m.credito_id === 'pB'));
+    assert.equal(L.desbloquear.puede, false);
   });
 
   test('si el castigo ya había llegado con el crédito abierto, su motivo sigue siendo el de siempre', () => {
@@ -321,7 +418,14 @@ describe('4 · Créditos: la columna «Capital» de un crédito cerrado con pér
 /* ==========================================================================
  * 5. EL RIESGO SUGERIDO DEL CRM
  * ======================================================================== */
-describe('5 · «Riesgo (sugerido)»: el perdón no se lo baja', () => {
+/* 31-oct-2026 (segunda revisión) — el primer arreglo decía «el perdón no se lo
+   baja» y lo dejaba en Alto con la mora del día del cierre, para siempre. Era
+   la marca en el cliente que Joan decidió no ponerle (decisión 4 del 30-oct:
+   «no se le bloquea ni se le pone aviso para créditos nuevos; solo queda
+   anotado en el crédito y en los informes»), y el «Alto» sale en Clientes y en
+   la ficha, al lado de «＋ Nuevo crédito». El cierre con pérdida cuenta como
+   el crédito pagado tarde: deja de pesar. */
+describe('5 · «Riesgo (sugerido)»: el cierre con pérdida no marca al cliente (decisión 4)', () => {
   const LUCIA = { id: 's3', numero: 3, nombre: 'Lucía Ejemplo Vargas', telefono: '3001110003', gestiones: [] };
   /* Vencía el 15-oct: el 31-oct lleva 16 días de mora, sin prórrogas. */
   const vencido = () => quincenal({ id: 'pX', numero: 14, socioId: 's3', socioNombre: LUCIA.nombre, capital: 200000,
@@ -337,18 +441,40 @@ describe('5 · «Riesgo (sugerido)»: el perdón no se lo baja', () => {
   const HOY = '2026-10-31T10:30:00';
   const riesgo = CRM => JSON.parse(CRM.ev('JSON.stringify(riesgoCliente(DB.socios[0]))'));
 
-  test('Lucía con 16 días de mora es Alto, y cerrarle el crédito con $0 la deja en Alto (no en Bajo)', () => {
+  test('Lucía con 16 días de mora es Alto; cerrarle el crédito con $0 la deja como pagarlo tarde (Bajo), y lo perdido sigue en su ficha', () => {
     const antes = crmCon(HOY, [LUCIA], [vencido(), otro()]);
     assert.equal(riesgo(antes).txt, 'Alto', 'precondición');
     const db = { socios: [LUCIA], prestamos: [vencido(), otro()] };
     const cerrado = cerrar(db, vencido(), '2026-10-31', 0);
     const CRM = crmCon(HOY, [LUCIA], [cerrado, otro()]);
-    assert.equal(riesgo(CRM).txt, 'Alto', 'perder el 100% del capital le bajó el riesgo a la clienta');
-    /* La ficha dice por qué, que no se ve ninguna mora abierta. */
+    const tarde = crmCon(HOY, [LUCIA], [pagarTodo(vencido(), '2026-10-31'), otro()]);
+    assert.deepEqual(riesgo(CRM), riesgo(tarde), 'el cierre con pérdida le puso una marca que pagar tarde no pone');
+    assert.equal(riesgo(CRM).txt, 'Bajo');
+    /* La ficha no le cuelga un aviso al riesgo, y lo perdido sigue anotado. */
     CRM.ev("verCliente('s3')");
     const ficha = texto(CRM.elems.mBody.innerHTML);
-    assert.match(ficha, /Riesgo \(sugerido\) Alto/);
-    assert.match(ficha, /se cerró con pérdida de capital a los 16 días de mora/);
+    assert.match(ficha, /Riesgo \(sugerido\) Bajo/);
+    assert.doesNotMatch(ficha, /se cerró con pérdida de capital a los/);
+    assert.match(ficha, /Capital perdido con él \$200\.000/, 'lo perdido tiene que seguir en la ficha (decisión 5)');
+  });
+
+  test('cerrado con pérdida en mayo y después tres créditos pagados en fecha: Bajo, como el que lo pagó entero y tarde', () => {
+    /* La medida de la segunda revisión: a los 16 días perdiendo 50.000, y a
+       los 6 días perdiendo solo 1.000. Antes del arreglo, los dos «Alto» para
+       siempre; pagado entero con 16 días de atraso, «Bajo». */
+    const de = o => quincenal(Object.assign({ socioId: 's3', socioNombre: LUCIA.nombre, capital: 200000 }, o));
+    const mayo = () => de({ id: 'v', numero: 1, fechaDesembolso: '2026-05-01', cicloActual: '2026-05-15' });
+    const bien = [['b1', 2, '2026-06-01', '2026-06-15'], ['b2', 3, '2026-07-01', '2026-07-15'], ['b3', 4, '2026-08-01', '2026-08-15']]
+      .map(([id, n, d, c]) => pagarTodo(de({ id, numero: n, fechaDesembolso: d, cicloActual: c }), c));
+    const db = { socios: [LUCIA], prestamos: [mayo()] };
+    const a16 = cerrar(db, mayo(), '2026-05-31', 150000);
+    const a6 = cerrar(db, mayo(), '2026-05-21', 199000);
+    assert.deepEqual([P.perdidaDelCierre(a16), P.perdidaDelCierre(a6)], [50000, 1000], 'precondición');
+    assert.equal(riesgo(crmCon(HOY, [LUCIA], [pagarTodo(mayo(), '2026-05-31'), ...bien])).txt, 'Bajo', 'precondición');
+    assert.equal(riesgo(crmCon(HOY, [LUCIA], [a16, ...bien])).txt, 'Bajo',
+      'perder capital a los 16 días la dejó en Alto para siempre, aunque después pagara tres en fecha');
+    assert.equal(riesgo(crmCon(HOY, [LUCIA], [a6, ...bien])).txt, 'Bajo',
+      'perder 1.000 a los 6 días pesó más que pagar todo con 16 días de atraso');
   });
 
   test('lo de antes no cambia: si pagó todo, aunque tarde, el riesgo baja como siempre', () => {
@@ -451,5 +577,99 @@ describe('6 · la app del cliente no dice «pagado» de lo que no se pagó', () 
     const h = plano(vm.runInContext('tarjetaHistorial()', ctx));
     assert.match(h, /Cerrado/);
     assert.doesNotMatch(h, /Pagado en fecha/, 'PlataChat le dijo «Pagado en fecha» de un crédito que no pagó');
+  });
+});
+
+/* ==========================================================================
+ * 7. EL MENSAJE DESPUÉS DE CERRAR CON PÉRDIDA (segunda revisión, 31-oct-2026)
+ *
+ * Al cerrar con «Se lo perdoné», el CRM pregunta si le manda algo por
+ * WhatsApp. Le ofrecía el recibo de siempre —«¡Recibido, Rosa! Tu pago quedó
+ * registrado… muchas gracias por tu cumplimiento»— con $0 entregados. Y el
+ * celular, en la tanda «Pagaron ayer», le mandaba lo mismo a todo crédito
+ * cerrado ayer. Con pérdida de capital no hubo pago: le toca 'cierre' («tu
+ * crédito quedó cerrado: de ese crédito ya no nos debes nada»). Sin pérdida
+ * (lo perdonado fue mora o costo) el recibo es el de siempre.
+ * ======================================================================== */
+const { abrirEspejo } = require('./banco-espejo.js');
+
+describe('7 · después de cerrar con pérdida no se le agradece un pago que no hizo', () => {
+  const ROSA = { id: 's7', numero: 7, nombre: 'Rosa Inventada', telefono: '3001110007', gestiones: [] };
+  /* El CRM con la hoja de cobro de verdad, diciéndole que SÍ a todo (también
+     al WhatsApp: el banco no abre ventanas, solo pinta la de gestión). */
+  function cerrarEnLaHoja(credito, fecha, monto, capitalQuePierde) {
+    const CRM = abrirPanel({ ahora: fecha + 'T10:30:00' });
+    CRM.cargarCartera({ socios: [copia(ROSA)], prestamos: [copia(credito)], config: { negocio: 'Tu Garantía' } });
+    CRM.ev('var __vistos=[]; confirm=t=>{ __vistos.push(String(t)); return true; }');
+    const id = credito.id, poner = (k, v) => CRM.ev("document.getElementById('" + k + "').value=" + JSON.stringify(String(v)));
+    CRM.ev("abrirPago('" + id + "')"); poner('pgFecha', fecha); CRM.ev("calcPago('" + id + "')");
+    poner('pgMonto', monto); CRM.ev("cambioMonto('" + id + "')");
+    CRM.ev("modoCobro('" + id + "','perdon')");
+    CRM.ev("_cobro.motivo='se fue de la ciudad';_cobro.entiende=" + capitalQuePierde + ";pintarBoton('" + id + "')");
+    CRM.ev("registrarCobro('" + id + "')");
+    const p = JSON.parse(CRM.ev('JSON.stringify(DB.prestamos[0])'));
+    assert.equal(p.pagado, true, 'precondición: no se cerró el crédito');
+    assert.equal(p.capitalPerdido, capitalQuePierde, 'precondición: el capital perdido');
+    const html = String(CRM.elems.mBody.innerHTML);
+    const m = html.match(/<textarea id="gTexto">([\s\S]*?)<\/textarea>/);
+    return { CRM, preguntas: JSON.parse(CRM.ev('JSON.stringify(__vistos)')), titulo: CRM.elems.mTitle.textContent,
+      mensaje: m ? m[1] : '', elegida: (html.match(/<option value="(\w+)" selected>/) || [])[1] };
+  }
+  const deRosa = o => quincenal(Object.assign({ id: 'r1', numero: 1, socioId: 's7', socioNombre: ROSA.nombre, capital: 200000,
+    fechaDesembolso: '2026-10-01', cicloActual: '2026-10-15' }, o));
+
+  test('cerrado con $0 a los 16 días de mora: el WhatsApp que ofrece dice que quedó cerrado, sin «pago» ni «cumplimiento»', () => {
+    const r = cerrarEnLaHoja(deRosa(), '2026-10-31', 0, 200000);
+    const pregunta = r.preguntas[r.preguntas.length - 1];
+    assert.match(pregunta, /perdiste \$200\.000 de capital/);
+    assert.match(pregunta, /¿Avisarle por WhatsApp que el crédito quedó cerrado\?/);
+    assert.doesNotMatch(pregunta, /recibo/, 'le ofreció «el recibo» de un pago que no hubo');
+    assert.equal(r.titulo, 'Gestionar · Rosa Inventada');
+    assert.equal(r.elegida, 'cierre');
+    assert.match(r.mensaje, /tu crédito quedó cerrado: de ese crédito ya no nos debes nada/);
+    assert.doesNotMatch(r.mensaje, /pago|cumplimiento|Recibido/i,
+      'le ofreció mandarle «Tu pago quedó registrado… gracias por tu cumplimiento» a quien entregó $0: ' + r.mensaje);
+  });
+
+  test('a cuotas cerrado con 500.000 de 650.000: tampoco es un pago, y el mensaje es el mismo', () => {
+    const c = aCuotas({ id: 'r2', numero: 2, socioId: 's7', socioNombre: ROSA.nombre });
+    const r = cerrarEnLaHoja(c, '2026-11-05', 500000, 150000);
+    assert.equal(r.elegida, 'cierre');
+    assert.doesNotMatch(r.mensaje, /pago|cumplimiento/i, r.mensaje);
+  });
+
+  test('lo de antes no cambia: si devolvió todo el capital (el perdón fue de mora y costo), el recibo es el de siempre', () => {
+    const c = aCuotas({ id: 'r3', numero: 3, socioId: 's7', socioNombre: ROSA.nombre });
+    const r = cerrarEnLaHoja(c, '2026-11-05', 700000, 0);
+    assert.match(r.preguntas[r.preguntas.length - 1], /¿Enviar recibo por WhatsApp\?/);
+    assert.equal(r.elegida, 'recibo');
+    assert.match(r.mensaje, /Tu pago quedó registrado/);
+  });
+
+  test('plantillaPara, la que decide en el CRM: «cierre» para el cerrado con pérdida, «recibo» para el pagado', () => {
+    const perdido = cerrar({ socios: [ROSA], prestamos: [deRosa()] }, deRosa(), '2026-10-31', 0);
+    const pagado = pagarTodo(deRosa({ id: 'r4', numero: 4 }), '2026-10-15');
+    const sinPerdida = cerrar({ socios: [ROSA], prestamos: [deRosa({ id: 'r5', numero: 5 })] },
+      deRosa({ id: 'r5', numero: 5 }), '2026-10-20', 210000);
+    assert.equal(P.perdidaDelCierre(sinPerdida), 0, 'precondición: devolvió todo el capital');
+    const CRM = crmCon('2026-10-31T10:30:00', [ROSA], [perdido, pagado, sinPerdida]);
+    const k = id => CRM.ev("plantillaPara(DB.prestamos.find(function(p){return p.id==='" + id + "'}))");
+    assert.equal(k('r1'), 'cierre', 'al cerrado con pérdida le tocaba el recibo de «gracias por tu cumplimiento»');
+    assert.equal(k('r4'), 'recibo');
+    assert.equal(k('r5'), 'recibo');
+  });
+
+  test('el celular: «Pagaron ayer» no le agradece a quien cerró ayer con pérdida, y su gestión le da «cierre»', () => {
+    const LUCIA7 = { id: 's8', numero: 8, nombre: 'Lucía Inventada', telefono: '3001110008', gestiones: [] };
+    const perdido = cerrar({ socios: [ROSA], prestamos: [deRosa()] }, deRosa(), '2026-10-30', 50000);
+    const pagado = pagarTodo(quincenal({ id: 'l1', numero: 2, socioId: 's8', socioNombre: LUCIA7.nombre, capital: 200000,
+      fechaDesembolso: '2026-10-15', cicloActual: '2026-10-30' }), '2026-10-30');
+    const E = abrirEspejo({ ahora: '2026-10-31T10:30:00', cartera: { socios: [copia(ROSA), copia(LUCIA7)],
+      prestamos: [perdido, pagado], respaldados: [], config: { negocio: 'Tu Garantía' },
+      contadores: { cliente: 8, credito: 2, respaldado: 0 }, plantillas: {} } });
+    assert.deepEqual(E.json("casosDelGrupo('pagaron-ayer').map(function (c) { return c.id; })"), ['l1'],
+      '«Pagaron ayer» le iba a mandar «gracias por tu cumplimiento» a un crédito cerrado con pérdida');
+    assert.equal(E.ev("plantillaPara(creditoPorId('r1'))"), 'cierre');
+    assert.equal(E.ev("plantillaPara(creditoPorId('l1'))"), 'recibo');
   });
 });

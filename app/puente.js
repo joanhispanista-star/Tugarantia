@@ -430,28 +430,20 @@
      crédito solo quedaba `pagado` si el cliente devolvía por lo menos el
      capital, y todo lo que lee `p.pagado` como «el cliente pagó» se escribió con
      esa verdad adentro. Desde que «Se lo perdoné» cierra con cualquier monto,
-     `pagado` quiere decir «cerrado», y la revisión del 31-oct midió seis sitios
+     `pagado` quiere decir «cerrado», y la revisión del 31-oct midió los sitios
      que contaban como pago un crédito cerrado con $0: al asesor le quedaban
-     25.000 de comisión y sin el castigo de los 20 días (app/comisiones.js), al
-     que lo trajo 5.000 de cupo por referido, al cliente «Pagado en fecha», su
-     racha y sus insignias, al grupo un crédito pagado más, y en el CRM el riesgo
-     sugerido bajaba de Alto a Bajo. «¿Pagó?» se contesta AQUÍ: pagado y sin
-     capital perdido en el cierre. El perdón de mora y costo con el capital
-     devuelto entero sigue siendo un pago, como desde el 2-sep: a lo de antes no
-     se le cambia nada. Y no es una marca en el cliente (decisión 4 de Joan): no
-     se le bloquea ni se le avisa nada para créditos nuevos; solo no se cuenta
-     como pago lo que no se pagó. */
+     25.000 de comisión (app/comisiones.js), al que lo trajo 5.000 de cupo por
+     referido, al cliente «Pagado en fecha», su racha y sus insignias, y al
+     grupo un crédito pagado más; y la segunda revisión, el recibo «Tu pago
+     quedó registrado… gracias por tu cumplimiento» que el CRM y el celular le
+     ofrecían mandarle. «¿Pagó?» se contesta AQUÍ: pagado y sin capital
+     perdido en el cierre. El perdón de mora y costo con el capital devuelto
+     entero sigue siendo un pago, como desde el 2-sep: a lo de antes no se le
+     cambia nada. Y no es una marca en el cliente (decisión 4 de Joan): no se
+     le bloquea ni se le avisa nada para créditos nuevos —por eso el riesgo
+     sugerido del CRM no lo mira—; solo no se cuenta como pago lo que no se
+     pagó. */
   function cerroConPerdida(p) { return perdidaDelCierre(p) > 0; }
-  /* Los días de mora que llevaba el crédito el día en que se cerró perdiendo
-     capital (0 si no se perdió nada, o si se cerró en su fecha): la misma cuenta
-     de liquidarCiclo ese día, desde el corte que regía, que el cierre guarda en
-     `cicloPago`. Es lo que lee el riesgo sugerido del CRM: el perdón deja la
-     mora como estaba ese día, ni la borra ni la hace crecer. */
-  function diasDeMoraAlCerrarConPerdida(p) {
-    if (!cerroConPerdida(p)) return 0;
-    var corte = fechaFin(p.cicloPago), f = fechaFin(p.fechaPagado);
-    return (corte && f && f > corte) ? diasCal(corte, f) : 0;
-  }
 
   /* Los días calendario del MOTOR, no los de acá arriba: `diasEntre` de este
      archivo hace Math.max(1,…) para que la E.A. no divida por cero, y una
@@ -4887,9 +4879,9 @@
     perdidaDelCierre: perdidaDelCierre,
     condonacionDelCierre: condonacionDelCierre,
     /* Un cierre con pérdida no es un pago (31-oct-2026): para las comisiones
-       (app/comisiones.js) y el riesgo sugerido del CRM. */
+       (app/comisiones.js), «Tu gente» (app/gente.js) y los recibos del CRM y
+       del celular. */
     cerroConPerdida: cerroConPerdida,
-    diasDeMoraAlCerrarConPerdida: diasDeMoraAlCerrarConPerdida,
     /* Cerrar el crédito con lo que Joan diga (30-oct-2026), en los cuatro tipos. */
     cierreConPerdon: cierreConPerdon,
     /* La ley del cobro con monto real (7-sep-2026): una sola copia, para el
