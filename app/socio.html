@@ -903,8 +903,12 @@ details.plegado>summary{padding:0 var(--e4)}
    pestaña donde le escribieron (app/chat-vivo.js, nuevo: ya en la precarga).
    Sale con el CACHE v140, junto con el gerente que agrega.
    28-oct-2026: «Tu historia laboral», la tarjeta para quien dejó el fondo de
-   pensiones para después en el registro (app/historia-laboral.js, nuevo). */
-var VERSION_APP = '2026-10-28';
+   pensiones para después en el registro (app/historia-laboral.js, nuevo).
+   31-oct-2026: el Historial dice «Cerrado» —no «Pagado en fecha», ni sus
+   cuotas como pagadas, ni garantía «al pagarlo»— del crédito que Joan cerró
+   con «Se lo perdoné» sin que el cliente devolviera el capital, y ese crédito
+   no da insignias de pago. Sale con el CACHE v142. */
+var VERSION_APP = '2026-10-31';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
@@ -1964,7 +1968,10 @@ function abrir(resp) {
     respaldados: respaldados,
     respaldadoActivo: abiertos[0] || null,
     activo: creditos.filter(function (c) { return !c.pagado; })[0] || null,
-    pagados: creditos.filter(function (c) { return c.pagado; }),
+    /* 31-oct-2026 — el que Joan cerró sin que devolviera el capital
+       (`cerrado_con_perdida`, del puente) está cerrado pero no pagado: no da
+       «5 créditos pagados» ni «Primer pago en fecha». */
+    pagados: creditos.filter(function (c) { return c.pagado && !c.cerrado_con_perdida; }),
     perfil: (d.perfil && d.perfil.datos) || {},
     referidos: d.referidos || { total: 0, pagaron: 0, lista: [] },
     resumen: d.resumen || {},
@@ -4244,7 +4251,13 @@ function vistaHistorial() {
     '<p class="sub">Cuánto cupo te dejó cada uno.</p>';
   if (!S.creditos.length) h += '<p class="muted" style="margin-top:var(--e3)">Todavía no tienes créditos.</p>';
   else S.creditos.forEach(function (c) {
-    var puntual = c.fecha_pagado && c.corte && c.fecha_pagado <= c.corte;
+    /* 31-oct-2026 — CERRADO NO ES PAGADO. Un crédito que se cerró sin devolver
+       el capital (`cerrado_con_perdida`: Joan se lo perdonó) decía «Pagado en
+       fecha» si se cerró el día del corte, contaba sus cuotas como pagadas y
+       prometía garantía «al pagarlo» de algo que ya no se va a pagar. Se dice
+       lo que es, sin más: «Cerrado». */
+    var cerrado = !!(c.pagado && c.cerrado_con_perdida);
+    var puntual = !cerrado && c.fecha_pagado && c.corte && c.fecha_pagado <= c.corte;
     /* La mora también se ve acá. Antes esta píldora era gris para todo, y el
        crédito que en Inicio grita "9 DÍAS DE ATRASO" en ámbar aparecía en
        Historial como un "En curso" tranquilo, igual que los pagados: dos
@@ -4255,7 +4268,7 @@ function vistaHistorial() {
     var atraso = c.pagado ? 0
       : (c.dias_mora != null ? Math.max(0, Number(c.dias_mora) || 0) : diasDeAtraso(c.corte));
     var estado = c.pagado
-      ? (puntual ? 'Pagado en fecha' : 'Pagado')
+      ? (cerrado ? 'Cerrado' : puntual ? 'Pagado en fecha' : 'Pagado')
       : (atraso > 0 ? atraso + ' día' + (atraso !== 1 ? 's' : '') + ' de atraso' : 'En curso');
     /* Acá manda el crédito ENTERO, no el ciclo: `capital` viaja como el capital
        de la cuota cuando hay plan de pagos, y en un listado de créditos esa
@@ -4273,12 +4286,16 @@ function vistaHistorial() {
         /* Un crédito en plan de pagos se veía igualito a uno normal, y no lo es:
            lo que se cobra es la cuota, no el capital. Se dice. */
         (Number(c.plan_cuotas || 0) > 0
-          ? (c.pago_acordado ? ' · con un pago acordado' + (Number(c.plan_cuotas_pagadas || 0) >= Number(c.plan_cuotas) ? ', pagado' : '')
+          ? (cerrado ? (c.pago_acordado ? ' · con un pago acordado' : c.plan_origen === 'alta' ? ' · a cuotas' : ' · plan de pagos')
+             : c.pago_acordado ? ' · con un pago acordado' + (Number(c.plan_cuotas_pagadas || 0) >= Number(c.plan_cuotas) ? ', pagado' : '')
              : (c.plan_origen === 'alta' ? ' · a cuotas, ' : ' · plan de pagos, ') +
             Number(c.plan_cuotas_pagadas || 0) + ' de ' +
             Number(c.plan_cuotas) + ' cuotas pagadas') : '') + '</div>' +
+      /* 31-oct-2026 — «al pagarlo» es para el que está en curso: uno cerrado
+         que no dejó garantía no la va a dejar nunca, y se dice su cifra. */
       '<div class="gan"><span class="muted">Garantía que te dejó</span>' +
-        (c.garantia ? '<b>+' + COP(c.garantia) + '</b>' : '<span class="muted">al pagarlo</span>') + '</div>' +
+        (c.garantia ? '<b>+' + COP(c.garantia) + '</b>'
+          : '<span class="muted">' + (c.pagado ? COP(0) : 'al pagarlo') + '</span>') + '</div>' +
       '</div>';
   });
   h += '</div>';

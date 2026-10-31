@@ -170,8 +170,12 @@
    qué pantalla es y cuenta el cambio como escritura en camino: la recarga
    sola ya no se lleva la contraseña a medio escribir ni corta el cambio. Si
    alguien dice que la app se recargó mientras cambiaba su contraseña, esta
-   fecha dice si tenía la versión que lo impide. */
-var VERSION_APP = '2026-10-23';
+   fecha dice si tenía la versión que lo impide.
+
+   31-oct-2026 (sale con el CACHE v142) — sube porque «Tus créditos» dice
+   «Cerrado», y no «Pagado en fecha», del crédito que Joan cerró con «Se lo
+   perdoné» sin que el cliente devolviera el capital. */
+var VERSION_APP = '2026-10-31';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja. Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no
@@ -3226,9 +3230,13 @@ function tarjetaHistorial() {
   if (!S.creditos.length) return h + '<p class="muted" style="margin-top:var(--e3)">Todavía no tienes créditos.</p></div>';
   var lista = S.creditos.slice().reverse().slice(0, 8);
   h += '<div style="margin-top:var(--e2)">' + lista.map(function (c) {
-    var puntual = c.fecha_pagado && c.corte && c.fecha_pagado <= c.corte;
+    /* 31-oct-2026 — cerrado no es pagado, igual que en app/socio.html: el
+       crédito que Joan cerró sin que devolviera el capital
+       (`cerrado_con_perdida`, del puente) decía «Pagado en fecha». */
+    var cerrado = !!(c.pagado && c.cerrado_con_perdida);
+    var puntual = !cerrado && c.fecha_pagado && c.corte && c.fecha_pagado <= c.corte;
     var atraso = c.pagado ? 0 : Math.max(0, Number(c.dias_mora) || 0);
-    var estado = c.pagado ? (puntual ? 'Pagado en fecha' : 'Pagado')
+    var estado = c.pagado ? (cerrado ? 'Cerrado' : puntual ? 'Pagado en fecha' : 'Pagado')
       : (atraso > 0 ? atraso + ' día' + (atraso !== 1 ? 's' : '') + ' de atraso' : 'En curso');
     var suCapital = c.saldo_capital != null ? c.saldo_capital : c.capital;
     return '<div class="pc-credito"><div><b>' + COP(suCapital) + '</b><small>' +

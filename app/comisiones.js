@@ -47,6 +47,14 @@
  * crédito, una comisión derivada desaparecería sola y en silencio. Un borrado
  * tiene que producir un movimiento `reverso` explícito que él vea.
  * ==========================================================================*/
+/* 31-oct-2026 — LA FIRMA DE LLEGADA, la misma de app/puente.js (ver su nota
+   del 23-oct). Este archivo cambió desde lo publicado —un cierre con pérdida
+   ya no le paga comisión al asesor— y panel/crm.html lo pide con la versión
+   en la dirección (…?v=142): antes de arrancar su bloque grande mira que haya
+   firmado aquí, y si no, dice que se recargue en vez de pagar comisiones con
+   las reglas de antes. Va PRIMERO a propósito, y en Node no hace nada. */
+(function () { try { var s = document.currentScript; if (s && s.src) (window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();
+
 (function (raiz, fabrica) {
   'use strict';
   if (typeof module === 'object' && module.exports) module.exports = fabrica(require('./puente.js'));
@@ -59,6 +67,18 @@
   function num(v) { return Number(v) || 0; }
   function texto(v) { return String(v == null ? '' : v).trim(); }
   function dia(v) { return texto(v).slice(0, 10); }
+  /* 31-oct-2026 — ¿SE CERRÓ SIN PAGARSE? Desde el 30-oct «Se lo perdoné»
+     cierra un crédito con cualquier monto, hasta con $0, y queda `pagado`.
+     Antes un crédito solo se cerraba si el cliente devolvía por lo menos el
+     capital, y este archivo leía `pagado` como «el cliente pagó». Medido: el
+     primer crédito cerrado con $0 el día 19 de mora le dejaba al asesor 10.000
+     de «el cliente pagó su primer crédito», el desbloqueo de los 15.000 y
+     ningún castigo: 25.000 por un cliente que no pagó nada. La pregunta la
+     contesta el puente (cerroConPerdida), no una copia de acá. */
+  function cerroConPerdida(p) {
+    return !!(P && typeof P.cerroConPerdida === 'function' && P.cerroConPerdida(p));
+  }
+  function pagoDeVerdad(p) { return !!(p && p.pagado) && !cerroConPerdida(p); }
   function sumar(fechaISO, dias) {
     var d = new Date(dia(fechaISO) + 'T00:00:00');
     if (isNaN(d.getTime())) return '';
@@ -207,12 +227,17 @@
    *   · Los abonos. `evaluarCastigo` del motor cancela el castigo del SOCIO con
    *     cualquier abono, hasta de un peso; copiar esa regla acá dejaría que mil
    *     pesos el día 19 borraran diez mil de descuento al asesor.
+   *   · 31-oct-2026 — El cierre con «Se lo perdoné» que perdió capital. Es la
+   *     misma doctrina de arriba: perdonarle la plata no es que pagó. El tramo
+   *     sigue corriendo como si el crédito siguiera abierto, y el día veinte
+   *     llega el castigo igual (Joan: «no pague en menos de 20 días de mora»).
+   *     Si quiere perdonárselo al asesor, perdon_castigo, como siempre.
    * ------------------------------------------------------------------------ */
   function diaDelCastigo(p, hastaISO, diasCastigo) {
     if (!p || !P || typeof P.cortesDelCredito !== 'function') return '';
     var tope = num(diasCastigo) || 20;
     var hasta = dia(hastaISO);
-    var fin = dia(p.pagado ? (p.fechaPagado || hasta) : hasta);
+    var fin = dia(pagoDeVerdad(p) ? (p.fechaPagado || hasta) : hasta);
     if (!fin) return '';
     var tramos = P.cortesDelCredito(p).filter(function (t) { return t.corte; });
     for (var i = 0; i < tramos.length; i++) {
@@ -295,8 +320,9 @@
                  monto: t.desembolso, motivo: 'primer crédito desembolsado' });
       }
 
-      /* G3 · el pago del primer crédito. */
-      if (primero.pagado && dia(primero.fechaPagado)) {
+      /* G3 · el pago del primer crédito. 31-oct-2026: si se cerró perdiendo
+         capital, no lo pagó (pagoDeVerdad): ni los 10.000 ni el desbloqueo. */
+      if (pagoDeVerdad(primero) && dia(primero.fechaPagado)) {
         var fPago = dia(primero.fechaPagado);
         anotar({ id: 'pago:' + texto(primero.id), fecha: fPago,
                  asesor_id: asesorDe(asign, s.id, fPago), socio_id: texto(s.id),
@@ -313,7 +339,8 @@
          El asesor es el ASIGNADO EN ESA FECHA, no el que hizo la venta: esto se
          paga por cobrar, y quien cobró fue el de ahora. */
       creditos.slice(1).forEach(function (p) {
-        if (!p.pagado || !dia(p.fechaPagado)) return;
+        /* 31-oct-2026 — cerrar perdiendo capital no es cobrarlo (pagoDeVerdad). */
+        if (!pagoDeVerdad(p) || !dia(p.fechaPagado)) return;
         var f = dia(p.fechaPagado);
         anotar({ id: 'recurrencia:' + texto(p.id), fecha: f,
                  asesor_id: asesorDe(asign, s.id, f), socio_id: texto(s.id),
@@ -327,10 +354,15 @@
       creditos.forEach(function (p) {
         var f = diaDelCastigo(p, hasta, tarifaEn(hasta).dias_castigo);
         if (!f) return;
+        /* 31-oct-2026 — si el día veinte cayó DESPUÉS de cerrarlo con pérdida,
+           el crédito no llegó abierto a ese día: el motivo dice lo que pasó. */
+        var dc = tarifaEn(f).dias_castigo;
+        var motivo = (cerroConPerdida(p) && f > dia(p.fechaPagado))
+          ? 'el cliente no pagó todo en menos de ' + dc + ' días de mora: el crédito se cerró con pérdida de capital'
+          : 'el crédito llegó a ' + dc + ' días de mora';
         anotar({ id: 'castigo:' + texto(p.id), fecha: f, asesor_id: asesorVenta,
                  socio_id: texto(s.id), credito_id: texto(p.id), tipo: 'castigo_mora',
-                 monto: -Math.abs(tarifaEn(f).castigo),
-                 motivo: 'el crédito llegó a ' + tarifaEn(f).dias_castigo + ' días de mora' });
+                 monto: -Math.abs(tarifaEn(f).castigo), motivo: motivo });
       });
     });
 

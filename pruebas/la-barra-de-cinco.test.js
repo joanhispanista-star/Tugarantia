@@ -246,7 +246,10 @@ describe('lo que el teléfono carga, está en la caché', () => {
        rama de caída (el defecto v19 de sw.js), y la pantalla que lo usa dice
        que falta el archivo. gente.js es el que entra hoy. */
     const srcs = [...ESPEJO.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
-    assert.ok(srcs.includes('../app/gente.js'), 'el espejo no carga gente.js');
+    /* 31-oct-2026 — con o sin la versión en la dirección (gente.js?v=142, desde
+       que «Tu gente» cuenta un cierre con pérdida como no pagado), igual que la
+       prueba de abajo. La precarga se mira con la dirección tal cual se pide. */
+    assert.ok(srcs.some(s => /^\.\.\/app\/gente\.js(\?v=\d+)?$/.test(s)), 'el espejo no carga gente.js');
     srcs.forEach(s => {
       const ruta = s.startsWith('../') ? s.slice(3) : 'panel/' + s;
       assert.ok(ARCHIVOS.has(ruta), ruta + ' no está en la precarga de sw.js');

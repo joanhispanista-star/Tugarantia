@@ -1219,8 +1219,11 @@
      probado con node. -->
 <script src="../app/gestion-asesor.js"></script>
 <!-- Las reglas de comisión de los asesores. Funciones puras: el CRM las
-     llama, no las reimplementa. -->
-<script src="../app/comisiones.js"></script>
+     llama, no las reimplementa. 31-oct-2026 — ?v=142: un crédito cerrado con
+     «Se lo perdoné» perdiendo capital ya no le paga comisión al asesor (ver la
+     nota de v142 en sw.js); con el comisiones.js de antes, esta página no
+     arranca. -->
+<script src="../app/comisiones.js?v=142"></script>
 <!-- 15-sep-2026 — la tabla de comisiones EN PALABRAS. Va DESPUES de
      comisiones.js y no antes: lee sus cifras al cargar, y si llega primero se
      queda sin tabla y la pantalla del asesor dice «no pude leer la tabla».
@@ -2119,12 +2122,26 @@ function capitalRecuperadoTotal(){ return DB.prestamos.reduce((s,p)=>s+capitalRe
 function ingresosTotales(){ return capitalRecuperadoTotal()+gananciaTotalHistorica(); }
 function gananciaPorProrrogas(){ return DB.prestamos.reduce((s,p)=>s+(p.prorrogas||[]).reduce((t,pr)=>t+pr.monto,0),0); }
 function pctRecuperacionMonto(){ const inv=montoTotalInvertido(); return inv>0?capitalRecuperadoTotal()/inv*100:0; }
-function pctRecuperacionCuentas(){ const tot=DB.prestamos.length,pag=DB.prestamos.filter(p=>p.pagado).length; return tot>0?pag/tot*100:0; }
+/* 31-oct-2026 — «créditos pagados / total»: el que se cerró con «Se lo
+   perdoné» perdiendo capital no es una cuenta recuperada (PUENTE.cerroConPerdida),
+   igual que su capital no entra en la recuperación por monto (capitalRecuperadoDe). */
+function pctRecuperacionCuentas(){ const tot=DB.prestamos.length,pag=DB.prestamos.filter(p=>p.pagado&&!(PUENTE.cerroConPerdida&&PUENTE.cerroConPerdida(p))).length; return tot>0?pag/tot*100:0; }
 function gananciaProyectadaPendiente(){ return DB.prestamos.filter(p=>!p.pagado).reduce((s,p)=>s+gananciaPendiente(p),0); }
 function totalProrrogasCliente(s){ return DB.prestamos.filter(p=>p.socioId===s.id).reduce((t,p)=>t+(p.prorrogas||[]).length,0); }
+/* 31-oct-2026 — EL PERDÓN NO LE BAJA EL RIESGO. El riesgo mira la mora de los
+   créditos abiertos, y cerrar uno con «Se lo perdoné» le borraba la suya:
+   Lucía, con 16 días de mora, pasaba de Alto a Bajo justo después de que Joan
+   perdiera los 200.000 de su capital, con otro crédito de ella abierto. Un
+   crédito cerrado perdiendo capital no se pagó (PUENTE.cerroConPerdida), así
+   que cuenta con la mora que tenía el día del cierre: ni se borra ni crece. No
+   es una marca nueva (decisión 4 de Joan): quien no llegaba a Alto antes del
+   perdón, no llega por el perdón. Pagar todo, aunque sea tarde, sí lo baja,
+   como siempre. `perdon` lo explica en la ficha, que no ve ninguna mora abierta. */
 function riesgoCliente(s){
   const ps=DB.prestamos.filter(p=>p.socioId===s.id); if(!ps.length)return{cls:'riesgo-nuevo',txt:'Nuevo'};
   const npr=totalProrrogasCliente(s),ratio=npr/ps.length,enMora=ps.some(p=>estadoPrestamo(p)==='mora'&&diasMora(p)>=6);
+  const diasPerdon=PUENTE.diasDeMoraAlCerrarConPerdida?Math.max(0,...ps.map(p=>PUENTE.diasDeMoraAlCerrarConPerdida(p))):0;
+  if(!enMora&&diasPerdon>=6&&ratio<=0.5)return{cls:'riesgo-alto',txt:'Alto',perdon:`se cerró con pérdida de capital a los ${diasPerdon} días de mora`};
   if(enMora||ratio>0.5)return{cls:'riesgo-alto',txt:'Alto'};
   if(ratio>0)return{cls:'riesgo-medio',txt:'Medio'};
   return{cls:'riesgo-bajo',txt:'Bajo'};
@@ -4809,7 +4826,16 @@ function renderCred(){
   const arr=[...DB.prestamos].sort((a,b)=>{const o={mora:0,hoy:1,proximo:2,'al-dia':3,pagado:4};return o[estadoPrestamo(a)]-o[estadoPrestamo(b)]||new Date(a.cicloActual)-new Date(b.cicloActual);});
   const c=document.getElementById('tblCred'),usura=DB.config.tasaUsuraEA;
   if(!arr.length){ c.innerHTML=`<div class="empty"><div class="ic">💵</div><p>Sin créditos todavía.<br><span class="muted">Toca “＋ Nuevo crédito” para registrar el primero.</span></p></div>`+papeleraHTML(); return; }
-  const sumCap=arr.reduce((s,p)=>s+capitalActual(p),0),sumAPagar=arr.reduce((s,p)=>s+(p.pagado?0:montoEnSuFecha(p)),0),sumGan=arr.reduce((s,p)=>s+gananciaCobrada(p),0);
+  /* 31-oct-2026 — CERRADO CON PÉRDIDA, LA COLUMNA «CAPITAL» DICE LO PRESTADO.
+     capitalActual es el capital que no se ha devuelto, y en un crédito cerrado
+     con «Se lo perdoné» eso es justo lo que se PERDIÓ: un a cuotas de 650.000
+     cerrado con 500.000 salía «Capital $150.000», sin rótulo, como una deuda
+     viva, al lado de un detalle que dice «Capital prestado $650.000» (verCredito
+     ya lo arreglaba así). Se dice lo prestado y la pérdida con su nombre
+     debajo; el pie suma lo que dice la columna. */
+  const perdidaFila=p=>(p.pagado&&PUENTE.perdidaDelCierre)?PUENTE.perdidaDelCierre(p):0;
+  const capitalFila=p=>perdidaFila(p)?Number(p.capital)||0:capitalActual(p);
+  const sumCap=arr.reduce((s,p)=>s+capitalFila(p),0),sumAPagar=arr.reduce((s,p)=>s+(p.pagado?0:montoEnSuFecha(p)),0),sumGan=arr.reduce((s,p)=>s+gananciaCobrada(p),0);
   /* 22-oct-2026 — lo que te deja TODA la cartera, con el % sobre todo lo prestado: la misma cuenta del puente, crédito por crédito. */
   /* 23-oct-2026 (verificación de e0ae61a) — y el pie, con la misma reja que la
      fila: sin una sola cifra (el app/puente.js viejo de la caché, sin
@@ -4835,7 +4861,7 @@ function renderCred(){
       /* 22-oct-2026 — el pago acordado no es «a cuotas»: se nombra por lo que es. */
       const costoTxt=(altaL&&PUENTE.esPacto&&PUENTE.esPacto(p))?`costo ${pctGanancia(PUENTE.tasaDelCiclo(p)*100)} · pago acordado`:altaL?`costo ${Math.round(PUENTE.tasaDelCiclo(p)*100)}% · a cuotas · ${cL?`cuota ${cL.n} de ${nL}`:`${nL} cuotas`}`:`costo ${p.costoPct}%`;
       return `<tr><td class="mono muted">${codCredito(p)}</td><td><b>${escHTML(p.socioNombre)}</b><div class="muted">${s?codCliente(s)+' · ':''}${costoTxt}${npr?' · '+npr+' prórr.':''}${(p.comprobantes||[]).length?' · 📎'+p.comprobantes.length:''}</div></td>
-      <td class="num">${COP(capitalActual(p))}</td>
+      <td class="num">${COP(capitalFila(p))}${perdidaFila(p)?`<div class="muted" style="font-weight:400">prestado · <span class="pierde">${COP(perdidaFila(p))} perdido al cerrar</span></div>`:''}</td>
       <td class="num">${p.pagado?'—':COP(montoEnSuFecha(p))}</td>
       <td class="gano">${COP(gananciaCobrada(p))}${!p.pagado?'<div class="muted" style="font-weight:400">esp. '+COP(gananciaEsperada(p))+'</div>':''}${(()=>{ const g=gananciaDe(p); return g?`<div style="font-size:12px" title="Lo que te deja: lo cobrado por encima del capital prestado, más lo pactado que falta, menos el capital perdonado">te deja ${cifraGanancia(g)}</div>`:''; })()}</td>
       <td>${fmtFecha(p.fechaDesembolso)} <span class="muted">→</span> ${fmtFecha(PUENTE.corteDelCredito(p))}<div class="muted">${dias} días</div></td>
@@ -5874,7 +5900,7 @@ function verCliente(id){
       <div class="muted" style="margin-top:6px;font-size:12px">Él no ve esto por ningún lado: para él su garantía es lo que le deja cada pago, y su cupo es esa garantía, uno a uno.</div></div>
     <div class="info-row"><span class="k">Nivel <span class="muted">(el tramo de su garantía · no le mueve el cupo)</span></span><span class="vv"><b>${escHTML(MotorReglas.nombreNivel(mg.nivel))}</b> <span class="muted">· le da ${nivProrr} prórroga${nivProrr!==1?'s':''} por crédito, y sigue a la garantía: si ella sube o baja, el nivel también</span></span></div>
     <div class="info-row"><span class="k">Cupo quincenal <span class="muted">(su garantía, uno a uno)</span></span><span class="vv"><b>${COP(qCupo.cupo)}</b>${qCupo.freno.aplicado?` <span class="muted">(topado por el freno de ingreso: sin él sería ${COP(qCupo.freno.cupo_sin_freno)})</span>`:''}</span></div>
-    <div class="info-row"><span class="k">Riesgo (sugerido)</span><span class="vv"><span class="chip ${r.cls}">${r.txt}</span> <span class="muted">${npr} prórroga${npr!==1?'s':''} de ${ps.length} crédito${ps.length!==1?'s':''}</span></span></div>
+    <div class="info-row"><span class="k">Riesgo (sugerido)</span><span class="vv"><span class="chip ${r.cls}">${r.txt}</span> <span class="muted">${npr} prórroga${npr!==1?'s':''} de ${ps.length} crédito${ps.length!==1?'s':''}${r.perdon?` · ${escHTML(r.perdon)}`:''}</span></span></div>
     ${perdones.length?`<div class="info-row"><span class="k">Descuentos que le has dado</span><span class="vv"><b>${COP(perdonado)}</b> <span class="muted">en ${perdones.length} perdón${perdones.length!==1?'es':''}${partesDelPerdon(dsc)}, con motivo anotado</span></span></div>`:''}
     ${capPerdido.capital?`<div class="info-row"><span class="k">Capital perdido con él</span><span class="vv"><b class="pierde">${COP(capPerdido.capital)}</b> <span class="muted">en ${capPerdido.creditos} crédito${capPerdido.creditos!==1?'s':''} · plata tuya que no vuelve (ya va dentro de los descuentos de arriba)</span></span></div>`:''}
     ${aFavorTotal>0?`<div class="info-row"><span class="k">Te ha pagado de más</span><span class="vv"><b>${COP(aFavorTotal)}</b> <span class="muted">anotado en sus créditos · NO se descuenta solo del siguiente: se lo aplicas tú a mano o se lo devuelves</span></span></div>`:''}

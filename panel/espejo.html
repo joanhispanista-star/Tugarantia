@@ -468,8 +468,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
 <script src="../app/puente.js?v=142"></script>
 <!-- «Tu gente» (referidos), solo para Joan. Va DESPUÉS del motor y del puente
      porque les pregunta la garantía por referidos con su tope: no la calcula.
-     La app del socio no carga este archivo, y una prueba lo vigila. -->
-<script src="../app/gente.js"></script>
+     La app del socio no carga este archivo, y una prueba lo vigila.
+     31-oct-2026 — ?v=142: un crédito cerrado con «Se lo perdoné» perdiendo
+     capital ya no cuenta como «pagó su gente», igual que en la garantía (ver la
+     nota de v142 en sw.js). -->
+<script src="../app/gente.js?v=142"></script>
 <!-- La efectiva anual. NO se copia la fórmula: `efectivoAnualPorFechas` ya la
      tiene, y crm.html lleva una segunda implementación propia (`eaEquivalente`)
      que da el MISMO número al decimal. Una tercera copia es como se separan. -->

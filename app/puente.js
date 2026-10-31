@@ -426,6 +426,33 @@
     return perdidasDeCapital(p).reduce(function (t, x) { return t + x.capital; }, 0);
   }
 
+  /* 31-oct-2026 — UN CIERRE CON PÉRDIDA NO ES UN PAGO. Hasta el 30-oct un
+     crédito solo quedaba `pagado` si el cliente devolvía por lo menos el
+     capital, y todo lo que lee `p.pagado` como «el cliente pagó» se escribió con
+     esa verdad adentro. Desde que «Se lo perdoné» cierra con cualquier monto,
+     `pagado` quiere decir «cerrado», y la revisión del 31-oct midió seis sitios
+     que contaban como pago un crédito cerrado con $0: al asesor le quedaban
+     25.000 de comisión y sin el castigo de los 20 días (app/comisiones.js), al
+     que lo trajo 5.000 de cupo por referido, al cliente «Pagado en fecha», su
+     racha y sus insignias, al grupo un crédito pagado más, y en el CRM el riesgo
+     sugerido bajaba de Alto a Bajo. «¿Pagó?» se contesta AQUÍ: pagado y sin
+     capital perdido en el cierre. El perdón de mora y costo con el capital
+     devuelto entero sigue siendo un pago, como desde el 2-sep: a lo de antes no
+     se le cambia nada. Y no es una marca en el cliente (decisión 4 de Joan): no
+     se le bloquea ni se le avisa nada para créditos nuevos; solo no se cuenta
+     como pago lo que no se pagó. */
+  function cerroConPerdida(p) { return perdidaDelCierre(p) > 0; }
+  /* Los días de mora que llevaba el crédito el día en que se cerró perdiendo
+     capital (0 si no se perdió nada, o si se cerró en su fecha): la misma cuenta
+     de liquidarCiclo ese día, desde el corte que regía, que el cierre guarda en
+     `cicloPago`. Es lo que lee el riesgo sugerido del CRM: el perdón deja la
+     mora como estaba ese día, ni la borra ni la hace crecer. */
+  function diasDeMoraAlCerrarConPerdida(p) {
+    if (!cerroConPerdida(p)) return 0;
+    var corte = fechaFin(p.cicloPago), f = fechaFin(p.fechaPagado);
+    return (corte && f && f > corte) ? diasCal(corte, f) : 0;
+  }
+
   /* Los días calendario del MOTOR, no los de acá arriba: `diasEntre` de este
      archivo hace Math.max(1,…) para que la E.A. no divida por cero, y una
      cuenta de plata que use eso cobra un día que no existió. */
@@ -2065,7 +2092,13 @@
     return Math.max(0, (p.pagado ? num(p.capital) : (num(p.capital) - capitalActual(p))) -
                        capitalPerdonadoDe(p) - perdidaDelCierre(p));
   }
-  function esPuntual(p) { return !!(p.pagado && p.fechaPagado && p.cicloPago && p.fechaPagado <= p.cicloPago); }
+  /* 31-oct-2026 — y un cierre que perdió capital no es un pago, ni en fecha ni
+     tarde (cerroConPerdida): contaba en la racha, en «Pagados a tiempo», en
+     «Primer pago en fecha» y en la puntualidad del grupo. A la garantía no le
+     cambia nada: ese cierre no deja ninguna (no entró ni un peso de costo). */
+  function esPuntual(p) {
+    return !!(p.pagado && p.fechaPagado && p.cicloPago && p.fechaPagado <= p.cicloPago) && !cerroConPerdida(p);
+  }
 
   /* ------------------------------------- puntual PARA SUBIR DE NIVEL -------
      4-ago-2026 — LA PRÓRROGA LAVABA EL HISTORIAL.
@@ -2410,6 +2443,9 @@
    *   'rompe'   estuvo en mora, o pagó tarde, o necesitó prórroga o plan de
    *             pagos. No suma y ROMPE la racha, esté pagado o no: deber la
    *             plata no puede valer menos que haberla pagado tarde.
+   *             31-oct-2026: y el crédito que Joan cerró con «Se lo perdoné»
+   *             perdiendo capital (esPuntual dice que no): perdonárselo no
+   *             puede valer más que dejarlo vencido, que también rompe.
    *   'abierto' todavía no le llegó el corte y no le pasó nada: ni suma ni
    *             rompe. Un crédito recién desembolsado no le borra la racha a
    *             nadie.
@@ -2773,12 +2809,16 @@
      `pago_puntual` y lo que se mira es `p.pagado`, sin abrir la fecha: prometía una
      puntualidad que nunca se midió, y el día que alguien colgara un premio de esa
      palabra iba a estar premiando otra cosa. La condición correcta es "pagó" —así
-     se lo dice la app al socio— y el motor acepta las dos claves. */
+     se lo dice la app al socio— y el motor acepta las dos claves.
+
+     31-oct-2026 — y un crédito que Joan cerró con «Se lo perdoné» perdiendo
+     capital no es «pagó» (cerroConPerdida). Con $0 le daba 5.000 de garantía al
+     que lo trajo: un cupo acuñado con plata que no entró (decisión 6 de Joan). */
   function referidosDe(db, s) {
     return lista(db && db.socios).filter(function (x) { return x.referidoPor === s.id; }).map(function (x) {
       return {
         nombre: x.nombre,
-        pago: lista(db.prestamos).some(function (p) { return p.socioId === x.id && p.pagado; })
+        pago: lista(db.prestamos).some(function (p) { return p.socioId === x.id && p.pagado && !cerroConPerdida(p); })
       };
     });
   }
@@ -2787,7 +2827,9 @@
      SOLO agregados: ni un nombre, ni un monto de nadie en particular. */
   function fotoComunidad(db) {
     var prestamos = lista(db && db.prestamos);
-    var pagados = prestamos.filter(function (p) { return p.pagado; });
+    /* 31-oct-2026 — «Créditos pagados» del grupo, que ven todos los clientes:
+       el que se cerró perdiendo capital no se pagó (cerroConPerdida). */
+    var pagados = prestamos.filter(function (p) { return p.pagado && !cerroConPerdida(p); });
     var puntuales = pagados.filter(esPuntual).length;
     var garantia = lista(db && db.socios).reduce(function (t, s) {
       return t + garantiaGanadaDe(db, s);
@@ -3057,6 +3099,11 @@
           tasa: tasaDelCiclo(p),
           desembolso: p.fechaDesembolso || null, corte: p.cicloActual || null,
           pagado: !!p.pagado, fecha_pagado: p.fechaPagado || null,
+          /* 31-oct-2026 — cerrado con «Se lo perdoné» sin devolver el capital
+             (cerroConPerdida). Sigue `pagado` —está cerrado y no debe nada—,
+             pero la app no lo puede llamar «Pagado en fecha», ni contar sus
+             cuotas como pagadas, ni darle una insignia de pago. */
+          cerrado_con_perdida: cerroConPerdida(p),
           abonado: Math.round(gananciaCobrada(p) + capitalRecuperadoDe(p)),
           garantia: garantiaGanadaCredito(p),
           prorrogas: lista(p.prorrogas).length,
@@ -4839,6 +4886,10 @@
     perdidasDeCapital: perdidasDeCapital,
     perdidaDelCierre: perdidaDelCierre,
     condonacionDelCierre: condonacionDelCierre,
+    /* Un cierre con pérdida no es un pago (31-oct-2026): para las comisiones
+       (app/comisiones.js) y el riesgo sugerido del CRM. */
+    cerroConPerdida: cerroConPerdida,
+    diasDeMoraAlCerrarConPerdida: diasDeMoraAlCerrarConPerdida,
     /* Cerrar el crédito con lo que Joan diga (30-oct-2026), en los cuatro tipos. */
     cierreConPerdon: cierreConPerdon,
     /* La ley del cobro con monto real (7-sep-2026): una sola copia, para el

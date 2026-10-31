@@ -53,6 +53,13 @@
  * la cartera viva sin tocarla: espera el db como ya lo dejaron el espejo
  * (normalizarConservando) o el CRM (cargar).
  * ===========================================================================*/
+/* 31-oct-2026 — LA FIRMA DE LLEGADA, la misma de app/puente.js (ver su nota
+   del 23-oct). Este archivo cambió desde lo publicado —un crédito cerrado con
+   pérdida ya no cuenta como «pagó su gente»— y panel/espejo.html lo pide con
+   la versión en la dirección (…?v=142): antes de arrancar su bloque grande
+   mira que haya firmado aquí. Va PRIMERO a propósito, y en Node no hace nada. */
+(function () { try { var s = document.currentScript; if (s && s.src) (window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();
+
 (function (raiz, fabrica) {
   'use strict';
   if (typeof module === 'object' && module.exports) {
@@ -76,6 +83,17 @@
   }
   function tieneReferente(s) {
     return !!s && s.referidoPor != null && s.referidoPor !== '';
+  }
+  /* 31-oct-2026 — «¿PAGÓ?» CON LA MISMA VARA QUE EL MOTOR. Desde el 30-oct «Se
+     lo perdoné» cierra un crédito con cualquier monto, hasta con $0, y queda
+     `pagado`. Un cierre que perdió capital no es un pago (cerroConPerdida, en
+     el puente), y referidosDe ya no le da por él los 5.000 de garantía a quien
+     invitó. Si aquí se siguiera contando, la tarjeta diría «Créditos que pagó
+     su gente: 1» junto a «Garantía por referidos: $0», y la simulación le
+     sumaría 2.000 por un crédito que no se pagó: las dos cifras hablarían de
+     créditos distintos, que es justo lo que este archivo promete no hacer. */
+  function pagoDeVerdad(p) {
+    return !!(p && p.pagado) && !(P && typeof P.cerroConPerdida === 'function' && P.cerroConPerdida(p));
   }
 
   /**
@@ -143,7 +161,7 @@
       inv.forEach(function (x) {
         var cs = creditosDe(x.id);
         if (cs.length || respaldadosDe(x.id).length) pidieron++;
-        var suyos = cs.filter(function (p) { return p.pagado; }).length;
+        var suyos = cs.filter(pagoDeVerdad).length;
         pagados += suyos;
         if (suyos) pagaron++;
         /* La mora la DECLARA el puente (estabaVencido), igual que en el resto
@@ -174,7 +192,7 @@
            como invitado, y en cuanto paga un crédito le suma los 5.000. Se dice
            con esas palabras porque la cifra de garantía de esta misma tarjeta
            ya lo trae adentro, y sin la frase no se entiende de dónde sale. */
-        var yaPago = creditosDe(s.id).some(function (p) { return p.pagado; });
+        var yaPago = creditosDe(s.id).some(pagoDeVerdad);
         alertas.push('Figura como referido de sí mismo. No cuenta como invitación ni entra en la ' +
           'simulación, ' + (yaPago
             ? 'pero el motor sí lo cuenta en su garantía por referidos porque ya pagó un crédito'

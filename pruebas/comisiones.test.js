@@ -322,7 +322,15 @@ describe('las tarifas y la historia', () => {
        distinto según el día en que se le pregunte, y no se puede auditar. */
     const fs = require('node:fs'), path = require('node:path');
     const codigo = fs.readFileSync(path.join(__dirname, '..', 'app', 'comisiones.js'), 'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g, ' ');
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      /* 31-oct-2026 — menos la firma de llegada, a la letra y una sola vez:
+         desde que el CRM pide este archivo con ?v=142, la regla de versiones
+         la exige (pruebas/la-pagina-nueva-no-corre-con-un-js-viejo.test.js).
+         Es la única línea que toca la página: anota que el archivo llegó, no
+         lee ni escribe nada de las comisiones, y en Node no hace nada. Igual
+         que en revision-registro.test.js. */
+      .replace('(function () { try { var s = document.currentScript; if (s && s.src) '
+        + '(window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();', ' ');
     assert.ok(!/new Date\(\s*\)/.test(codigo), 'comisiones.js lee el reloj de pared');
     assert.ok(!/localStorage|fetch\(|document\./.test(codigo),
       'comisiones.js dejó de ser puro: tocó el navegador');

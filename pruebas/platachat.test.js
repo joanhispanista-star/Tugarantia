@@ -254,8 +254,11 @@ describe('PlataChat: lo que carga y en qué orden', () => {
        sola y el «Actualizar ahora» que espera lo que va en camino; y, la misma
        fecha, con «Cambiar mi contraseña» en Yo.
        23-oct-2026 — y con esa pantalla dentro de la recarga sola (PANTALLA y
-       la escritura en camino: pruebas/el-lote-del-27-junto.test.js). */
-    assert.match(PAGINA, /var VERSION_APP = '2026-10-23'/);
+       la escritura en camino: pruebas/el-lote-del-27-junto.test.js).
+       31-oct-2026 — y con «Cerrado», no «Pagado en fecha», del crédito que
+       Joan cerró sin que devolviera el capital
+       (pruebas/cerrar-con-perdon-no-es-pago.test.js). */
+    assert.match(PAGINA, /var VERSION_APP = '2026-10-31'/);
   });
 
   test('la guarda de HTTPS es lo PRIMERO que corre, antes que cualquier lectura del almacén', () => {

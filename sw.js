@@ -1991,6 +1991,15 @@
    panel/espejo.html, panel/subir.html) y VERSION_SITIO sube a v142 en las cinco
    que se actualizan solas. No hay base nueva: la nube guarda la condonación tal
    cual (jsonb) y no la valida en el servidor.
+   31-oct-2026, la revisión del mismo lote: UN CIERRE CON PÉRDIDA NO ES UN PAGO
+   (cerroConPerdida en app/puente.js). Cambian dos .js más ya publicados, y los
+   dos estrenan la firma de llegada y se precargan con ?v=142:
+   app/comisiones.js (ni «el cliente pagó su primer crédito» ni la recurrencia
+   de un crédito cerrado perdiendo capital, y el castigo de los 20 días llega
+   igual), que pide solo panel/crm.html, y app/gente.js («Tu gente» cuenta lo
+   pagado con la misma vara que la garantía por referidos), que pide solo
+   panel/espejo.html. Cambia también app/socio.html (Historial e insignias:
+   «Cerrado», no «Pagado en fecha»), que ya iba en v142.
    OJO al integrar: la rama registro-tope (otra sesión, sin publicar) también
    pensaba en v142. La que se publique de segunda sube a v143. */
 const CACHE = 'tugarantia-v142';
@@ -2039,7 +2048,7 @@ const ARCHIVOS = [
      con mala senal, igual que el espejo. */
   'panel/equipo.html',
   'app/etapas.js',
-  'app/comisiones.js',
+  'app/comisiones.js?v=142',   // 31-oct-2026 — ?v=142: un cierre con pérdida no le paga comisión al asesor (ver la nota de v142)
   'app/bases.js',
   'panel/espejo.webmanifest',
   'panel/nube.js?v=142',   // 30-oct-2026 — ?v=142: la condonación del cierre viaja con su plan (ver la nota de v142)
@@ -2059,7 +2068,7 @@ const ARCHIVOS = [
   'panel/agregar-prospectos.js?v=140',
   'panel/tanda.js',
   /* 2-oct-2026 — «Tu gente», los referidos del espejo. Ver la nota de v124. */
-  'app/gente.js',
+  'app/gente.js?v=142',   // 31-oct-2026 — ?v=142: un cierre con pérdida no es «pagó su gente» (ver la nota de v142)
   /* 2-oct-2026 — las reglas de la revision de registrados. Ver la nota de v126. */
   'app/revision-registro.js?v=141',   // 28-oct-2026 — ?v=141: las notas de las referencias (ver la nota de v141)
   'panel/panel-180.png',
