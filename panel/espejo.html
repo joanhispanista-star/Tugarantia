@@ -4769,7 +4769,11 @@ function vistaCredito() {
       h += '<div class="linea-item"><span>Cuota ' + c.n + ' · ' + fmtFecha(c.fecha)
         + (alta && c.pct ? ' <span class="muted">(' + c.pct + '%)</span>' : '')
         + (ya && ya.abonos ? '<br><span class="muted">abonó ' + COP(ya.recibido) + '</span>' : '') + '</span>'
-        + '<span>' + COP(c.total) + (c.pagado ? ' <span class="muted">pagada</span>' : '') + '</span></div>';
+        /* 30-oct-2026 — la cerrada con «Se lo perdoné» lo dice, y su cifra es
+           lo que entró por ella (sin el capital que se perdió). */
+        + '<span>' + COP(c.total - (Number(c.capitalPerdido) || 0))
+        + (c.pagado ? ' <span class="muted">' + (c.conPerdon || Number(c.capitalPerdido) > 0 ? 'cerrada con perdón' : 'pagada') + '</span>' : '')
+        + '</span></div>';
     });
     h += '</div>';
   }
@@ -4873,7 +4877,9 @@ function vistaQuincena() {
       h += '<div class="linea-item"><span>Pago · ' + esc(p.socioNombre || '')
         + '<br><span class="muted">' + COP(P.capitalRecuperadoDe(p)) + ' de capital devuelto'
         + (perdio ? ' · ' + COP(perdio) + ' de capital perdido' : '') + '</span></span>'
-        + '<span>' + COP(Number(p.gananciaPago) || 0) + '</span></div>';
+        /* La cifra de la derecha, entera: con la pérdida, el texto de la
+           izquierda es más largo y la partía en «$» y «0». */
+        + '<span style="white-space:nowrap">' + COP(Number(p.gananciaPago) || 0) + '</span></div>';
     });
     prorrogadosHoy.forEach(function (x) {
       h += '<div class="linea-item"><span>Prórroga · ' + esc(x.p.socioNombre || '')

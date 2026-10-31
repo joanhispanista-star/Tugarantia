@@ -257,7 +257,8 @@ describe('2 · a cuotas: el perdón cierra el crédito entero', () => {
     assert.match(v, /Capital prestado \$650\.000/);
     assert.match(v, /Capital perdido al cerrar \$150\.000/);
     assert.match(v, /Entró de verdad \$500\.000/);
-    assert.match(v, /Cerrada con perdón .* se perdieron \$150\.000 de capital/);
+    assert.match(v, /Cuota 1 .*Cerrada con perdón/, 'la cuota 1 dice «Pagada» aunque se le perdonaron costo y mora');
+    assert.match(v, /↳ capital perdido al cerrar \$150\.000/);
   });
 
   test('un abono sigue siendo un abono; el perdón es una salida que se elige y se puede deshacer', () => {

@@ -3879,8 +3879,9 @@
      costo y de mora), repartido a la cuota más vieja primero. Cada cuota se
      cierra con cambioDeCierre —la forma de siempre: `costo` es lo que de verdad
      entró y lo pactado queda en `costoPactado`— y lleva, si la hubo, su
-     `capitalPerdido`, y su `moraCausada` si se le perdonó mora (la prueba de que
-     la hubo: movimientosConMora). El abono es solo el capital que ENTRÓ. */
+     `capitalPerdido`, su `moraCausada` si se le perdonó mora (la prueba de que
+     la hubo: movimientosConMora) y `conPerdon` si se le perdonó cualquier cosa.
+     El abono es solo el capital que ENTRÓ. */
   function cerrarCuotas(p, f, filas, aplica) {
     var resta = { capital: num(aplica.capital), costo: num(aplica.costo), mora: num(aplica.mora) };
     var out = { cuotas: [], abonos: [], filas: [] };
@@ -3892,6 +3893,10 @@
       var pierde = d.capital - paga.capital;
       if (pierde > 0) cambio.capitalPerdido = pierde;
       if (d.mora > paga.mora) cambio.moraCausada = pagadoDeCuota(p, d.c).mora + d.mora;
+      /* 30-oct-2026 — y si a ESTA cuota se le perdonó algo, se marca: el CRM y
+         el celular dirían «Pagada» a secas, que se lee como que entró todo lo
+         suyo. Una cuota que la plata cubrió entera, no la lleva. */
+      if (pierde > 0 || paga.costo < d.costo || paga.mora < d.mora) cambio.conPerdon = true;
       var abono = paga.capital > 0
         ? { fecha: f, monto: paga.capital, cuotaPlan: d.n, recibido: paga.capital + paga.costo + paga.mora } : null;
       cambio.garantiaGenerada = garantiaDelCierre(p, cambio, abono);

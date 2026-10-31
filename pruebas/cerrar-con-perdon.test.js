@@ -328,6 +328,10 @@ describe('4 · a cuotas: cierra el crédito entero, la cuota más vieja primero'
     assert.equal(c2.capitalPerdido, 150000);
     assert.equal(c1.moraCausada, 19500, 'la mora perdonada de la cuota 1 no dejó su prueba');
     assert.equal(c1.recargo, 0);
+    /* Las dos llevan su marca: a la 1 se le perdonaron costo y mora; a la 2,
+       costo y capital. «Pagada» a secas diría que entró todo lo suyo. */
+    assert.equal(c1.conPerdon, true);
+    assert.equal(c2.conPerdon, true);
     assert.equal(r.registros.credito.capitalPerdido, 150000);
     assert.equal(r.registros.credito.montoRecibido, 500000);
     const q = aplicar(p, r.registros);
@@ -450,5 +454,14 @@ describe('5 · el pago acordado y el plan del §8 también cierran con perdón',
     assert.equal(s.ok, true, s.detalle);
     assert.equal(s.registros.cuotas[0].costo, 10000);
     assert.equal(s.registros.credito.capitalPerdido, 0);
+    /* La cuota 1 recibió solo 10.000 de sus 15.000 de costo: se le perdonó algo. */
+    assert.equal(s.registros.cuotas[0].conPerdon, true);
+    /* Y una cuota que la plata cubrió entera no lleva la marca: el 30-oct
+       (antes de que la 1 venza, sin mora) debe 330.000; con 325.000 la 1 entra
+       completa (100.000 + 15.000) y los 5.000 que faltan caen en la 3. */
+    const t = P.cierreConPerdon(cartera(p), p, '2026-10-30', 325000, SI);
+    assert.equal(t.ok, true, t.detalle);
+    assert.equal(t.registros.cuotas[0].conPerdon, undefined, 'marcó con perdón una cuota que entró entera');
+    assert.equal(t.registros.cuotas[2].conPerdon, true);
   });
 });
