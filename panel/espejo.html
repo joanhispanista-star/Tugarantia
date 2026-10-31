@@ -1571,9 +1571,10 @@ function registrarCobro(id, fecha) {
   }
   var r = repartoDelDescuento(l, total - monto, _cobro.sobre);
   if (r.excede) {
-    alert('Ese descuento no cabe: en este ciclo lo máximo que se puede perdonar es '
-      + COP(r.tope) + ' (costo más mora). Lo demás sería perdonar capital, y eso no es '
-      + 'un descuento sino una pérdida.');
+    /* 30-oct-2026 — perdonar capital ya se puede, desde el computador. */
+    alert('Desde el celular se puede perdonar hasta ' + COP(r.tope) + ' (costo más mora).\n\n'
+      + 'El descuento que toca el capital se hace desde el computador: allá «Se lo perdoné» cierra el '
+      + 'crédito con lo que traiga, con su motivo y la pérdida dicha aparte. No registré nada.');
     return;
   }
   return cobrar(id, f, { montoRecibido: monto, condonaCosto: r.costo, condonaMora: r.mora,
@@ -1656,6 +1657,12 @@ function cobrar(id, fecha, o) {
      y lo único que permite auditar el cobro sin volver a calcularlo. */
   p.montoRecibido = monto;
   if (aFavor > 0) p.saldoAFavor = aFavor;
+  /* 30-oct-2026 — la pérdida de capital del cierre, que desde el celular es
+     siempre 0 (el perdón que toca capital se hace en el computador). Se escribe
+     SIEMPRE, como en crm.html: si el computador cerró este mismo crédito con
+     pérdida, los dos cierres tienen que chocar en ese campo y que Joan elija,
+     no que la nube le copie la pérdida a este (puente.perdidaDelCierre). */
+  p.capitalPerdido = 0;
   if (q.condonado_total > 0) {
     /* Lista que SOLO SUMA (ver panel/nube.js): dos aparatos que registren
        descuentos sobre el mismo crédito los conservan los dos. Costo y mora van
@@ -4589,9 +4596,18 @@ function vistaFicha() {
       +   '<span class="pill ' + est + '">' + ESTADO_TXT[est] + '</span></div>'
       + '<div class="mini">' + (p.pagado
           ? 'pagado el ' + fmtFecha(p.fechaPagado)
+            /* 30-oct-2026 — y si se cerró perdiendo capital, cuánto. */
+            + ((P.perdidaDelCierre && P.perdidaDelCierre(p)) ? ' · se perdieron ' + COP(P.perdidaDelCierre(p)) + ' de capital' : '')
           : 'vence el ' + fmtFecha(P.corteDelCredito(p)) + ' · ' + resumenDelCobro(p))
       + '</div></div>';
   });
+  /* 30-oct-2026 — el capital perdido con este cliente, la misma cuenta que la
+     ficha del computador (puente.capitalPerdidoDelSocio). Solo si hubo. */
+  var cpS = P.capitalPerdidoDelSocio ? P.capitalPerdidoDelSocio(DB, s) : null;
+  if (cpS && cpS.capital) {
+    h += '<div class="aviso ambar">Capital perdido con él: <b>' + COP(cpS.capital) + '</b> en ' + cpS.creditos
+      + ' crédito' + (cpS.creditos === 1 ? '' : 's') + ' — plata tuya que no vuelve.</div>';
+  }
 
   if (resp.length) {
     h += '<div class="tit-bloque"><h3 class="tit">Préstamos con garantía</h3>'
@@ -4669,7 +4685,11 @@ function vistaCredito() {
           + (l.pago_a_tiempo ? 'porque el crédito ya venía de una mora' : 'por pagar tarde') + ')</span>')
     + '</span></div>'
     + '<div class="fila"><span class="k">Vence</span><span class="v">' + fmtFecha(P.corteDelCredito(p)) + '</span></div>'
-    + '<div class="fila"><span class="k">Saldo de capital del crédito</span><span class="v">' + COP(capitalActual(p)) + '</span></div>'
+    /* 30-oct-2026 — cerrado con pérdida, el capital que no volvió no es un
+       «saldo» que se deba: es la pérdida, y se nombra así. */
+    + ((P.perdidaDelCierre && P.perdidaDelCierre(p))
+        ? '<div class="fila"><span class="k">Capital perdido al cerrar</span><span class="v ambar">' + COP(P.perdidaDelCierre(p)) + '</span></div>'
+        : '<div class="fila"><span class="k">Saldo de capital del crédito</span><span class="v">' + COP(capitalActual(p)) + '</span></div>')
     /* 22-oct-2026 — lo que te deja, la misma cuenta que en el computador. */
     + filaGananciaE(p)
     + '</div>';
@@ -4689,8 +4709,16 @@ function vistaCredito() {
   }
 
   if (p.pagado) {
-    h += '<div class="aviso info">Este crédito ya está pagado (' + fmtFecha(p.fechaPagado) + '). '
-      + 'No hay nada que cobrar ni que prorrogar.</div>';
+    /* 30-oct-2026 — si se cerró con «Se lo perdoné» por menos del capital, se
+       dice: lo que entró y lo que se perdió. «Ya está pagado» a secas sonaría a
+       que volvió todo. */
+    var perdioC = P.perdidaDelCierre ? P.perdidaDelCierre(p) : 0;
+    h += perdioC
+      ? '<div class="aviso ambar">Este crédito se cerró el ' + fmtFecha(p.fechaPagado) + ' con «Se lo perdoné»: '
+        + 'entraron <b>' + COP(p.montoRecibido) + '</b> y se perdieron <b>' + COP(perdioC) + '</b> de capital '
+        + '(plata tuya que no vuelve). No hay nada que cobrar ni que prorrogar.</div>'
+      : '<div class="aviso info">Este crédito ya está pagado (' + fmtFecha(p.fechaPagado) + '). '
+        + 'No hay nada que cobrar ni que prorrogar.</div>';
   } else {
     if (cuota && esPactoE(p)) {
       /* 22-oct-2026: el pago que acordó Joan, con su fecha y su valor. */
@@ -4812,6 +4840,18 @@ function vistaQuincena() {
     +   '<span class="v">' + COP(porCobrar) + '</span></div>'
     + '<div class="fila"><span class="k">Créditos que vencen</span>'
     +   '<span class="v">' + vencen.length + '</span></div>'
+    /* 30-oct-2026 — el capital perdido del ciclo, la misma cuenta que el tablero
+       del computador (puente.capitalPerdidoDeQuincena) y aparte de la ganancia:
+       el celular no puede contar distinto. Solo si hubo. */
+    + (function () {
+        var k = P.capitalPerdidoDeQuincena ? P.capitalPerdidoDeQuincena(DB, q) : null;
+        return (k && k.capital)
+          ? '<div class="fila"><span class="k">Capital perdido en el ciclo</span>'
+            + '<span class="v">' + COP(k.capital) + '</span></div>'
+            + '<div class="mini" style="color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)">'
+            + 'plata tuya que no vuelve: no está restada de la ganancia de arriba</div>'
+          : '';
+      })()
     + '</div>';
 
   h += '<div class="tit-bloque"><h3 class="tit">Lo que registraste hoy</h3></div>';
@@ -4825,8 +4865,14 @@ function vistaQuincena() {
        total que tienen debajo es peor que no poner la lista. El capital queda
        como contexto, en gris y dicho. */
     pagadosHoy.forEach(function (p) {
+      /* 30-oct-2026 — el capital que DE VERDAD volvió (puente.capitalRecuperadoDe),
+         no el prestado: un crédito de 300.000 cerrado en el computador con
+         «Se lo perdoné» por 250.000 devolvió 250.000, y decir «300.000 de
+         capital devuelto» sería contar plata que no entró. */
+      var perdio = P.perdidaDelCierre ? P.perdidaDelCierre(p) : 0;
       h += '<div class="linea-item"><span>Pago · ' + esc(p.socioNombre || '')
-        + '<br><span class="muted">' + COP(p.capital) + ' de capital devuelto</span></span>'
+        + '<br><span class="muted">' + COP(P.capitalRecuperadoDe(p)) + ' de capital devuelto'
+        + (perdio ? ' · ' + COP(perdio) + ' de capital perdido' : '') + '</span></span>'
         + '<span>' + COP(Number(p.gananciaPago) || 0) + '</span></div>';
     });
     prorrogadosHoy.forEach(function (x) {
@@ -5151,6 +5197,9 @@ var ETIQUETAS = {
      dos versiones es la buena. */
   montoRecibido: 'Plata que entró', costoCausado: 'Costo causado',
   moraCausada: 'Mora causada', saldoAFavor: 'Saldo a favor',
+  /* 30-oct-2026 — el cierre con «Se lo perdoné» por menos del capital: lo que
+     no volvió. Un lado con pérdida y otro sin ella son dos cierres distintos. */
+  capitalPerdido: 'Capital perdido al cerrar',
   /* 3-oct-2026 (revisión) — la MISMA entrega anotada distinto en los dos
      aparatos (NUBE.fusionarFila): lo que entró por la prórroga y lo que fue a
      capital ese día, en pesos, para que Joan vea cuál de las dos es la buena. */
@@ -5325,19 +5374,25 @@ function calcCobro(id) {
   h += avisoDelCierre(p, cierre);
   if (c && esPactoE(p)) {
     /* 22-oct-2026 — el pago acordado, igual que una cuota: completo desde acá. */
+    /* 30-oct-2026 — y «Se lo perdoné», que desde hoy cierra un crédito con
+       cuotas con lo que traiga (puente.cierreConPerdon): esa hoja, con su
+       motivo y su casilla de la pérdida, vive en el computador. Se dice aquí,
+       que es donde Joan lo buscaría: nunca un bloqueo mudo. */
     h += '<div class="aviso info">Tiene un <b>próximo pago acordado</b>: desde el celular se cobra '
-      + 'completo. <b>El abono y volver a acordarlo se anotan desde el computador.</b></div>';
+      + 'completo. <b>El abono y volver a acordarlo se anotan desde el computador.</b> '
+      + 'Y si no puede pagar más, <b>«Se lo perdoné» (cerrar el crédito con lo que traiga) se hace desde el computador.</b></div>';
   } else if (c && P.esPlanDeAlta(p)) {
     /* 16-oct-2026 — el crédito a cuotas sí admite abonos a la cuota y pagar
        todo antes (decisiones de Joan de ese día), pero esas dos hojas viven en
        el computador en esta entrega. Se dice dónde, en vez de dejar que Joan
        crea que no existen o, peor, que las cobre aquí como cuota completa. */
     h += '<div class="aviso info">Es un <b>crédito a cuotas</b>: desde el celular la cuota se cobra '
-      + 'completa. <b>El abono a una cuota y «pagar todo» se anotan desde el computador.</b></div>';
+      + 'completa. <b>El abono a una cuota y «pagar todo» se anotan desde el computador.</b> '
+      + 'Y si no puede pagar más, <b>«Se lo perdoné» (cerrar el crédito con lo que traiga) también se hace desde el computador.</b></div>';
   } else if (c) {
-    h += '<div class="aviso info">Este crédito está en <b>plan de pagos</b>: la cuota se cobra '
-      + 'completa. El cobro con descuento todavía <b>no está en el celular</b> para los planes; '
-      + 'si le vas a perdonar algo de una cuota, regístralo en el computador.</div>';
+    h += '<div class="aviso info">Este crédito está en <b>plan de pagos</b>: desde el celular la cuota se cobra '
+      + 'completa. Si no puede pagar más, <b>«Se lo perdoné» (cerrar el crédito con lo que traiga y perdonarle '
+      + 'el resto) se hace desde el computador.</b></div>';
   } else {
     h += '<label for="pgMonto">¿Cuánto pagó?</label>'
       + '<input id="pgMonto" type="number" inputmode="numeric" step="1" min="0" '
@@ -5481,10 +5536,15 @@ function pintarDif(id) {
         + '</div>';
     }
     if (rep.excede) {
-      h += '<div class="aviso ambar">Ese descuento (' + COP(falta) + ') no cabe en el costo ni en la '
-        + 'mora de este ciclo. Lo máximo que se puede perdonar acá es ' + COP(rep.tope)
-        + '. Si le vas a perdonar capital, eso no es un descuento: es una pérdida y '
-        + 'no se registra desde el celular.</div>';
+      /* 30-oct-2026 — desde hoy perdonar capital SÍ se puede (decisión de
+         Joan), pero la hoja que lo hace —«Se lo perdoné» con su recuadro, su
+         motivo y la casilla «Entiendo que pierdo $X de capital»— vive en el
+         computador. Esto decía «no se registra desde el celular» como si no
+         existiera: ahora dice dónde está. */
+      h += '<div class="aviso ambar">Ese descuento (' + COP(falta) + ') pasa del costo y la mora de este '
+        + 'ciclo: desde el celular se puede perdonar hasta ' + COP(rep.tope) + '. Lo demás toca el capital, y '
+        + '<b>el descuento que toca el capital se hace desde el computador</b>: allá «Se lo perdoné» cierra el '
+        + 'crédito con lo que traiga, con su motivo y la pérdida dicha aparte.</div>';
     } else {
       var q = cuentasDelCobro(p, l, { condonaCosto: rep.costo, condonaMora: rep.mora });
       var dsc = descuentosDelSocio(socioDe(p));
@@ -5560,7 +5620,7 @@ function pintarDif(id) {
       var r2 = repartoDelDescuento(l, falta, _cobro.sobre);
       listo = !r2.excede;
       txt = listo ? '✓ Registrar ' + COP(monto) + ' con ' + COP(falta) + ' de descuento'
-                  : 'Ese descuento no cabe en este ciclo';
+                  : 'El que toca capital se hace en el computador';
     } else if (_cobro.modo === 'debe') {
       listo = monto < capitalActual(p);
       txt = listo ? '↓ Abonar ' + COP(monto) + ' a capital (sigue debiendo)'

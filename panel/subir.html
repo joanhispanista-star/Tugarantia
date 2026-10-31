@@ -524,9 +524,11 @@ var CAMPOS_MIRABLES = {
      está en discusión casi siempre es QUÉ CUOTA quedó pagada y cuándo. Sin él,
      la tarjeta de un choque entre dos cobros de cuota no enseñaba la cuota. Se
      pinta resumido (resumenDelPlan), no como objeto. */
+  /* 30-oct-2026 — y `capitalPerdido`: un cierre con «Se lo perdoné» por menos
+     del capital contra uno sin pérdida se distinguen justo ahí. */
   creditos:    ['numero','capital','total','pagado','fechaPagado','fechaPago','cicloActual','costoPct',
                 'montoRecibido','gananciaPago','recargoMora','costoCausado','moraCausada','saldoAFavor',
-                'planPagos'],
+                'capitalPerdido','planPagos'],
   respaldados: ['numero','capital','pagado','fechaPagado','plazo'],
   ajustes:     []
 };
