@@ -120,7 +120,8 @@
        Superfinanciera del 30-sep y la serie pare-7x5i. Con este techo la puerta
        pública se niega a cotizar el préstamo con garantía 14 de los 31 días
        (del 4 al 10 y del 20 al 26): se niega en vez de pasarse, que es lo legal. */
-    { desde: '2026-10-01', hasta: '2026-10-31', consumo_ordinario: 0.2859, ibc: 0.1906, fuente: 'Resolución 1472 de 2026' }
+    { desde: '2026-10-01', hasta: '2026-10-31', consumo_ordinario: 0.2859, ibc: 0.1906, fuente: 'Resolución 1472 de 2026' },
+    { desde: '2026-11-01', hasta: '2026-11-30', consumo_ordinario: 0.2834, ibc: 0.1889, fuente: 'Resolución 1707 de 2026' }
   ];
 
   /* El régimen de CONSUMO DE BAJO MONTO (que llega a 65,46%) NO está en esta
