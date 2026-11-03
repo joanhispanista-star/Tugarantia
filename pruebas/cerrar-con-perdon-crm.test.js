@@ -385,7 +385,7 @@ describe('4 · los informes dicen la pérdida aparte de la ganancia', () => {
     P.ev("modoCobro('p1','perdon')"); motivo(P, 'x'); casilla(P, 100000);
     P.ev("registrarCobro('p1')");
     P.ev('renderKpis()');
-    assert.match(texto(P.elems.kpis.innerHTML), /Capital perdido \$100\.000 1 cliente · plata tuya que no vuelve/);
+    assert.match(texto(P.elems.kpis.innerHTML), /Capital perdido \$100\.000 1 cliente · créditos con corte del .+ · plata tuya que no vuelve/);
   });
 
   test('la ficha del cliente: «Capital perdido con él» junto a los descuentos', () => {

@@ -4609,7 +4609,8 @@ function vistaFicha() {
     h += '<div class="card ap tocable" data-acc="vercredito" data-id="' + esc(p.id) + '">'
       + '<div style="display:flex;justify-content:space-between;gap:8px">'
       +   '<div><b>' + COP(p.capital) + '</b><div class="mini mono">' + esc(P.codCredito(p)) + '</div></div>'
-      +   '<span class="pill ' + est + '">' + ESTADO_TXT[est] + '</span></div>'
+      /* 3-nov-2026 — «Pagado» de un cierre que perdió capital era mentira: ver textoEstado en panel/crm.html. */
+      +   '<span class="pill ' + est + '">' + (est === 'pagado' && P && P.cerroConPerdida && P.cerroConPerdida(p) ? 'Cerrado con pérdida' : ESTADO_TXT[est]) + '</span></div>'
       + '<div class="mini">' + (p.pagado
           ? 'pagado el ' + fmtFecha(p.fechaPagado)
             /* 30-oct-2026 — y si se cerró perdiendo capital, cuánto. */

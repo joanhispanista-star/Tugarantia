@@ -677,3 +677,43 @@ describe('7 · después de cerrar con pérdida no se le agradece un pago que no 
     assert.equal(E.ev("plantillaPara(creditoPorId('l1'))"), 'recibo');
   });
 });
+
+/* ==========================================================================
+ * 7. 3-NOV-2026 — LO QUE JOAN LEE DE UN CIERRE CON PÉRDIDA: tres frases que
+ * quedaron de la revisión del 31-oct, y las tres afirmaban algo falso.
+ * ======================================================================== */
+describe('7 · Lo que Joan lee de un cierre con pérdida', () => {
+  const credito = () => quincenal({ id: 'p7', numero: 7, socioId: 's1', socioNombre: SOCIO.nombre, capital: 300000,
+    fechaDesembolso: '2026-10-01', cicloActual: '2026-10-15' });
+  const cerrado = monto => cerrar({ socios: [SOCIO], prestamos: [credito()] }, credito(), '2026-10-31', monto);
+
+  test('el Calendario no dice que entró plata que no entró', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(250000)]);
+    CRM.ev("verDia('2026-10-31')");
+    const t = texto(CRM.elems.mBody.innerHTML);
+    assert.match(t, /\$250\.000 de \$300\.000 · cerrado perdiendo \$50\.000/, 'el Calendario dijo otra cosa: ' + t);
+    assert.doesNotMatch(t, /\$300\.000 \+ ganancia/, 'dijo que entraron los 300.000');
+  });
+
+  test('un pago de verdad sigue diciendo lo de siempre en el Calendario', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [pagarTodo(credito(), '2026-10-31')]);
+    CRM.ev("verDia('2026-10-31')");
+    assert.match(texto(CRM.elems.mBody.innerHTML), /\$300\.000 \+ ganancia/);
+  });
+
+  test('«Pagado» no sale de un crédito cerrado con pérdida; de uno pagado, sí', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(0)]);
+    assert.equal(CRM.ev('textoEstado(DB.prestamos[0])'), 'Cerrado con pérdida');
+    CRM.ev("verCredito('p7')");
+    assert.match(texto(CRM.elems.mBody.innerHTML), /Estado Cerrado con pérdida/);
+    const OTRO = crmCon('2026-10-31T10:30:00', [SOCIO], [pagarTodo(credito(), '2026-10-31')]);
+    assert.equal(OTRO.ev('textoEstado(DB.prestamos[0])'), 'Pagado');
+  });
+
+  test('la tarjeta «Capital perdido» dice de qué corte es: no «ninguno» a secas el día que se perdió de otro corte', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(250000)]);
+    CRM.ev('render()');
+    const k = texto(CRM.elems.kpis.innerHTML);
+    assert.match(k, /Capital perdido \$0 ninguno en créditos con corte del 31 oct/, 'la tarjeta dijo otra cosa: ' + k);
+  });
+});

@@ -2192,6 +2192,12 @@ function diasMora(p){ return PUENTE.liquidarCiclo(p).dias_mora; }
 function diasPara(p){ const c=PUENTE.corteDelCredito(p); if(!c)return 0;
   return diasEntre(hoyISO(),c); }
 const ESTADO_TXT={'al-dia':'Al día','proximo':'Próximo','hoy':'Vence hoy','mora':'En mora','pagado':'Pagado'};
+/* 3-nov-2026 — «Pagado» de un crédito que se cerró perdiendo capital, hasta con $0,
+   era mentira en la propia pantalla de Joan, al lado de «te deja −$150.000». El
+   estado sigue siendo 'pagado' (está cerrado y no debe nada, y de ahí cuelgan el
+   orden de las listas y los colores); lo que cambia es la palabra. El cliente no
+   la ve: esto es solo el CRM, y su app ya dice «Cerrado». */
+function textoEstado(p,est){ const e=est||estadoPrestamo(p); return e==='pagado'&&PUENTE.cerroConPerdida&&PUENTE.cerroConPerdida(p)?'Cerrado con pérdida':ESTADO_TXT[e]; }
 const ESTADO_TXT_RESP={'al-dia':'Al día','proximo':'Próxima cuota','hoy':'Cuota hoy','mora':'Cuota vencida','pagado':'Terminado'};
 
 /* 5-ago-2026 — EL CALENDARIO DE FESTIVOS ES UNO SOLO, Y ES EL DEL MOTOR.
@@ -2238,7 +2244,7 @@ function renderKpis(){
     <div class="kpi gan"><div class="et">💰 Ganancia cobrada (total)</div><div class="nm">${COP(ganTotal)}</div><div class="x">costos + prórrogas</div></div>
     <div class="kpi gan"><div class="et">📈 Ganancia ciclo actual</div><div class="nm">${COP(ganCiclo)}</div><div class="x">quincena ${fmtCorto(cg)}</div></div>
     <div class="kpi"><div class="et">🎁 Descuentos dados</div><div class="nm">${COP(descCiclo.total)}</div><div class="x">${descCiclo.total?`${descCiclo.clientes} cliente${descCiclo.clientes===1?'':'s'} · ya restados de la ganancia`:`ninguno en ${fmtCorto(cg)}`}</div></div>
-    ${capCiclo?`<div class="kpi ${capCiclo.capital?'alert':''}"><div class="et">💸 Capital perdido</div><div class="nm">${COP(capCiclo.capital)}</div><div class="x">${capCiclo.capital?`${capCiclo.clientes} cliente${capCiclo.clientes===1?'':'s'} · plata tuya que no vuelve: no se resta de la ganancia`:`ninguno en ${fmtCorto(cg)}`}</div></div>`:''}
+    ${capCiclo?`<div class="kpi ${capCiclo.capital?'alert':''}"><div class="et">💸 Capital perdido</div><div class="nm">${COP(capCiclo.capital)}</div><div class="x">${capCiclo.capital?`${capCiclo.clientes} cliente${capCiclo.clientes===1?'':'s'} · créditos con corte del ${fmtCorto(cg)} · plata tuya que no vuelve: no se resta de la ganancia`:`ninguno en créditos con corte del ${fmtCorto(cg)}`}</div></div>`:''}
     <div class="kpi dark"><div class="et">🏦 Invertido en el ciclo</div><div class="nm">${COP(invCiclo)}</div><div class="x">capital activo en ${fmtCorto(cg)}</div></div>
     <div class="kpi alert"><div class="et">⚠️ En mora</div><div class="nm">${COP(moraA.reduce((s,p)=>s+vencidoHoy(p),0))}</div><div class="x">${moraA.length} vencidos</div></div>`;
 
@@ -4884,7 +4890,7 @@ function renderCred(){
       <td class="gano">${COP(gananciaCobrada(p))}${!p.pagado?'<div class="muted" style="font-weight:400">esp. '+COP(gananciaEsperada(p))+'</div>':''}${(()=>{ const g=gananciaDe(p); return g?`<div style="font-size:12px" title="Lo que te deja: lo cobrado por encima del capital prestado, más lo pactado que falta, menos el capital perdonado">te deja ${cifraGanancia(g)}</div>`:''; })()}</td>
       <td>${fmtFecha(p.fechaDesembolso)} <span class="muted">→</span> ${fmtFecha(PUENTE.corteDelCredito(p))}<div class="muted">${dias} días</div></td>
       <td class="${sobre?'ea-bad':'ea-ok'}">${fmtEA(ea)}${sobre?' <span class="warn-ico" title="Supera la usura de referencia">⚠️</span>':''}</td>
-      <td><span class="chip ${est}">${ESTADO_TXT[est]}</span></td>
+      <td><span class="chip ${est}">${textoEstado(p,est)}</span></td>
       <td style="text-align:right"><button class="btn btn-ghost btn-sm" onclick="verCredito('${p.id}')">Ver</button>${p.pagado?'':` <button class="btn btn-negro btn-sm" onclick="abrirPago('${p.id}')">Pago</button>`} <button class="btn btn-ghost btn-sm" onclick="borrarCredito('${p.id}')" title="Borrar este crédito (va a la papelera)">🗑</button></td></tr>`;}).join('')}</tbody>
       <tfoot><tr><td colspan="2">Total (${arr.length} créditos)</td><td class="num">${COP(sumCap)}</td><td class="num">${COP(sumAPagar)}</td><td class="num">${COP(sumGan)}${pieTeDeja}</td><td colspan="4"></td></tr></tfoot></table>`+papeleraHTML();
 }
@@ -5468,7 +5474,7 @@ function verDia(iso){
     if(ev.cuo.length){ h+=`<div class="sub-h">📅 Cuotas pactadas (a cuotas o plan de pagos)</div>`+ev.cuo.map(c=>
       `<div class="info-row"><span class="k">${escHTML(c.p.socioNombre)}<div class="muted">cuota ${c.n} de ${c.de}, ya pactada</div></span><span class="vv"><b>${COP(c.monto)}</b> · <a target="_blank" href="${gcalUrl('Cobro '+c.p.socioNombre+' '+COP(c.monto),c.fecha,detalleCobro(c.p,c))}">+Google</a></span></div>`).join(''); }
     if(ev.des.length){ h+=`<div class="sub-h">💵 Desembolsos</div>`+ev.des.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv"><b>${COP(p.capital)}</b> · <a target="_blank" href="${gcalUrl('Desembolso '+p.socioNombre+' '+COP(p.capital),iso,'')}">+Google</a></span></div>`).join(''); }
-    if(ev.pag.length){ h+=`<div class="sub-h">✓ Pagos recibidos</div>`+ev.pag.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv gano">${COP(p.capital)} + ganancia ${COP(p.gananciaPago||0)}</span></div>`).join(''); }
+    if(ev.pag.length){ h+=`<div class="sub-h">✓ Pagos recibidos</div>`+ev.pag.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv gano">${PUENTE.cerroConPerdida&&PUENTE.cerroConPerdida(p)?`${COP(PUENTE.capitalRecuperadoDe(p))} de ${COP(p.capital)} · cerrado perdiendo ${COP(PUENTE.perdidaDelCierre(p))}`:COP(p.capital)} + ganancia ${COP(p.gananciaPago||0)}</span></div>`).join(''); }
     /* A qué corte pasó DE VERDAD ese día está guardado en el movimiento
        (`nuevoCiclo`): `p.cicloActual` es el corte de hoy, y con dos prórrogas
        encadenadas las dos filas decían la misma fecha, la última. */
@@ -6817,7 +6823,7 @@ function verCredito(id){
   openModal('Crédito '+codCredito(p)+' · '+p.socioNombre,`
     <div class="info-row"><span class="k">N° crédito</span><b class="mono">${codCredito(p)}</b></div>
     <div class="info-row"><span class="k">N° cliente</span><b class="mono">${s.numero?codCliente(s):'—'}</b></div>
-    <div class="info-row"><span class="k">Estado</span><span class="vv"><span class="chip ${est}">${ESTADO_TXT[est]}</span></span></div>
+    <div class="info-row"><span class="k">Estado</span><span class="vv"><span class="chip ${est}">${textoEstado(p,est)}</span></span></div>
     ${acuerdoDe(p)?`<div class="alerta ${acuerdoIncumplido(p)?'warn':'info'}"><b>🤝 Acuerdo pactado:</b> paga la prórroga de <b>${COP(p.acuerdo.monto)}</b> el <b>${fmtFecha(p.acuerdo.pactadaPara)}</b>.${acuerdoIncumplido(p)?' <b>Ese día no pagó</b>: el precio pactado venció y corre lo causado real.':' El precio queda congelado si cumple.'}
       <div style="margin-top:8px"><button class="btn btn-sm btn-negro" onclick="cumplirAcuerdo('${p.id}')">✓ Cumplió: recibí la prórroga</button>
       <button class="btn btn-ghost btn-sm" onclick="romperAcuerdo('${p.id}')">✕ Deshacer</button></div></div>`:''}
@@ -21136,7 +21142,7 @@ function bloqueCreditosHTML(s){
      (pagó todo, prórroga, abonó y pasa a la próxima quincena) a un clic desde
      la ficha, que es donde Joan está cuando el cliente le escribe. Antes había
      que entrar al crédito y de ahí al cobro. */
-  const filaCred=p=>`<div class="info-row"><span class="k">${fmtFecha(p.fechaDesembolso)} · ${COP(p.capital)}</span><span class="vv"><span class="chip ${estadoPrestamo(p)}">${ESTADO_TXT[estadoPrestamo(p)]}</span> <span class="gano">${COP(gananciaCobrada(p))}</span> ${(()=>{ const g=gananciaDe(p); return g?`<span class="muted">te deja</span> ${cifraGanancia(g)}`:''; })()} <a href="#" onclick="event.preventDefault();verCredito('${p.id}')">ver</a>${p.pagado?'':` · <a href="#" onclick="event.preventDefault();abrirPago('${p.id}')" title="Pagó todo, prórroga, o abonó y el resto pasa a la próxima quincena">💵 pago</a>`}</span></div>`;
+  const filaCred=p=>`<div class="info-row"><span class="k">${fmtFecha(p.fechaDesembolso)} · ${COP(p.capital)}</span><span class="vv"><span class="chip ${estadoPrestamo(p)}">${textoEstado(p)}</span> <span class="gano">${COP(gananciaCobrada(p))}</span> ${(()=>{ const g=gananciaDe(p); return g?`<span class="muted">te deja</span> ${cifraGanancia(g)}`:''; })()} <a href="#" onclick="event.preventDefault();verCredito('${p.id}')">ver</a>${p.pagado?'':` · <a href="#" onclick="event.preventDefault();abrirPago('${p.id}')" title="Pagó todo, prórroga, o abonó y el resto pasa a la próxima quincena">💵 pago</a>`}</span></div>`;
   /* 17-oct-2026, revisión — con cuotas, «si paga todo hoy» es saldar el crédito
      entero (siPagaTodoHoy), no la cuota que corre. */
   const debeHoy=activos.reduce((t,p)=>t+siPagaTodoHoy(p),0);
