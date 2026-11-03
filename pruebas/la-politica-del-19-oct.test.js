@@ -311,7 +311,8 @@ describe('4. lo demás que la política dice desde el 19-oct', () => {
        autorización) tampoco la sube: lo del 19 sigue en su lista y en «rige
        desde», ya no como «la anterior». */
     assert.equal(U.VERSION_AUTORIZACION, '2026-10-19');
-    assert.match(PRIV, /Última actualización: 30 de octubre de 2026/);
+    /* 3-nov-2026 — salió el jueves 29, no el 30: ver pruebas/el-lote-del-27-junto.test.js. */
+    assert.match(PRIV, /Última actualización: 29 de octubre de 2026/);
     const s = seccion('cambios');
     assert.match(s, /Lo que cambió el 19 de octubre de 2026:/);
     assert.match(s, /otra desde el 19 de octubre de 2026/);

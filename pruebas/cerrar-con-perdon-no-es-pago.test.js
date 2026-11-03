@@ -49,7 +49,11 @@
  * ==========================================================================*/
 'use strict';
 
-const { test, describe } = require('node:test');
+const { test, describe, mock } = require('node:test');
+/* 3-nov-2026 — la hora es un dato (pruebas/reloj.js): crmCon le pasa a la página
+   el 31-oct, pero app/puente.js se carga por fuera del contexto y miraba el
+   reloj de verdad. El 3-nov, «3 días de mora» eran 6 y Lucía salía Alto. */
+mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-31T10:30:00').getTime() });
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');

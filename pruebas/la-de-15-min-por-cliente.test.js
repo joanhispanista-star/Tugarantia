@@ -22,7 +22,15 @@
  * los refutadores (pago-pc-no-llega.js y refuta-pago-misma-sesion.js).
  * Cada prueba de este archivo falla contra fe35f8c.
  * ==========================================================================*/
-const { test, describe } = require('node:test');
+const { test, describe, mock } = require('node:test');
+/* 3-nov-2026 — LA HORA ES UN DATO (pruebas/reloj.js), y aquí tiene que llegar
+   también al puente: el banco le entrega su reloj a la página, pero
+   app/puente.js se carga por fuera del contexto y mira el de verdad. La
+   cartera de estas pruebas vence el 30-oct: desde el 31 a C0 le empezó a correr
+   mora (124.000 donde se esperaban 120.000), nueve pruebas cayeron en rojo y,
+   con ellas, el robot de la usura no abrió el PR de noviembre. Queda el 23-oct:
+   después de los abonos (20 y 22) y antes del corte. */
+mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-23T10:00:00').getTime() });
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { abrirPanel } = require('./banco-panel.js');

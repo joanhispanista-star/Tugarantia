@@ -163,7 +163,8 @@ describe('y el tratamiento de datos está declarado (Ley 1581)', () => {
     /* 28-oct-2026 — y otra vez, para el 30-oct (el día que sale; decía 3-nov):
        la historia laboral del fondo de pensiones, opcional y con su propia
        autorización. */
-    assert.match(PRIV, /Última actualización: 30 de octubre de 2026/,
+    /* 3-nov-2026 — salió el jueves 29, no el 30: ver pruebas/el-lote-del-27-junto.test.js. */
+    assert.match(PRIV, /Última actualización: 29 de octubre de 2026/,
       'se cambió la política y no se movió la fecha');
   });
 });
