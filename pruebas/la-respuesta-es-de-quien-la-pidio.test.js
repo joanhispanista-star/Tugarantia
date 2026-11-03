@@ -377,7 +377,8 @@ describe('G1 — la respuesta tardía de María no le abre su sesión a Pedro', 
        bandeja suma solo la versión de la política aceptada). */
     /* 22-oct-2026 — menos los datos de pago: esos van solo a la bandeja,
        porque lo del signup termina en la sesión guardada en el teléfono. */
-    const { autorizacion_version: version, nequi, cuentas_mias: mias, ...enLaBandeja } = bandeja.p_datos;
+    /* 3-nov-2026 — y lo que dijo su teléfono de las fotos, que es de la bandeja. */
+    const { autorizacion_version: version, nequi, cuentas_mias: mias, fotos_tomadas: tomadas, cedula_leida_con: leida, ...enLaBandeja } = bandeja.p_datos;
     assert.ok(version, 'la bandeja no lleva la versión de la política');
     assert.ok(nequi && mias, 'la bandeja no lleva la cuenta de pago');
     assert.deepEqual(s[0].cuerpo.data.vinculacion, enLaBandeja, 'la bandeja y el signup no llevan los mismos datos');

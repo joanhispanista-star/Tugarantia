@@ -417,8 +417,10 @@ describe('el paso de la cédula con un solo lado', () => {
     assert.match(P.ev("$('errReg').innerHTML"), /Te falta la foto del respaldo de tu cédula[^]*Tomar el respaldo/);
   });
 
-  test('con los dos lados, sin ninguno, o sin autorizar las fotos: pasa sin aviso', () => {
-    [[{ cedula_frente: FOTO, cedula_reverso: FOTO }, true], [{}, true], [{ cedula_reverso: FOTO }, false]].forEach(([f, s]) => {
+  /* 3-nov-2026 — «sin ninguno» salió de aquí: con el permiso dado y sin ninguna
+     foto, ahora se avisa una vez (pruebas/la-cedula-que-falta.test.js). */
+  test('con los dos lados o sin autorizar las fotos: pasa sin aviso', () => {
+    [[{ cedula_frente: FOTO, cedula_reverso: FOTO }, true], [{ cedula_reverso: FOTO }, false]].forEach(([f, s]) => {
       const P = enElPasoDocumento(f, s);
       P.ev('siguientePaso()');
       assert.notEqual(pasoActual(P), 'documento', 'avisó cuando no faltaba un lado: ' + JSON.stringify(f) + ' sensibles=' + s);

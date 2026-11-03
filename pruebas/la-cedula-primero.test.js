@@ -224,6 +224,11 @@ describe('1. el registro abre en la cédula, y el botón autoriza solo si lo toc
     P.ev('siguientePaso()');
     assert.equal(P.ev('window.__gps'), 0, 'el «Continuar» que avisa de la selfie pidió la ubicación');
     P.ev('seguirSinSelfie()');
+    /* 3-nov-2026 — y como aquí se llegó sin pasar por el aviso de la cédula, ese
+       toque avisa de ella (la-cedula-que-falta.test.js), por lo mismo sin pedir
+       la ubicación: se pide al salir de verdad. */
+    assert.equal(P.ev('window.__gps'), 0, 'el toque que avisa de la cédula pidió la ubicación');
+    P.ev('siguientePaso()');
     assert.equal(P.ev('window.__gps'), 1, 'la ubicación autorizada no se pidió nunca');
   });
 });

@@ -168,7 +168,7 @@ function conSesionJs(P) {
    pasa su celular y su contraseña, y deja la página en «Cómo te contactamos»
    con su correo y su otro celular escritos. */
 function mariaHastaContacto(P, conSelfie) {
-  if (conSelfie) { P.ev('autorizarYEscanear()'); P.ev('siguientePaso()'); }   // sin fotos de la cédula
+  if (conSelfie) { P.ev('autorizarYEscanear()'); P.ev('siguientePaso()'); P.ev('siguientePaso()'); }   // sin fotos de la cédula
   else tocar(P, 'Prefiero escribir mis datos');
   assert.equal(pasoActual(P), 'identidad');
   casillas(P, 'identidad', DATOS_MARIA);

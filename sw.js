@@ -2009,7 +2009,17 @@
    «gracias por tu cumplimiento», y el celular no lo mete en «Pagaron ayer».
    Los mismos archivos, ya en v142: nada sube de versión.
    OJO al integrar: la rama registro-tope (otra sesión, sin publicar) también
-   pensaba en v142. La que se publique de segunda sube a v143. */
+   pensaba en v142. La que se publique de segunda sube a v143.
+   3-nov-2026, el mismo lote: LA CÉDULA QUE FALTA SE DICE. Joan: «no veo las fotos
+   de la cédula» (un registro con solo el rostro). Con el permiso dado y sin ninguna
+   foto, «Continuar» y «Prefiero escribir mis datos» pasaban callados; ahora se
+   avisa una vez, también al dejar «Tu rostro», y se puede seguir: NO se bloquea,
+   decisión de Joan del 3-nov (Decreto 1377, art. 6). La bandeja anota qué fotos
+   tomó y cómo se leyó su cédula (fotos_tomadas, cedula_leida_con), y el CRM dice
+   lo que se sabe y trae «💬 Pedirle las fotos por el chat». Cambian dos páginas,
+   play/index.html y panel/crm.html, ya en v142, y ningún .js publicado: nada
+   sube de versión. No hay base nueva: registrar_abierto guarda esos pares de
+   texto como cualquier otro. */
 const CACHE = 'tugarantia-v142';
 const BASE = new URL('./', self.location).pathname;
 

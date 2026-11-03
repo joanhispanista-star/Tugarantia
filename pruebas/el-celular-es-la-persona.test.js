@@ -222,6 +222,7 @@ function mariaSinCedulaConSuCara() {
   const P = abrir();
   P.ev('autorizarYEscanear()');
   P.ev('siguientePaso()');                          // sin fotos de la cédula
+  P.ev('siguientePaso()');   // 3-nov-2026 — el primero avisa (la-cedula-que-falta.test.js)
   assert.equal(pasoActual(P), 'identidad');
   casillas(P, 'identidad', { nombres: 'MARIA JOSE', apellidos: 'RODRIGUEZ PEREZ', tipo_doc: 'Cédula de ciudadanía',
     documento: '52123456', expedicion: '2010-05-20' });
@@ -304,6 +305,7 @@ describe('C1. la selfie y la ubicación de otra persona no pasan a la cuenta del
     assert.equal(pasoActual(P), 'documento', 'el «Continuar» con otro celular no llevó al primer paso');
     P.ev('autorizarYEscanear()');
     P.ev('siguientePaso()');
+    P.ev('siguientePaso()');   // 3-nov-2026 — el primero avisa (la-cedula-que-falta.test.js)
     assert.equal(pasoActual(P), 'identidad');
     casillas(P, 'identidad', PEDRO);
     P.ev('siguientePaso()');
@@ -342,6 +344,7 @@ describe('C2. ninguna cuenta nace con la contraseña creada con otro celular', (
     const P = abrir();
     P.ev('autorizarYEscanear()');
     P.ev('siguientePaso()');
+    P.ev('siguientePaso()');   // 3-nov-2026 — el primero avisa (la-cedula-que-falta.test.js)
     casillas(P, 'identidad', { nombres: 'MARIA JOSE', apellidos: 'RODRIGUEZ PEREZ', tipo_doc: 'Cédula de ciudadanía',
       documento: '52123456', expedicion: '2010-05-20' });
     P.ev('siguientePaso()');
@@ -481,6 +484,7 @@ describe('la regla: si el celular cambia, se borra lo de la persona anterior; la
     const P = abrir();
     P.ev('autorizarYEscanear()');
     P.ev('siguientePaso()');
+    P.ev('siguientePaso()');   // 3-nov-2026 — el primero avisa (la-cedula-que-falta.test.js)
     casillas(P, 'identidad', { nombres: 'MARIA JOSE', apellidos: 'RODRIGUEZ PEREZ', tipo_doc: 'Cédula de ciudadanía',
       documento: '52123456', expedicion: '2010-05-20' });
     P.ev('siguientePaso()');
@@ -601,6 +605,7 @@ describe('C5. el aviso dice exactamente lo que se borró', () => {
     const P = abrir();
     P.ev('autorizarYEscanear()');
     P.ev('siguientePaso()');                        // sin la cédula
+    P.ev('siguientePaso()');   // 3-nov-2026 — el primero avisa (la-cedula-que-falta.test.js)
     casillas(P, 'identidad', { nombres: 'MARIA JOSE', apellidos: 'RODRIGUEZ PEREZ', tipo_doc: 'Cédula de ciudadanía',
       documento: '52123456', expedicion: '2010-05-20' });
     P.ev('siguientePaso()');

@@ -231,7 +231,8 @@ describe('2. el avance, la ubicación y la cédula leída, en el orden nuevo', (
     P.ev('autorizarYEscanear()');
     assert.equal(P.ev('window.__gps'), 0, 'la cédula pidió la ubicación y la política dice que se pide en el rostro');
     /* 22-oct-2026 — al seguir sin la selfie (el primer «Continuar» solo avisa). */
-    P.ev("pintarRegistro(indiceDe('rostro')); siguientePaso(); seguirSinSelfie();");
+    /* 3-nov-2026 — y el toque que avisa de la cédula, que aquí no se avisó antes. */
+    P.ev("pintarRegistro(indiceDe('rostro')); siguientePaso(); seguirSinSelfie(); siguientePaso();");
     assert.equal(P.ev('window.__gps'), 1, 'el paso del rostro no pidió la ubicación');
   });
 

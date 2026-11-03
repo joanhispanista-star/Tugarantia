@@ -5837,7 +5837,7 @@ function verCliente(id){
      ↻ GIRAR UNA FOTO): la que se ve al revés se endereza una vez y para siempre. */
   /* 19-oct-2026 — con un solo lado de la cédula, se dice cuál falta (ver
      avisoLadoQueFalta). */
-  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div>${avisoLadoQueFalta(!!s.cedulaFrenteFoto,!!s.cedulaReversoFoto,'')}<div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Su cara'].indexOf(f[0])];
+  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div>${avisoLadoQueFalta(!!s.cedulaFrenteFoto,!!s.cedulaReversoFoto,'',!!s.selfieFoto)}<div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Su cara'].indexOf(f[0])];
       return `<div class="gal-it"><a data-foto="${f[1]}" target="_blank"><img data-foto="${f[1]}" id="fichaFoto_${cual}"><div class="cap">${f[0]}</div></a>${botonGirar("girarFotoFicha('"+escHTML(s.id)+"','"+cual+"')")}</div>`; }).join('')}</div>`
     +(s.selfieFoto&&s.cedulaFrenteFoto?`<div id="fichaParecido" style="margin-top:8px"></div>`:''):'';
   /* 8-sep-2026 — desde dónde se registró (huella), si vino del registro abierto. */
@@ -9931,7 +9931,11 @@ function abrirConversacion(ident,extra){
   _chatAbierta=String(ident||''); _chatMsgs=[]; _chatUltimo=0;
   const c=_convs.find(x=>String(x.cedula)===_chatAbierta)||{cedula:_chatAbierta};
   const x=extra||{};
-  _chatExtra={ident:_chatAbierta,extra:x};
+  /* 3-nov-2026 — `borrador`: el mensaje que queda escrito en el cuadro, sin
+     mandarse (ver pedirFotosPorElChat). Fuera de _chatExtra: «← Volver al chat»
+     no puede volver a escribir algo que Joan ya mandó o borró. */
+  const {borrador,...sinBorrador}=x;
+  _chatExtra={ident:_chatAbierta,extra:sinBorrador};
   _chatCanal=canalDeEntrada(c);
   const sinJuntar=/^0\d{10}$/.test(_chatAbierta);
   const regla=CHAT.quienEs?CHAT.quienEs(c):(c.nombre||'Socio');
@@ -9959,6 +9963,7 @@ function abrirConversacion(ident,extra){
        ${cel?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="https://wa.me/57${escHTML(cel)}">📲 Seguir por WhatsApp</a>`:''}
        <button class="btn btn-ghost btn-sm" onclick="olvidarConversacion()" title="Borra la conversación entera, para siempre">🗑 Borrar la conversación</button>
      </div>`);
+  if(borrador){ const t=document.getElementById('chResp'); if(t){ t.value=borrador; t.rows=4; } }
   pintarCandadoChat();
   cargarHilo();
 }
@@ -10156,7 +10161,7 @@ function mandarFotoAlCliente(input){
    esta frase decía «pestaña Chat», que ahí no existía; con chat-1 las tres
    pantallas dicen «Chat». */
 const AVISO_SIN_PUSH='No le llega aviso al celular: lo ve cuando abra la app, en Chat.';
-function escribirlePorLaApp(desde,id){
+function escribirlePorLaApp(desde,id,borrador){
   if(!chatListo()) return alert('No cargó ../app/chat.js. Recarga con Ctrl+F5, y si sigue igual, Ajustes → 🧹 Soltar la copia guardada.');
   if(!sbListo()) return alert('El chat vive en la nube y este computador no la tiene conectada. Conéctala en Ajustes → 📲 Compartir con mis clientes.');
   if(desde==='ficha'){
@@ -10166,7 +10171,7 @@ function escribirlePorLaApp(desde,id){
     return abrirConversacion(llave,{nombre:s.nombre||'',
       nota:(s.cuentaJunta?'':'Esto queda en el hilo de su ficha: lo lee cuando su cuenta de la app esté junta con ella. ')+AVISO_SIN_PUSH});
   }
-  const r=_registros.find(x=>String(x.id)===String(id)); if(!r) return;
+  const r=registroPorId(id); if(!r) return;   // 3-nov-2026 — también los que trajo el chat (ver pedirFotosPorElChat)
   const cel=String(r.telefono||'').replace(/\D/g,'').slice(-10);
   if(!/^3\d{9}$/.test(cel)) return alert('Ese registro no tiene un celular de 10 dígitos: no hay hilo donde escribirle.');
   if(!CHAT.hiloDeCelular) return alert('Este navegador tiene una copia vieja de ../app/chat.js. Recarga con Ctrl+F5.');
@@ -10183,7 +10188,7 @@ function escribirlePorLaApp(desde,id){
     const c=(Array.isArray(lista)?lista:[])[0]||null;
     if(!c) return alert('La nube no encontró ese registro. Trae de nuevo los registrados (↻) y vuelve a intentar.');
     if(c.cuenta!==true) return alert(SIN_CUENTA_NO_SE_ESCRIBE);
-    return abrirHiloDeRegistro(r,cel);
+    return abrirHiloDeRegistro(r,cel,borrador);
   }).catch(e=>alert(/cuentas_de_registros/.test(errNube(e))
     ?'Para saber si tiene cuenta falta correr base/20261007_una_puerta.sql en el SQL Editor. Mientras tanto no te abro la conversación: escríbele por WhatsApp.'
     :'No pude preguntarle a la nube si ese celular tiene cuenta. '+errNube(e)));
@@ -10192,7 +10197,7 @@ const SIN_CUENTA_NO_SE_ESCRIBE='Este celular todavía no tiene cuenta en la app,
   +'Si le escribes por la app, lo leería el primero que abra una cuenta con ese número, y ese número no está verificado: '
   +'podría no ser esta persona. Por eso no te abro la conversación. Escríbele por WhatsApp («📲 Escribirle»). '
   +'Cuando ese celular tenga cuenta, este botón sí te la abre.';
-function abrirHiloDeRegistro(r,cel){
+function abrirHiloDeRegistro(r,cel,borrador){
   return CHAT.hiloDeCelular(sbCfg(),cel).then(j=>{
     if(!j||j.ok!==true||!j.hilo) return alert('La nube no me dijo en qué conversación lee ese celular. No te abro una a ciegas.');
     const hilo=String(j.hilo);
@@ -10201,7 +10206,7 @@ function abrirHiloDeRegistro(r,cel){
        el que escribió al registrarse, y se rotula. */
     const ficha=(hilo!==cel&&!/^0\d{10}$/.test(hilo))?DB.socios.find(s=>PUENTE.llaveEnLaNube(s)===hilo):null;
     const nom=String(r.nombre||'').replace(/\s+/g,' ').trim();
-    abrirConversacion(hilo,{nombre:ficha?ficha.nombre:(nom?nom+' (registrado, sin verificar)':''),nota:AVISO_SIN_PUSH});
+    abrirConversacion(hilo,{nombre:ficha?ficha.nombre:(nom?nom+' (registrado, sin verificar)':''),nota:AVISO_SIN_PUSH,borrador});
   }).catch(e=>alert('No pude preguntarle a la nube en qué conversación lee ese celular. '+((e&&e.humano)||'Revisa el internet y vuelve a intentar.')));
 }
 
@@ -11327,7 +11332,7 @@ function renderRegistros(){
          ya tiene y quedan dos clientes donde hay una persona. La regla vive en
          el puente; acá solo se pinta. */
       const cand=PUENTE.candidatosDeCruce(DB,r), c0=cand[0];
-      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}${huecoUbicacion(r.huella,{registro:r},true)}${chipDelEquipo(r.telefono)}${pedidoEnRegistro(r)}${chipPension(r)}${chipQuienVe(r)}${chipEquipoRegistro(r)}</td>
+      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}${huecoUbicacion(r.huella,{registro:r},true)}${chipDelEquipo(r.telefono)}${pedidoEnRegistro(r)}${chipCedulaRegistro(r)}${chipPension(r)}${chipQuienVe(r)}${chipEquipoRegistro(r)}</td>
       <td>${abierto?'<span class="chip al-dia">📱 App</span>':'<span class="chip pagado">🎟️ '+escHTML(r.codigo||'Invitación')+'</span>'}</td>
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
@@ -11487,7 +11492,8 @@ function verDatosRegistro(id){
   /* 22-oct-2026 — sin el sello del registro (cuentas_sello): son 32 letras al
      azar que solo sirven para que la app sepa que la fila es de esa cuenta
      (base/20261022c_las_cuentas_del_registro.sql). A Joan no le dice nada. */
-  const filas=Object.entries(r.datos).filter(([k,v])=>v!==''&&v!=null&&k!=='cuentas_sello')
+  /* 3-nov-2026 — ni qué fotos tomó ni cómo se leyó: eso es del teléfono, no lo declaró, y sale abajo en palabras. */
+  const filas=Object.entries(r.datos).filter(([k,v])=>v!==''&&v!=null&&k!=='cuentas_sello'&&k!=='fotos_tomadas'&&k!=='cedula_leida_con')
     .map(([k,v])=>`<div class="info-row"><span class="k">${escHTML(ETIQUETAS_VINCULACION[k]||k.replace(/_/g,' '))}</span><span class="vv">${escHTML(String(v))}</span></div>`).join('');
   openModal('Lo que declaró '+(r.nombre||'esta persona'),
     /* 22-sep-2026 — decía «nadie los ha verificado todavía», y dos renglones
@@ -11504,7 +11510,7 @@ function verDatosRegistro(id){
     +'<div class="sub-h">Fotos del registro</div><div id="regFotos" class="muted">Buscando las fotos…</div>'
     /* 28-oct-2026 — y su historia laboral, si la dio (ver 📄 FONDO DE PENSIONES). */
     +'<div id="regPension"></div>');
-  pintarFotosRegistro(r.telefono||r.cedula,'regFotos');
+  pintarFotosRegistro(r.telefono||r.cedula,'regFotos',r);
   pintarPension(r.telefono,'regPension',{});
   resolverUbicaciones();
 }
@@ -11676,9 +11682,7 @@ function bloqueHuella(h,donde){
          fotos son de otro registro, no se llama sin sesión de Supabase —le pasó
          a la primera clienta real— y no manda nada si no hay ni fotos ni
          lectura). Ausencia de huella no es prueba de que tecleara. */
-      +'No llegó la lectura del código de barras. Puede ser que no lo escaneara, '
-      +'o que la subida de sus fotos no llegara: son cosas distintas y desde aquí '
-      +'no se distinguen.</span></div>')
+      +escHTML(lecturaQueNoLlego(donde&&donde.registro))+'</span></div>')
     /* 20-oct-2026, revisión — h.momento es cuándo se leyeron la IP y la
        conexión (al subir las fotos), no cuándo se creó el registro: si la
        persona volvió a subir fotos otro día, son fechas distintas y decir
@@ -12304,12 +12308,109 @@ function ponerHueco(el,motivo){
    pintaban lo que había y callaban lo que no: con un solo lado no se sabía si
    el otro no se tomó, no llegó, o no se estaba viendo. Habla solo cuando hay
    UN lado: sin ninguno, cada vista ya tiene su propio «no subió fotos». La
-   `cola` la pone quien sabe de dónde vienen las fotos. */
-function avisoLadoQueFalta(hayFrente,hayReverso,cola){
+   `cola` la pone quien sabe de dónde vienen las fotos.
+   3-nov-2026 — «SIN NINGUNO, CADA VISTA YA TIENE SU "NO SUBIÓ FOTOS"» ERA FALSO
+   SI ESTÁ EL ROSTRO. Joan, el 31-oct: «no veo las fotos de la cédula» de un registro
+   con solo el rostro. Las tres vistas pintaban la galería con el rostro y
+   no decían nada de la cédula. `hayRostro` es ese caso. */
+function avisoLadoQueFalta(hayFrente,hayReverso,cola,hayRostro){
+  if(!hayFrente&&!hayReverso){
+    if(!hayRostro) return '';
+    return `<div class="alerta warn" style="margin-bottom:8px"><b>Falta la cédula: no está ni el frente ni el respaldo, solo el rostro.</b>${cola?`<div class="muted" style="margin-top:4px">${escHTML(cola)}</div>`:''}</div>`;
+  }
   if(!!hayFrente===!!hayReverso) return '';
   const que=hayReverso?'Falta la foto del frente de la cédula: solo está la del respaldo.'
                       :'Falta la foto del respaldo de la cédula: solo está la del frente.';
   return `<div class="alerta warn" style="margin-bottom:8px"><b>${que}</b>${cola?`<div class="muted" style="margin-top:4px">${escHTML(cola)}</div>`:''}</div>`;
+}
+/* 3-nov-2026 — QUÉ SE SABE DE LA CÉDULA QUE NO ESTÁ. Decía «son cosas distintas
+   y desde aquí no se distinguen»: «no las tomó» y «las tomó y no han subido» se
+   veían igual, y lo que Joan hace en cada caso es distinto. Desde v142 el teléfono
+   anota en los datos del registro qué fotos había al abrir la cuenta
+   (fotos_tomadas, play/index.html). Es lo que DIJO el teléfono de quien se
+   registra: solo se compara contra tres nombres y nunca se pinta tal cual, y lo
+   que llegó de verdad a la base manda sobre esto. Sin la llave, el registro es de
+   antes y se dice que no se sabe. */
+function fotosTomadasDe(datos){
+  const v=datos&&datos.fotos_tomadas;
+  if(typeof v!=='string'||!v) return null;
+  if(v==='sin_permiso') return {permiso:false,cedula_frente:false,cedula_reverso:false,selfie:false};
+  const l=v.split(',');
+  return {permiso:true,cedula_frente:l.indexOf('cedula_frente')>=0,cedula_reverso:l.indexOf('cedula_reverso')>=0,selfie:l.indexOf('selfie')>=0};
+}
+/* Las fotos que no suben se borran del teléfono al día siguiente de tomarlas
+   (EC.fotosPertenecen, «caducada» en play/index.html), así que «suben cuando
+   entre» solo se puede decir ese primer día. */
+function porQueFaltaLaCedula(llegaron,r){
+  const faltan=['cedula_frente','cedula_reverso'].filter(k=>!(llegaron&&llegaron[k]));
+  if(!faltan.length) return '';
+  const dos=faltan.length>1, tom=fotosTomadasDe(r&&r.datos);
+  if(!tom) return dos
+    ?'No llegaron a la nube: el teléfono no las subió o nunca las tomó, y este registro es de antes de que se anotara cuál de las dos. Pídeselas antes de desembolsar.'
+    :'No llegó a la nube: el teléfono no la subió o nunca la tomó. Pídesela antes de desembolsar.';
+  if(!tom.permiso) return 'No dio el permiso de las fotos: es su derecho (Ley 1581), y por eso su cuenta se abre igual. Antes de desembolsar, confirma quién es: pregúntale por el chat si las manda o prefiere otra forma.';
+  const pide=dos?'Pídeselas':'Pídesela', tomadas=faltan.filter(k=>tom[k]);
+  if(!tomadas.length) return (dos?'No las tomó: el teléfono le avisó que faltaban y siguió sin ellas. ':'No la tomó: el teléfono le avisó que faltaba y siguió sin ella. ')+pide+' antes de desembolsar.';
+  if(tomadas.length<faltan.length){
+    const nombre={cedula_frente:'el frente',cedula_reverso:'el respaldo'};
+    return 'Tomó '+nombre[tomadas[0]]+' y no ha llegado; '+nombre[faltan.find(k=>!tom[k])]+' no lo tomó. Pídeselas antes de desembolsar.';
+  }
+  const horas=(Date.now()-new Date(r&&r.creado_en).getTime())/3600e3;
+  if(horas>=24) return (dos?'Las tomó, pero no llegaron':'La tomó, pero no llegó')+' y ya pasó más de un día: el teléfono '+(dos?'las':'la')+' borra. '+pide+' antes de desembolsar.';
+  return dos?'Las tomó y todavía no llegan: siguen en su teléfono y suben cuando entre a su cuenta. Si no entra en un día, se borran.'
+            :'La tomó y todavía no llega: sigue en su teléfono y sube cuando entre a su cuenta. Si no entra en un día, se borra.';
+}
+/* «💬 Pedirle las fotos por el chat» abre su chat con el mensaje ESCRITO, y lo
+   manda Joan: lo que viaja a un cliente lo lee él primero. Dice que hay otra
+   forma porque la hay que haber: ninguna actividad se puede condicionar a un dato
+   sensible (Decreto 1377 de 2013, art. 6; decisión de Joan del 3-nov). Sin saber
+   qué lado falta (el botón de la bandeja, que no trae las fotos), se pregunta a
+   la nube: pedirle a alguien lo que ya mandó sería peor que no pedirlo. */
+const PEDIR_FOTOS={
+  los_dos:'Hola, nos faltan las fotos de tu cédula por los dos lados. Mándalas por aquí, por favor. Si prefieres no mandarlas, dinos y vemos otra forma de confirmar que eres tú.',
+  frente:'Hola, nos falta la foto del frente de tu cédula. Mándala por aquí, por favor. Si prefieres no mandarla, dinos y vemos otra forma de confirmar que eres tú.',
+  reverso:'Hola, nos falta la foto del respaldo de tu cédula (el lado del código de barras). Mándala por aquí, por favor. Si prefieres no mandarla, dinos y vemos otra forma de confirmar que eres tú.'
+};
+function ladosQueFaltan(llegaron){
+  const fr=!!(llegaron&&llegaron.cedula_frente), re=!!(llegaron&&llegaron.cedula_reverso);
+  return fr&&re?'':(!fr&&!re?'los_dos':(fr?'reverso':'frente'));
+}
+function botonPedirFotos(r,falta){
+  if(!falta||!r||!r.telefono) return '';
+  return `<div style="margin:0 0 8px"><button class="btn btn-ghost btn-sm" onclick="pedirFotosPorElChat('${escHTML(String(r.id))}','${falta}')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
+}
+function pedirFotosPorElChat(id,falta){
+  if(falta) return escribirlePorLaApp('registro',id,PEDIR_FOTOS[falta]||PEDIR_FOTOS.los_dos);
+  const r=registroPorId(id); if(!r) return;
+  archivosDe(r.telefono||r.cedula).then(a=>{
+    if(a.fallo) return alert('No pude preguntarle a la nube qué fotos tiene: '+a.fallo+'\n\nNo te abro el chat a ciegas: podría pedirle lo que ya mandó.');
+    const que=ladosQueFaltan(a.fotos);
+    if(!que) return alert('Ya llegaron las dos fotos de su cédula. Míralas en «👁 Ver datos».');
+    escribirlePorLaApp('registro',id,PEDIR_FOTOS[que]);
+  });
+}
+/* En 📥 Registrados, de un vistazo, sin pedirle nada a la nube: lo que su teléfono
+   dijo al registrarse. Por eso dice «se registró», que sigue siendo cierto si las
+   mandó después. */
+function chipCedulaRegistro(r){
+  const tom=fotosTomadasDe(r&&r.datos);
+  if(!tom||(tom.cedula_frente&&tom.cedula_reverso)) return '';
+  const uno=tom.cedula_frente||tom.cedula_reverso;
+  return `<div style="margin-top:4px"><span class="chip riesgo-medio">🪪 ${uno?'Se registró con un solo lado de la cédula':'Se registró sin la cédula'}</span> <button class="btn btn-ghost btn-sm" onclick="pedirFotosPorElChat('${escHTML(String(r.id))}','')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
+}
+/* Y la fila «Cédula leída» de bloqueHuella, cuando no hay lectura del código. */
+function lecturaQueNoLlego(r){
+  const d=r&&r.datos, tom=fotosTomadasDe(d);
+  /* v139 también lee las letras impresas, y eso no es un error: la huella no lo
+     trae (registro_archivos_guardar no guarda cedula_vista), así que viaja con
+     los datos del registro, igual que fotos_tomadas. */
+  if(d&&d.cedula_leida_con==='letras') return 'Se leyó por sus letras, no por el código de barras: el teléfono llenó lo que pudo leer y la persona lo revisó.';
+  if(tom&&!tom.permiso) return 'No se leyó: no dio el permiso de las fotos.';
+  if(tom&&!tom.cedula_frente&&!tom.cedula_reverso) return 'No se leyó: no tomó las fotos de su cédula.';
+  if(tom) return 'Tomó su cédula, pero no llegó lectura del código de barras: no se pudo leer, o sus fotos todavía no suben. Si el respaldo está aquí abajo, «🔢 Leer el código» lo intenta otra vez.';
+  return 'No llegó la lectura del código de barras. Puede ser que no lo escaneara, '
+    +'o que la subida de sus fotos no llegara: son cosas distintas y desde aquí '
+    +'no se distinguen.';
 }
 /* 22-oct-2026 — LA SELFIE QUE NO LLEGÓ SE DICE (C1). La de William no estaba
    en la nube y ninguna pantalla de este CRM lo decía: «👁 Ver datos» pintaba
@@ -12336,7 +12437,7 @@ function avisoSelfieQueFalta(fotos,huella,cola){
   return '<div class="alerta warn" style="margin-bottom:8px"><b>No llegó la selfie: pídesela.</b><div class="muted" style="margin-top:4px">'+
     escHTML(porque)+(cola?' '+escHTML(cola):'')+'</div></div>';
 }
-function pintarFotosRegistro(celular,cajaId){
+function pintarFotosRegistro(celular,cajaId,r){
   const caja=document.getElementById(cajaId); if(!caja) return;
   if(!sbListo()){ caja.innerHTML='<span class="muted">Las fotos viven en la nube. Conéctala en Ajustes para verlas.</span>'; return; }
   caja.innerHTML='<span class="muted">Buscando las fotos…</span>';
@@ -12356,12 +12457,20 @@ function pintarFotosRegistro(celular,cajaId){
     const raras=['cedula_frente','cedula_reverso','selfie'].filter(k=>crudas[k]&&!f[k]).length;
     const avisoRaras=raras?`<div class="alerta warn" style="margin-bottom:8px">Llegó${raras>1?'ron '+raras+' archivos':' un archivo'} en lugar de foto que no ${raras>1?'son imágenes':'es una imagen'}. No se ${raras>1?'muestran':'muestra'}: nadie lo produce con la cámara del registro, así que trata este registro con cuidado.</div>`:'';
     const lista=[['Cédula (frente)',f.cedula_frente,'frente'],['Cédula (reverso)',f.cedula_reverso,'reverso'],['Rostro',f.selfie,'selfie']].filter(x=>x[1]);
-    if(!lista.length){ caja.innerHTML=avisoRaras||'<span class="muted">No subió fotos (o no autorizó).</span>'; return; }
+    /* 3-nov-2026 — lo que se sabe de la cédula que falta, y el botón para pedirla
+       (ver QUÉ SE SABE DE LA CÉDULA QUE NO ESTÁ). */
+    const pedir=botonPedirFotos(r,ladosQueFaltan(crudas));
+    if(!lista.length){
+      caja.innerHTML=(avisoRaras||(fotosTomadasDe(r&&r.datos)
+        ?`<div class="muted" style="margin-bottom:8px">${escHTML(porQueFaltaLaCedula(crudas,r))}</div>`
+        :'<div class="muted" style="margin-bottom:8px">No subió fotos (o no autorizó).</div>'))+pedir;
+      return;
+    }
     /* 19-oct-2026 — con un solo lado se dice cuál falta. Se mira lo que LLEGÓ
        (crudas), no lo que se muestra: un archivo raro ya tiene su aviso arriba
        y sí llegó. */
-    const avisoLado=avisoLadoQueFalta(!!crudas.cedula_frente,!!crudas.cedula_reverso,
-      'No llegó a la nube: el teléfono no la subió o nunca la tomó. Pídesela antes de desembolsar.')
+    const avisoLado=avisoLadoQueFalta(!!crudas.cedula_frente,!!crudas.cedula_reverso,porQueFaltaLaCedula(crudas,r),!!crudas.selfie)
+      +pedir
       +avisoSelfieQueFalta(crudas,a.huella,'Pídesela antes de desembolsar.');
     /* 8-oct-2026 — cada foto con su «↻ Girar» (ver ↻ GIRAR UNA FOTO). */
     caja.innerHTML=avisoRaras+avisoLado+`<div class="gal">${lista.map(x=>`<div class="gal-it"><a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>${botonGirar("girarFotoRegistro('"+x[2]+"')")}</div>`).join('')}</div>`
@@ -14422,6 +14531,7 @@ function fichaHTML(j) {
      22-oct-2026 — y el sello del registro (cuentas_sello) sigue fuera: no es
      un dato de la persona (ver verDatosRegistro). */
   const usados = { cuentas_sello: true };
+  usados.fotos_tomadas = usados.cedula_leida_con = true;   // 3-nov-2026 — lo dijo su teléfono, no lo declaró
   (CPAGO ? CPAGO.LLAVES_DEL_REGISTRO : ['nequi', 'daviplata', 'llave_breb', 'banco', 'banco_codigo', 'banco_tipo', 'banco_numero', 'cuentas_mias'])
     .forEach(k => { usados[k] = true; });
   const filas = Object.keys(CONOCIDOS)
@@ -14452,7 +14562,7 @@ function fichaHTML(j) {
     </div>` +
     (hayFotos
       ? `<div class="sub-h">Lo que subió</div>
-         ${avisoLadoQueFalta(!!f.cedula_frente, !!f.cedula_reverso, 'Pídesela antes de desembolsar.')}
+         ${avisoLadoQueFalta(!!f.cedula_frente, !!f.cedula_reverso, 'Pídesela antes de desembolsar.', !!f.selfie)}
          ${avisoSelfieQueFalta(f, h, 'Pídesela antes de desembolsar.')}
          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px">
            ${FOTOS.filter(x => f[x[0]]).map(x => `<figure style="margin:0">
@@ -21149,7 +21259,7 @@ function mesaDeCruce(idReg,idSocio){
       <button class="btn btn-ghost" onclick="otraPersona('${escHTML(String(idReg))}')">No es la misma persona</button>
     </div>`);
   pintarCambioDeCupo(idReg,idSocio);
-  pintarFotosRegistro(r.telefono||r.cedula,'cruceFotos');
+  pintarFotosRegistro(r.telefono||r.cedula,'cruceFotos',r);
   resolverUbicaciones();   // 8-oct-2026: el «desde dónde» del título, que antes solo eran fotos
   /* 7-oct-2026 (segunda vuelta) — sin nube la mesa se quedaba para siempre en
      «Preguntando a la nube…» y «Revisando…», con el botón de juntar activo. La

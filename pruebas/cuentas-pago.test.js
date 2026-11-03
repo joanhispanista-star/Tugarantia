@@ -148,8 +148,8 @@ describe('en el registro: varias a la vez, al menos una, y a su nombre', () => {
     /* registrar_abierto guarda hasta 40 pares y, si se pasa, bota las llaves
        MÁS LARGAS primero (recorre en orden de largo): la primera en caer sería
        autorizacion_version. 26 campos + verificacion + autorizacion_version +
-       las de pago. */
-    const total = U.CAMPOS.length + 1 + 1 + CP.LLAVES_DEL_REGISTRO.length;
+       las de pago, y desde el 3-nov qué fotos tomó y cómo se leyó su cédula. */
+    const total = U.CAMPOS.length + 1 + 1 + CP.LLAVES_DEL_REGISTRO.length + 2;
     assert.ok(total <= 40, total + ' pares: la base botaría la versión de la política');
     CP.LLAVES_DEL_REGISTRO.forEach(k => assert.ok(k.length <= 40));
     assert.equal(U.CAMPOS.some(c => CP.LLAVES_DEL_REGISTRO.indexOf(c.id) >= 0), false, 'una llave de pago pisa un campo del formulario');
