@@ -104,8 +104,9 @@ describe('a Joan se le mira el cajón, no el aparato', () => {
   });
 
   test('cada camino dice su consecuencia, y deja tomar el otro', () => {
-    assert.match(PUERTA, /Abrir el CRM de todas formas<\/a> \(aquí saldría vacío\)/,
-      'sin decir que saldría vacío, el enlace de escape es una trampa');
+    /* 4-nov-2026 — ya no sale vacío: la puerta del CRM dice dónde está la cartera. */
+    assert.match(PUERTA, /Abrir el CRM de todas formas<\/a> \(aquí no está tu cartera\)/,
+      'sin decir que aquí no está su cartera, el enlace de escape es una trampa');
     assert.match(PUERTA, /O abre el Panel en el bolsillo/);
   });
 });
