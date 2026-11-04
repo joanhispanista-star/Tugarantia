@@ -2019,8 +2019,24 @@
    lo que se sabe y trae «💬 Pedirle las fotos por el chat». Cambian dos páginas,
    play/index.html y panel/crm.html, ya en v142, y ningún .js publicado: nada
    sube de versión. No hay base nueva: registrar_abierto guarda esos pares de
-   texto como cualquier otro. */
-const CACHE = 'tugarantia-v142';
+   texto como cualquier otro.
+   4-nov-2026, v143 — LOS DEFECTOS DE PLATA YA VIVOS (E1 del plan del CRM en la nube). Una
+   pestaña vieja ya no pisa un cobro: guardar() se niega y lo dice. Dos abonos iguales son
+   dos, porque el abono suelto nace con id. El cupo sale igual en todos los aparatos: el
+   puntero de la foto viaja, y una foto de verdad pasa a una marca; ninguna foto sube. El
+   PIN y la fecha del último respaldo son de cada aparato: lo que baja no los quita y lo
+   que sube no los lleva. Y crm.html, en un aparato sin cartera, dice dónde está en vez de
+   ofrecer el PIN de fábrica.
+   Cambian dos .js ya publicados, y los dos ya firmaban al llegar: panel/nube.js, que piden
+   panel/crm.html, panel/espejo.html, panel/subir.html y panel/traer.html, y
+   panel/nube-crm.js, que pide solo panel/crm.html (cambió una nota; la regla mira el
+   texto). Pasan a ?v=143 en esas páginas y en la precarga. Cambian páginas (crm, espejo,
+   subir y traer) y VERSION_SITIO sube a v143 en las cinco que se actualizan solas. No hay
+   base nueva: la nube guarda los punteros y las marcas tal cual (jsonb).
+   OJO: tiene que publicarse ANTES del SQL del PIN (E2), y con la cola del iPhone en cero:
+   el computador resube una vez las fichas con fotos. OJO al integrar: sale el viernes
+   junto con fondo-pendiente, que también pensaba en v143. */
+const CACHE = 'tugarantia-v143';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
