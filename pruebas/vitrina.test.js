@@ -1099,20 +1099,38 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
     assert.equal(C.topeVigente(TRAS), null,
       'el supuesto se rompió: la tabla ya cubre ' + TRAS + '. No borres la prueba.');
 
-    const P = abrirPlay();
-    P.ev('hoyISO = function () { return "' + TRAS + '"; };');
-    P.ev('DIVULGACION = null; DIVULGACION_G = null;');
-    const h = P.ev('tarjetaCalcGarantia()');
-    assert.ok(h.indexOf('Hoy no podemos publicar su precio') === -1,
-      'sin certificación la tarjeta del crédito con garantía vuelve a desaparecer');
-    assert.match(h, /gcalcCifras/, 'no pinta las cifras');
-    /* Y la letra obligatoria calla el techo en vez de inventarlo. */
-    const letra = P.ev('divulgacionGarantiaHoy()');
-    assert.ok(letra.indexOf('0,00%') === -1, 'publica que el techo legal es cero');
-    assert.ok(letra.indexOf('Tasa máxima legal') === -1,
-      'afirma cuál es el techo legal sin que nadie lo haya certificado');
-    assert.match(letra, /Tasa efectiva anual máxima/,
-      'se calló la divulgación entera en vez de solo la frase del techo');
+    /* 4-nov-2026 — SIN ESTO LA PRUEBA DEPENDÍA DE UNA CIFRA QUE TODAVÍA NO EXISTE.
+       La tasa de este producto cambia con el calendario (27,45% el 1-ene-2027,
+       28,31% el 1-feb-2027), y con la tabla vencida se compara contra el último
+       techo: una fila de enero legal, por debajo de 28,32%, hace que la tarjeta
+       se niegue ese 1 de febrero. Eso es lo correcto (regla del 15-sep, medida más
+       abajo en «sin techo vigente, la calculadora NO publica un precio ilegal»),
+       y aquí tumbaba al robot de la usura sin abrir el PR. Lo que se mide es otra
+       cosa: que sin certificación se calla la frase y no el precio. Así que se
+       sube la cifra del último techo y lo demás es de verdad: la tabla sigue
+       vencida y la referencia sigue diciendo que no está vigente. El módulo es
+       el mismo objeto para la página y para este proceso: se devuelve al salir. */
+    const refReal = C.topeDeReferencia;
+    C.topeDeReferencia = f => { const t = refReal(f); return t && Object.assign({}, t, { tope: 0.99 }); };
+    try {
+      assert.equal(C.topeDeReferencia(TRAS).vigente, false, 'la referencia dejó de decir que está vencida');
+      const P = abrirPlay();
+      P.ev('hoyISO = function () { return "' + TRAS + '"; };');
+      P.ev('DIVULGACION = null; DIVULGACION_G = null;');
+      const h = P.ev('tarjetaCalcGarantia()');
+      assert.ok(h.indexOf('Hoy no podemos publicar su precio') === -1,
+        'sin certificación la tarjeta del crédito con garantía vuelve a desaparecer');
+      assert.match(h, /gcalcCifras/, 'no pinta las cifras');
+      /* Y la letra obligatoria calla el techo en vez de inventarlo. */
+      const letra = P.ev('divulgacionGarantiaHoy()');
+      assert.ok(letra.indexOf('0,00%') === -1, 'publica que el techo legal es cero');
+      assert.ok(letra.indexOf('Tasa máxima legal') === -1,
+        'afirma cuál es el techo legal sin que nadie lo haya certificado');
+      assert.match(letra, /Tasa efectiva anual máxima/,
+        'se calló la divulgación entera en vez de solo la frase del techo');
+    } finally {
+      C.topeDeReferencia = refReal;
+    }
   });
 
   test('LA ÚLTIMA CUOTA, CUANDO ES DISTINTA, SE DICE', () => {

@@ -33,7 +33,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
-const { execFileSync } = require('node:child_process');
+const crypto = require('node:crypto');
 const { abrirSocio, RAIZ } = require('./banco-socio.js');
 const { asentar } = require('./esperar.js');
 
@@ -221,15 +221,16 @@ describe('3. los íconos nuevos, con los mismos nombres y tamaños', () => {
   });
 
   test('son los de la marca de oro, no los de antes', () => {
-    let antes = null;
-    for (const rama of ['origin/main', 'main']) {
-      try {
-        antes = execFileSync('git', ['show', rama + ':app/icono-maskable-512.png'], { cwd: RAIZ, encoding: 'buffer', stdio: ['ignore', 'pipe', 'ignore'] });
-        break;
-      } catch (e) { /* la siguiente */ }
-    }
-    if (!antes) return;
-    assert.ok(!antes.equals(fs.readFileSync(path.join(RAIZ, 'app/icono-maskable-512.png'))), 'el ícono maskable sigue siendo el de antes');
+    /* 4-nov-2026 — COMPARABA CONTRA origin/main, Y ESO SOLO PODÍA PASAR ANTES DE
+       PUBLICAR. Desde que la marca de oro entró a main (5c61d08, 26-oct), en
+       Actions origin/main es el mismo commit del checkout, los dos íconos son
+       iguales y la prueba caía SIEMPRE, en cualquier fecha: por eso el robot de
+       la usura no abre su PR y Vigilar está en rojo desde ese día. Lo de antes
+       tiene un nombre fijo, el blob que estaba publicado (8323fc0), y no depende
+       de git ni de la rama. */
+    const hoy = fs.readFileSync(path.join(RAIZ, 'app/icono-maskable-512.png'));
+    const blob = crypto.createHash('sha1').update('blob ' + hoy.length).update(Buffer.from([0])).update(hoy).digest('hex');
+    assert.notEqual(blob, '0b102c1aa6e7f260c7eefa61cd486664f99a77ed', 'el ícono maskable sigue siendo el de antes');
   });
 });
 

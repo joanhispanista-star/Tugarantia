@@ -1,4 +1,9 @@
 'use strict';
+/* 4-nov-2026 — LA HORA DE COLOMBIA, ANTES DE TODO. Estas pruebas hablan de «domingo
+   a las 23:00» de Bogotá y la página lee día y hora locales: los runners de
+   Actions corren en UTC, ahí son las 04:00 del lunes y el robot de la usura caía
+   por esto, sin importar la fecha. En este Windows, en hora de Bogotá, pasaba. */
+process.env.TZ = 'America/Bogota';
 /* ==========================================================================
  * CHAT-1 EN EL CRM — 26 de octubre de 2026
  *
