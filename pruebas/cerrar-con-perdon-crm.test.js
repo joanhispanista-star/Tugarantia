@@ -341,6 +341,49 @@ describe('3 · el pago acordado y el plan del §8', () => {
     Q.ev("modoCobro('p1','error')");
     assert.match(boton(Q), /✓ Pagó la cuota 1/);
   });
+
+  /* 4-nov-2026 — la cifra que un cliente del §8 conoce y trae es la cuota. Con otra
+     cifra aparecía «Se lo perdoné»; con la cuota exacta, no, aunque la pista dice
+     «Escribe lo que trajo». Y el camino obvio, cobrar la cuota y cerrar con $0, da
+     otra cuenta: esa plata va a mora y costo, no primero al capital. */
+  test('plan del §8: la cuota exacta ESCRITA también ofrece el perdón, y primero al capital', () => {
+    const P = crmCon('2026-11-03T10:30:00', planDel8());
+    abrirCobro(P, '2026-11-03');
+    assert.doesNotMatch(dif(P), /Se lo perdoné/, 'con el campo sin tocar es el cobro de siempre');
+    const cuota = Number(P.elems.pgMonto.value);
+    assert.ok(cuota > 0 && cuota < 300000, 'la prueba necesita una cuota menor que el capital: ' + cuota);
+    const enPesos = '$' + cuota.toLocaleString('es-CO');
+    escribir(P, cuota);
+    assert.match(boton(P), /✓ Pagó la cuota 1/, 'cobrar la cuota sigue siendo la salida de siempre');
+    assert.ok(dif(P).includes('Se lo perdoné: cerrar el crédito con ' + enPesos),
+      'con la cuota escrita no ofrece el perdón, y la pista lo promete: ' + dif(P));
+    P.ev("modoCobro('p1','perdon')");
+    motivo(P, 'no puede más');
+    casilla(P, 300000 - cuota);
+    assert.equal(boton(P), 'Cerrar el crédito: recibió ' + enPesos);
+    P.ev("registrarCobro('p1')");
+    const p = cred(P);
+    assert.equal(p.pagado, true);
+    assert.equal(p.montoRecibido, cuota);
+    assert.equal(p.capitalPerdido, 300000 - cuota, 'la plata no fue primero al capital');
+  });
+
+  test('plan del §8: con la cuota exacta, cobrarla sigue cobrándola; y en la última no hay nada que perdonar', () => {
+    const P = crmCon('2026-11-03T10:30:00', planDel8());
+    abrirCobro(P, '2026-11-03');
+    const cuota = Number(P.elems.pgMonto.value);
+    escribir(P, cuota);
+    P.ev("registrarCobro('p1')");
+    assert.equal(cred(P).pagado, false, 'cobrar la cuota cerró el crédito');
+    assert.equal(cred(P).planPagos.cuotas[0].pagado, true, 'no cobró la cuota');
+    /* La última: la cuota es toda la deuda. */
+    const u = planDel8();
+    u.planPagos.cuotas.slice(0, -1).forEach(c => { c.pagado = true; c.fechaPagado = '2026-10-25'; });
+    const Q = crmCon('2026-10-26T10:30:00', u);
+    abrirCobro(Q, '2026-10-26');
+    escribir(Q, Number(Q.elems.pgMonto.value));
+    assert.doesNotMatch(dif(Q), /Se lo perdoné/, 'ofrece perdonar con la plata que paga todo');
+  });
 });
 
 /* ==========================================================================

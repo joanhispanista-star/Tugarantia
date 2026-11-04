@@ -7270,7 +7270,18 @@ function calcPago(id){
       dif.innerHTML=`<div class="alerta warn"><b>${e.falta>0?`Faltan ${COP(e.falta)} para la cuota ${c.n}.`:`Es más que la cuota ${c.n} (${COP(liq.total_a_pagar)}).`}</b> En el plan del §8 se cobra cuota por cuota: no hay abonos sueltos.</div>`
         +(e.monto>=0&&e.monto<debe?ofertaDelPerdon(p,e.monto,debe):`<div class="alerta warn">Con ${COP(e.monto)} paga todo lo que debe el crédito (${COP(debe)}) o más: cóbrale la cuota ${c.n} y después las otras, una por una.</div>`)
         +`<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px" onclick="modoCobro('${p.id}','error')">Me equivoqué: volver a ${COP(liq.total_a_pagar)}</button>`;
-    } else dif.innerHTML='';
+    } else {
+      /* 4-nov-2026 — Y CON LA CUOTA EXACTA ESCRITA, TAMBIÉN. Es la cifra que un cliente
+         del §8 conoce y trae, y aquí no salía «Se lo perdoné», aunque la pista de arriba
+         dice «Escribe lo que trajo». El a cuotas ya lo resolvía así (`tecleado`): sin
+         tocar el campo es el cobro de siempre; escrita, cobrarla sigue siendo el botón
+         de arriba y el perdón es una salida que Joan elige. Cerrar directo no es lo
+         mismo que cobrar la cuota y cerrar con $0: esa plata iría a mora y costo, no
+         primero al capital. En la última cuota no hay nada que perdonar. */
+      const tecleado=_cobro.id===p.id&&_cobro.monto!=null;
+      const debe=tecleado?PUENTE.cierreConPerdon(DB,p,f||hoyISO(),e.monto,{}).debia.total:0;
+      dif.innerHTML=(tecleado&&e.monto<debe)?ofertaDelPerdon(p,e.monto,debe):'';
+    }
     return;
   }
   if(acc) acc.innerHTML=`<div class="two"><button class="btn btn-rojo" id="pgBtn" onclick="registrarCobro('${p.id}')">${`✓ Pagó todo (${COP(total)})`}</button>${btnProrroga}</div>${btnAbono}${btnPactar}${btnAjustar}`;
