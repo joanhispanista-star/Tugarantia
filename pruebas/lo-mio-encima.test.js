@@ -411,6 +411,72 @@ describe('«Mandar lo mío encima» escribe la cartera ANTES de mover el espejo 
     assert.equal(s.gestiones.length, 1, 'no aplicó lo del celular');
   });
 
+  /* 4-nov-2026 — EL PIN DE ESTE COMPUTADOR (el-pin-local-no-se-pierde.test.js), por la
+     pantalla de verdad: el camino que el plan encontró dejándolo en 1234. */
+  test('aplicar un config sin pin no le quita al computador su PIN', () => {
+    const m = martes();
+    m.cartera.config = { pin: '482915', tasaUsuraEA: 25, ultimoRespaldo: '2026-11-03' };
+    m.espejo.ajustes.config = { revision: 1, json: N.jsonCanonico({ tasaUsuraEA: 25 }) };
+    m.paquete.creditos = [];
+    m.paquete.ajustes = [{ clave: 'config', revision: 6, datos: { tasaUsuraEA: 26.9 } }];
+    const S = montar(m);
+    const plan = enElPaso7(S, m.paquete, {});
+    assert.equal(plan.aplicar, 1, 'solo cambió la nube: tenía que bajar sin discutir');
+    assert.deepEqual(plan.choques, []);
+    S.ev('E.decisiones = {}; aplicar()');
+    const c = JSON.parse(S.almacen[KEY]).config;
+    assert.equal(c.pin, '482915', 'el computador quedó sin su PIN: cargar() le pondría 1234');
+    assert.equal(c.ultimoRespaldo, '2026-11-03');
+    assert.equal(c.tasaUsuraEA, 26.9, 'lo demás de config no bajó');
+  });
+
+  test('sin espejo, un config que solo difiere en el PIN no es un choque', () => {
+    const m = martes();
+    m.cartera.config = { pin: '482915', tasaUsuraEA: 25 };
+    m.espejo = N.espejoVacio();
+    m.paquete.creditos = [];
+    m.paquete.socios = [];
+    m.paquete.ajustes = [{ clave: 'config', revision: 6, datos: { tasaUsuraEA: 25 } }];
+    const S = montar(m);
+    assert.deepEqual(enElPaso7(S, m.paquete, {}).choques, [], 'el PIN, que no viaja, puso config en discusión');
+  });
+
+  test('con el espejo de antes, que trae el PIN, el SQL de E2 no le fabrica un choque', () => {
+    /* E2 borra config.pin en la nube y sube la revisión. Este computador tiene un espejo
+       que todavía lo trae: «yoCambie» comparaba ese texto con la cartera. */
+    const m = martes();
+    m.cartera.config = { pin: '482915', tasaUsuraEA: 25 };
+    m.espejo.ajustes.config = { revision: 1, json: N.jsonCanonico({ pin: '482915', tasaUsuraEA: 25 }) };
+    m.paquete.creditos = [];
+    m.paquete.socios = [];
+    m.paquete.ajustes = [{ clave: 'config', revision: 2, datos: { tasaUsuraEA: 25 } }];
+    const S = montar(m);
+    const plan = enElPaso7(S, m.paquete, {});
+    assert.deepEqual(plan.choques, []);
+    S.ev('E.decisiones = {}; aplicar()');
+    assert.equal(JSON.parse(S.almacen[KEY]).config.pin, '482915');
+  });
+
+  test('«Ver las dos» de un choque de config no enseña el PIN en claro', () => {
+    const m = martes();
+    m.cartera.config = { pin: '482915', tasaUsuraEA: 26.9 };
+    m.espejo.ajustes.config = { revision: 1, json: N.jsonCanonico({ tasaUsuraEA: 25 }) };
+    m.paquete.creditos = [];
+    m.paquete.socios = [];
+    m.paquete.ajustes = [{ clave: 'config', revision: 6, datos: { tasaUsuraEA: 24 } }];
+    const S = montar(m);
+    assert.deepEqual(enElPaso7(S, m.paquete, {}).choques, ['ajustes|config']);
+    const h = S.ev('tarjetaChoque(E.plan.choques[0], "b0")');
+    assert.ok(h.indexOf('482915') < 0, 'la tarjeta enseña el PIN');
+    assert.match(h, /26\.9/, 'la tarjeta no enseña lo que sí está en discusión');
+  });
+
+  test('el aviso de ☁ Subir ya no dice que el PIN sube', () => {
+    const t = fs.readFileSync(path.join(RAIZ, 'panel', 'subir.html'), 'utf8');
+    assert.doesNotMatch(t, /ahí adentro está el <b>PIN del Panel<\/b>/);
+    assert.match(t, /sin tu <b>PIN del Panel<\/b>/);
+  });
+
   test('el botón Aplicar se enciende con solo fichas marcadas «lo mío»', () => {
     /* Antes quedaba apagado («!filasAAplicar().length») y la ficha volvía a
        chocar en cada subida sin que Joan pudiera hacer nada desde acá. */

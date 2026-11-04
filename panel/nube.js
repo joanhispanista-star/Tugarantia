@@ -382,6 +382,22 @@
 
   var CONTADORES = ['cliente', 'credito', 'respaldado'];
 
+  /* 4-nov-2026 — LO DE `config` QUE ES DE ESTE APARATO (riesgo 11 del plan). El PIN
+     del CRM vive dentro de config, y config viajaba entero en los dos sentidos.
+     Reproducido con este archivo: un config sin pin que baje por ☁ Subir, paso 6 deja
+     config.pin en nada, y cargar() de crm.html le pone '1234'. Sin esto, sacar el PIN
+     en claro de la nube (el SQL de E2) dejaría al computador de Joan abriendo con el de
+     fábrica. La fecha del último respaldo va por lo mismo: el respaldo está en ESTE
+     aparato, y otro que la heredara diría que tiene uno que no tiene.
+     Lo que baja nunca los quita ni los cambia (fusionarAjuste), y lo que sube nunca los
+     lleva (armarLote). configQueViaja es para quien tenga que comparar con la nube. */
+  var CONFIG_DE_ESTE_APARATO = ['pin', 'ultimoRespaldo'];
+  function configQueViaja(c) {
+    var o = clonar(objeto(c));
+    CONFIG_DE_ESTE_APARATO.forEach(function (k) { delete o[k]; });
+    return o;
+  }
+
   /* =========================================================================
    * UTILIDADES MÍNIMAS (mismo estilo que app/puente.js: sin dependencias)
    * =======================================================================*/
@@ -824,6 +840,7 @@
     claves.forEach(function (clave) {
       if (d[clave] === undefined) return;   // lo que este aparato no tiene, no lo pisa
       var datos = conFotos ? clonar(d[clave]) : sinFotos(d[clave]);
+      if (clave === 'config') datos = configQueViaja(datos);
       var json = jsonCanonico(datos);
       var ant = esp.ajustes[clave];
       if (ant && ant.json === json) return;
@@ -965,7 +982,8 @@
          prospectos el que subiera de segundo borraba el trabajo del primero.
          Las que están en LISTAS_DE_AJUSTES se fusionan por identidad, igual que
          las prórrogas de un crédito; las demás siguen igual, porque config y
-         plantillas SÍ son un valor entero y ahí pisar es lo correcto. */
+         plantillas SÍ son un valor entero y ahí pisar es lo correcto (4-nov-2026:
+         menos el PIN de este aparato, ver CONFIG_DE_ESTE_APARATO). */
       datos = fusionarAjuste(clave, base[clave], datos);
       if (!igual(base[clave], datos)) { base[clave] = datos; cambios.ajustes++; }
     });
@@ -1153,6 +1171,16 @@
    * anotar prospectos distintos el mismo día sin que ninguno pierda los suyos.
    */
   function fusionarAjuste(clave, mia, suya) {
+    /* 4-nov-2026 — config sigue siendo un valor entero: gana lo que llega, menos lo que
+       es de este aparato (ver CONFIG_DE_ESTE_APARATO). Un aparato sin PIN propio toma el
+       que traiga la nube: traer.html vive de eso mientras el PIN siga allá. La fecha del
+       respaldo no: esa nunca es de otro. */
+    if (clave === 'config' && suya && typeof suya === 'object' && !Array.isArray(suya)) {
+      var m = objeto(mia), c = clonar(suya);
+      delete c.ultimoRespaldo;
+      CONFIG_DE_ESTE_APARATO.forEach(function (k) { if (conContenido(m[k])) c[k] = m[k]; });
+      return c;
+    }
     var identidad = LISTAS_DE_AJUSTES[clave];
     if (!identidad) return suya;
     if (!Array.isArray(mia) && !Array.isArray(suya)) return suya;
@@ -2557,6 +2585,7 @@
     LISTAS_QUE_SUMAN: LISTAS_QUE_SUMAN,
     LISTAS_DE_AJUSTES: LISTAS_DE_AJUSTES,
     fusionarAjuste: fusionarAjuste,
+    configQueViaja: configQueViaja,
     /* La siembra del espejo (15-sep-2026) */
     esSuperconjunto: esSuperconjunto,
     espejoDeAdopcion: espejoDeAdopcion,

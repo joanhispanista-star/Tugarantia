@@ -1364,8 +1364,10 @@ describe('los ajustes que son listas se juntan, no se pisan', () => {
   });
 
   test('config y plantillas SIGUEN pisando: no son listas', () => {
-    /* Y ahi pisar es lo correcto: una configuracion no se suma. */
-    assert.deepEqual(N.fusionarAjuste('config', { pin: '1' }, { pin: '2' }), { pin: '2' });
+    /* Y ahi pisar es lo correcto: una configuracion no se suma. 4-nov-2026: con otro
+       campo. El PIN es lo unico que ya no se pisa (el-pin-local-no-se-pierde.test.js). */
+    assert.deepEqual(N.fusionarAjuste('config', { tasaUsuraEA: 1 }, { tasaUsuraEA: 2 }), { tasaUsuraEA: 2 });
+    assert.deepEqual(N.fusionarAjuste('plantillas', { a: '1' }, { a: '2' }), { a: '2' });
   });
 
   test('las cinco listas nuevas VIAJAN de verdad', () => {

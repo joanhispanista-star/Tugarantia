@@ -923,6 +923,10 @@ function medirPaquete(paq){
     }
   });
   m.hayConfig = m.claves.indexOf('config') >= 0;
+  /* 4-nov-2026 — ¿y viene el PIN adentro? Desde v143 no sube (nube.js, armarLote), y
+     cuando el computador de Joan vuelva a subir sus ajustes dejará de estar allá. Antes
+     se daba por hecho que venía con los ajustes: «si no está medido, no se dice». */
+  m.hayPin = (paq.ajustes||[]).some(function(a){ return a && a.clave==='config' && a.datos && !!a.datos.pin; });
   m.hayPapelera = m.claves.indexOf('papelera') >= 0 || m.claves.indexOf('papeleraSocios') >= 0;
   return m;
 }
@@ -986,9 +990,13 @@ function pintarLoQueViene(){
          'El paquete no trae tu configuración. El CRM de este aparato va a arrancar con los valores de fábrica, '+
          'y eso incluye el <b>PIN '+esc(PIN_DE_FABRICA)+'</b>. Cámbialo desde el CRM apenas entres.</div>';
   }else{
-    h += '<div class="aviso info"><b class="tit">Los ajustes sí vienen</b>'+
-         'Con ellos viaja el <b>PIN del Panel</b>: el CRM de este aparato te va a pedir el mismo PIN del '+
-         'computador.</div>';
+    h += m.hayPin
+      ? '<div class="aviso info"><b class="tit">Los ajustes sí vienen</b>'+
+         'Con ellos viene el <b>PIN del Panel</b>: el CRM de este aparato te va a pedir el mismo PIN del '+
+         'computador.</div>'
+      : '<div class="aviso ambar"><b class="tit">Los ajustes vienen, sin tu PIN</b>'+
+         'Tu PIN no viaja por la nube. El CRM de este aparato va a arrancar con el <b>PIN '+esc(PIN_DE_FABRICA)+'</b>. '+
+         'Cámbialo desde el CRM apenas entres.</div>';
   }
 
   var no = razonParaNoEscribir();
@@ -1223,9 +1231,9 @@ function traerYEscribir(){
   despertar(6);
   estado(6,'listo','Puedes abrirlo');
   pinta('msg6','ok','<b class="tit">Ya puedes abrirlo</b>'+
-    (m.hayConfig
-      ? 'El CRM te va a pedir el <b>PIN del computador</b>, porque los ajustes vinieron en el paquete.'
-      : 'El CRM va a arrancar con el <b>PIN de fábrica ('+esc(PIN_DE_FABRICA)+')</b>: los ajustes no vinieron. '+
+    (m.hayPin
+      ? 'El CRM te va a pedir el <b>PIN del computador</b>, porque vino con los ajustes.'
+      : 'El CRM va a arrancar con el <b>PIN de fábrica ('+esc(PIN_DE_FABRICA)+')</b>: tu PIN no vino en el paquete. '+
         'Cámbialo apenas entres.')+
     '<br><br>Si tenías el CRM abierto en otra pestaña, <b>ciérrala y ábrelo de nuevo</b>: esa pestaña todavía '+
     'tiene en memoria la cartera vieja y lo que guardes allá no va a quedar: te va a pedir que recargues.');

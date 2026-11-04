@@ -942,9 +942,9 @@ function pintarResumen2(r){
      'En el celular vas a ver la ficha completa <b>sin las fotos</b>, y ahí lo dirá.</div>';
 
   h+='<div class="alerta info"><b class="tit">Qué más va dentro de «ajustes», para que lo sepas</b>'+
-     'Sube tu configuración del negocio, y ahí adentro está el <b>PIN del Panel</b>. Solo lo puede leer tu propio '+
-     'usuario —las tablas están cerradas y solo se llega por funciones que verifican que eres el dueño—, pero es '+
-     'un buen momento para cambiarlo si sigue siendo el de fábrica.'+
+     'Sube tu configuración del negocio, sin tu <b>PIN del Panel</b> ni la fecha de tu último respaldo: esos dos son '+
+     'de este computador y no viajan. Solo la puede leer tu propio usuario: las tablas están cerradas y solo se llega '+
+     'por funciones que verifican que eres el dueño. Si tu PIN sigue siendo el de fábrica, es un buen momento para cambiarlo.'+
      (r.sinPapelera
        ? ' La papelera <b>no sube</b>: la casilla está marcada.'
        : ' <b>La papelera SÍ va a subir</b>, con nombres y cédulas de fichas borradas. Vuelve a marcar la casilla si no era lo que querías.')+
@@ -1266,11 +1266,14 @@ function localAjuste(db, clave){
    antes sin que nadie la haya tocado, y con un cobro del celular de por medio salía de
    choque en vez de aplicarse (NUBE.sinPunterosDeFoto). Una cadena que no sea JSON se
    compara tal cual: peor que un espejo raro es reventar la lectura. */
-function comparableDe(tabla, x){
+function comparableDe(tabla, id, x){
   if(x==null) return '';
   var o=x;
   if(typeof x==='string'){ try{ o=JSON.parse(x); }catch(e){ return x; } }
-  return normalizarJSON(tabla==='ajustes' ? o : NUBE.sinPunterosDeFoto(o));
+  /* Y sin lo que es de este aparato: desde que el PIN no sube, config nunca diría lo
+     mismo que la nube, y cada vez sin espejo saldría de choque. */
+  if(tabla==='ajustes') return normalizarJSON(id==='config' ? NUBE.configQueViaja(o) : o);
+  return normalizarJSON(NUBE.sinPunterosDeFoto(o));
 }
 
 function planDeBajada(db, paq, espejo, sinPapelera){
@@ -1299,12 +1302,12 @@ function planDeBajada(db, paq, espejo, sinPapelera){
            está BORRADA y acá viva: eso es justo lo que el CRM congela como
            «borrada en la nube», y contándola como sin cambio no aparecía en
            ningún sitio donde Joan pudiera decidirla. Va a los choques. */
-        else if(!borradaEnNube && comparableDe(tabla,local)===comparableDe(tabla,fila.datos)) { plan.sinCambio++; }
+        else if(!borradaEnNube && comparableDe(tabla,id,local)===comparableDe(tabla,id,fila.datos)) { plan.sinCambio++; }
         else { plan.choques.push(item); }
         return;
       }
       var servidorCambio = String(esp.revision) !== String(fila.revision);
-      var yoCambie       = comparableDe(tabla,esp.json) !== comparableDe(tabla,local);
+      var yoCambie       = comparableDe(tabla,id,esp.json) !== comparableDe(tabla,id,local);
 
       if(servidorCambio && yoCambie)       plan.choques.push(item);
       else if(servidorCambio && !yoCambie) plan.aplicar.push(item);
@@ -1690,7 +1693,9 @@ function pintarChoques(){
 
 function tarjetaChoque(it, ref){
   var k = llaveDe(it.tabla, it.fila);
-  var mio = it.tabla==='ajustes' ? it.local : NUBE.sinFotos(it.local||{});
+  /* 4-nov-2026: config sin el PIN: «Ver las dos» no lo enseña en claro, y como no sube,
+     tampoco es una diferencia. */
+  var mio = it.tabla==='ajustes' ? (it.id==='config' ? NUBE.configQueViaja(it.local) : it.local) : NUBE.sinFotos(it.local||{});
   var suyo= it.fila.datos;
   var eleccion = E.decisiones[k];
   var titulo = nombreDeFila(it.tabla, suyo) || nombreDeFila(it.tabla, mio) || String(it.id);
