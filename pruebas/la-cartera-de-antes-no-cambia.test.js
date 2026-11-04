@@ -25,6 +25,7 @@ const { execFileSync } = require('node:child_process');
 const N = require('../panel/nube.js');
 const { abrirPanel } = require('./banco-panel.js');
 const { carteraGrande, cuentaDeCredito } = require('./cartera-grande.js');
+const { montar, sembrar, leerDisco, espejoDisco, congeladas, cartera: carteraDeBanco, comoJsonb, ESPEJO } = require('./banco-nube-crm.js');
 
 const clon = v => JSON.parse(JSON.stringify(v));
 const RAIZ = path.join(__dirname, '..');
@@ -165,6 +166,39 @@ describe('el día que se publique: lo que resube el computador', () => {
     const tras = N.espejoTrasEmpujar(e, lote, { revisiones: lote.socios.map(f => ({ tabla: 'socios', id: f.id, revision: 6 })), choques: [] });
     const otra = N.armarLote(DB, tras, { claves: [] });
     assert.equal(otra.socios.length + otra.creditos.length + otra.respaldados.length, 0, 'sigue subiendo en cada vuelta');
+  });
+
+  test('si el celular tocó una de esas fichas antes de publicar: queda en discusión, nada se pierde', async () => {
+    /* Es lo que dice el plan con «la cola del iPhone en cero»: la resubida sale contra la
+       revisión que este computador conoce. Si el celular movió esa ficha después, el
+       servidor contesta choque. Aquí se mira que eso no pierda nada ni le pregunte a Joan
+       por una foto, y que las demás fichas suban. */
+    const db = carteraDeBanco(3, 0);
+    db.socios.forEach((s, i) => { s.selfieFoto = 'foto:reg:300000000' + i + '/selfie'; s.cedulaFrenteFoto = null; });
+    const m = montar({ db });
+    await sembrar(m);
+    /* Lo que había en la nube y en el espejo con v142: las fichas, sin el puntero. */
+    const sinPuntero = d => { const c = clon(d); delete c.selfieFoto; return c; };
+    const esp = espejoDisco(m.alm);
+    Object.keys(m.srv.socios).forEach(id => {
+      m.srv.socios[id].datos = comoJsonb(sinPuntero(m.srv.socios[id].datos));
+      esp.socios[id].json = N.jsonCanonico(m.srv.socios[id].datos);
+    });
+    m.alm.setItem(ESPEJO, JSON.stringify(esp));
+    m.srv.celular('socios', 'C0', d => { d.gestiones.push({ fecha: '2026-11-04', canal: 'wa', plantilla: 'del-celular' }); });
+    const revC0 = m.srv.socios.C0.revision;
+
+    await m.C.vuelta(true);
+
+    assert.ok(congeladas(m.alm)['socios|C0'], 'la ficha que tocó el celular tenía que quedar en discusión');
+    assert.equal(m.srv.socios.C0.revision, revC0, 'la resubida pisó lo que escribió el celular');
+    assert.ok(m.srv.socios.C0.datos.gestiones.some(g => g.plantilla === 'del-celular'), 'se perdió lo del celular');
+    assert.equal(m.srv.socios.C1.datos.selfieFoto, 'foto:reg:3000000001/selfie', 'las demás fichas no subieron su puntero');
+    assert.equal(leerDisco(m.alm).socios[0].selfieFoto, 'foto:reg:3000000000/selfie', 'la cartera perdió su puntero');
+    const r = N.fusionarFila(N.sinFotos(leerDisco(m.alm).socios[0]), m.srv.socios.C0.datos, N.LISTAS_QUE_SUMAN);
+    assert.equal(r.hayChoque, false, 'la tarjeta le preguntaría a Joan por una foto: ' + JSON.stringify(r.pisables));
+    assert.equal(r.fila.selfieFoto, 'foto:reg:3000000000/selfie');
+    assert.ok(r.fila.gestiones.some(g => g.plantilla === 'del-celular'), 'al decidir se perdió lo del celular');
   });
 
   test('nada de eso se manda borrado, y emparejar con la nube de antes no congela nada', { skip: V ? false : 'sin la historia' }, () => {
