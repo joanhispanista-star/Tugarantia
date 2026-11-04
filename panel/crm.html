@@ -5838,6 +5838,18 @@ function comprimir(file,max=900,q=0.6){ return new Promise((res,rej)=>{ const r=
  * ROTA —que se ve— y nunca una imagen equivocada, que no se ve.
  * ======================================================================== */
 function esToken(v){ return typeof v==='string' && v.slice(0,5)==='foto:'; }
+/* 4-nov-2026 — LAS DOS MARCAS (panel/nube.js, CAMPOS_FOTO). Tienen el mismo prefijo
+   y por eso, como un token, dan su cupo y nunca salen como una imagen equivocada.
+   Pero no dicen dónde está la foto: dicen dónde no. resolverFotos las explica, y no
+   se le preguntan a la nube. Un campo con una marca sigue siendo un campo sin foto
+   para quien sí puede traerla (fotoQueFalta): si el registro del cliente la tiene,
+   el puntero la reemplaza. */
+var MARCAS_FOTO={
+  'foto:otro-aparato':'Esta foto se tomó en otro aparato y vive allá: las fotos no viajan por la nube.',
+  'foto:se-perdio':'Esta foto se perdió: este navegador se llenó y solo alcanzó a guardar las cuentas. Si tienes un respaldo de antes, ahí está.'
+};
+function esMarcaFoto(v){ return typeof v==='string' && Object.prototype.hasOwnProperty.call(MARCAS_FOTO,v); }
+function fotoQueFalta(v){ return !v||esMarcaFoto(v); }
 /* Los diez digitos del celular. El patron estaba repetido a mano en cuatro
    sitios de este archivo; el token obliga a que sea uno solo, porque el
    resolvedor tiene que preguntar EXACTAMENTE lo mismo que se pregunto al
@@ -6124,7 +6136,7 @@ function celularDeFotosDe(s){
 function traerFotosTardias(s){
   const caja=document.getElementById('fichaFotosNube');
   if(!caja||!s||!vieneDeRegistro(s)||!sbListo()) return Promise.resolve();
-  const faltan=[['cedulaFrenteFoto','cedula_frente'],['cedulaReversoFoto','cedula_reverso'],['selfieFoto','selfie']].filter(x=>!s[x[0]]);
+  const faltan=[['cedulaFrenteFoto','cedula_frente'],['cedulaReversoFoto','cedula_reverso'],['selfieFoto','selfie']].filter(x=>fotoQueFalta(s[x[0]]));
   if(!faltan.length) return Promise.resolve();
   const cel=celularDeFotosDe(s); if(cel.length!==10) return Promise.resolve();
   const pedido=++_tardias, id=s.id;
@@ -6143,7 +6155,7 @@ function traerFotosTardias(s){
     const f=a.fotos||{};
     const s2=DB.socios.find(x=>x.id===id); if(!s2) return;
     const puestas=[];
-    faltan.forEach(x=>{ if(f[x[1]]&&!s2[x[0]]){ s2[x[0]]=tokenReg(cel,x[1]); puestas.push(x[1]); } });
+    faltan.forEach(x=>{ if(f[x[1]]&&fotoQueFalta(s2[x[0]])){ s2[x[0]]=tokenReg(cel,x[1]); puestas.push(x[1]); } });
     if(puestas.length){
       const g=girosDeFotos(puestas.map(k=>f[k]),s2.girosFotos||null); if(g) s2.girosFotos=g;
       guardar();
@@ -12358,6 +12370,7 @@ function resolverFotos(nodo){
   nodos.forEach(el=>{
     const v=el.getAttribute('data-foto')||'';
     if(v.slice(0,5)==='data:'){ ponerFoto(el,v); return; }
+    if(esMarcaFoto(v)){ ponerHueco(el,MARCAS_FOTO[v]); return; }
     const t=parteToken(v);
     if(!t){ ponerHueco(el,'Esa foto no tiene una direccion que yo entienda.'); return; }
     (porCelular[t.celular]=porCelular[t.celular]||[]).push({el,tipo:t.tipo});
@@ -21509,9 +21522,9 @@ function aplicarCruce(idReg,idSocio,op){
   archivosDe(celCruce).then(a=>{
     const s2=DB.socios.find(x=>x.id===s.id); if(!s2) return;
     const f=a.fotos||{};
-    if(f.cedula_frente&&!s2.cedulaFrenteFoto)  s2.cedulaFrenteFoto =tokenReg(celCruce,'cedula_frente');
-    if(f.cedula_reverso&&!s2.cedulaReversoFoto) s2.cedulaReversoFoto=tokenReg(celCruce,'cedula_reverso');
-    if(f.selfie&&!s2.selfieFoto)                s2.selfieFoto       =tokenReg(celCruce,'selfie');
+    if(f.cedula_frente&&fotoQueFalta(s2.cedulaFrenteFoto))  s2.cedulaFrenteFoto =tokenReg(celCruce,'cedula_frente');
+    if(f.cedula_reverso&&fotoQueFalta(s2.cedulaReversoFoto)) s2.cedulaReversoFoto=tokenReg(celCruce,'cedula_reverso');
+    if(f.selfie&&fotoQueFalta(s2.selfieFoto))                s2.selfieFoto       =tokenReg(celCruce,'selfie');
     /* 8-oct-2026 — y lo que Joan dejó girado (↻) mirando este registro. */
     const girosC=girosDeFotos([f.cedula_frente,f.cedula_reverso,f.selfie],s2.girosFotos||null);
     if(girosC) s2.girosFotos=girosC;

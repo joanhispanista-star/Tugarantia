@@ -223,8 +223,8 @@ describe('esSuperconjunto: un null de la nube SÍ es un dato (1-oct-2026)', () =
 
   test('la nube dice null y acá no está el campo: SÍ (null y ausente son el mismo dato)', () => {
     /* jsonCanonico escribe los dos como «null», y cargar() rellena el ausente
-       con null. Es el caso de las fotos: acá la selfie existe, sinFotos la
-       quita, y la nube dice selfieFoto:null. No se contradicen. */
+       con null. 4-nov-2026: esto ya no es lo que deja pasar una foto; a esas
+       espejoDeAdopcion les quita los punteros antes (las-fotos-no-bajan-el-cupo). */
     assert.equal(N.esSuperconjunto({ a: 1 }, { a: 1, selfieFoto: null }), true);
     assert.equal(N.esSuperconjunto({ a: 1, b: null }, { a: 1, b: null }), true);
   });

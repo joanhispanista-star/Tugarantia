@@ -1261,6 +1261,18 @@ function localAjuste(db, clave){
   return null;
 }
 
+/* 4-nov-2026 — LO QUE SE COMPARA PARA SABER SI ALGUIEN CAMBIÓ UNA FILA. Sin las fotos:
+   desde que el puntero viaja, una ficha con fotos dice algo distinto de su espejo de
+   antes sin que nadie la haya tocado, y con un cobro del celular de por medio salía de
+   choque en vez de aplicarse (NUBE.sinPunterosDeFoto). Una cadena que no sea JSON se
+   compara tal cual: peor que un espejo raro es reventar la lectura. */
+function comparableDe(tabla, x){
+  if(x==null) return '';
+  var o=x;
+  if(typeof x==='string'){ try{ o=JSON.parse(x); }catch(e){ return x; } }
+  return normalizarJSON(tabla==='ajustes' ? o : NUBE.sinPunterosDeFoto(o));
+}
+
 function planDeBajada(db, paq, espejo, sinPapelera){
   var plan={aplicar:[], choques:[], sinCambio:0};
   espejo = espejo||{};
@@ -1273,7 +1285,6 @@ function planDeBajada(db, paq, espejo, sinPapelera){
       if(sinPapelera && tabla==='ajustes' && (id==='papelera'||id==='papeleraSocios')) return;
 
       var local = tabla==='ajustes' ? localAjuste(db,id) : localDe(db,tabla,id);
-      var localSinFotos = (local && tabla!=='ajustes') ? NUBE.sinFotos(local) : local;
       var esp = (espejo[tabla]||{})[id];
 
       var borradaEnNube = !!fila.borrado;
@@ -1288,12 +1299,12 @@ function planDeBajada(db, paq, espejo, sinPapelera){
            está BORRADA y acá viva: eso es justo lo que el CRM congela como
            «borrada en la nube», y contándola como sin cambio no aparecía en
            ningún sitio donde Joan pudiera decidirla. Va a los choques. */
-        else if(!borradaEnNube && normalizarJSON(localSinFotos)===normalizarJSON(fila.datos)) { plan.sinCambio++; }
+        else if(!borradaEnNube && comparableDe(tabla,local)===comparableDe(tabla,fila.datos)) { plan.sinCambio++; }
         else { plan.choques.push(item); }
         return;
       }
       var servidorCambio = String(esp.revision) !== String(fila.revision);
-      var yoCambie       = normalizarJSON(esp.json) !== normalizarJSON(localSinFotos);
+      var yoCambie       = comparableDe(tabla,esp.json) !== comparableDe(tabla,local);
 
       if(servidorCambio && yoCambie)       plan.choques.push(item);
       else if(servidorCambio && !yoCambie) plan.aplicar.push(item);

@@ -728,9 +728,13 @@ describe('sinFotos', () => {
     comprobantes: [{ fecha: '2026-08-11', tipo: 'pago', monto: 360000, foto: 'data:image/png;base64,EEE' }]
   });
 
-  test('quita las cuatro clases de foto del socio', () => {
+  /* 4-nov-2026 — antes: «quita las cuatro clases de foto», con el campo desapareciendo.
+     Eso le bajaba 38.000 de cupo a la ficha en el otro aparato
+     (pruebas/las-fotos-no-bajan-el-cupo.test.js). Lo que vigilaba sigue igual: la foto
+     no viaja. La de abajo sigue exigiendo que no salga ni un base64. */
+  test('ninguna de las cuatro clases de foto del socio viaja: queda la marca, que no es una foto', () => {
     const limpio = N.sinFotos(conFotos());
-    N.CAMPOS_FOTO.forEach(c => assert.ok(!(c in limpio), 'quedó ' + c));
+    N.CAMPOS_FOTO.forEach(c => assert.equal(limpio[c], N.MARCA_OTRO_APARATO, 'quedó ' + c));
   });
 
   test('quita también la foto de cada comprobante, y deja el resto del comprobante', () => {

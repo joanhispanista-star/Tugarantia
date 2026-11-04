@@ -51,8 +51,11 @@ describe('cuando el navegador se llena (15-sep-2026)', () => {
     assert.equal(guardado.socios.length, 1, 'se perdió el socio');
     assert.equal(guardado.socios[0].nombre, 'Ana');
     assert.equal(guardado.prestamos.length, 1, 'se perdió el crédito');
-    assert.equal(guardado.socios[0].cedulaFrenteFoto, undefined,
+    /* 4-nov-2026 — en su campo queda la marca: la ficha dice que se perdió y el cupo
+       no baja por eso (las-fotos-no-bajan-el-cupo.test.js). La foto ya no está. */
+    assert.equal(guardado.socios[0].cedulaFrenteFoto, 'foto:se-perdio',
       'las fotos siguen ahí: no se sacrificó nada y por eso no cupo');
+    assert.ok(P.almacen[P.ev('KEY')].indexOf('base64') < 0, 'quedó una foto en el disco');
   });
 
   test('y lo DICE, en la pantalla, no en un aviso que se cierra', () => {

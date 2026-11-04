@@ -348,6 +348,69 @@ describe('«Mandar lo mío encima» escribe la cartera ANTES de mover el espejo 
       'el espejo no avanzó: la tasa de Joan no subiría nunca, chocaría en bucle');
   });
 
+  /* 4-nov-2026 — EL PUNTERO DE UNA FOTO NO ES UN CAMBIO DE NADIE. El espejo de antes
+     no lo trae y la cartera sí: hasta que el computador resuba esa ficha una vez, un
+     cobro del celular en ella salía de choque en vez de aplicarse. Y sin espejo (tras
+     importar un respaldo), todas las fichas con fotos salían de choque. */
+  test('una ficha con punteros y su espejo de antes: lo del celular se aplica, sin choque', () => {
+    const conPunteros = { id: 's1', numero: 3, nombre: 'Cliente de prueba', gestiones: [],
+      cedulaFrenteFoto: 'foto:reg:3001112233/cedula_frente', selfieFoto: 'foto:reg:3001112233/selfie' };
+    const antes = { id: 's1', numero: 3, nombre: 'Cliente de prueba', gestiones: [] };
+    const m = martes();
+    m.cartera.socios = [conPunteros];
+    m.cartera.prestamos = [];
+    m.espejo.creditos = {};
+    m.espejo.socios.s1 = { revision: 2, json: N.jsonCanonico(antes) };
+    m.paquete.creditos = [];
+    m.paquete.socios = [fila('s1', Object.assign({}, antes, { gestiones: [{ fecha: '2026-11-03', canal: 'wa', plantilla: 'x' }] }), 3)];
+    const S = montar(m);
+    const plan = enElPaso7(S, m.paquete, {});
+    assert.deepEqual(plan.choques, [], 'una foto puso la ficha en discusión');
+    assert.equal(plan.aplicar, 1);
+  });
+
+  test('sin espejo, una ficha que solo difiere en sus punteros no es un choque', () => {
+    const conPunteros = { id: 's1', numero: 3, nombre: 'Cliente de prueba', gestiones: [], selfieFoto: 'foto:reg:3001112233/selfie' };
+    const m = martes();
+    m.cartera.socios = [conPunteros];
+    m.cartera.prestamos = [];
+    m.espejo = N.espejoVacio();
+    m.paquete.creditos = [];
+    m.paquete.socios = [fila('s1', { id: 's1', numero: 3, nombre: 'Cliente de prueba', gestiones: [], selfieFoto: null }, 3)];
+    const S = montar(m);
+    assert.deepEqual(enElPaso7(S, m.paquete, {}).choques, []);
+  });
+
+  test('CONTROL: una ficha que difiere de verdad sigue siendo un choque, con punteros o sin ellos', () => {
+    const conPunteros = { id: 's1', numero: 3, nombre: 'Cliente de prueba', gestiones: [], selfieFoto: 'foto:reg:3001112233/selfie' };
+    const m = martes();
+    m.cartera.socios = [conPunteros];
+    m.cartera.prestamos = [];
+    m.espejo = N.espejoVacio();
+    m.paquete.creditos = [];
+    m.paquete.socios = [fila('s1', { id: 's1', numero: 3, nombre: 'Otro nombre', gestiones: [] }, 3)];
+    const S = montar(m);
+    assert.deepEqual(enElPaso7(S, m.paquete, {}).choques, ['socios|s1']);
+  });
+
+  test('al aplicar, la foto de verdad de este computador no se la come la marca de la nube', () => {
+    const FOTO = 'data:image/jpeg;base64,AAAA';
+    const m = martes();
+    m.cartera.socios = [{ id: 's1', numero: 3, nombre: 'Cliente de prueba', gestiones: [], selfieFoto: FOTO }];
+    m.cartera.prestamos = [];
+    m.espejo.creditos = {};
+    m.espejo.socios.s1 = { revision: 2, json: N.jsonCanonico(N.sinFotos(m.cartera.socios[0])) };
+    m.paquete.creditos = [];
+    m.paquete.socios = [fila('s1', { id: 's1', numero: 3, nombre: 'Cliente de prueba', selfieFoto: N.MARCA_OTRO_APARATO,
+      gestiones: [{ fecha: '2026-11-03', canal: 'wa', plantilla: 'x' }] }, 3)];
+    const S = montar(m);
+    assert.equal(enElPaso7(S, m.paquete, {}).aplicar, 1);
+    S.ev('E.decisiones = {}; aplicar()');
+    const s = JSON.parse(S.almacen[KEY]).socios[0];
+    assert.equal(s.selfieFoto, FOTO, 'la marca reemplazó la foto de este computador');
+    assert.equal(s.gestiones.length, 1, 'no aplicó lo del celular');
+  });
+
   test('el botón Aplicar se enciende con solo fichas marcadas «lo mío»', () => {
     /* Antes quedaba apagado («!filasAAplicar().length») y la ficha volvía a
        chocar en cada subida sin que Joan pudiera hacer nada desde acá. */

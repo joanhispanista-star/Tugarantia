@@ -125,6 +125,33 @@
   /* Los campos que llevan una imagen en base64. Los cuatro primeros son del
      socio; el quinto, `foto`, va dentro de cada comprobante del crédito. */
   var CAMPOS_FOTO = ['cedulaFrenteFoto', 'cedulaReversoFoto', 'selfieFoto', 'cedulaFoto'];
+  /* 4-nov-2026 — LOS QUE NO SON UNA FOTO: UN PUNTERO O UNA MARCA. Lo que hay en uno
+     de esos campos es una de cuatro cosas:
+       data:image/…        la foto de verdad, tomada con la cámara de Joan. No viaja.
+       foto:reg:<cel>/<t>  el puntero (crm.html, «EL TOKEN DE UNA FOTO»): la foto está
+                           en la nube del registro. Viaja, porque no es una foto.
+       foto:otro-aparato   lo que viaja en lugar de una foto de verdad.
+       foto:se-perdio      lo que queda en el disco cuando el navegador se llenó.
+     Por qué tiene que viajar ALGO: la garantía por datos (motor.js, hayDato) solo
+     mira si el campo tiene contenido. Medido el 3-nov: 56.000 de cupo en el
+     computador y 18.000 en el Panel del bolsillo con la misma ficha.
+     Y por qué dos marcas: guardarSinFotos corre en el aparato que la acaba de
+     perder, y ahí «vive en el aparato donde se tomó» lo mandaría a buscarla
+     adonde ya no está.
+     La regla de abajo no se conforma con el prefijo: «foto:» más una imagen pasaría
+     por puntero, y lo que no sube a la nube no sube ni por un descuido. */
+  var MARCA_OTRO_APARATO = 'foto:otro-aparato';
+  var MARCA_SE_PERDIO = 'foto:se-perdio';
+  function esPunteroDeFoto(v) { return typeof v === 'string' && /^foto:[A-Za-z0-9:\/_.-]{1,80}$/.test(v); }
+  function esMarcaDeFoto(v) { return v === MARCA_OTRO_APARATO || v === MARCA_SE_PERDIO; }
+  /* Cuánto dice lo que hay en el campo: una foto, dónde está, que existe en otra
+     parte, que se perdió, nada. Lo usa fusionarFila para quedarse con lo que más dice. */
+  function rangoDeFoto(v) {
+    if (!conContenido(v)) return 0;
+    if (v === MARCA_SE_PERDIO) return 1;
+    if (v === MARCA_OTRO_APARATO) return 2;
+    return esPunteroDeFoto(v) ? 3 : 4;
+  }
 
   /* ---------------------------------------------- las listas que SOLO SUMAN --
      Estas listas nunca se editan ni se reordenan: solo se les agrega al final.
@@ -455,6 +482,11 @@
    * Copia de `obj` sin las fotos. NO muta el original — ni el objeto ni sus
    * comprobantes.
    *
+   * 4-nov-2026 — EL PUNTERO SE QUEDA Y LA FOTO PASA A UNA MARCA: ver CAMPOS_FOTO. Hasta
+   * hoy el campo desaparecía, y con él 38.000 de cupo en el aparato que recibía la
+   * ficha. La foto del comprobante y el recibo de la cuota sí desaparecen: no dan
+   * cupo, y nadie los lee para saber si existen.
+   *
    * POR QUÉ NO VIAJAN, dicho una vez:
    *   · pesan. Una cédula por lado y una selfie en base64 son cientos de KB por
    *     socio; con 200 socios el "sube tu cartera" se vuelve una subida de
@@ -469,11 +501,12 @@
    * solo le cambiaría la forma al objeto sin proteger nada, y el Panel lo crea
    * en null por defecto en cada carga.
    */
-  function sinFotos(obj) {
-    if (Array.isArray(obj)) return obj.map(sinFotos);
+  function sinFotos(obj) { return quitarFotos(obj, MARCA_OTRO_APARATO); }
+  function quitarFotos(obj, marca) {
+    if (Array.isArray(obj)) return obj.map(function (x) { return quitarFotos(x, marca); });
     if (!obj || typeof obj !== 'object') return obj;
     var copia = clonar(obj);
-    CAMPOS_FOTO.forEach(function (c) { if (conContenido(copia[c])) delete copia[c]; });
+    CAMPOS_FOTO.forEach(function (c) { if (conContenido(copia[c]) && !esPunteroDeFoto(copia[c])) copia[c] = marca; });
     if (Array.isArray(copia.comprobantes)) {
       copia.comprobantes = copia.comprobantes.map(function (c) {
         if (c && typeof c === 'object' && conContenido(c.foto)) { var d = clonar(c); delete d.foto; return d; }
@@ -502,11 +535,20 @@
        tienen clave `.socio`, asi que esta rama no puede cambiarles el JSON
        canonico a ninguno de los tres. */
     if (copia.socio && typeof copia.socio === 'object') {
-      copia.socio = sinFotos(copia.socio);
-      if (copia.prestamos) copia.prestamos = sinFotos(copia.prestamos);
-      if (copia.respaldados) copia.respaldados = sinFotos(copia.respaldados);
+      copia.socio = quitarFotos(copia.socio, marca);
+      if (copia.prestamos) copia.prestamos = quitarFotos(copia.prestamos, marca);
+      if (copia.respaldados) copia.respaldados = quitarFotos(copia.respaldados, marca);
     }
     return copia;
+  }
+
+  /* Una fila sin nada de lo que tenga que ver con sus fotos, para COMPARAR: una foto
+     nunca decide si dos versiones de una ficha dicen lo mismo. Nunca para mandarla:
+     esto le quita el cupo a quien la reciba. */
+  function sinPunterosDeFoto(fila) {
+    var c = sinFotos(fila);
+    if (c && typeof c === 'object' && !Array.isArray(c)) CAMPOS_FOTO.forEach(function (k) { delete c[k]; });
+    return c;
   }
 
   /**
@@ -532,12 +574,14 @@
            codigo === 22 || codigo === 1014;
   }
 
-  /** El db entero sin fotos. Lo usa subir.html para pesar el paquete "con" y
-      "sin" y poder mostrarle a Joan los dos números de verdad, medidos. */
+  /** El db entero sin fotos. Lo usa guardarSinFotos de crm.html cuando la cartera ya
+      no cabe en el navegador: este aparato las pierde, y por eso la marca es la otra
+      (4-nov-2026, ver CAMPOS_FOTO). Lo que había de puntero se queda: esas fotos siguen
+      en la nube, y la ficha sigue sabiendo dónde. */
   function dbSinFotos(db) {
     var d = clonar(objeto(db));
     ['socios', 'prestamos', 'respaldados', 'papelera', 'papeleraSocios'].forEach(function (c) {
-      if (Array.isArray(d[c])) d[c] = d[c].map(sinFotos);
+      if (Array.isArray(d[c])) d[c] = d[c].map(function (x) { return quitarFotos(x, MARCA_SE_PERDIO); });
     });
     return d;
   }
@@ -1348,6 +1392,15 @@
     Object.keys(claves).forEach(function (k) {
       if (tiene(mapa, k)) return;                 // ya se fusionó arriba
       if (igual(m[k], s[k])) return;              // dicen lo mismo: no hay nada que decidir
+      /* 4-nov-2026 — UNA FOTO NUNCA ES UN CHOQUE. Desde que el puntero viaja, los dos
+         lados pueden traer cosas distintas sin que nadie haya decidido nada: el
+         celular sube null donde no la tiene, una ficha de antes no trae el campo, la
+         nube dice «otro aparato» donde aquí está el puntero. Preguntarle a Joan por
+         eso le enseña a tocar sin leer, y aquí no hay plata: queda lo que más dice. */
+      if (CAMPOS_FOTO.indexOf(k) >= 0) {
+        if (rangoDeFoto(s[k]) > rangoDeFoto(m[k])) fila[k] = clonar(s[k]);
+        return;
+      }
       if (k === 'planPagos' && pactoSPendiente) return;  // el pago acordado de allá: ver abajo
       if (!tiene(m, k)) { fila[k] = clonar(s[k]); return; }  // solo está allá: no pisa nada
       pisables.push({ campo: k, mio: clonar(m[k]), suyo: clonar(s[k]) });
@@ -2287,8 +2340,8 @@
    * por jsonCanonico para todo primitivo, y null es un primitivo. Lo encontró
    * el generador de pruebas/adopcion-sin-mentir.test.js al primer intento.
    * Ausente y null siguen siendo el mismo dato (jsonCanonico escribe «null»
-   * para los dos), que es lo que deja pasar una foto: acá existe, sinFotos la
-   * quita, y la nube dice selfieFoto:null — no se contradicen.
+   * para los dos). 4-nov-2026: las fotos ya no pasan por aquí: espejoDeAdopcion
+   * les quita los punteros a los dos lados antes de preguntar.
    */
   function esSuperconjunto(local, servidor) {
     if (servidor === null || servidor === undefined ||
@@ -2364,8 +2417,12 @@
         /* (c) idénticas: el espejo puede afirmar la revisión del servidor. */
         if (local && jsonCanonico(acaSinFotos) === suyo) { adoptar(); return; }
         /* (d) lo de acá contiene todo lo de allá —los campos que cargar() agrega
-           al abrir—: la subida siguiente lo pisa sin perder nada del servidor. */
-        if (local && esSuperconjunto(acaSinFotos, f.datos)) { adoptar(); return; }
+           al abrir—: la subida siguiente lo pisa sin perder nada del servidor.
+           4-nov-2026: sin mirar las fotos. Aquí está el puntero y allá null (lo sube
+           el celular, que no la tiene) o nada (una ficha de antes del puntero): eso
+           no contradice a nadie, y congelarla sería poner en discusión cada ficha
+           con fotos la primera vez que se empareje. */
+        if (local && esSuperconjunto(sinPunterosDeFoto(acaSinFotos), sinPunterosDeFoto(f.datos))) { adoptar(); return; }
         /* (e) difieren de verdad: lo mira Joan. Si el espejo previo traía una
            entrada vieja, se QUEDA: es lo que la hace volver a chocar en vez de
            pisar. */
@@ -2395,6 +2452,12 @@
    * Vivía en panel/subir.html y se movió acá el 15-sep-2026 porque el CRM la
    * necesita: este proyecto ya pagó una vez la tercera copia de una regla.
    *
+   * 4-nov-2026 — LA MARCA CEDE ANTE LO QUE HAY AQUÍ. Desde que lo que baja trae
+   * «foto:otro-aparato» donde estaba la foto, «solo si allá no hay nada» ya no
+   * alcanza: la marca se comía la foto. Lo de aquí gana salvo que allá haya un
+   * puntero y aquí no haya una foto de verdad. Y vuelve también el recibo de cada
+   * cuota de un respaldado, que sinFotos quita y ☁ Subir, paso 6 perdía al aplicar.
+   *
    * La foto de un comprobante se empareja por fecha+tipo+monto y no por
    * identidad: `foto` está FUERA de la identidad a propósito (ver LISTAS_QUE_SUMAN).
    * 4-nov-2026: si los dos traen id, además el id: dos abonos iguales del mismo día
@@ -2405,7 +2468,23 @@
     if (!local || !datosNube) return datosNube;
     var d = {};
     Object.keys(objeto(datosNube)).forEach(function (k) { d[k] = datosNube[k]; });
-    CAMPOS_FOTO.forEach(function (k) { if (local[k] && !d[k]) d[k] = local[k]; });
+    CAMPOS_FOTO.forEach(function (k) {
+      var aca = local[k], alla = d[k];
+      if (!conContenido(aca)) return;
+      if (!conContenido(alla) || esMarcaDeFoto(alla) || (esPunteroDeFoto(alla) && !esPunteroDeFoto(aca))) d[k] = aca;
+    });
+    if (Array.isArray(d.cuotas) && Array.isArray(local.cuotas)) {
+      d.cuotas = d.cuotas.map(function (c, i) {
+        if (!c || typeof c !== 'object' || conContenido(c.comprobante)) return c;
+        /* Por su número: es lo que no cambia. Sin número, por su posición. */
+        var x = c.n != null ? local.cuotas.filter(function (l) { return !!l && String(l.n) === String(c.n); })[0] : local.cuotas[i];
+        if (!x || !conContenido(x.comprobante)) return c;
+        var copia = {};
+        Object.keys(c).forEach(function (k) { copia[k] = c[k]; });
+        copia.comprobante = x.comprobante;
+        return copia;
+      });
+    }
     if (Array.isArray(d.comprobantes) && Array.isArray(local.comprobantes)) {
       /* CADA FOTO SE ENTREGA UNA SOLA VEZ — 15-sep-2026. Sin esto, dos abonos
          del mismo monto el mismo dia (y los comprobantes nacen con la fecha de
@@ -2466,6 +2545,11 @@
     CLAVES_AJUSTES: CLAVES_AJUSTES,
     CLAVES_AJUSTES_SIN_PAPELERA: CLAVES_AJUSTES_SIN_PAPELERA,
     CAMPOS_FOTO: CAMPOS_FOTO,
+    MARCA_OTRO_APARATO: MARCA_OTRO_APARATO,
+    MARCA_SE_PERDIO: MARCA_SE_PERDIO,
+    esPunteroDeFoto: esPunteroDeFoto,
+    esMarcaDeFoto: esMarcaDeFoto,
+    sinPunterosDeFoto: sinPunterosDeFoto,
     esFaltaDeEspacio: esFaltaDeEspacio,
     LISTAS_SOCIO: LISTAS_SOCIO,
     LISTAS_CREDITO: LISTAS_CREDITO,

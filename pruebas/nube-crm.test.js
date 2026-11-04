@@ -58,10 +58,12 @@ describe('la subida y la invariante del espejo', () => {
     assert.equal(m.srv.ajustes.config, undefined, 'config NO viaja en esta etapa');
     assert.equal(m.srv.ajustes.plantillas, undefined, 'plantillas NO viajan en esta etapa');
     invariante(m.alm, 'primera subida');
-    /* Las fotos no viajan: ni las cuatro del socio ni la del comprobante. */
+    /* Las fotos no viajan: ni las cuatro del socio ni la del comprobante.
+       4-nov-2026: en su campo va la marca, para que el cupo salga igual en el otro
+       aparato (las-fotos-no-bajan-el-cupo.test.js). Lo que se vigila es lo mismo. */
     const s0 = m.srv.socios.C0.datos, p0 = m.srv.creditos.P0.datos;
-    assert.equal(s0.cedulaFrenteFoto, undefined, 'la cédula subió a la nube');
-    assert.equal(s0.selfieFoto, undefined, 'la SELFIE subió a la nube (dato biométrico, Ley 1581)');
+    assert.equal(s0.cedulaFrenteFoto, N.MARCA_OTRO_APARATO, 'la cédula subió a la nube');
+    assert.equal(s0.selfieFoto, N.MARCA_OTRO_APARATO, 'la SELFIE subió a la nube (dato biométrico, Ley 1581)');
     assert.equal(p0.comprobantes[0].foto, undefined, 'la foto del comprobante subió');
     const est = m.C.estado();
     assert.equal(est.cinta.fase, 'al-dia');
