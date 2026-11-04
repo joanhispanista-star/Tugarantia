@@ -9211,9 +9211,17 @@ function abonarCapital(id,fecha){ const p=DB.prestamos.find(x=>x.id===id),m=Numb
      otro abono distinto del mismo hecho. */
   const hoy=fecha||hoyISO(), liq=liqCredito(p,hoy);
   p.abonosCapital=p.abonosCapital||[];
-  p.abonosCapital.push({fecha:hoy,monto:m,ciclo:p.cicloActual,
+  /* 4-nov-2026 — CON SU id, Y SU COMPROBANTE CON EL MISMO. Sin él, dos abonos de
+     50.000 el mismo día —los dos aquí, o uno aquí y otro en el celular— tenían la
+     misma identidad (fecha + monto) y fusionarListas dejaba uno al juntar la ficha:
+     450.000 de capital en vez de 400.000, y la segunda foto se iba con él. Los
+     abonos de antes no traen id y se quedan como están (nube.js: LISTAS_CREDITO y
+     sinGemelosDeVersion). El azar es porque el celular también pone ids: dos
+     aparatos no se ponen de acuerdo en el reloj. */
+  const idAb='s-'+hoy+'-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  p.abonosCapital.push({id:idAb,fecha:hoy,monto:m,ciclo:p.cicloActual,
     costoCausado:liq.costo,moraCausada:liq.recargo_mora,diasMoraCausada:liq.dias_mora});
-  addComp(p,'abono',m); guardar(); abrirPago(id); render(); }
+  addComp(p,'abono',m,idAb); guardar(); abrirPago(id); render(); }
 
 /* ===== CONFIG ===== */
 function pintarCfg(){ document.getElementById('cfgNeg').value=DB.config.negocio; document.getElementById('cfgCosto').value=TASA_FIJA_PCT+'% estándar · de 1% a '+TASA_TECHO_PCT+'% por crédito'; document.getElementById('cfgUsura').value=DB.config.tasaUsuraEA||''; document.getElementById('cfgPin').value=DB.config.pin; document.getElementById('cfgWa').value=DB.config.whatsapp||''; try{ pintarMisNumeros(); }catch(e){}

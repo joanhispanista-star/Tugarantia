@@ -195,6 +195,10 @@ describe('dónde se anota el abono, y por qué (la evidencia es del puente)', ()
 
 /* ========================================================================== */
 describe('los registros son, campo por campo, los que escribe el CRM de verdad', () => {
+  /* 4-nov-2026 — el abono suelto del CRM nace con id (pruebas/dos-pagos-iguales.test.js)
+     y el de esta entrega no lo necesita: va atado a su prórroga por fecha y ciclo. Los
+     demás campos son los mismos, y es lo que se sigue comparando. */
+  const sinSuId = a => { assert.ok(a.id, 'el abono suelto del CRM nació sin id'); const c = Object.assign({}, a); delete c.id; return c; };
 
   test('abonarCapital y después registrarProrroga escriben exactamente esto', () => {
     const p = credito();
@@ -205,7 +209,7 @@ describe('los registros son, campo por campo, los que escribe el CRM de verdad',
     const q = leerCartera(B).prestamos[0];
     assert.equal(q.abonosCapital.length, 1, 'el CRM no registró el abono');
     assert.equal(q.prorrogas.length, 1, 'el CRM no registró la prórroga: ' + (B.ctx._avisos || []).join(' | '));
-    assert.deepEqual(q.abonosCapital[0], r.registros.abono);
+    assert.deepEqual(sinSuId(q.abonosCapital[0]), r.registros.abono);
     assert.deepEqual(q.prorrogas[0], r.registros.prorroga);
     assert.equal(q.cicloActual, r.registros.cicloActual);
     assert.equal((q.condonaciones || []).length, 0);
@@ -221,7 +225,7 @@ describe('los registros son, campo por campo, los que escribe el CRM de verdad',
     abonarEnElCRM(B, r.a_capital);
     prorrogarEnElCRM(B, 50, 'se le inundó la casa');
     const q = leerCartera(B).prestamos[0];
-    assert.deepEqual(q.abonosCapital[0], r.registros.abono);
+    assert.deepEqual(sinSuId(q.abonosCapital[0]), r.registros.abono);
     assert.deepEqual(q.prorrogas[0], r.registros.prorroga);
     assert.deepEqual(q.condonaciones[0], r.registros.condonacion);
     assert.equal(q.cicloActual, r.registros.cicloActual);

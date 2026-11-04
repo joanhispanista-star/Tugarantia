@@ -1749,7 +1749,11 @@ function abonarEnCalle(id, monto, fecha) {
     + '¿Lo registro?')) return;
 
   p.abonosCapital = p.abonosCapital || [];
-  p.abonosCapital.push({ fecha: f, monto: m, ciclo: p.cicloActual,
+  /* 4-nov-2026 — CON SU id: dos abonos del mismo monto el mismo día son dos pagos, y
+     sin id se fundían en uno al juntar la ficha (ver abonarCapital en crm.html, que
+     hace lo mismo). */
+  p.abonosCapital.push({ id: 's-' + f + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    fecha: f, monto: m, ciclo: p.cicloActual,
     costoCausado: l.costo, moraCausada: l.recargo_mora, diasMoraCausada: l.dias_mora });
 
   var s = socioDe(p);

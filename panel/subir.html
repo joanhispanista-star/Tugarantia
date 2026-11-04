@@ -510,7 +510,8 @@ var LISTAS_QUE_SUMAN = {
                  /* 22-oct-2026: + capital y + id, el perdón de capital de un pago
                     acordado; el id separa dos perdones iguales del mismo día (ver nube.js). */
                  condonaciones:['fecha','costo','mora','capital','id'] },
-  respaldados: { comprobantes:['fecha','tipo','monto'] }
+  /* 4-nov-2026: + id, igual que nube.js (ver LISTAS_RESPALDADO allá). */
+  respaldados: { comprobantes:['fecha','tipo','monto','id'] }
 };
 
 /* Los campos que se miran en la tarjeta del choque. No son todos: son los que

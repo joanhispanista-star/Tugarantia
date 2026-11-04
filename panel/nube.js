@@ -300,7 +300,9 @@
     /* 16-oct-2026: `id` para el comprobante de un abono a una cuota (lleva el
        mismo id del abono). Dos abonos iguales del mismo día son dos abonos, y
        sus dos fotos tienen que sobrevivir; los comprobantes de antes no traen
-       id y su identidad no cambia. */
+       id y su identidad no cambia. 4-nov-2026: también el del abono suelto
+       (crm.html abonarCapital) y, por lo que dice abajo LISTAS_RESPALDADO, hasta
+       hoy este id no separaba nada en las pantallas. */
     comprobantes: ['fecha', 'tipo', 'monto', 'id'],
     /* 22-oct-2026 — `capital` entra en la identidad. Desde que Joan pacta el
        próximo pago puede perdonar CAPITAL (costo 0, mora 0, capital X), y dos
@@ -320,7 +322,12 @@
     condonaciones: ['fecha', 'costo', 'mora', 'capital', 'id']
   };
   var LISTAS_RESPALDADO = {
-    comprobantes: ['fecha', 'tipo', 'monto']
+    /* 4-nov-2026 — CON EL id, AUNQUE NINGÚN RESPALDADO LO TRAIGA. LISTAS_QUE_SUMAN
+       se arma con mezclar() y gana el último: esta lista sin id le ganaba a la del
+       crédito, y como subir.html, el espejo y nube-crm.js usan ese mapa, dos
+       comprobantes con id distinto se seguían fundiendo en uno con su foto. Los de
+       los respaldados no traen id, valen null, y su identidad no cambia. */
+    comprobantes: ['fecha', 'tipo', 'monto', 'id']
   };
   /* El mapa completo, para cuando quien llama no sabe de qué tabla es la fila.
      Es la unión de los tres de arriba: una fila de socios no tiene `prorrogas`
@@ -1119,6 +1126,13 @@
       fila[nombre] = fusionarListas(m[nombre], s[nombre], mapa[nombre]);
     });
 
+    /* 4-nov-2026 — EL MISMO ABONO, CON ID DE UN LADO Y SIN ID DEL OTRO: ver
+       sinGemelosDeVersion, abajo. Va antes de las reglas que siguen porque ellas
+       deciden con lo que haya en `fila`. */
+    if (mapa.abonosCapital && Array.isArray(fila.abonosCapital)) {
+      fila.abonosCapital = sinGemelosDeVersion(fila.abonosCapital, m.abonosCapital, s.abonosCapital, mapa.abonosCapital);
+    }
+
     /* 3-oct-2026 — LA MISMA ENTREGA, ANOTADA DISTINTO EN LOS DOS APARATOS.
        El «💵 Abonó y el resto pasa…» escribe dos hechos de una sola plata: la
        prórroga y un abono a capital del mismo día, en el ciclo que esa
@@ -1411,6 +1425,52 @@
     });
     r.total = r.abonos.length + r.prorrogas.length;
     return r;
+  }
+  /* 4-nov-2026 — DESDE v143 EL ABONO SUELTO NACE CON id, y mientras un aparato siga
+     con la app de antes, el mismo pago puede estar anotado con id de un lado y sin
+     id del otro. Sus identidades ya no casan: entrarían los dos y el capital bajaría
+     dos veces por un solo pago. Hasta hoy, ese caso era UN abono (fecha + monto), y
+     tiene que seguir siéndolo.
+     Empareja lo que cada lado trae y el otro no, uno a uno: mismo día, mismo monto y
+     uno con id contra uno sin id. Se queda el de quien junta, tal como estaba: a un
+     abono de antes no se le inventa un id.
+     LO QUE NO EMPAREJA: lo que está en los dos lados (ya es uno, y un abono nuevo del
+     mismo monto es otro pago); dos de un mismo aparato (los anotó él: son dos); y los
+     de una cuota (`cuotaPlan`), donde un abono parcial con id y el cierre sin id del
+     mismo monto son plata distinta, y que ya tienen su regla, «LOS ABONOS DE LAS CUOTAS
+     VIAJAN CON SU planPagos». Si en el rato de las dos versiones eran dos pagos
+     de verdad, se cuentan como uno: es lo que pasaba hasta hoy, y es el error que se
+     corrige volviendo a anotar. El otro, duplicarlo, deja debiendo de menos sin que
+     nadie lo note. */
+  function sinGemelosDeVersion(juntos, mias, suyas, campos) {
+    var suelto = function (x) {
+      return !!x && typeof x === 'object' && !Array.isArray(x) && (x.cuotaPlan == null || x.cuotaPlan === '');
+    };
+    var conId = function (x) { return x.id != null && x.id !== ''; };
+    var llave = function (x) { return identidad(x, campos); };
+    var dia = function (x) { return JSON.stringify([x.fecha === undefined ? null : x.fecha, x.monto === undefined ? null : x.monto]); };
+    var enLista = function (l) {
+      var k = {};
+      lista(l).forEach(function (x) { k[llave(x)] = true; });
+      return k;
+    };
+    var enMias = enLista(mias), enSuyas = enLista(suyas);
+    var soloMias = lista(mias).filter(function (x) { return suelto(x) && !enSuyas[llave(x)]; });
+    var soloSuyas = lista(suyas).filter(function (x) { return suelto(x) && !enMias[llave(x)]; });
+    var usadas = {}, sobra = {}, sinPareja = {};
+    soloSuyas.forEach(function (x) {
+      for (var i = 0; i < soloMias.length; i++) {
+        if (!usadas[i] && conId(soloMias[i]) !== conId(x) && dia(soloMias[i]) === dia(x)) {
+          usadas[i] = true;
+          sobra[llave(x)] = true;
+          return;
+        }
+      }
+      sinPareja[llave(x)] = true;
+    });
+    /* Dos de allá con la misma identidad ya entraron como uno (fusionarListas): si uno
+       no encontró pareja, ese se queda. */
+    return lista(juntos).filter(function (x) { return !(suelto(x) && sobra[llave(x)] && !sinPareja[llave(x)]); });
   }
   /* Saca de una lista de `fila` los elementos de `quitar`, por su identidad. */
   function quitarDeFila(fila, nombre, quitar, mapa) {
@@ -2337,6 +2397,9 @@
    *
    * La foto de un comprobante se empareja por fecha+tipo+monto y no por
    * identidad: `foto` está FUERA de la identidad a propósito (ver LISTAS_QUE_SUMAN).
+   * 4-nov-2026: si los dos traen id, además el id: dos abonos iguales del mismo día
+   * son dos comprobantes, y si la nube los trae en otro orden, cada foto vuelve al
+   * suyo. Si alguno no lo trae (los de antes), como siempre.
    */
   function devolverFotos(datosNube, local) {
     if (!local || !datosNube) return datosNube;
@@ -2357,7 +2420,8 @@
           if (usados[i]) continue;
           var x = local.comprobantes[i];
           if (x && x.foto && x.fecha === c.fecha && x.tipo === c.tipo &&
-              num(x.monto) === num(c.monto)) {
+              num(x.monto) === num(c.monto) &&
+              (x.id == null || c.id == null || String(x.id) === String(c.id))) {
             var copia = {};
             Object.keys(c).forEach(function (k) { copia[k] = c[k]; });
             copia.foto = x.foto;
