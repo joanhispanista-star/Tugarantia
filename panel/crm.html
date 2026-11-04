@@ -525,6 +525,10 @@
   /* 8-oct-2026 — cada foto del registro lleva su «↻ Girar» debajo, FUERA del
      enlace: dentro, tocarlo abriría la foto en vez de girarla. */
   .gal-it{display:flex;flex-direction:column;gap:4px;min-width:0}
+  /* 4-nov-2026 — la casilla de una foto que no está aquí (ver MARCAS_FOTO): el texto se lee
+     sin pasar el ratón por encima, también en el teléfono. */
+  .gal-marca{border:1px solid var(--linea);border-radius:9px;overflow:hidden}
+  .gal-marca .txt{min-height:90px;padding:8px;font-size:11px;line-height:1.35;color:var(--tinta-2);background:var(--papel-2)}
   .btn-girar{border:1px solid var(--linea);background:var(--papel);color:var(--tinta-2);border-radius:7px;font:inherit;font-size:11.5px;font-weight:700;padding:5px 6px;min-height:30px;cursor:pointer}
   .btn-girar:hover{border-color:var(--rojo);color:var(--rojo)}
   /* 8-oct-2026 — la ubicación aproximada por IP, en la lista de Registrados. */
@@ -5885,6 +5889,8 @@ var MARCAS_FOTO={
 };
 function esMarcaFoto(v){ return typeof v==='string' && Object.prototype.hasOwnProperty.call(MARCAS_FOTO,v); }
 function fotoQueFalta(v){ return !v||esMarcaFoto(v); }
+/* En «Editar ficha»: «Listo» de una foto que aquí no está sería afirmar lo que no es. */
+function textoFotoBox(v){ return esMarcaFoto(v)?'Aquí no está · cambiar':'Listo · cambiar'; }
 /* Los diez digitos del celular. El patron estaba repetido a mano en cuatro
    sitios de este archivo; el token obliga a que sea uno solo, porque el
    resolvedor tiene que preguntar EXACTAMENTE lo mismo que se pregunto al
@@ -5979,9 +5985,14 @@ function verCliente(id){
      ↻ GIRAR UNA FOTO): la que se ve al revés se endereza una vez y para siempre. */
   /* 19-oct-2026 — con un solo lado de la cédula, se dice cuál falta (ver
      avisoLadoQueFalta). */
+  /* 4-nov-2026 — UNA MARCA NO ES UNA IMAGEN POR CARGAR. Puesta por el resolvedor salía una
+     casilla en blanco, con la explicación en un alt que el navegador no pinta y un title
+     que en el teléfono no existe; y debajo, «↻ Girar» y «todavía no han llegado de la
+     nube», que de esta foto es falso. Lo vio la captura, no una prueba. */
   const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div>${avisoLadoQueFalta(!!s.cedulaFrenteFoto,!!s.cedulaReversoFoto,'',!!s.selfieFoto)}<div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Su cara'].indexOf(f[0])];
+      if(esMarcaFoto(f[1])) return `<div class="gal-it"><div class="gal-marca"><div class="txt">${escHTML(MARCAS_FOTO[f[1]])}</div><div class="cap">${f[0]}</div></div></div>`;
       return `<div class="gal-it"><a data-foto="${f[1]}" target="_blank"><img data-foto="${f[1]}" id="fichaFoto_${cual}"><div class="cap">${f[0]}</div></a>${botonGirar("girarFotoFicha('"+escHTML(s.id)+"','"+cual+"')")}</div>`; }).join('')}</div>`
-    +(s.selfieFoto&&s.cedulaFrenteFoto?`<div id="fichaParecido" style="margin-top:8px"></div>`:''):'';
+    +(!fotoQueFalta(s.selfieFoto)&&!fotoQueFalta(s.cedulaFrenteFoto)?`<div id="fichaParecido" style="margin-top:8px"></div>`:''):'';
   /* 8-sep-2026 — desde dónde se registró (huella), si vino del registro abierto. */
   const huellaHTML=s.huellaRegistro?bloqueHuella(Object.assign({},s.huellaRegistro,{gps:s.ubicacion||null}),{socio:s}):'';
   const fondo=fondoCuponDe(s);
@@ -6284,7 +6295,7 @@ function editarCliente(id,pre){
   /* 15-sep-2026 — la miniatura sale con `data-foto` y la resuelve el resolvedor:
      puede ser un token (la foto vive en la nube) o un `data:` recien tomado con
      la camara de Joan, y el resolvedor distingue los dos. */
-  const upBox=(key,ic,lbl,cap)=>`<label class="up ${_fotosTmp[key]?'ok':''}" id="fot_${key}"><span class="ic">${ic}</span><span class="lbl">${_fotosTmp[key]?'Listo · cambiar':lbl}</span><input type="file" accept="image/*"${cap?' capture="'+cap+'"':''} onchange="subirFoto(event,'${key}')">${_fotosTmp[key]?`<img data-foto="${_fotosTmp[key]}">`:''}</label>`;
+  const upBox=(key,ic,lbl,cap)=>`<label class="up ${_fotosTmp[key]?'ok':''}" id="fot_${key}"><span class="ic">${ic}</span><span class="lbl">${_fotosTmp[key]?textoFotoBox(_fotosTmp[key]):lbl}</span><input type="file" accept="image/*"${cap?' capture="'+cap+'"':''} onchange="subirFoto(event,'${key}')">${_fotosTmp[key]?`<img data-foto="${_fotosTmp[key]}">`:''}</label>`;
   openModal(id?'Editar ficha · '+codCliente(s):'Agregar cliente',`
     ${id?`<div class="info-row"><span class="k">N° cliente</span><b class="mono">${codCliente(s)}</b></div>`:'<p class="muted" style="margin-bottom:14px">Se le asignará un número de cliente único al guardar.</p>'}
     <div class="sub-h">Datos</div>
@@ -12750,7 +12761,7 @@ function pintarFotoBox(key){
      quien sabe traerlo. Un `data:` fresco de la camara si va directo. */
   if(esToken(_fotosTmp[key])){ img.setAttribute('data-foto',_fotosTmp[key]); try{ resolverFotos(box); }catch(e){} }
   else img.src=_fotosTmp[key];
-  const l=box.querySelector('.lbl'); if(l) l.textContent='Listo · cambiar';
+  const l=box.querySelector('.lbl'); if(l) l.textContent=textoFotoBox(_fotosTmp[key]);
 }
 /* ==========================================================================
  * EL MISMO PANEL, CON OTROS PERMISOS — 10 de septiembre de 2026

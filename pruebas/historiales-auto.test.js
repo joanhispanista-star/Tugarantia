@@ -933,7 +933,7 @@ describe('los enganches de crm.html y sw.js', () => {
     /* 23-oct-2026 — los dos se piden con la versión en la dirección (ver sw.js, v139). */
     const i = CRM.indexOf('<script src="historiales-auto.js?v=139"></script>');
     assert.ok(i > 0, 'crm.html no carga historiales-auto.js con su versión');
-    assert.ok(i > CRM.indexOf('<script src="nube-crm.js?v=139"></script>'));
+    assert.ok(i > CRM.search(/<script src="nube-crm\.js\?v=\d+"><\/script>/));   // 4-nov-2026: con la versión que sea
     assert.ok(i > CRM.indexOf('function entrar(){'));
     assert.ok(i < CRM.indexOf('navigator.serviceWorker.register'));
     assert.equal(CRM.split('<script src="historiales-auto.js').length - 1, 1);

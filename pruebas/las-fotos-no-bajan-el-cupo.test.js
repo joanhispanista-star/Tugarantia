@@ -340,6 +340,41 @@ describe('la ficha dice qué significa cada marca', () => {
     assert.doesNotMatch(t, /otro aparato/);
   });
 
+  test('la ficha lo enseña escrito: una casilla con el texto, sin imagen ni «Girar»', () => {
+    /* Con el resolvedor solo, la casilla salía en blanco: el alt no se pinta y el title no
+       existe en el teléfono. Lo vio la captura en un Chrome de verdad. */
+    const C = abrirPanel({ ahora: '2026-11-03T15:00:00' });
+    C.cargarCartera(dbDe(ficha({ cedulaFrenteFoto: OTRO, cedulaReversoFoto: PERDIDA, selfieFoto: FOTO })));
+    C.ev("verCliente('s1')");
+    const h = C.elems.mBody.innerHTML;
+    assert.match(h, /se tomó en otro aparato/);
+    assert.match(h, /Esta foto se perdió/);
+    assert.ok(h.indexOf('data-foto="' + OTRO + '"') < 0, 'la marca salió como una imagen por cargar');
+    assert.ok(h.indexOf('data-foto="' + PERDIDA + '"') < 0);
+    assert.ok(h.indexOf('id="fichaFoto_selfie"') > 0, 'la foto de verdad dejó de pintarse');
+    assert.equal((h.match(/girarFotoFicha/g) || []).length, 1, 'ofrece girar una foto que no está');
+  });
+
+  test('sin las dos fotos aquí no promete que van a llegar de la nube', () => {
+    const C = abrirPanel({ ahora: '2026-11-03T15:00:00' });
+    C.cargarCartera(dbDe(ficha({ cedulaFrenteFoto: OTRO, selfieFoto: FOTO })));
+    C.ev("verCliente('s1')");
+    assert.ok(C.elems.mBody.innerHTML.indexOf('fichaParecido') < 0, 'dejó la casilla de comparar rostros, que dice «todavía no han llegado de la nube»');
+    C.cargarCartera(dbDe(ficha({ cedulaFrenteFoto: TOKEN('cedula_frente'), selfieFoto: FOTO })));
+    C.ev("verCliente('s1')");
+    assert.ok(C.elems.mBody.innerHTML.indexOf('fichaParecido') > 0, 'con dos fotos de verdad la casilla tiene que estar');
+  });
+
+  test('«Editar ficha» no dice «Listo» de una foto que aquí no está', () => {
+    const C = abrirPanel({ ahora: '2026-11-03T15:00:00' });
+    assert.equal(C.ev("textoFotoBox('foto:otro-aparato')"), 'Aquí no está · cambiar');
+    assert.equal(C.ev("textoFotoBox('foto:se-perdio')"), 'Aquí no está · cambiar');
+    assert.equal(C.ev("textoFotoBox('foto:reg:3001112233/selfie')"), 'Listo · cambiar');
+    C.cargarCartera(dbDe(ficha({ selfieFoto: OTRO })));
+    C.ev("editarCliente('s1')");
+    assert.match(C.elems.mBody.innerHTML, /Aquí no está · cambiar/);
+  });
+
   test('CONTROL: un valor que nadie conoce sigue diciendo lo de siempre', async () => {
     assert.match(await resolver('foto:quien-sabe'), /no tiene una direcci/);
   });

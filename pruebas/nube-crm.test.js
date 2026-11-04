@@ -838,8 +838,10 @@ describe('el CRM de verdad (crm.html en el banco de pruebas)', () => {
 
   test('el <script src="nube-crm.js"> va DESPUÉS del bloque grande, y el aviso de versión vieja existe', () => {
     const CRM = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
-    /* 23-oct-2026 — nube-crm.js y nube.js se piden con la versión en la dirección (ver sw.js, v139). */
-    const iSrc = CRM.indexOf('<script src="nube-crm.js?v=139"></script>');
+    /* 23-oct-2026 — nube-crm.js y nube.js se piden con la versión en la dirección (ver sw.js, v139).
+       4-nov-2026 — con la que sea: aquí se vigila dónde va, y qué versión lleva lo vigila
+       la-pagina-nueva-no-corre-con-un-js-viejo. */
+    const iSrc = CRM.search(/<script src="nube-crm\.js\?v=\d+"><\/script>/);
     assert.ok(iSrc > 0, 'crm.html no carga nube-crm.js con su versión');
     assert.ok(iSrc > CRM.indexOf('function entrar(){'), 'nube-crm.js se carga antes de que exista entrar()');
     assert.ok(iSrc < CRM.indexOf("navigator.serviceWorker.register"), 'quedó después del service worker');
