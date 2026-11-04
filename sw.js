@@ -2025,7 +2025,8 @@
    que cerró su crédito, hasta con $0. Cambian dos .js más ya publicados, y los dos
    estrenan la firma de llegada y se precargan con ?v=142: app/gestion-asesor.js (la
    plantilla) y app/etapas.js (la etapa se lee «Cerró su crédito»; la llave sigue
-   siendo PAGADO). Los dos los pide solo panel/crm.html. */
+   siendo PAGADO). Los dos los pide solo panel/crm.html. Y un abono del otro aparato
+   que el cierre no conocía baja la pérdida (app/puente.js, ya en v142). */
 const CACHE = 'tugarantia-v142';
 const BASE = new URL('./', self.location).pathname;
 

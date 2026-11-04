@@ -379,12 +379,38 @@
      esconde nunca, ni aunque se haya perdido el renglón del motivo. La
      condonación cuenta solo si es la de ESE cierre (misma fecha, mismo capital):
      la de un cierre que perdió el choque es un perdón que no ocurrió, y si se
-     contara, la quincena diría un descuento y un cliente que no existieron. */
-  function perdidaDelCierre(p) {
+     contara, la quincena diría un descuento y un cliente que no existieron.
+
+     4-nov-2026 — Y UN ABONO QUE EL CIERRE NO CONOCÍA BAJA LA PÉRDIDA. El celular
+     anota 30.000, el computador cierra con 250.000 sin haberlo traído, y «Mandar
+     lo mío encima» los junta: los abonos son una lista que suma, y `capitalPerdido`
+     se quedaba en 50.000. Entraron 280.000 y se perdieron 50.000 de un capital de
+     300.000, y los 30.000 no salían en «Ingresos totales». El campo es lo que Joan
+     confirmó al cerrar con lo que ese aparato sabía; la pérdida es lo que de verdad
+     no volvió, y eso se lee con los abonos de hoy, sin reescribir el campo (fusionar
+     no resuelve plata sola: ver fusionarFila). Se puede saber cuáles no conoció sin
+     guardar nada más: en un cierre con pérdida toda la plata fue a capital, así que
+     lo que se debía de capital ese día es lo que entró más lo perdido, y lo que hoy
+     sobre eso son abonos que el cierre no conocía. Solo el quincenal: con cuotas,
+     los abonos viajan con su plan y esto no pasa. Si los abonos pasan de la pérdida,
+     entró más que el capital: no hay pérdida, y lo de más es ganancia cobrada. */
+  function perdidaAnotada(p) {
     return (p && p.pagado) ? Math.max(0, Math.round(num(p.capitalPerdido))) : 0;
   }
+  function abonosQueElCierreNoConocio(p) {
+    var anotada = perdidaAnotada(p);
+    if (!anotada || tienePlan(p)) return 0;
+    return Math.max(0, anotada + Math.round(num(p.montoRecibido)) - Math.round(capitalActual(p)));
+  }
+  function perdidaDelCierre(p) {
+    return Math.max(0, perdidaAnotada(p) - abonosQueElCierreNoConocio(p));
+  }
+  function sobranteDelCierre(p) {
+    return Math.max(0, abonosQueElCierreNoConocio(p) - perdidaAnotada(p));
+  }
   function condonacionDelCierre(p) {
-    var cap = perdidaDelCierre(p);
+    /* La anotada: el renglón del motivo se escribió con esa cifra. */
+    var cap = perdidaAnotada(p);
     if (!cap) return null;
     var f = fechaFin(p.fechaPagado);
     var conds = lista(p.condonaciones);
@@ -2071,7 +2097,8 @@
   function gananciaCobrada(p) {
     return lista(p.prorrogas).reduce(function (s, pr) { return s + num(pr.monto); }, 0) +
            costoCobradoPlan(p) +
-           (p.pagado ? num(p.gananciaPago) : 0);
+           (p.pagado ? num(p.gananciaPago) : 0) +
+           sobranteDelCierre(p);   // 4-nov-2026 — ver perdidaDelCierre
   }
   /* 22-oct-2026 — lo perdonado NO es capital recuperado: no volvió. Sin la
      resta, «Ingresos totales» del tablero y lo que la app le dice al cliente
