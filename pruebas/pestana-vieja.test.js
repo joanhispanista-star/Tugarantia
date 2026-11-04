@@ -134,6 +134,19 @@ describe('una pestaña vieja no pisa lo que guardó otra', () => {
     assert.equal(almacen[KEY], t);
   });
 
+  test('si el disco quedó VACÍO no hay nada que pisar: lo de esta memoria es lo único que queda', () => {
+    /* Alguien borró los datos del sitio con el CRM abierto, o el navegador los desalojó.
+       Negarse aquí, y mandarlo a recargar, sería perder la cartera entera por proteger nada.
+       Es lo que hacía guardar() hasta hoy, y se queda. */
+    const { A, almacen } = dosPestanas();
+    cobrar(A, 'P1', 100000);
+    delete almacen[KEY];
+    assert.equal(A.ev('guardar()'), true, 'se negó a rescatar la cartera');
+    assert.equal(abonosEnDisco(almacen).length, 1, 'el cobro no volvió al disco');
+    assert.equal(aviso(A), '', 'culpó a otra pestaña de un disco vacío');
+    assert.equal(almacen[ESPEJO], undefined, 'el espejo describe una cartera que el disco perdió: toca emparejar');
+  });
+
   test('CONTROL: sin nadie más escribiendo, guardar() guarda y no avisa nada, cien veces', () => {
     const { A, almacen } = dosPestanas();
     for (let i = 0; i < 100; i++) {

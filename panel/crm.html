@@ -1622,12 +1622,16 @@ function _carteraAjena(){
    suyo). En modo equipo, nunca: esa DB no es la de Joan. CARTERA_EQUIPO es un
    `let` de miles de líneas más abajo y guardar() puede correr en el arranque
    (la migración de fechas): leerlo antes de su línea lanza, y sin ese try el
-   script entero se cae y el botón Entrar no hace nada. */
+   script entero se cae y el botón Entrar no hace nada.
+   Y con el disco VACÍO tampoco: alguien borró los datos del sitio, o el navegador
+   los desalojó, y lo que hay en esta memoria es lo único que queda. No hay nada
+   que proteger, y mandarlo a recargar sería perder la cartera entera. */
 function _otraPestanaEscribio(){
   try{ if(CARTERA_EQUIPO) return false; }catch(e){ return false; }
   try{
     if(!_SELLO_MIO) return false;
-    var t=localStorage.getItem(KEY)||'';
+    var t=localStorage.getItem(KEY);
+    if(!t) return false;
     return t.length!==_SELLO_MIO.largo || _huella(t)!==_SELLO_MIO.huella;
   }catch(e){ return false; }
 }

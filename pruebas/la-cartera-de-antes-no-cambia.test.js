@@ -24,6 +24,7 @@ const vm = require('node:vm');
 const { execFileSync } = require('node:child_process');
 const N = require('../panel/nube.js');
 const { abrirPanel } = require('./banco-panel.js');
+const { abrirEspejo } = require('./banco-espejo.js');
 const { carteraGrande, cuentaDeCredito } = require('./cartera-grande.js');
 const { montar, sembrar, leerDisco, espejoDisco, congeladas, cartera: carteraDeBanco, comoJsonb, ESPEJO } = require('./banco-nube-crm.js');
 
@@ -141,6 +142,67 @@ describe('ida y vuelta por la nube', () => {
       assert.equal(JSON.stringify(r.fila.abonosCapital.map(a => a.monto).sort()), JSON.stringify(p.abonosCapital.map(a => a.monto).sort()), p.id + ' perdió un abono al juntarse');
       assert.equal(r.fila.comprobantes.length, p.comprobantes.length, p.id + ' perdió un comprobante al juntarse');
     });
+  });
+});
+
+describe('las dos versiones juntas: una copia vieja de la app y una nueva', () => {
+  const V = nubeDeAntes();
+  const deAntes = ruta => {
+    try { return execFileSync('git', ['show', 'ee7c3cc:' + ruta], { cwd: RAIZ, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }); }
+    catch (e) { return null; }
+  };
+
+  test('una página de antes con el nube.js nuevo encuentra todo lo que pide', { skip: V ? false : 'sin la historia' }, () => {
+    /* GitHub Pages sirve el archivo de hoy aunque la dirección diga ?v=142: si una página
+       vieja sigue abierta, o la caché la dio, corre con este nube.js. */
+    ['panel/crm.html', 'panel/espejo.html', 'panel/subir.html', 'panel/traer.html'].forEach(ruta => {
+      const nombres = new Set([...deAntes(ruta).matchAll(/\b(?:NUBE|NubeTuGarantia)\.([A-Za-z_]+)/g)].map(m => m[1]));
+      assert.ok(nombres.size > 0 || ruta === 'panel/crm.html', ruta + ': la prueba no encontró qué mirar');
+      nombres.forEach(n => assert.ok(n in N, ruta + ' pide NUBE.' + n + ' y el nube.js nuevo ya no lo tiene'));
+    });
+    const crm = new Set([...deAntes('panel/nube-crm.js').matchAll(/\bN\.([A-Za-z_]+)/g)].map(m => m[1]));
+    assert.ok(crm.size > 5);
+    crm.forEach(n => assert.ok(n in N, 'nube-crm.js pide N.' + n + ' y el nube.js nuevo ya no lo tiene'));
+  });
+
+  test('el nube.js nuevo le contesta lo mismo a lo que una página de antes le pregunta', () => {
+    assert.equal(typeof N.dbSinFotos, 'function');
+    assert.equal(typeof N.devolverFotos, 'function');
+    assert.equal(N.PACTOS, 1, 'si la regla del pacto cambió, las páginas tienen que pedir la versión nueva');
+  });
+
+  test('el Panel nuevo con el nube.js de antes, si la caché se lo da: arranca, y su abono lleva id', { skip: V ? false : 'sin la historia' }, () => {
+    const E = abrirEspejo({ cartera: JSON.parse(JSON.stringify({ socios: [{ id: 'C1', numero: 1, nombre: 'Cliente Inventada', telefono: '3000000099', gestiones: [] }],
+      prestamos: [{ id: 'P1', numero: 1, socioId: 'C1', socioNombre: 'Cliente Inventada', capital: 500000, costoPct: 20, fechaDesembolso: '2026-10-20', fechaPago: '2026-11-15',
+        cicloActual: '2026-11-15', pagado: false, prorrogas: [], abonosCapital: [], comprobantes: [] }], respaldados: [], config: {}, contadores: {}, plantillas: {} })),
+      sesion: true, ahora: HOY, archivos: { 'nube.js': deAntes('panel/nube.js') } });
+    E.ev("abonarEnCalle('P1', 50000, '" + FECHA + "')");
+    const a = JSON.parse(E.ev("JSON.stringify(creditoPorId('P1').abonosCapital)"));
+    assert.equal(a.length, 1);
+    assert.ok(a[0].id, 'el abono nació sin id');
+  });
+
+  test('un aparato con la app de antes y otro con la nueva: la misma ficha, y lo del viejo no se pierde', { skip: V ? false : 'sin la historia' }, () => {
+    /* El viejo sube su abono sin id. El nuevo baja eso y sube el suyo con id, de otro monto. */
+    const base = { id: 'P1', socioId: 'C1', capital: 500000, costoPct: 20, fechaDesembolso: '2026-10-20', cicloActual: '2026-11-15', pagado: false, prorrogas: [], comprobantes: [] };
+    const delViejo = Object.assign({}, base, { abonosCapital: [{ fecha: FECHA, monto: 50000, ciclo: '2026-11-15' }] });
+    const delNuevo = Object.assign({}, base, { abonosCapital: [{ id: 's-x', fecha: FECHA, monto: 70000, ciclo: '2026-11-15' }] });
+    const nuevo = N.fusionarFila(delNuevo, delViejo, N.LISTAS_QUE_SUMAN).fila.abonosCapital.map(a => a.monto).sort();
+    const viejo = clon(V.fusionarFila(delViejo, delNuevo, V.LISTAS_QUE_SUMAN).fila).abonosCapital.map(a => a.monto).sort();
+    assert.deepEqual(nuevo, [50000, 70000]);
+    assert.deepEqual(viejo, [50000, 70000], 'el nube.js de antes no entiende el id: esto se tiene que juntar igual');
+    assert.equal(N.sinFotos({ id: 'C1', selfieFoto: 'foto:reg:3000000099/selfie' }).selfieFoto, 'foto:reg:3000000099/selfie');
+  });
+
+  test('lo que deja el nube.js de antes en una ficha con puntero no le fabrica un choque al nuevo', { skip: V ? false : 'sin la historia' }, () => {
+    /* El viejo le quita el puntero al subir (es lo que hacía). El nuevo lo tiene. */
+    const s = { id: 'C1', numero: 1, nombre: 'Cliente Inventada', gestiones: [], selfieFoto: 'foto:reg:3000000099/selfie', cedulaFrenteFoto: 'foto:reg:3000000099/cedula_frente' };
+    const subioElViejo = clon(V.sinFotos(s));
+    assert.ok(!('selfieFoto' in subioElViejo), 'el nube.js de antes ya no hace lo que esta prueba supone');
+    const r = N.fusionarFila(N.sinFotos(s), subioElViejo, N.LISTAS_QUE_SUMAN);
+    assert.equal(r.hayChoque, false);
+    assert.equal(r.fila.selfieFoto, s.selfieFoto, 'el puntero se perdió al juntar');
+    assert.equal(N.fusionarFila(subioElViejo, N.sinFotos(s), N.LISTAS_QUE_SUMAN).fila.selfieFoto, s.selfieFoto, 'lo de la nube, sin el puntero, se lo llevó');
   });
 });
 
