@@ -107,6 +107,32 @@ describe('los abonos de antes, sin id, se quedan como están', () => {
     assert.ok(!('id' in r.fila.abonosCapital[0]), 'se le puso un id a un abono de antes');
   });
 
+  test('dos iguales anotados en UN aparato no se funden al juntar la ficha: 400.000, junte quien junte', () => {
+    /* Sin id, y sin que nadie los toque. Antes quedaba uno y el capital subía 50.000. */
+    const dos = conAbonos(abono(50000), abono(50000));
+    assert.equal(capital(juntar(dos, clon(dos)).fila), 400000, 'los dos lados los traen y quedó uno');
+    assert.equal(capital(juntar(dos, base()).fila), 400000);
+    assert.equal(capital(juntar(base(), dos).fila), 400000);
+    assert.equal(capital(juntar(dos, conAbonos(abono(50000))).fila), 400000, 'el otro lado ya conocía uno: siguen siendo dos');
+    assert.equal(capital(juntar(conAbonos(abono(50000)), dos).fila), 400000);
+    assert.ok(juntar(dos, clon(dos)).fila.abonosCapital.every(a => !('id' in a)), 'se les puso un id a los de antes');
+  });
+
+  test('sus dos comprobantes también, cada uno con su foto', () => {
+    const a = base();
+    a.comprobantes.push({ fecha: HOY, tipo: 'abono', monto: 50000, foto: 'data:image/jpeg;base64,AAAA' },
+      { fecha: HOY, tipo: 'abono', monto: 50000, foto: 'data:image/jpeg;base64,BBBB' });
+    const r = N.fusionarFila(N.sinFotos(a), N.sinFotos(a), N.LISTAS_QUE_SUMAN);
+    assert.equal(r.fila.comprobantes.length, 2);
+    assert.deepEqual(N.devolverFotos(r.fila, a).comprobantes.map(c => c.foto), a.comprobantes.map(c => c.foto));
+  });
+
+  test('una gestión repetida se sigue juntando como siempre: la regla es solo para plata y recibos', () => {
+    const g = { fecha: HOY, canal: 'wa', plantilla: 'x' };
+    const a = { id: 'C1', gestiones: [g, g] };
+    assert.equal(N.fusionarFila(a, a, N.LISTAS_QUE_SUMAN).fila.gestiones.length, 1);
+  });
+
   test('abrir la cartera con el código nuevo no les pone id ni los toca', () => {
     const almacen = {};
     const db = { socios: [{ id: 'C1', nombre: 'Cliente Inventada', numero: 1, gestiones: [] }], prestamos: [conAbonos(abono(50000), abono(70000))],
@@ -155,6 +181,12 @@ describe('con dos versiones de la app a la vez: un abono con id en un aparato y 
     const a = conAbonos(viejo, nuevo), b = conAbonos(viejo);
     assert.equal(capital(juntar(a, b).fila), 400000, 'se fundieron el pago de la mañana y el de la tarde');
     assert.equal(capital(juntar(b, a).fila), 400000);
+  });
+
+  test('dos de antes de un lado contra uno nuevo del otro: empareja con uno, el otro se queda', () => {
+    const dos = conAbonos(abono(50000), abono(50000)), uno = conAbonos(abono(50000, 'n'));
+    assert.equal(capital(juntar(dos, uno).fila), 400000);
+    assert.equal(capital(juntar(uno, dos).fila), 400000);
   });
 
   test('dentro de un mismo aparato nunca empareja: lo anotó él, son dos', () => {

@@ -1198,9 +1198,12 @@
       fila[nombre] = fusionarListas(m[nombre], s[nombre], mapa[nombre]);
     });
 
-    /* 4-nov-2026 — EL MISMO ABONO, CON ID DE UN LADO Y SIN ID DEL OTRO: ver
-       sinGemelosDeVersion, abajo. Va antes de las reglas que siguen porque ellas
-       deciden con lo que haya en `fila`. */
+    /* 4-nov-2026 — DOS ABONOS IGUALES DE ANTES, y EL MISMO ABONO CON ID DE UN LADO Y SIN
+       ID DEL OTRO: ver conSusRepetidos y sinGemelosDeVersion, abajo. Van antes de las
+       reglas que siguen porque ellas deciden con lo que haya en `fila`. */
+    ['abonosCapital', 'comprobantes'].forEach(function (nombre) {
+      if (mapa[nombre] && Array.isArray(fila[nombre])) fila[nombre] = conSusRepetidos(fila[nombre], m[nombre], s[nombre], mapa[nombre]);
+    });
     if (mapa.abonosCapital && Array.isArray(fila.abonosCapital)) {
       fila.abonosCapital = sinGemelosDeVersion(fila.abonosCapital, m.abonosCapital, s.abonosCapital, mapa.abonosCapital);
     }
@@ -1507,6 +1510,37 @@
     r.total = r.abonos.length + r.prorrogas.length;
     return r;
   }
+  /* 4-nov-2026 — DOS IGUALES DE UN MISMO LADO NO SE FUNDEN. fusionarListas quita los
+     repetidos también dentro de un mismo lado, y los abonos y comprobantes de antes no
+     traen id: dos abonos de 50.000 el mismo día, anotados por el mismo aparato, tenían la
+     misma identidad. Se veían bien en la pantalla (el capital los suma) hasta el día en que
+     esa ficha chocaba: al juntarla, aunque los dos lados trajeran los dos, quedaba uno, y el
+     capital subía 50.000 sin que nadie hubiera tocado nada. Lo encontró la prueba de la
+     cartera grande (la-cartera-de-antes-no-cambia), juntando una ficha consigo misma.
+     A esos abonos no se les pone id, porque se quedan como están; lo que cambia es que
+     juntar ya no se los come. La regla: de cada identidad quedan tantos como tenga el lado
+     que más tiene. Un abono de antes en los dos aparatos sigue siendo uno, y uno de un
+     lado con dos del otro son dos: ese lado ya los conocía. */
+  function conSusRepetidos(juntos, mias, suyas, campos) {
+    var grupos = function (l) {
+      var g = {};
+      lista(l).forEach(function (x) { var k = identidad(x, campos); (g[k] = g[k] || []).push(x); });
+      return g;
+    };
+    var gm = grupos(mias), gs = grupos(suyas);
+    var salida = [];
+    lista(juntos).forEach(function (x) {
+      var k = identidad(x, campos);
+      var a = gm[k] || [], b = gs[k] || [];
+      var mayor = a.length >= b.length ? a : b;
+      salida.push(x);
+      /* El primero ya está (con lo que fusionarListas le completó). Los demás, tal como los
+         tiene ese lado: dos comprobantes iguales pueden llevar fotos distintas. */
+      for (var i = 1; i < mayor.length; i++) salida.push(clonar(mayor[i]));
+    });
+    return salida;
+  }
+
   /* 4-nov-2026 — DESDE v143 EL ABONO SUELTO NACE CON id, y mientras un aparato siga
      con la app de antes, el mismo pago puede estar anotado con id de un lado y sin
      id del otro. Sus identidades ya no casan: entrarían los dos y el capital bajaría
@@ -1538,20 +1572,23 @@
     var enMias = enLista(mias), enSuyas = enLista(suyas);
     var soloMias = lista(mias).filter(function (x) { return suelto(x) && !enSuyas[llave(x)]; });
     var soloSuyas = lista(suyas).filter(function (x) { return suelto(x) && !enMias[llave(x)]; });
-    var usadas = {}, sobra = {}, sinPareja = {};
+    var usadas = {}, sobran = {};
     soloSuyas.forEach(function (x) {
       for (var i = 0; i < soloMias.length; i++) {
         if (!usadas[i] && conId(soloMias[i]) !== conId(x) && dia(soloMias[i]) === dia(x)) {
           usadas[i] = true;
-          sobra[llave(x)] = true;
+          sobran[llave(x)] = (sobran[llave(x)] || 0) + 1;
           return;
         }
       }
-      sinPareja[llave(x)] = true;
     });
-    /* Dos de allá con la misma identidad ya entraron como uno (fusionarListas): si uno
-       no encontró pareja, ese se queda. */
-    return lista(juntos).filter(function (x) { return !(suelto(x) && sobra[llave(x)] && !sinPareja[llave(x)]); });
+    /* Se saca uno por pareja, no todos los de esa identidad: dos de antes del otro lado
+       contra uno de aquí son dos pagos, no uno. */
+    return lista(juntos).filter(function (x) {
+      if (!suelto(x) || !sobran[llave(x)]) return true;
+      sobran[llave(x)]--;
+      return false;
+    });
   }
   /* Saca de una lista de `fila` los elementos de `quitar`, por su identidad. */
   function quitarDeFila(fila, nombre, quitar, mapa) {
