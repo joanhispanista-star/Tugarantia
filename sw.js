@@ -2026,7 +2026,10 @@
    estrenan la firma de llegada y se precargan con ?v=142: app/gestion-asesor.js (la
    plantilla) y app/etapas.js (la etapa se lee «Cerró su crédito»; la llave sigue
    siendo PAGADO). Los dos los pide solo panel/crm.html. Y un abono del otro aparato
-   que el cierre no conocía baja la pérdida (app/puente.js, ya en v142). */
+   que el cierre no conocía baja la pérdida (app/puente.js, ya en v142). Y el CRM no
+   afirma de la cédula que falta lo que no se sabe, «Volver» tras «Tomar las fotos»
+   regresa a «Tu rostro», y un pasaporte se llama pasaporte: dos páginas, play/index.html
+   y panel/crm.html, ya en v142, y ningún .js publicado. */
 const CACHE = 'tugarantia-v142';
 const BASE = new URL('./', self.location).pathname;
 

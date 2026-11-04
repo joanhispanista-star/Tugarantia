@@ -5861,9 +5861,18 @@ function verCliente(id){
      ↻ GIRAR UNA FOTO): la que se ve al revés se endereza una vez y para siempre. */
   /* 19-oct-2026 — con un solo lado de la cédula, se dice cuál falta (ver
      avisoLadoQueFalta). */
-  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div>${avisoLadoQueFalta(!!s.cedulaFrenteFoto,!!s.cedulaReversoFoto,'',!!s.selfieFoto)}<div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Su cara'].indexOf(f[0])];
+  /* 4-nov-2026 — LA FICHA SABE LO QUE EL REGISTRO SABE. Al abrirle la ficha, el
+     registro sale de la bandeja y lo que queda es esto: con cero fotos no decía nada,
+     y con el rostro decía que faltaba sin decir por qué. Solo de una ficha que nació
+     de un registro con la llave: una hecha a mano no tiene por qué tener fotos. */
+  const declaro=fotosTomadasDe(s.vinculacion)?{datos:s.vinculacion}:null;
+  const enLaFicha={cedula_frente:!!s.cedulaFrenteFoto,cedula_reverso:!!s.cedulaReversoFoto,selfie:!!s.selfieFoto};
+  const colaFicha=declaro?porQueFaltaLaCedula(enLaFicha,declaro):'';
+  const pedirFicha=declaro?botonPedirFotosFicha(s,ladosQueFaltan(enLaFicha,declaro)):'';
+  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div>${avisoLadoQueFalta(!!s.cedulaFrenteFoto,!!s.cedulaReversoFoto,colaFicha,!!s.selfieFoto,esPasaporte(s.vinculacion))}${pedirFicha}<div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Su cara'].indexOf(f[0])];
       return `<div class="gal-it"><a data-foto="${f[1]}" target="_blank"><img data-foto="${f[1]}" id="fichaFoto_${cual}"><div class="cap">${f[0]}</div></a>${botonGirar("girarFotoFicha('"+escHTML(s.id)+"','"+cual+"')")}</div>`; }).join('')}</div>`
-    +(s.selfieFoto&&s.cedulaFrenteFoto?`<div id="fichaParecido" style="margin-top:8px"></div>`:''):'';
+    +(s.selfieFoto&&s.cedulaFrenteFoto?`<div id="fichaParecido" style="margin-top:8px"></div>`:'')
+    :(colaFicha?`<div class="sub-h">Fotos de verificación</div><div class="muted" style="margin-bottom:8px">${escHTML(colaFicha)}</div>${pedirFicha}`:'');
   /* 8-sep-2026 — desde dónde se registró (huella), si vino del registro abierto. */
   const huellaHTML=s.huellaRegistro?bloqueHuella(Object.assign({},s.huellaRegistro,{gps:s.ubicacion||null}),{socio:s}):'';
   const fondo=fondoCuponDe(s);
@@ -10203,7 +10212,7 @@ function escribirlePorLaApp(desde,id,borrador){
     const s=DB.socios.find(x=>x.id===id); if(!s) return;
     const llave=PUENTE.llaveEnLaNube(s);
     if(!llave) return alert('Esta ficha no tiene cédula ni celular: no hay hilo donde escribirle.');
-    return abrirConversacion(llave,{nombre:s.nombre||'',
+    return abrirConversacion(llave,{nombre:s.nombre||'',borrador,
       nota:(s.cuentaJunta?'':'Esto queda en el hilo de su ficha: lo lee cuando su cuenta de la app esté junta con ella. ')+AVISO_SIN_PUSH});
   }
   const r=registroPorId(id); if(!r) return;   // 3-nov-2026 — también los que trajo el chat (ver pedirFotosPorElChat)
@@ -11717,7 +11726,10 @@ function bloqueHuella(h,donde){
          fotos son de otro registro, no se llama sin sesión de Supabase —le pasó
          a la primera clienta real— y no manda nada si no hay ni fotos ni
          lectura). Ausencia de huella no es prueba de que tecleara. */
-      +escHTML(lecturaQueNoLlego(donde&&donde.registro))+'</span></div>')
+      /* 4-nov-2026 — desde la ficha, con lo que el registro le dejó (s.vinculacion):
+         el mismo cliente decía «se leyó por sus letras» en el registro y, al abrirle
+         la ficha, «desde aquí no se distinguen». */
+      +escHTML(lecturaQueNoLlego(donde&&(donde.registro||(donde.socio&&{datos:donde.socio.vinculacion})),!(donde&&donde.registro)))+'</span></div>')
     /* 20-oct-2026, revisión — h.momento es cuándo se leyeron la IP y la
        conexión (al subir las fotos), no cuándo se creó el registro: si la
        persona volvió a subir fotos otro día, son fechas distintas y decir
@@ -12348,7 +12360,12 @@ function ponerHueco(el,motivo){
    SI ESTÁ EL ROSTRO. Joan, el 31-oct: «no veo las fotos de la cédula» de un registro
    con solo el rostro. Las tres vistas pintaban la galería con el rostro y
    no decían nada de la cédula. `hayRostro` es ese caso. */
-function avisoLadoQueFalta(hayFrente,hayReverso,cola,hayRostro){
+function avisoLadoQueFalta(hayFrente,hayReverso,cola,hayRostro,pasaporte){
+  /* 4-nov-2026 — un pasaporte no tiene frente y respaldo: con una foto ya está. */
+  if(pasaporte){
+    if(hayFrente||hayReverso||!hayRostro) return '';
+    return `<div class="alerta warn" style="margin-bottom:8px"><b>Falta la foto del pasaporte: solo está el rostro.</b>${cola?`<div class="muted" style="margin-top:4px">${escHTML(cola)}</div>`:''}</div>`;
+  }
   if(!hayFrente&&!hayReverso){
     if(!hayRostro) return '';
     return `<div class="alerta warn" style="margin-bottom:8px"><b>Falta la cédula: no está ni el frente ni el respaldo, solo el rostro.</b>${cola?`<div class="muted" style="margin-top:4px">${escHTML(cola)}</div>`:''}</div>`;
@@ -12363,37 +12380,77 @@ function avisoLadoQueFalta(hayFrente,hayReverso,cola,hayRostro){
    veían igual, y lo que Joan hace en cada caso es distinto. Desde v142 el teléfono
    anota en los datos del registro qué fotos había al abrir la cuenta
    (fotos_tomadas, play/index.html). Es lo que DIJO el teléfono de quien se
-   registra: solo se compara contra tres nombres y nunca se pinta tal cual, y lo
+   registra: solo se compara contra unos nombres y nunca se pinta tal cual, y lo
    que llegó de verdad a la base manda sobre esto. Sin la llave, el registro es de
-   antes y se dice que no se sabe. */
+   antes y se dice que no se sabe.
+   4-nov-2026 — Y ES LO QUE DIJO LA PRIMERA VEZ. registrar_abierto no pisa una fila
+   'nuevo': si el signup se cae y la persona vuelve a tocar «Abrir mi cuenta», aquí
+   sigue lo del primer toque, aunque después haya quitado la casilla o escaneado
+   (lo probó esta revisión con la función de verdad). Por eso porQueFaltaLaCedula y
+   lecturaQueNoLlego dicen lo que dijo el teléfono y no afirman más: ni que le avisó
+   (el dato no lo dice: sale igual de quien vio el aviso, de quien marcó la casilla
+   en el último paso y de quien se registró por PlataChat), ni que las fotos «siguen
+   en su teléfono» (pudo soltarlas). 'cedula_soltada': dio el permiso y el teléfono
+   se lo quitó con una cédula que no coincidió (fotosTomadasAlAbrir). */
+function esPasaporte(datos){ return String((datos&&datos.tipo_doc)||'')==='Pasaporte'; }
 function fotosTomadasDe(datos){
   const v=datos&&datos.fotos_tomadas;
   if(typeof v!=='string'||!v) return null;
   if(v==='sin_permiso') return {permiso:false,cedula_frente:false,cedula_reverso:false,selfie:false};
+  if(v==='cedula_soltada') return {permiso:false,cedula_soltada:true,cedula_frente:false,cedula_reverso:false,selfie:false};
   const l=v.split(',');
   return {permiso:true,cedula_frente:l.indexOf('cedula_frente')>=0,cedula_reverso:l.indexOf('cedula_reverso')>=0,selfie:l.indexOf('selfie')>=0};
 }
 /* Las fotos que no suben se borran del teléfono al día siguiente de tomarlas
    (EC.fotosPertenecen, «caducada» en play/index.html), así que «suben cuando
    entre» solo se puede decir ese primer día. */
-function porQueFaltaLaCedula(llegaron,r){
-  const faltan=['cedula_frente','cedula_reverso'].filter(k=>!(llegaron&&llegaron[k]));
+function porQueFaltaLaCedula(llegaron,r,huella){
+  const pasaporte=esPasaporte(r&&r.datos);
+  const faltan=pasaporte
+    ?((llegaron&&(llegaron.cedula_frente||llegaron.cedula_reverso))?[]:['cedula_frente'])
+    :['cedula_frente','cedula_reverso'].filter(k=>!(llegaron&&llegaron[k]));
   if(!faltan.length) return '';
-  const dos=faltan.length>1, tom=fotosTomadasDe(r&&r.datos);
+  const dos=faltan.length>1, tom=fotosTomadasDe(r&&r.datos), pide=dos?'Pídeselas':'Pídesela';
+  /* 4-nov-2026 — LO QUE DIJO LA BASE MANDA SOBRE LO QUE DIJO EL TELÉFONO. Con la
+     cédula rechazada (otro documento, en duda) o la foto sin aceptar (muy grande),
+     el teléfono ya soltó la cola, y aquí se le decía a Joan que esperara unas fotos
+     que no existen: «a uno le pregunta, al otro le espera». Otras veces no queda
+     rastro (eligió seguir a PlataChat sin ellas, quitó el permiso en el reintento):
+     por eso abajo dice «si siguen allá». */
+  const h=(huella&&typeof huella==='object')?huella:{};
+  if(h.cedula_rechazada) return 'La nube no guardó la cédula de sus fotos: '
+    +(h.cedula_rechazada.motivo==='otro_documento'?'no es la del documento de su registro':'no se pudo confirmar de quién es')
+    +', y el teléfono las borró. '+pide+' antes de desembolsar.';
+  const rech=((h.fotos_rechazadas&&Array.isArray(h.fotos_rechazadas.fotos))?h.fotos_rechazadas.fotos:[]).filter(x=>x&&faltan.indexOf(x.tipo)>=0);
+  if(rech.length){
+    const una=rech.length===1, grandes=rech.every(x=>x.motivo==='muy_grande');
+    return 'La nube no aceptó '+(una?'esa foto':'las fotos de la cédula')+' ('
+      +(grandes?(una?'demasiado grande':'demasiado grandes'):(una?'no era una imagen':'no eran imágenes'))
+      +'), y el teléfono ya no '+(una?'la':'las')+' tiene. '+pide+' antes de desembolsar.';
+  }
   if(!tom) return dos
     ?'No llegaron a la nube: el teléfono no las subió o nunca las tomó, y este registro es de antes de que se anotara cuál de las dos. Pídeselas antes de desembolsar.'
     :'No llegó a la nube: el teléfono no la subió o nunca la tomó. Pídesela antes de desembolsar.';
-  if(!tom.permiso) return 'No dio el permiso de las fotos: es su derecho (Ley 1581), y por eso su cuenta se abre igual. Antes de desembolsar, confirma quién es: pregúntale por el chat si las manda o prefiere otra forma.';
-  const pide=dos?'Pídeselas':'Pídesela', tomadas=faltan.filter(k=>tom[k]);
-  if(!tomadas.length) return (dos?'No las tomó: el teléfono le avisó que faltaban y siguió sin ellas. ':'No la tomó: el teléfono le avisó que faltaba y siguió sin ella. ')+pide+' antes de desembolsar.';
+  if(!tom.permiso){
+    /* Su rostro no sube sin permiso (la base lo rechaza): si algo llegó, lo de «sin
+       permiso» es del primer toque, y lo dio después. */
+    if(llegaron&&(llegaron.selfie||llegaron.cedula_frente||llegaron.cedula_reverso))
+      return 'Al registrarse su teléfono anotó que no tenía el permiso de las fotos, pero algo suyo sí llegó: el permiso lo dio después. '+pide+' antes de desembolsar.';
+    if(tom.cedula_soltada) return 'Dio el permiso y la cédula que tomó no coincidió con el documento escrito (o dijo que no era suya): el teléfono borró las fotos y le quitó el permiso, y siguió sin ellas. Antes de desembolsar, confirma quién es: pregúntale por el chat si las manda o prefiere otra forma.';
+    return 'Se registró sin el permiso de las fotos: es su derecho (Ley 1581), y por eso su cuenta se abre igual. Antes de desembolsar, confirma quién es: pregúntale por el chat si las manda o prefiere otra forma.';
+  }
+  const tomadas=faltan.filter(k=>pasaporte?(tom.cedula_frente||tom.cedula_reverso):tom[k]);
+  if(!tomadas.length) return 'Al registrarse, su teléfono no tenía '+(pasaporte?'la foto de su pasaporte':(dos?'las fotos de la cédula':'esa foto'))+'. '+pide+' antes de desembolsar.';
   if(tomadas.length<faltan.length){
     const nombre={cedula_frente:'el frente',cedula_reverso:'el respaldo'};
-    return 'Tomó '+nombre[tomadas[0]]+' y no ha llegado; '+nombre[faltan.find(k=>!tom[k])]+' no lo tomó. Pídeselas antes de desembolsar.';
+    return 'Su teléfono dijo que tomó '+nombre[tomadas[0]]+', y no ha llegado; '+nombre[faltan.find(k=>!tom[k])]+' no lo tenía. Pídeselas antes de desembolsar.';
   }
+  /* Sin fecha (una ficha) no se sabe si pasó el día: «todavía» sería para siempre. */
   const horas=(Date.now()-new Date(r&&r.creado_en).getTime())/3600e3;
-  if(horas>=24) return (dos?'Las tomó, pero no llegaron':'La tomó, pero no llegó')+' y ya pasó más de un día: el teléfono '+(dos?'las':'la')+' borra. '+pide+' antes de desembolsar.';
-  return dos?'Las tomó y todavía no llegan: siguen en su teléfono y suben cuando entre a su cuenta. Si no entra en un día, se borran.'
-            :'La tomó y todavía no llega: sigue en su teléfono y sube cuando entre a su cuenta. Si no entra en un día, se borra.';
+  if(!isFinite(horas)) return 'Su teléfono dijo que '+(dos?'las tomó, y aquí no están':'la tomó, y aquí no está')+'. '+pide+' antes de desembolsar.';
+  if(horas>=24) return 'Su teléfono dijo que '+(dos?'las tomó, pero no llegaron':'la tomó, pero no llegó')+' y ya pasó más de un día: el teléfono '+(dos?'las':'la')+' borra. '+pide+' antes de desembolsar.';
+  return dos?'Su teléfono dijo que las tomó, y todavía no llegan. Si siguen allá, suben cuando entre a su cuenta, y en un día se borran. Si hoy no llegan, pídeselas antes de desembolsar.'
+            :'Su teléfono dijo que la tomó, y todavía no llega. Si sigue allá, sube cuando entre a su cuenta, y en un día se borra. Si hoy no llega, pídesela antes de desembolsar.';
 }
 /* «💬 Pedirle las fotos por el chat» abre su chat con el mensaje ESCRITO, y lo
    manda Joan: lo que viaja a un cliente lo lee él primero. Dice que hay otra
@@ -12404,44 +12461,71 @@ function porQueFaltaLaCedula(llegaron,r){
 const PEDIR_FOTOS={
   los_dos:'Hola, nos faltan las fotos de tu cédula por los dos lados. Mándalas por aquí, por favor. Si prefieres no mandarlas, dinos y vemos otra forma de confirmar que eres tú.',
   frente:'Hola, nos falta la foto del frente de tu cédula. Mándala por aquí, por favor. Si prefieres no mandarla, dinos y vemos otra forma de confirmar que eres tú.',
-  reverso:'Hola, nos falta la foto del respaldo de tu cédula (el lado del código de barras). Mándala por aquí, por favor. Si prefieres no mandarla, dinos y vemos otra forma de confirmar que eres tú.'
+  reverso:'Hola, nos falta la foto del respaldo de tu cédula (el lado del código de barras). Mándala por aquí, por favor. Si prefieres no mandarla, dinos y vemos otra forma de confirmar que eres tú.',
+  pasaporte:'Hola, nos falta la foto de tu pasaporte (la página con tu foto). Mándala por aquí, por favor. Si prefieres no mandarla, dinos y vemos otra forma de confirmar que eres tú.'
 };
-function ladosQueFaltan(llegaron){
+function ladosQueFaltan(llegaron,r){
   const fr=!!(llegaron&&llegaron.cedula_frente), re=!!(llegaron&&llegaron.cedula_reverso);
+  if(esPasaporte(r&&r.datos)) return fr||re?'':'pasaporte';
   return fr&&re?'':(!fr&&!re?'los_dos':(fr?'reverso':'frente'));
 }
 function botonPedirFotos(r,falta){
   if(!falta||!r||!r.telefono) return '';
   return `<div style="margin:0 0 8px"><button class="btn btn-ghost btn-sm" onclick="pedirFotosPorElChat('${escHTML(String(r.id))}','${falta}')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
 }
+/* 4-nov-2026 — y desde la ficha, que es lo que queda después de abrírsela: el registro
+   sale de la bandeja. Lo que falta ya lo sabe la ficha, sin preguntarle a la nube. */
+function botonPedirFotosFicha(s,falta){
+  if(!falta) return '';
+  return `<div style="margin:0 0 8px"><button class="btn btn-ghost btn-sm" onclick="pedirFotosDeLaFicha('${escHTML(String(s.id))}','${falta}')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
+}
+function pedirFotosDeLaFicha(id,falta){
+  return escribirlePorLaApp('ficha',id,PEDIR_FOTOS[falta]||PEDIR_FOTOS.los_dos);
+}
 function pedirFotosPorElChat(id,falta){
   if(falta) return escribirlePorLaApp('registro',id,PEDIR_FOTOS[falta]||PEDIR_FOTOS.los_dos);
   const r=registroPorId(id); if(!r) return;
   archivosDe(r.telefono||r.cedula).then(a=>{
     if(a.fallo) return alert('No pude preguntarle a la nube qué fotos tiene: '+a.fallo+'\n\nNo te abro el chat a ciegas: podría pedirle lo que ya mandó.');
-    const que=ladosQueFaltan(a.fotos);
-    if(!que) return alert('Ya llegaron las dos fotos de su cédula. Míralas en «👁 Ver datos».');
+    const que=ladosQueFaltan(a.fotos,r);
+    if(!que) return alert((esPasaporte(r.datos)?'Ya llegó la foto de su pasaporte.':'Ya llegaron las dos fotos de su cédula.')+' Míralas en «👁 Ver datos».');
     escribirlePorLaApp('registro',id,PEDIR_FOTOS[que]);
   });
 }
 /* En 📥 Registrados, de un vistazo, sin pedirle nada a la nube: lo que su teléfono
    dijo al registrarse. Por eso dice «se registró», que sigue siendo cierto si las
-   mandó después. */
+   mandó después.
+   4-nov-2026 — si la lectura del código ya llegó, la cédula llegó: la marca sería del
+   primer toque de un signup que se cayó. Y PlataChat no cambia (decisión de Joan): la
+   llave viaja porque «Ver datos» la necesita para no decir «este registro es de
+   antes», pero su fila se ve como se veía. */
 function chipCedulaRegistro(r){
+  if(String((r&&r.app)||'')==='platachat') return '';
   const tom=fotosTomadasDe(r&&r.datos);
   if(!tom||(tom.cedula_frente&&tom.cedula_reverso)) return '';
-  const uno=tom.cedula_frente||tom.cedula_reverso;
-  return `<div style="margin-top:4px"><span class="chip riesgo-medio">🪪 ${uno?'Se registró con un solo lado de la cédula':'Se registró sin la cédula'}</span> <button class="btn btn-ghost btn-sm" onclick="pedirFotosPorElChat('${escHTML(String(r.id))}','')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
+  if(r.huella&&r.huella.cedula_leida) return '';
+  const uno=tom.cedula_frente||tom.cedula_reverso, pasaporte=esPasaporte(r.datos);
+  if(pasaporte&&uno) return '';
+  return `<div style="margin-top:4px"><span class="chip riesgo-medio">🪪 ${pasaporte?'Se registró sin la foto de su pasaporte':(uno?'Se registró con un solo lado de la cédula':'Se registró sin la cédula')}</span> <button class="btn btn-ghost btn-sm" onclick="pedirFotosPorElChat('${escHTML(String(r.id))}','')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
 }
-/* Y la fila «Cédula leída» de bloqueHuella, cuando no hay lectura del código. */
-function lecturaQueNoLlego(r){
+/* Y la fila «Cédula leída» de bloqueHuella, cuando no hay lectura del código.
+   4-nov-2026 — «No llegó lectura», no «No se leyó»: esto es lo que dijo el teléfono
+   la primera vez (ver fotosTomadasDe), y salió encima de tres fotos que sí llegaron.
+   `enLaFicha`: la ficha no guarda la lectura (huellaParaFicha), así que de quien se
+   le leyó bien no se puede decir que todavía no llega. */
+function lecturaQueNoLlego(r,enLaFicha){
   const d=r&&r.datos, tom=fotosTomadasDe(d);
   /* v139 también lee las letras impresas, y eso no es un error: la huella no lo
      trae (registro_archivos_guardar no guarda cedula_vista), así que viaja con
      los datos del registro, igual que fotos_tomadas. */
   if(d&&d.cedula_leida_con==='letras') return 'Se leyó por sus letras, no por el código de barras: el teléfono llenó lo que pudo leer y la persona lo revisó.';
-  if(tom&&!tom.permiso) return 'No se leyó: no dio el permiso de las fotos.';
-  if(tom&&!tom.cedula_frente&&!tom.cedula_reverso) return 'No se leyó: no tomó las fotos de su cédula.';
+  if(d&&d.cedula_leida_con==='codigo') return enLaFicha
+    ?'Su teléfono la leyó por el código de barras al registrarse.'
+    :'Su teléfono la leyó por el código de barras, y esa lectura todavía no llega: viaja con sus fotos.';
+  if(esPasaporte(d)) return 'Su documento es un pasaporte: no trae el código de barras de la cédula.';
+  if(tom&&tom.cedula_soltada) return 'No llegó lectura: la cédula que tomó no coincidió con el documento escrito (o dijo que no era suya), y el teléfono la borró.';
+  if(tom&&!tom.permiso) return 'No llegó lectura: cuando se anotó su registro no tenía el permiso de las fotos.';
+  if(tom&&!tom.cedula_frente&&!tom.cedula_reverso) return 'No llegó lectura: cuando se anotó su registro, su teléfono no tenía las fotos de su cédula.';
   if(tom) return 'Tomó su cédula, pero no llegó lectura del código de barras: no se pudo leer, o sus fotos todavía no suben. Si el respaldo está aquí abajo, «🔢 Leer el código» lo intenta otra vez.';
   return 'No llegó la lectura del código de barras. Puede ser que no lo escaneara, '
     +'o que la subida de sus fotos no llegara: son cosas distintas y desde aquí '
@@ -12494,17 +12578,17 @@ function pintarFotosRegistro(celular,cajaId,r){
     const lista=[['Cédula (frente)',f.cedula_frente,'frente'],['Cédula (reverso)',f.cedula_reverso,'reverso'],['Rostro',f.selfie,'selfie']].filter(x=>x[1]);
     /* 3-nov-2026 — lo que se sabe de la cédula que falta, y el botón para pedirla
        (ver QUÉ SE SABE DE LA CÉDULA QUE NO ESTÁ). */
-    const pedir=botonPedirFotos(r,ladosQueFaltan(crudas));
+    const pedir=botonPedirFotos(r,ladosQueFaltan(crudas,r));
     if(!lista.length){
       caja.innerHTML=(avisoRaras||(fotosTomadasDe(r&&r.datos)
-        ?`<div class="muted" style="margin-bottom:8px">${escHTML(porQueFaltaLaCedula(crudas,r))}</div>`
+        ?`<div class="muted" style="margin-bottom:8px">${escHTML(porQueFaltaLaCedula(crudas,r,a.huella))}</div>`
         :'<div class="muted" style="margin-bottom:8px">No subió fotos (o no autorizó).</div>'))+pedir;
       return;
     }
     /* 19-oct-2026 — con un solo lado se dice cuál falta. Se mira lo que LLEGÓ
        (crudas), no lo que se muestra: un archivo raro ya tiene su aviso arriba
        y sí llegó. */
-    const avisoLado=avisoLadoQueFalta(!!crudas.cedula_frente,!!crudas.cedula_reverso,porQueFaltaLaCedula(crudas,r),!!crudas.selfie)
+    const avisoLado=avisoLadoQueFalta(!!crudas.cedula_frente,!!crudas.cedula_reverso,porQueFaltaLaCedula(crudas,r,a.huella),!!crudas.selfie,esPasaporte(r&&r.datos))
       +pedir
       +avisoSelfieQueFalta(crudas,a.huella,'Pídesela antes de desembolsar.');
     /* 8-oct-2026 — cada foto con su «↻ Girar» (ver ↻ GIRAR UNA FOTO). */
@@ -14597,7 +14681,7 @@ function fichaHTML(j) {
     </div>` +
     (hayFotos
       ? `<div class="sub-h">Lo que subió</div>
-         ${avisoLadoQueFalta(!!f.cedula_frente, !!f.cedula_reverso, 'Pídesela antes de desembolsar.', !!f.selfie)}
+         ${avisoLadoQueFalta(!!f.cedula_frente, !!f.cedula_reverso, 'Pídesela antes de desembolsar.', !!f.selfie, esPasaporte(d))}
          ${avisoSelfieQueFalta(f, h, 'Pídesela antes de desembolsar.')}
          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px">
            ${FOTOS.filter(x => f[x[0]]).map(x => `<figure style="margin:0">

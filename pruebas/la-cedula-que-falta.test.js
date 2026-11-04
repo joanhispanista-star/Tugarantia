@@ -95,6 +95,58 @@ describe('1 · En el teléfono: con el permiso y sin la cédula, se avisa una ve
     assert.equal(B.pasoActual(P), 'contacto', 'avisó dos veces de lo mismo');
   });
 
+  /* 4-nov-2026 — antes hacían falta cuatro «Volver» para llegar a la portada, que
+     suelta lo sensible a propósito. El botón nuevo dejaba a dos toques de perderlo:
+     «Tomar las fotos» saltaba al Paso 1, y ahí «Volver» es la portada. */
+  function conSelfieYAviso() {
+    const P = B.abrir();
+    B.tocar(P, 'Prefiero escribir mis datos');
+    hastaElRostro(P);
+    P.ev('autorizarDesdeElRostro()');
+    B.selfie(P, 'MARIA');
+    P.ev('siguientePaso()');
+    assert.match(textoAviso(P), /Te faltan las fotos de tu cédula/);
+    P.ev(B.boton(P.elems.errReg.innerHTML, 'Tomar las fotos'));
+    assert.equal(B.pasoActual(P), 'documento');
+    return P;
+  }
+
+  test('«Volver» después de «Tomar las fotos» regresa a «Tu rostro», y no se lleva nada', () => {
+    const P = conSelfieYAviso();
+    B.tocar(P, 'Volver');
+    assert.equal(B.pasoActual(P), 'rostro', 'lo sacó del registro sin decirle nada');
+    assert.equal(P.ev('autorizoEsteIntento()'), true, 'se llevó el permiso');
+    assert.equal(P.ev("hayFotoLista('selfie')"), true, 'se llevó la selfie');
+    /* Y el aviso sigue funcionando: si vuelve a seguir sin ellas, se le dice una vez. */
+    P.ev('siguientePaso()');
+    assert.match(textoAviso(P), /Te faltan las fotos de tu cédula/);
+    P.ev('siguientePaso()');
+    assert.equal(B.pasoActual(P), 'contacto');
+  });
+
+  test('«Cancelar» el escáner no le cambia a «Volver» a dónde va', () => {
+    const P = conSelfieYAviso();
+    P.ev("pintarRegistro(indiceDe('documento'))");   // lo que hace «Cancelar»
+    B.tocar(P, 'Volver');
+    assert.equal(B.pasoActual(P), 'rostro');
+    assert.equal(P.ev("hayFotoLista('selfie')"), true);
+  });
+
+  test('con «Continuar» se va por los pasos, y después «Volver» ya es el de siempre', () => {
+    const P = conSelfieYAviso();
+    P.ev('siguientePaso()');   // de la cédula sin fotos: avisa
+    P.ev('siguientePaso()');
+    assert.equal(B.pasoActual(P), 'identidad');
+    P.ev("pintarRegistro(indiceDe('documento'))");
+    assert.equal(B.boton(B.cuerpo(P), 'Volver'), 'pintarEntrar()', 'recordó un salto que ya terminó');
+  });
+
+  test('quien llegó al primer paso por el camino normal sale a la portada, como siempre', () => {
+    const P = B.abrir();
+    assert.equal(B.pasoActual(P), 'documento');
+    assert.equal(B.boton(B.cuerpo(P), 'Volver'), 'pintarEntrar()');
+  });
+
   test('con un solo lado sigue el aviso de ese lado, también al dejar «Tu rostro»', () => {
     const P = B.abrir();
     B.escanear(P, B.MARIA, 'MARIA');
@@ -104,6 +156,57 @@ describe('1 · En el teléfono: con el permiso y sin la cédula, se avisa una ve
     P.ev('siguientePaso()');
     assert.equal(B.pasoActual(P), 'rostro');
     assert.match(textoAviso(P), /Te falta la foto del frente de tu cédula/);
+  });
+});
+
+describe('1-bis · 4-nov-2026: a quien escribió Pasaporte no se le habla de una cédula', () => {
+  function hastaElRostroCon(P, doc) {
+    B.tocar(P, 'Prefiero escribir mis datos');
+    B.casillas(P, 'identidad', Object.assign({}, B.DATOS_MARIA, doc));
+    P.ev('siguientePaso()');
+    B.toque(P, B.CEL_MARIA, B.CLAVE_MARIA);
+    assert.equal(B.pasoActual(P), 'rostro', 'no llegó a «Tu rostro»: ' + B.texto(B.caja(P)));
+    P.ev('autorizarDesdeElRostro()');
+    B.selfie(P, 'MARIA');
+  }
+  const PASAPORTE = { tipo_doc: 'Pasaporte', documento: 'AB123456' };
+
+  test('el aviso nombra su pasaporte, sin «los dos lados» y sin mandarlo al escáner de la cédula', () => {
+    const P = B.abrir();
+    hastaElRostroCon(P, PASAPORTE);
+    P.ev('siguientePaso()');
+    assert.equal(B.pasoActual(P), 'rostro');
+    const t = textoAviso(P);
+    assert.match(t, /Te falta la foto de tu pasaporte/);
+    assert.match(t, /tu cuenta se abre igual/);
+    assert.doesNotMatch(t, /cédula/, 'le dijo que le falta una cédula que no tiene');
+    assert.doesNotMatch(t, /dos lados/);
+    assert.equal(B.boton(P.elems.errReg.innerHTML, 'Tomar las fotos'), null, 'lo manda a un escáner que dice «Pon la cédula DE PIE»');
+    P.ev('siguientePaso()');
+    assert.equal(B.pasoActual(P), 'contacto', 'el segundo toque siempre pasa');
+  });
+
+  test('con la cédula de extranjería sigue el aviso de la cédula: tiene dos lados', () => {
+    const P = B.abrir();
+    hastaElRostroCon(P, { tipo_doc: 'Cédula de extranjería', documento: '123456' });
+    P.ev('siguientePaso()');
+    assert.match(textoAviso(P), /Te faltan las fotos de tu cédula/);
+  });
+
+  test('en PlataChat tampoco cambia nada con un pasaporte', () => {
+    const P = B.abrir();
+    P.ev("MARCA = 'platachat'");
+    P.ev("REGISTRO.tipo_doc = 'Pasaporte'");
+    P.ev('autorizarYEscanear()');
+    assert.equal(P.ev('ladoQueFalta()'), '');
+  });
+
+  test('su cuenta tampoco le dice «no tomaste la foto de tu cédula»', () => {
+    const P = B.abrir();
+    const t = P.ev("textoDeLoQueFalto(['cedula_frente','cedula_reverso'], [], false, true)");
+    assert.match(t, /no tomaste la foto de tu pasaporte/);
+    assert.doesNotMatch(t, /cédula/);
+    assert.match(P.ev("textoDeLoQueFalto(['cedula_frente','cedula_reverso'], [], false)"), /no tomaste la foto de tu cédula/);
   });
 });
 
@@ -143,7 +246,19 @@ describe('2 · Y nadie se queda afuera: esto no es una condición', () => {
     const P = B.abrir();
     P.ev("MARCA = 'platachat'");
     P.ev('autorizarYEscanear()');
-    assert.equal(P.ev('ladoQueFalta()'), '', 'PlataChat no decide ningún crédito: Joan no pidió tocarla');
+    assert.equal(P.ev('ladoQueFalta()'), '', 'Joan decidió que PlataChat no cambia');
+    P.ev('siguientePaso()');
+    assert.equal(B.pasoActual(P), 'identidad', 'en PlataChat «Continuar» pasa callado, como antes');
+    assert.doesNotMatch(textoAviso(P), /Te faltan/);
+  });
+
+  test('en PlataChat el primer paso dice lo mismo de antes: «te escribimos por el chat» es de Tu Garantía', () => {
+    const P = B.abrir();
+    P.ev("MARCA = 'platachat'");
+    P.ev("pintarRegistro(indiceDe('documento'))");
+    const t = B.texto(B.cuerpo(P));
+    assert.match(t, /Sin fotos: ni de la cédula ni de tu cara\. Si cambias de opinión/);
+    assert.doesNotMatch(t, /confirmar que eres tú toma más tiempo/);
   });
 });
 
@@ -183,6 +298,27 @@ describe('3 · La bandeja dice qué fotos tomó, sin ninguna imagen', () => {
     esTextoQueLaBaseGuarda(d);
   });
 
+  test('quien dio el permiso y escaneó una cédula de otro documento no sale como «no dio el permiso»', async () => {
+    const P = B.abrir();
+    B.escanear(P, B.MARIA, 'MARIA');
+    B.casillas(P, 'identidad', { expedicion: B.DATOS_MARIA.expedicion, documento: '79111222' });
+    P.ev('siguientePaso()');
+    assert.match(textoAviso(P), /no es la del documento que escribiste/);
+    assert.equal(P.ev('PERMISO_SOLTADO'), true);
+    P.ev('siguientePaso()');   // «Seguir sin fotos»
+    B.toque(P, B.CEL_MARIA, B.CLAVE_MARIA);
+    assert.equal(B.pasoActual(P), 'rostro');
+    P.ev('siguientePaso()');
+    B.casillas(P, 'contacto', B.CONTACTO_MARIA);
+    ['correo', 'celular2'].forEach(k => P.ev("anotarCampo($('f_" + k + "'))"));
+    P.ev('Object.assign(REGISTRO, ' + JSON.stringify(B.RESTO) + '); guardarBorrador(REGISTRO);');
+    P.ev("pintarRegistro(indiceDe('permiso')); $('autGeneral').checked = true; $('autSensible').checked = false;");
+    const d = await abrirCuenta(P);
+    assert.equal(d.fotos_tomadas, 'cedula_soltada');
+    assert.equal(d.cedula_leida_con, '');
+    esTextoQueLaBaseGuarda(d);
+  });
+
   test('con el permiso y sin ninguna foto: «ninguna», que es el caso que no se distinguía', async () => {
     const P = B.abrir();
     P.ev('autorizarYEscanear()');
@@ -210,10 +346,10 @@ const CEL = '3001234567';
 const HOY = '2026-11-03T12:00:00';
 const plano = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
-function crm(fotos) {
+function crm(fotos, huella) {
   const red = url => {
     if (String(url).includes('archivos_de_registro')) {
-      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify({ fotos, huella: null })) });
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify({ fotos, huella: huella || null })) });
     }
     return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('null') });
   };
@@ -224,8 +360,8 @@ function crm(fotos) {
 }
 const registro = (datos, creado) => ({ id: 17, nombre: 'Luis Ejemplo', cedula: '80000000', telefono: CEL, estado: 'nuevo',
   origen: 'abierto', datos: Object.assign({ nombres: 'Luis' }, datos), huella: { ip: '190.1.1.1' }, creado_en: creado || '2026-11-03T15:00:00Z' });
-async function tarjeta(fotos, datos, creado) {
-  const P = crm(fotos);
+async function tarjeta(fotos, datos, creado, huella) {
+  const P = crm(fotos, huella);
   P.ctx.__r = [registro(datos, creado)]; P.ev('_registros=__r');
   P.ev('verDatosRegistro(17)');
   await asentar();
@@ -247,9 +383,60 @@ describe('4 · En el CRM: la cédula que no está se dice, con lo que se sabe', 
 
   test('«no las tomó» y «las tomó y no han llegado» ya no se ven igual', async () => {
     const noTomo = plano((await tarjeta({ selfie: CARA }, { fotos_tomadas: 'selfie' })).fotos);
-    assert.match(noTomo, /No las tomó: el teléfono le avisó que faltaban y siguió sin ellas/);
+    assert.match(noTomo, /Al registrarse, su teléfono no tenía las fotos de la cédula/);
     const enCamino = plano((await tarjeta({ selfie: CARA }, { fotos_tomadas: 'cedula_reverso,cedula_frente,selfie' })).fotos);
-    assert.match(enCamino, /Las tomó y todavía no llegan: siguen en su teléfono y suben cuando entre a su cuenta/);
+    assert.match(enCamino, /Su teléfono dijo que las tomó, y todavía no llegan\. Si siguen allá, suben cuando entre a su cuenta/);
+  });
+
+  /* 4-nov-2026 — fotos_tomadas no dice si hubo aviso: sale igual de quien vio «Te
+     faltan las fotos» y de quien marcó la casilla al final o se registró por
+     PlataChat, a quienes nadie les avisó nada. Lo que no se sabe no se afirma. */
+  test('no afirma un aviso: el dato no dice si lo hubo', async () => {
+    for (const datos of [{ fotos_tomadas: 'selfie' }, { fotos_tomadas: 'ninguna' }, { fotos_tomadas: 'cedula_reverso,selfie' }]) {
+      const { todo } = await tarjeta({ selfie: CARA }, datos);
+      assert.doesNotMatch(plano(todo), /le avisó/, 'afirma un aviso que pudo no haber: ' + JSON.stringify(datos));
+    }
+  });
+
+  test('«siguen en su teléfono» no se afirma: el teléfono pudo haberlas soltado', async () => {
+    const t = plano((await tarjeta({ selfie: CARA }, { fotos_tomadas: 'cedula_reverso,cedula_frente,selfie' })).fotos);
+    assert.doesNotMatch(t, /siguen en su teléfono/);
+    assert.match(t, /Si hoy no llegan, pídeselas/);
+  });
+
+  test('lo que dijo la base manda: una cédula rechazada no «sube cuando entre»', async () => {
+    const TODAS = { fotos_tomadas: 'cedula_reverso,cedula_frente,selfie' };
+    const otro = plano((await tarjeta({ selfie: CARA }, TODAS, null, { cedula_rechazada: { motivo: 'otro_documento', momento: '2026-11-03T15:00:00Z' } })).fotos);
+    assert.match(otro, /La nube no guardó la cédula de sus fotos: no es la del documento de su registro/);
+    assert.match(otro, /el teléfono las borró/);
+    assert.doesNotMatch(otro, /suben cuando entre/);
+    const duda = plano((await tarjeta({}, TODAS, null, { cedula_rechazada: { motivo: 'en_duda', momento: '2026-11-03T15:00:00Z' } })).fotos);
+    assert.match(duda, /no se pudo confirmar de quién es/);
+    assert.doesNotMatch(duda, /suben cuando entre/);
+    const grandes = plano((await tarjeta({ selfie: CARA }, TODAS, null, { fotos_rechazadas: { fotos: [{ tipo: 'cedula_frente', motivo: 'muy_grande' }, { tipo: 'cedula_reverso', motivo: 'muy_grande' }], momento: '2026-11-03T15:00:00Z' } })).fotos);
+    assert.match(grandes, /La nube no aceptó las fotos de la cédula \(demasiado grandes\)/);
+    assert.doesNotMatch(grandes, /suben cuando entre/);
+    /* Rechazada otra cosa, no es esto. */
+    const selfie = plano((await tarjeta({ selfie: CARA }, TODAS, null, { fotos_rechazadas: { fotos: [{ tipo: 'selfie', motivo: 'muy_grande' }], momento: '2026-11-03T15:00:00Z' } })).fotos);
+    assert.match(selfie, /Su teléfono dijo que las tomó/);
+  });
+
+  test('«sin_permiso» del primer intento no gana contra lo que llegó: su rostro no sube sin permiso', async () => {
+    const t = plano((await tarjeta({ selfie: CARA }, { fotos_tomadas: 'sin_permiso' })).fotos);
+    assert.doesNotMatch(t, /es su derecho/, 'dice que no dio el permiso al lado de su rostro');
+    assert.match(t, /el permiso lo dio después/);
+    const lectura = plano((await tarjeta({ cedula_frente: FRENTE, cedula_reverso: RESPALDO, selfie: CARA }, { fotos_tomadas: 'sin_permiso' })).todo);
+    assert.doesNotMatch(lectura, /no dio el permiso/, 'encima de sus tres fotos');
+  });
+
+  test('quien dio el permiso y su cédula no coincidió no sale como «es su derecho»', async () => {
+    const r = await tarjeta({}, { fotos_tomadas: 'cedula_soltada' });
+    const t = plano(r.fotos);
+    assert.match(t, /Dio el permiso y la cédula que tomó no coincidió con el documento escrito/);
+    assert.match(t, /confirma quién es/);
+    assert.doesNotMatch(t, /es su derecho/);
+    assert.match(plano(r.todo), /la cédula que tomó no coincidió/);
+    assert.doesNotMatch(plano(r.todo), /no dio el permiso/);
   });
 
   test('«suben cuando entre» solo se dice el primer día: después el teléfono las borra', async () => {
@@ -260,7 +447,7 @@ describe('4 · En el CRM: la cédula que no está se dice, con lo que se sabe', 
 
   test('sin el permiso: es su derecho, y a Joan se le dice que confirme por otra vía', async () => {
     const t = plano((await tarjeta({}, { fotos_tomadas: 'sin_permiso' })).fotos);
-    assert.match(t, /No dio el permiso de las fotos: es su derecho \(Ley 1581\)/);
+    assert.match(t, /Se registró sin el permiso de las fotos: es su derecho \(Ley 1581\)/);
     assert.match(t, /prefiere otra forma/);
     assert.doesNotMatch(t, /No subió fotos/);
   });
@@ -268,13 +455,13 @@ describe('4 · En el CRM: la cédula que no está se dice, con lo que se sabe', 
   test('un solo lado: dice cuál, y el botón pide ese', async () => {
     const { fotos } = await tarjeta({ cedula_reverso: RESPALDO, selfie: CARA }, { fotos_tomadas: 'cedula_reverso,selfie' });
     assert.match(plano(fotos), /Falta la foto del frente de la cédula/);
-    assert.match(plano(fotos), /No la tomó: el teléfono le avisó que faltaba/);
+    assert.match(plano(fotos), /Al registrarse, su teléfono no tenía esa foto/);
     assert.match(fotos, /pedirFotosPorElChat\('17','frente'\)/);
   });
 
   test('tomó un lado y el otro no: los dos hechos, sin mezclarlos', async () => {
     const { fotos } = await tarjeta({ selfie: CARA }, { fotos_tomadas: 'cedula_reverso,selfie' });
-    assert.match(plano(fotos), /Tomó el respaldo y no ha llegado; el frente no lo tomó/);
+    assert.match(plano(fotos), /Su teléfono dijo que tomó el respaldo, y no ha llegado; el frente no lo tenía/);
   });
 
   test('con los dos lados: ni aviso ni botón, aunque el teléfono haya dicho otra cosa', async () => {
@@ -298,9 +485,149 @@ describe('4 · En el CRM: la cédula que no está se dice, con lo que se sabe', 
     assert.match(letras, /Se leyó por sus letras, no por el código de barras/);
     assert.doesNotMatch(letras, /No llegó la lectura/);
     const sinFotos = plano((await tarjeta({ selfie: CARA }, { fotos_tomadas: 'selfie' })).todo);
-    assert.match(sinFotos, /No se leyó: no tomó las fotos de su cédula/);
+    assert.match(sinFotos, /No llegó lectura: cuando se anotó su registro, su teléfono no tenía las fotos de su cédula/);
+    /* La del código viaja con las fotos: no se dice «no se leyó» de quien sí se leyó. */
+    const porCodigo = plano((await tarjeta({ selfie: CARA }, { fotos_tomadas: 'cedula_reverso,cedula_frente,selfie', cedula_leida_con: 'codigo' })).todo);
+    assert.match(porCodigo, /Su teléfono la leyó por el código de barras, y esa lectura todavía no llega/);
     const deAntes = plano((await tarjeta({ selfie: CARA }, {})).todo);
     assert.match(deAntes, /No llegó la lectura del código de barras/, 'el registro de antes sigue diciendo que no se sabe');
+  });
+});
+
+describe('4-bis · 4-nov-2026: de un pasaporte no se dice que falta la cédula', () => {
+  const PASAPORTE = { tipo_doc: 'Pasaporte', documento: 'AB123456' };
+
+  test('la tarjeta dice el pasaporte, sin frente ni respaldo', async () => {
+    const r = await tarjeta({ selfie: CARA }, Object.assign({ fotos_tomadas: 'selfie' }, PASAPORTE));
+    const t = plano(r.fotos);
+    assert.match(t, /Falta la foto del pasaporte: solo está el rostro/);
+    assert.doesNotMatch(t, /la cédula|Falta la cédula/);
+    assert.match(r.fotos, /pedirFotosPorElChat\('17','pasaporte'\)/);
+    assert.match(plano(r.todo), /Su documento es un pasaporte: no trae el código de barras de la cédula/);
+    assert.doesNotMatch(plano(r.todo), /No llegó lectura/);
+  });
+
+  test('con una foto de su documento ya no falta nada: un pasaporte no tiene respaldo', async () => {
+    const r = await tarjeta({ cedula_frente: FRENTE, selfie: CARA }, Object.assign({ fotos_tomadas: 'cedula_frente,selfie' }, PASAPORTE));
+    assert.doesNotMatch(plano(r.fotos), /Falta/);
+    assert.doesNotMatch(r.fotos, /pedirFotosPorElChat/);
+  });
+
+  test('el mensaje listo pide la foto del pasaporte', () => {
+    const P = crm({});
+    assert.match(P.ev('PEDIR_FOTOS.pasaporte'), /nos falta la foto de tu pasaporte/);
+    assert.doesNotMatch(P.ev('PEDIR_FOTOS.pasaporte'), /cédula|dos lados/);
+    assert.match(P.ev('PEDIR_FOTOS.pasaporte'), /Si prefieres no mandarla, dinos y vemos otra forma/);
+  });
+
+  test('la fila de Registrados lo dice por su nombre', () => {
+    const P = crm({});
+    P.ctx.__r = [registro(Object.assign({ fotos_tomadas: 'selfie' }, PASAPORTE))]; P.ev('_registros=__r');
+    P.ev('renderRegistros()');
+    const t = plano(P.elems.tblRegistros.innerHTML);
+    assert.match(t, /🪪 Se registró sin la foto de su pasaporte/);
+    assert.doesNotMatch(t, /sin la cédula/);
+  });
+
+  test('el mismo aviso de la cédula de extranjería, que sí tiene dos lados', async () => {
+    const r = await tarjeta({ selfie: CARA }, { fotos_tomadas: 'selfie', tipo_doc: 'Cédula de extranjería' });
+    assert.match(plano(r.fotos), /Falta la cédula/);
+  });
+});
+
+describe('4-ter · 4-nov-2026: PlataChat no cambia, tampoco en la fila de Registrados', () => {
+
+  test('la fila de un registro de PlataChat no trae la marca ni el botón', () => {
+    const P = crm({});
+    P.ctx.__r = [Object.assign(registro({ fotos_tomadas: 'selfie' }), { app: 'platachat' })]; P.ev('_registros=__r');
+    P.ev('renderRegistros()');
+    const h = P.elems.tblRegistros.innerHTML;
+    assert.doesNotMatch(plano(h), /🪪/, 'Joan decidió que PlataChat no cambia');
+    assert.doesNotMatch(h, /pedirFotosPorElChat/);
+  });
+
+  test('«Ver datos» dice lo que se sabe, sin afirmar un aviso que PlataChat no da', async () => {
+    const P = crm({ selfie: CARA });
+    P.ctx.__r = [Object.assign(registro({ fotos_tomadas: 'selfie' }), { app: 'platachat' })]; P.ev('_registros=__r');
+    P.ev('verDatosRegistro(17)');
+    await asentar();
+    const t = plano(P.elems.regFotos.innerHTML);
+    assert.match(t, /Al registrarse, su teléfono no tenía las fotos de la cédula/);
+    assert.doesNotMatch(t, /le avisó/);
+  });
+});
+
+describe('4-quater · 4-nov-2026: la ficha sabe lo que el registro sabe', () => {
+  const LECTURA_VIEJA = /desde aquí no se distinguen/;
+  const HUELLA = { ip: '190.1.1.1', aparato: 'Android', momento: '2026-11-03T15:00:00Z' };
+  function ficha(vinc, extra) {
+    const s = Object.assign({ id: 's1', numero: 1, nombre: 'Luis Ejemplo', cedula: '80000000', telefono: CEL, gestiones: [],
+      huellaRegistro: HUELLA }, vinc ? { vinculacion: vinc } : {}, extra || {});
+    const P = abrirPanel({ ahora: HOY });
+    P.ev('localStorage.setItem(SB_KEY, JSON.stringify({url:"https://x.supabase.co",anon:"llave",clave:"clave-de-prueba-larga"}))');
+    P.cargarCartera({ socios: [s], prestamos: [] });
+    P.ev("verCliente('s1')");
+    return P;
+  }
+  const verFicha = P => plano(P.elems.mBody.innerHTML);
+
+  test('la fila «Cédula leída» dice lo mismo que el registro', () => {
+    assert.match(verFicha(ficha({ fotos_tomadas: 'cedula_reverso,cedula_frente,selfie', cedula_leida_con: 'letras' })), /Se leyó por sus letras/);
+    assert.match(verFicha(ficha({ fotos_tomadas: 'selfie' })), /No llegó lectura: cuando se anotó su registro/);
+    assert.match(verFicha(ficha({ fotos_tomadas: 'sin_permiso' })), /No llegó lectura: cuando se anotó su registro no tenía el permiso/);
+    for (const v of [{ fotos_tomadas: 'selfie' }, { fotos_tomadas: 'sin_permiso' }, { fotos_tomadas: 'cedula_reverso,cedula_frente', cedula_leida_con: 'letras' }]) {
+      assert.doesNotMatch(verFicha(ficha(v)), LECTURA_VIEJA, 'la ficha no leyó lo que el teléfono dijo: ' + JSON.stringify(v));
+    }
+  });
+
+  test('a quien se le leyó el código no se le dice «no llegó» en la ficha, que no guarda la lectura', () => {
+    const t = verFicha(ficha({ fotos_tomadas: 'cedula_reverso,cedula_frente,selfie', cedula_leida_con: 'codigo' }));
+    assert.match(t, /Su teléfono la leyó por el código de barras al registrarse/);
+    assert.doesNotMatch(t, /No llegó la lectura/);
+    assert.doesNotMatch(t, /todavía no llega/);
+  });
+
+  test('una ficha de antes sigue diciendo que no se sabe', () => {
+    assert.match(verFicha(ficha(null)), LECTURA_VIEJA);
+  });
+
+  test('sin ninguna foto, la ficha lo dice y trae el botón', () => {
+    const P = ficha({ fotos_tomadas: 'ninguna' });
+    const t = verFicha(P);
+    assert.match(t, /Fotos de verificación/);
+    assert.match(t, /Al registrarse, su teléfono no tenía las fotos de la cédula/);
+    assert.match(P.elems.mBody.innerHTML, /pedirFotosDeLaFicha\('s1','los_dos'\)[^>]*>💬 Pedirle las fotos por el chat/);
+    /* Sin permiso, también, con su propia frase. */
+    assert.match(verFicha(ficha({ fotos_tomadas: 'sin_permiso' })), /Se registró sin el permiso de las fotos/);
+    /* «Las tomó» sin fecha no puede decir «todavía no llegan» para siempre. */
+    const tomo = verFicha(ficha({ fotos_tomadas: 'cedula_reverso,cedula_frente' }));
+    assert.match(tomo, /Su teléfono dijo que las tomó, y aquí no están/);
+    assert.doesNotMatch(tomo, /todavía no llegan/);
+  });
+
+  test('con el rostro y sin la cédula, además de faltar dice por qué', () => {
+    const P = ficha({ fotos_tomadas: 'selfie' }, { selfieFoto: CARA });
+    const t = verFicha(P);
+    assert.match(t, /Falta la cédula/);
+    assert.match(t, /Al registrarse, su teléfono no tenía las fotos de la cédula/);
+    assert.match(P.elems.mBody.innerHTML, /pedirFotosDeLaFicha\('s1','los_dos'\)/);
+  });
+
+  test('una ficha hecha a mano, sin registro, no le pide nada a nadie', () => {
+    const P = ficha(null, { huellaRegistro: null });
+    assert.doesNotMatch(P.elems.mBody.innerHTML, /Fotos de verificación|pedirFotosDeLaFicha/);
+  });
+
+  test('el botón abre el chat de la ficha con el mensaje escrito, y no lo manda', async () => {
+    const real = globalThis.fetch, urls = [];
+    globalThis.fetch = u => { urls.push(String(u)); return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]), text: () => Promise.resolve('[]') }); };
+    try {
+      const P = ficha({ fotos_tomadas: 'ninguna' });
+      P.ev("pedirFotosDeLaFicha('s1','los_dos')");
+      await asentar();
+      assert.match(P.ev("document.getElementById('chResp').value"), /nos faltan las fotos de tu cédula por los dos lados/);
+      assert.equal(urls.filter(u => /chat_responder/.test(u)).length, 0, 'se mandó solo');
+    } finally { globalThis.fetch = real; }
   });
 });
 
@@ -380,7 +707,7 @@ describe('5 · 📥 Registrados y «💬 Pedirle las fotos por el chat»', () =>
     assert.match(plano(h), /Falta la cédula/);
     assert.equal(P.ev("avisoLadoQueFalta(false,false,'',false)"), '', 'sin ninguna foto cada vista tiene su propio «no subió fotos»');
     const crmHtml = fs.readFileSync(path.join(B.RAIZ, 'panel', 'crm.html'), 'utf8');
-    assert.match(crmHtml, /avisoLadoQueFalta\(!!s\.cedulaFrenteFoto,!!s\.cedulaReversoFoto,'',!!s\.selfieFoto\)/);
-    assert.match(crmHtml, /avisoLadoQueFalta\(!!f\.cedula_frente, !!f\.cedula_reverso, 'Pídesela antes de desembolsar\.', !!f\.selfie\)/);
+    assert.match(crmHtml, /avisoLadoQueFalta\(!!s\.cedulaFrenteFoto,!!s\.cedulaReversoFoto,colaFicha,!!s\.selfieFoto,esPasaporte\(s\.vinculacion\)\)/);
+    assert.match(crmHtml, /avisoLadoQueFalta\(!!f\.cedula_frente, !!f\.cedula_reverso, 'Pídesela antes de desembolsar\.', !!f\.selfie, esPasaporte\(d\)\)/);
   });
 });
