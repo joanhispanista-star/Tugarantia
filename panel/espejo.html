@@ -1089,6 +1089,12 @@ function waLink(tel, msg) {
 function cerroConPerdida(p) {
   return !!(P && typeof P.cerroConPerdida === 'function' && P.cerroConPerdida(p));
 }
+/* 3-nov-2026 — «Pagado» de un cierre que perdió capital era mentira: ver textoEstado
+   en panel/crm.html. 4-nov-2026 — en un solo sitio: estaba solo en la tarjeta de la
+   ficha, y un toque después el detalle del mismo crédito decía «Pagado». */
+function textoDelEstado(p, est) {
+  return est === 'pagado' && cerroConPerdida(p) ? 'Cerrado con pérdida' : ESTADO_TXT[est];
+}
 function plantillaPara(p) {
   var e = estadoPrestamo(p);
   if (e === 'pagado') return cerroConPerdida(p) ? 'cierre' : 'recibo';
@@ -4609,10 +4615,9 @@ function vistaFicha() {
     h += '<div class="card ap tocable" data-acc="vercredito" data-id="' + esc(p.id) + '">'
       + '<div style="display:flex;justify-content:space-between;gap:8px">'
       +   '<div><b>' + COP(p.capital) + '</b><div class="mini mono">' + esc(P.codCredito(p)) + '</div></div>'
-      /* 3-nov-2026 — «Pagado» de un cierre que perdió capital era mentira: ver textoEstado en panel/crm.html. */
-      +   '<span class="pill ' + est + '">' + (est === 'pagado' && P && P.cerroConPerdida && P.cerroConPerdida(p) ? 'Cerrado con pérdida' : ESTADO_TXT[est]) + '</span></div>'
+      +   '<span class="pill ' + est + '">' + textoDelEstado(p, est) + '</span></div>'
       + '<div class="mini">' + (p.pagado
-          ? 'pagado el ' + fmtFecha(p.fechaPagado)
+          ? (cerroConPerdida(p) ? 'cerrado el ' : 'pagado el ') + fmtFecha(p.fechaPagado)
             /* 30-oct-2026 — y si se cerró perdiendo capital, cuánto. */
             + ((P.perdidaDelCierre && P.perdidaDelCierre(p)) ? ' · se perdieron ' + COP(P.perdidaDelCierre(p)) + ' de capital' : '')
           : 'vence el ' + fmtFecha(P.corteDelCredito(p)) + ' · ' + resumenDelCobro(p))
@@ -4676,7 +4681,7 @@ function vistaCredito() {
     + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'
     +   '<div><div class="etq">' + esc(P.codCredito(p)) + '</div>'
     +     '<h3 class="tit" style="margin-top:4px">' + esc((s && s.nombre) || p.socioNombre || 'Socio') + '</h3></div>'
-    +   '<span class="pill ' + est + '">' + ESTADO_TXT[est] + '</span>'
+    +   '<span class="pill ' + est + '">' + textoDelEstado(p, est) + '</span>'
     + '</div>'
     + '<div class="sep"></div>'
     + '<div class="fila"><span class="k">' + (cuota ? rotuloCuota(p, l, 'capital') : 'Capital del ciclo') + '</span>'
@@ -4891,7 +4896,8 @@ function vistaQuincena() {
          «Se lo perdoné» por 250.000 devolvió 250.000, y decir «300.000 de
          capital devuelto» sería contar plata que no entró. */
       var perdio = P.perdidaDelCierre ? P.perdidaDelCierre(p) : 0;
-      h += '<div class="linea-item"><span>Pago · ' + esc(p.socioNombre || '')
+      /* 4-nov-2026 — y no se llama «Pago» si no fue un pago. */
+      h += '<div class="linea-item"><span>' + (perdio ? 'Cierre con pérdida · ' : 'Pago · ') + esc(p.socioNombre || '')
         + '<br><span class="muted">' + COP(P.capitalRecuperadoDe(p)) + ' de capital devuelto'
         + (perdio ? ' · ' + COP(perdio) + ' de capital perdido' : '') + '</span></span>'
         /* La cifra de la derecha, entera: con la pérdida, el texto de la

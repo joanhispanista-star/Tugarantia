@@ -752,6 +752,81 @@ describe('7 · Lo que Joan lee de un cierre con pérdida', () => {
     assert.equal(OTRO.ev('textoEstado(DB.prestamos[0])'), 'Pagado');
   });
 
+  /* 4-nov-2026 — ee7c3cc cambió la columna y el Estado; quedaban estos. Hasta con $0
+     entregados se leía «Pagado el» justo encima de «Entró de verdad $0». */
+  test('el detalle: «Cerrado el», no «Pagado el»; y el de un pago de verdad sigue igual', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(0)]);
+    CRM.ev("verCredito('p7')");
+    const t = texto(CRM.elems.mBody.innerHTML);
+    assert.match(t, /Cerrado el 31 de oct de 2026/, 'dijo otra cosa: ' + t);
+    assert.doesNotMatch(t, /Pagado el/);
+    const OTRO = crmCon('2026-10-31T10:30:00', [SOCIO], [pagarTodo(credito(), '2026-10-31')]);
+    OTRO.ev("verCredito('p7')");
+    assert.match(texto(OTRO.elems.mBody.innerHTML), /Pagado el 31 de oct de 2026/);
+  });
+
+  function loQuePregunta(CRM, llamada) {
+    const dicho = [];
+    CRM.ctx.confirm = m => { dicho.push(String(m)); return false; };
+    CRM.ev(llamada);
+    assert.equal(dicho.length, 1, 'no preguntó: ' + JSON.stringify(CRM.ctx._avisos || []));
+    return dicho[0];
+  }
+
+  test('borrar el crédito: no pregunta por un crédito «Pagado» que se cerró con $0', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(0)]);
+    assert.match(loQuePregunta(CRM, "borrarCredito('p7')"), /Estado: Cerrado con pérdida/);
+    const OTRO = crmCon('2026-10-31T10:30:00', [SOCIO], [pagarTodo(credito(), '2026-10-31')]);
+    assert.match(loQuePregunta(OTRO, "borrarCredito('p7')"), /Estado: Pagado/);
+  });
+
+  test('borrar la ficha: «todos pagados» era falso, y el capital perdido también sale de los informes', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(0)]);
+    const m = loQuePregunta(CRM, "borrarCliente('s1')");
+    assert.doesNotMatch(m, /todos pagados/);
+    assert.match(m, /Créditos en su historial \(todos cerrados\): 1/);
+    assert.match(m, /Capital perdido que deja de contar en tus totales: \$300\.000/);
+    const OTRO = crmCon('2026-10-31T10:30:00', [SOCIO], [pagarTodo(credito(), '2026-10-31')]);
+    const n = loQuePregunta(OTRO, "borrarCliente('s1')");
+    assert.match(n, /todos pagados/);
+    assert.doesNotMatch(n, /Capital perdido/);
+  });
+
+  test('el Calendario: el cierre con pérdida no va en «✓ Pagos recibidos» ni con la marca de pagado', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(0)]);
+    CRM.ev('renderCalendario()');
+    const celda = texto(CRM.elems.calGrid.innerHTML);
+    assert.doesNotMatch(celda, /✓ Marta/, 'la celda del día marca como pagado a quien entregó $0');
+    assert.match(celda, /✕ Marta/);
+    CRM.ev("verDia('2026-10-31')");
+    const t = texto(CRM.elems.mBody.innerHTML);
+    assert.doesNotMatch(t, /Pagos recibidos/, 'lo listó como un pago recibido');
+    assert.match(t, /✕ Cerrados con pérdida/);
+    assert.match(t, /volvieron \$0 de \$300\.000 · cerrado perdiendo \$300\.000/);
+    assert.doesNotMatch(t, /\+ ganancia/, 'un cierre con pérdida no dejó ganancia ese día');
+    const hoja = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
+    assert.match(hoja, /class="cal-ev cer"[^>]*>●<\/span> cerrado con pérdida/, 'la leyenda no dice qué es la marca nueva');
+  });
+
+  test('el Calendario: lo que volvió antes por un abono se dice como lo que volvió en total, no como lo de ese día', () => {
+    const p = credito();
+    p.abonosCapital = [{ fecha: '2026-10-25', monto: 100000 }];
+    const c = cerrar({ socios: [SOCIO], prestamos: [p] }, p, '2026-10-31', 0);
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [c]);
+    CRM.ev("verDia('2026-10-31')");
+    assert.match(texto(CRM.elems.mBody.innerHTML), /volvieron \$100\.000 de \$300\.000 · cerrado perdiendo \$200\.000/);
+  });
+
+  test('un pago de verdad sigue con su marca y bajo «✓ Pagos recibidos»', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [pagarTodo(credito(), '2026-10-31')]);
+    CRM.ev('renderCalendario()');
+    assert.match(texto(CRM.elems.calGrid.innerHTML), /✓ Marta/);
+    CRM.ev("verDia('2026-10-31')");
+    const t = texto(CRM.elems.mBody.innerHTML);
+    assert.match(t, /✓ Pagos recibidos/);
+    assert.doesNotMatch(t, /Cerrados con pérdida/);
+  });
+
   test('la tarjeta «Capital perdido» dice de qué corte es: no «ninguno» a secas el día que se perdió de otro corte', () => {
     const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(250000)]);
     CRM.ev('render()');

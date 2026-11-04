@@ -81,9 +81,50 @@ describe('1 · el celular lee el cierre con pérdida sin romperse y sin contar d
     const e = abrirEspejo({ cartera: db, ahora: '2026-10-21T10:00:00' });
     e.ev("SEL.socioId='s1'");
     const f = plano(e.ev('vistaFicha()'));
-    assert.match(f, /pagado el .* · se perdieron \$50\.000 de capital/);
+    assert.match(f, /cerrado el .* · se perdieron \$50\.000 de capital/);
+    assert.doesNotMatch(f, /pagado el/, 'la tarjeta dice «Cerrado con pérdida» y debajo «pagado el»');
     assert.match(f, /Capital perdido con él: \$50\.000 en 1 crédito/);
     assert.deepEqual(e.json("descuentosDelSocio(socioPorId('s1'))"), P.descuentosDelSocio(db, db.socios[0]));
+  });
+});
+
+describe('1-bis · 4-nov-2026: el celular no le dice «Pagado» a un crédito cerrado con pérdida', () => {
+  const pildora = v => (/<span class="pill [^"]*">([^<]*)<\/span>/.exec(v) || [])[1];
+
+  test('la píldora del detalle dice lo mismo que la tarjeta de la ficha, hasta con $0', () => {
+    const p = quincenal();
+    const r = P.cierreConPerdon(cartera([p]), p, '2026-10-20', 0, { motivo: 'x', entiende: true });
+    const c = copia(p); c.condonaciones = [r.registros.condonacion]; Object.assign(c, r.registros.credito);
+    const e = abrirEspejo({ cartera: cartera([c]), ahora: '2026-10-21T10:00:00' });
+    e.ev("SEL.creditoId='c1'");
+    assert.equal(pildora(e.ev('vistaCredito()')), 'Cerrado con pérdida', 'la píldora dice «Pagado» encima de «entraron $0»');
+    e.ev("SEL.socioId='s1'");
+    assert.match(plano(e.ev('vistaFicha()')), /Cerrado con pérdida/);
+  });
+
+  test('de un pago de verdad sigue diciendo «Pagado» y «pagado el»', () => {
+    const p = quincenal();
+    const liq = P.liquidarCiclo(p, '2026-10-20');
+    const c = Object.assign(copia(p), { pagado: true, fechaPagado: '2026-10-20', cicloPago: '2026-10-15', cobroRegistrado: true,
+      gananciaPago: liq.costo + liq.recargo_mora, recargoMora: liq.recargo_mora, costoCausado: liq.costo,
+      moraCausada: liq.recargo_mora, montoRecibido: liq.total_a_pagar, saldoAFavor: 0, capitalPerdido: 0 });
+    const e = abrirEspejo({ cartera: cartera([c]), ahora: '2026-10-20T15:00:00' });
+    e.ev("SEL.creditoId='c1'");
+    assert.equal(pildora(e.ev('vistaCredito()')), 'Pagado');
+    e.ev("SEL.socioId='s1'");
+    assert.match(plano(e.ev('vistaFicha()')), /pagado el /);
+    assert.match(plano(e.ev('vistaQuincena()')), /Pago · Marta/);
+  });
+
+  test('«Lo que registraste hoy» no llama «Pago» a un cierre con $0', () => {
+    const p = quincenal({ fechaDesembolso: '2026-10-16', cicloActual: '2026-10-31' });
+    const r = P.cierreConPerdon(cartera([p]), p, '2026-10-30', 0, { motivo: 'x', entiende: true });
+    const c = copia(p); c.condonaciones = [r.registros.condonacion]; Object.assign(c, r.registros.credito);
+    const e = abrirEspejo({ cartera: cartera([c]), ahora: '2026-10-30T15:00:00' });
+    const q = plano(e.ev('vistaQuincena()'));
+    assert.doesNotMatch(q, /Pago · Marta/);
+    assert.match(q, /Cierre con pérdida · Marta/);
+    assert.match(q, /\$0 de capital devuelto · \$300\.000 de capital perdido/);
   });
 });
 
