@@ -145,7 +145,8 @@ describe('el CRM abre directo la puerta del equipo', () => {
   });
 
   test('y #clave-nube NO dispara la puerta del equipo', () => {
-    /* El hash del CRM también lleva `clave-nube=` para la sincronización. */
+    /* 4-nov-2026: el hash ya no lleva `clave-nube=` (se quitó), pero un enlace viejo
+       que lo traiga tampoco abre la puerta del equipo. */
     const re = /^#equipo(?:$|&)/;
     assert.equal(re.test('#clave-nube=abc'), false);
     assert.equal(re.test('#equipos'), false);

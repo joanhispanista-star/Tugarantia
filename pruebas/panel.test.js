@@ -539,15 +539,14 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
       'no puso un nivel de verdad: ' + msg);
   });
 
-  test('la clave de sincronización llega por el hash, se guarda y se limpia', () => {
-    /* 2-sep-2026: el traspaso entre pestañas del mismo navegador. El hash no
-       viaja al servidor (mismo argumento del #p= de verComoSocio) y se limpia
-       con replaceState en cuanto se guarda. */
+  test('la clave de sincronización ya NO llega por el hash', () => {
+    /* 2-sep-2026: era el traspaso entre pestañas del mismo navegador. 4-nov-2026: se
+       quitó, porque nadie genera ese enlace y dejaba pisar la clave antes de cualquier
+       puerta (pruebas/la-puerta-sin-cartera.test.js). */
     const P = abrirPanel({ hash: '#clave-nube=una-clave-larga-123' });
     P.cargarCartera(UN_CLIENTE);
     const c = JSON.parse(P.almacen['joan_socios_sb'] || '{}');
-    assert.equal(c.clave, 'una-clave-larga-123', 'la clave del hash no se guardó');
-    assert.ok(P.ev('window.__hashLimpio') === true || true, 'ok');
+    assert.notEqual(c.clave, 'una-clave-larga-123', 'la clave del hash se guardó');
     /* Y sin hash, no toca nada. */
     const P2 = abrirPanel();
     P2.cargarCartera(UN_CLIENTE);

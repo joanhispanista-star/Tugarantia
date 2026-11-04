@@ -164,6 +164,13 @@
   .oculto{display:none!important}
   input[type=file].oculto{display:block!important;position:absolute!important;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
   .gate-err.aviso b{color:var(--laca)}
+  /* 4-nov-2026 — la puerta en un aparato sin cartera (ver pintarPuertaSegunCartera):
+     se lee como un aviso, no como un error, y el enlace al Panel es el botón principal. */
+  .gate-nota{font-size:14px;line-height:1.5;color:var(--tinta-2);text-align:left;margin:0 0 10px}
+  .gate-nota b{color:var(--laca)}
+  .gate-nota.chica{font-size:12.5px;color:var(--gris)}
+  .gate-card a.gate-ir{display:block;margin-top:14px;background:var(--rojo);padding:13px;border-radius:10px;
+    font-weight:700;font-size:15px;color:var(--papel);text-decoration:none;text-align:center}
 
   /* 10-sep-2026 — EL OJO. Joan lo pidió por su nombre: una contraseña dictada
      por WhatsApp y tecleada a ciegas en un celular se escribe mal y no hay cómo
@@ -582,18 +589,46 @@
     .card>div{overflow-x:auto;-webkit-overflow-scrolling:touch}
     table{min-width:560px}
   }
+  /* 4-nov-2026 — EL CALENDARIO NO PUEDE PONER UN NÚMERO BAJO EL DÍA EQUIVOCADO (Bloque
+     1 de RECETA-CRM-MOVIL.md). #calDow y #calGrid son dos rejillas independientes, y
+     repeat(7,1fr) es minmax(auto,1fr): una columna nunca queda más angosta que su celda
+     más ancha, y nada obliga a las dos a coincidir. A 390 px la palabra «quincena» (una
+     sola palabra que no se puede partir) empujaba las columnas de los números y no las
+     de los nombres: hasta 26 px corrido, y eso es una fecha de cobro leída mal.
+     minmax(0,1fr) le quita el suelo. El punto rojo dice lo mismo que la palabra, y la
+     leyenda de abajo ya lo explica («🔴 quincena»). Va al final de la hoja a propósito:
+     le gana a las reglas de arriba sin tocarlas. */
+  @media (max-width:880px){
+    .cal-grid{grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+    .cal-day{min-height:52px;padding:5px 3px;overflow:hidden}
+    .cal-day .dn small{font-size:0;line-height:0}
+    .cal-day .dn small::after{content:'●';font-size:10px;line-height:1;display:block}
+    .cal-more{font-size:9px}
+  }
 </style>
 </head>
 <body>
 
 <div class="gate" id="gate">
   <div class="gate-card"><div class="mk"><span class="sello">G</span>Tu Garantía</div><div class="tag">Panel</div>
+    <!-- 4-nov-2026 — EN UN APARATO SIN CARTERA, LA PUERTA LO DICE (ver
+         pintarPuertaSegunCartera). Arranca escondida: si el guion no corre, queda la
+         puerta de siempre, y nunca «no tienes cartera» en el computador que sí la tiene. -->
+    <div id="gateSinCartera" hidden>
+      <p class="gate-nota"><b>Este aparato no tiene tu cartera.</b> Tu cartera completa está en tu computador. Desde aquí trabajas con el Panel en el bolsillo, que usa lo que está en la nube.</p>
+      <p class="gate-nota chica">Si este es tu computador, cada navegador guarda lo suyo: ábrelo en el navegador y la dirección de siempre.</p>
+      <a class="gate-ir" href="espejo.html">Abrir el Panel en el bolsillo</a>
+      <button type="button" class="gate-link" onclick="tengoUnRespaldo()">Tengo un respaldo para subir aquí</button>
+    </div>
+    <div id="gateConPin">
+    <p class="gate-nota" id="gateNotaRespaldo" hidden>Entra con el PIN de fábrica (<b>1234</b>) y, en <b>Ajustes</b>, toca <b>⬆ Importar respaldo</b>. Desde ahí vale el PIN que traiga tu respaldo.</p>
     <div class="con-ojo" style="margin-top:0"><input type="password" id="pinInput" inputmode="numeric" maxlength="6" placeholder="••••" aria-label="PIN de acceso">
       <!-- 22-sep-2026 — el mismo ojo que el de la app: 20 px de trazo con 44 de
            zona tocable, gris en reposo y tinta cuando muestra, sin fondo ni
            borde. Joan: «que cambie el diseño ya que se ve muy feo». -->
       <button type="button" class="ojo" title="Ver lo que escribiste" aria-label="Ver el PIN" onclick="alternarOjo('pinInput',this)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path class="ojo-abierto" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle class="ojo-abierto" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path class="ojo-raya" d="M4 4l16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0"/></svg></button></div>
     <button id="pinBtn">Entrar</button><div class="gate-err" id="pinErr"></div>
+    </div>
     <!-- 23-oct-2026 — soyDelEquipo y no pintarPuertaEquipo: si en este
          navegador hay una sesión del equipo guardada (un gerente que entró en
          el computador de Joan), la retoma sin pedir la contraseña. -->
@@ -10623,28 +10658,10 @@ function olvidarConversacion(){
    Convierte el historial de siempre en garantía acumulada, para que el cliente
    viejo no arranque en cero, y lo sube para que lo vea en su celular. */
 const SB_KEY='joan_socios_sb';
-/* 2-sep-2026 — LA CLAVE DE SINCRONIZACIÓN PUEDE LLEGAR POR EL HASH, una vez.
-   Existe para el traspaso entre pestañas del MISMO navegador: la clave vive en
-   config_privada (solo visible desde el SQL Editor de Joan) y este CRM la
-   necesita en su localStorage. Copiarla a mano falla justo cuando más estorba,
-   y pasarla por un tercero (incluido Claude) está prohibido por diseño.
-
-   El hash es el canal correcto por lo mismo que el #v= de verComoSocio: el
-   navegador NUNCA se lo manda al servidor, así que no queda en los logs de
-   Pages. Y aquí se limpia de la barra y del historial (replaceState) en cuanto
-   se guarda: la clave no se queda escrita en ninguna parte visible. */
-(function(){
-  var m=/[#&]clave-nube=([^&]+)/.exec(location.hash||'');
-  if(!m) return;
-  try{
-    var c={}; try{ c=JSON.parse(localStorage.getItem(SB_KEY)||'{}'); }catch(e){}
-    c.clave=decodeURIComponent(m[1]);
-    localStorage.setItem(SB_KEY,JSON.stringify(c));
-    history.replaceState(null,'',location.pathname+location.search);
-    setTimeout(function(){ alert('Tu clave de sincronización llegó y quedó guardada en este navegador.\n\n'
-      +'Compruébala: Ajustes → 🔌 Probar conexión. Y ya puedes traer Registrados; los historiales de tus clientes suben solos.'); },400);
-  }catch(e){}
-})();
+/* 4-nov-2026 — AQUÍ VIVÍA EL #clave-nube=, desde el 2-sep: la clave de sincronización
+   podía llegar por el hash y se guardaba sola. Se quitó: nadie genera ese enlace, y
+   quien lograra que se abriera dejaba escrita otra clave en este navegador antes de
+   cualquier puerta. La clave se pega en Ajustes. */
 /* El enlace que se le manda al socio se calcula desde DONDE ESTÁ el Panel, no escrito
    a mano. Así el día que esto viva en tugarantia.co en vez de en github.io, o en
    cualquier otro sitio, sigue apuntando bien solo. Escrito a mano ya se quedó viejo
@@ -13120,11 +13137,13 @@ function cerrarSesionEquipoLocal() {
    entrar con una borra la otra). */
 function retomarSesionAlAbrir() {
   /* «#equipo» o «#equipo&…», lo mismo que mira la línea que abre la puerta
-     del equipo al final del bloque grande (y no `#clave-nube=`). */
+     del equipo al final del bloque grande. */
   const porEquipo = String(location.hash || '').split('&')[0] === '#equipo';
   const eq = leerSesionGuardada('equipo');
   const du = leerSesionGuardada('dueno');
-  if (!porEquipo && du) {
+  /* 4-nov-2026 — sin cartera aquí, una sesión guardada no abre un CRM en $0: se queda la
+     puerta, que dice dónde está (ver pintarPuertaSegunCartera). */
+  if (!porEquipo && du && !carteraVaciaAqui()) {
     _sesion = Object.assign({}, du, { guardada: true });
     _retomandoDueno = true;
     try { entrar(); } finally { _retomandoDueno = false; }
@@ -13200,6 +13219,46 @@ function conectarPuertaDeJoan() {
   const b = document.getElementById('pinBtn'), p = document.getElementById('pinInput');
   if (b) b.addEventListener('click', entrar);
   if (p) p.addEventListener('keydown', e => { if (e.key === 'Enter') entrar(); });
+  try { pintarPuertaSegunCartera(); } catch (e) {}
+}
+/* 4-nov-2026 — LA PUERTA EN UN APARATO SIN CARTERA. El PIN es de CADA navegador: en un
+   aparato nuevo, Joan escribía su PIN de verdad y leía «PIN incorrecto», y con el de
+   fábrica entraba a un CRM en $0 que no se distingue de un negocio sin clientes. Las dos
+   pantallas mienten sobre lo mismo: aquí no está su cartera.
+   Ahora lo dice y manda al Panel en el bolsillo. «Tengo un respaldo para subir aquí» es lo
+   único para lo que sirve el 1234, y ahí sí se enseña. La puerta del equipo no cambia: en
+   el celular de un gerente no hay cartera de Joan, y por ese botón entra.
+   Mira cualquier lista con algo, no solo socios y créditos, y un PIN que no sea el de
+   fábrica también cuenta: más vale pedirle el PIN a un aparato vacío que decirle a Joan que
+   no tiene cartera en el computador que la tiene. Por lo mismo, un disco que no se puede
+   leer no es «no hay nada». Con el CRM ya abierto debajo (el candado de la sesión), siempre
+   el PIN. */
+var _quiereSubirRespaldo = false;
+function carteraVaciaAqui() {
+  if (hayCarteraDeJoan()) return false;
+  let t;
+  try { t = localStorage.getItem(KEY); } catch (e) { return true; }
+  if (!t) return true;
+  try {
+    const d = JSON.parse(t);
+    if (d && d.config && d.config.pin && String(d.config.pin) !== '1234') return false;
+    return !['socios', 'clientes', 'prestamos', 'respaldados', 'prospectos', 'bases', 'papelera', 'papeleraSocios', 'asignaciones', 'equipo']
+      .some(k => Array.isArray(d[k]) && d[k].length);
+  } catch (e) { return false; }
+}
+function pintarPuertaSegunCartera() {
+  const sin = document.getElementById('gateSinCartera'), con = document.getElementById('gateConPin'), nota = document.getElementById('gateNotaRespaldo');
+  if (!sin || !con) return;
+  const vacia = carteraVaciaAqui();
+  const sinPin = vacia && !_quiereSubirRespaldo && !_crmAbierto && !_candado;
+  sin.hidden = !sinPin;
+  con.hidden = sinPin;
+  if (nota) nota.hidden = !(vacia && _quiereSubirRespaldo);
+}
+function tengoUnRespaldo() {
+  _quiereSubirRespaldo = true;
+  pintarPuertaSegunCartera();
+  const p = document.getElementById('pinInput'); if (p) { try { p.focus(); } catch (e) {} }
 }
 function celularBonito(t) { const s = String(t || ''); return s.length === 10 ? s.slice(0, 3) + ' ' + s.slice(3, 6) + ' ' + s.slice(6) : s; }
 function decirEnPuertaEquipo(html, tono) {
@@ -23813,8 +23872,7 @@ document.getElementById('pinInput').focus();
    no es suyo tres veces antes de preguntar.
    Va DESPUÉS de enfocar el PIN a propósito: si pintarPuertaEquipo fallara, la
    pantalla se queda en la entrada de Joan, que es la de siempre, y no en
-   blanco. Y solo con #equipo exacto: el hash también lleva `clave-nube=`
-   (ver más arriba) y eso no puede disparar la puerta del equipo. */
+   blanco. Y solo con #equipo exacto. */
 if (/^#equipo(?:$|&)/.test(location.hash || '')) { try { pintarPuertaEquipo(); } catch (e) {} }
 </script>
 <!-- 1-oct-2026 — LA SUBIDA AUTOMÁTICA (RECETA-NUBE-CRM.md, Etapa 1, paso 13). Va
