@@ -2069,9 +2069,9 @@ const ARCHIVOS = [
   'app/comisiones.js?v=142',   // 31-oct-2026 — ?v=142: un cierre con pérdida no le paga comisión al asesor (ver la nota de v142)
   'app/bases.js',
   'panel/espejo.webmanifest',
-  'panel/nube.js?v=142',   // 30-oct-2026 — ?v=142: la condonación del cierre viaja con su plan (ver la nota de v142)
+  'panel/nube.js?v=143',   // 4-nov-2026 — ?v=143: las fotos y el cupo, el abono con id, el PIN de este aparato (ver la nota de v143)
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
-  'panel/nube-crm.js?v=139',
+  'panel/nube-crm.js?v=143',   // 4-nov-2026 — ?v=143: una nota sobre la pestaña vieja; la regla mira el texto (ver la nota de v143)
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
   'panel/historiales-auto.js?v=139',
   /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132. */
