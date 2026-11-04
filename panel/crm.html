@@ -1216,8 +1216,9 @@
 <script src="../app/cobranza-envio.js"></script>
 <!-- 15-sep-2026 — las reglas de la gestion del asesor: el freno de la Ley 2300
      (que el modo equipo NO tenia) y las plantillas por situacion. Modulo puro,
-     probado con node. -->
-<script src="../app/gestion-asesor.js"></script>
+     probado con node. 4-nov-2026 — ?v=142: a quien cerró su crédito ya no se le
+     propone «ya quedó registrado tu pago» (ver la nota de v142 en sw.js). -->
+<script src="../app/gestion-asesor.js?v=142"></script>
 <!-- Las reglas de comisión de los asesores. Funciones puras: el CRM las
      llama, no las reimplementa. 31-oct-2026 — ?v=142: un crédito cerrado con
      «Se lo perdoné» perdiendo capital ya no le paga comisión al asesor (ver la
@@ -1250,8 +1251,9 @@
 <!-- Las etapas del cliente (PC, CR, CA, D-3…, M1A, M1B, M1-2). La MISMA
      tabla que usa la app del equipo: si cada pantalla la calculara por su
      cuenta, Joan y su asesor verían carteras distintas para el mismo
-     cliente y la conversación se vuelve sobre quién tiene razón. -->
-<script src="../app/etapas.js"></script>
+     cliente y la conversación se vuelve sobre quién tiene razón. 4-nov-2026 —
+     ?v=142: la etapa PAGADO ya no se lee «Pagó» (ver la nota de v142 en sw.js). -->
+<script src="../app/etapas.js?v=142"></script>
 <!-- 16-sep-2026 — la tabla certificada del techo de usura (con fecha) y la TIR.
      Es la MISMA que usa la puerta pública: el precio que Joan manda desde acá y
      el que el cliente ve allá se miden contra el mismo techo. -->
@@ -15364,6 +15366,9 @@ function plantillaSMSDe(etapa) {
      cobro le salia «te recordamos tu pago de $0 el .». */
   if (etapa === 'PC') return 'presentacion';
   if (etapa === 'CR') return 'invitacion';
+  /* 4-nov-2026 — y quien cerró su crédito tampoco debe nada: le salía «te recordamos
+     tu pago de $0 el .», hasta a quien acababa de pagar todo. */
+  if (etapa === 'PAGADO') return 'invitacion';
   if (etapa === 'D0') return 'venceHoy';
   if (etapa === 'M1A') return 'moraTemprana';
   if (etapa === 'M1B' || etapa === 'M1-2' || etapa === 'M2') return 'mora';

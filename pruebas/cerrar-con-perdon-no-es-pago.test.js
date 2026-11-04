@@ -679,6 +679,48 @@ describe('7 · después de cerrar con pérdida no se le agradece un pago que no 
 });
 
 /* ==========================================================================
+ * 6-bis. 4-NOV-2026 — EL TERCER CAMINO: EL EQUIPO. La pregunta de después de
+ * cerrar (CRM) y la tanda del celular ya no dicen «gracias por tu cumplimiento»
+ * (sección de la segunda revisión). Pero el 📲 de asesor y gerente abría con
+ * «Confirmarle que pagó» marcada para todo el que cerró, hasta con $0.
+ * ======================================================================== */
+describe('6-bis · Lo que el equipo le propone decirle a quien cerró su crédito', () => {
+  function crmDelEquipo() {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], []);
+    CRM.ev("CARTERA_EQUIPO = { yo: { nombre: 'Ana Inventada', rol: 'asesor' }, gente: [] }");
+    return CRM;
+  }
+
+  test('el 📲 no dice que pagó ni que cumplió, y el chip tampoco', () => {
+    const CRM = crmDelEquipo();
+    CRM.ev("pantallaMensajeEq({ id: 's1', etapa: 'PAGADO', nombre: 'Marta Inventada', celular: '3000000001' })");
+    const t = texto(CRM.elems.mBody.innerHTML);
+    assert.doesNotMatch(t, /registrado tu pago|Gracias por cumplir/, 'el asesor tiene listo para enviar un pago que no existió: ' + t);
+    assert.doesNotMatch(t, /Confirmarle que pagó/);
+    assert.doesNotMatch(t, /PAGADO/, 'el chip le dice PAGADO a quien entregó $0');
+    assert.match(t, /Marta/);
+    assert.match(t, /tu crédito quedó cerrado/);
+    assert.match(t, /Ofrécele el siguiente/, 'sin marca en el cliente: se le sigue ofreciendo el siguiente');
+  });
+
+  test('«Toda tu base» los llama por lo que se sabe, y el servidor sigue recibiendo la misma llave', () => {
+    const E = require(path.join(RAIZ, 'app', 'etapas.js'));
+    assert.doesNotMatch(E.ETAPAS.PAGADO.nombre, /Pag/, 'cuenta como «Pagó» a quien cerró con $0');
+    const db = { prestamos: [cerrar({ socios: [SOCIO], prestamos: [] }, quincenal({ id: 'p9', socioId: 's1', capital: 200000,
+      fechaDesembolso: '2026-10-01', cicloActual: '2026-10-15' }), '2026-10-31', 0)] };
+    /* La llave no cambia: base/20260922q la compara, y una etapa desconocida
+       caería del lado del cobro. */
+    assert.equal(E.etapaDe({ tipo: 'socio', id: 's1' }, db, '2026-10-31'), 'PAGADO');
+  });
+
+  test('el ✉️ no le recuerda «tu pago de $0» a quien ya no debe nada', () => {
+    const CRM = crmDelEquipo();
+    assert.equal(CRM.ev("plantillaSMSDe('PAGADO')"), 'invitacion');
+    assert.equal(CRM.ev("plantillaSMSDe('D-1')"), 'recordatorio1', 'a quien sí debe se le sigue recordando');
+  });
+});
+
+/* ==========================================================================
  * 7. 3-NOV-2026 — LO QUE JOAN LEE DE UN CIERRE CON PÉRDIDA: tres frases que
  * quedaron de la revisión del 31-oct, y las tres afirmaban algo falso.
  * ======================================================================== */

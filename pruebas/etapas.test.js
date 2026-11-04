@@ -223,7 +223,11 @@ describe('el archivo describe, no decide', () => {
   test('es puro: sin reloj de pared, sin red, sin navegador', () => {
     const fs = require('node:fs'), path = require('node:path');
     const codigo = fs.readFileSync(path.join(__dirname, '..', 'app', 'etapas.js'), 'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g, ' ');
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      /* 4-nov-2026 — menos la firma de llegada, a la letra y una sola vez, como en
+         comisiones.test.js: anota que el archivo llegó, y en Node no hace nada. */
+      .replace('(function () { try { var s = document.currentScript; if (s && s.src) '
+        + '(window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();', ' ');
     assert.ok(!/new Date\(\s*\)/.test(codigo), 'etapas.js lee el reloj de pared');
     assert.ok(!/localStorage|fetch\(|document\./.test(codigo), 'etapas.js tocó el navegador');
   });

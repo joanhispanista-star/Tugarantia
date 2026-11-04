@@ -40,6 +40,12 @@
  * hasta cuánto puede descontar quien lo atienda — la decisión de aplicarlo es
  * de otra pantalla, y el tope lo tiene que volver a comprobar quien escriba.
  * ==========================================================================*/
+/* 4-nov-2026 — LA FIRMA DE LLEGADA, la misma de app/puente.js (ver su nota del
+   23-oct). Este archivo cambió desde lo publicado —la etapa PAGADO ya no se llama
+   «Pagó»— y panel/crm.html lo pide con la versión en la dirección (…?v=142). Va
+   PRIMERO a propósito, y en Node no hace nada. */
+(function () { try { var s = document.currentScript; if (s && s.src) (window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();
+
 (function (raiz, fabrica) {
   'use strict';
   if (typeof module === 'object' && module.exports) module.exports = fabrica(require('./puente.js'));
@@ -89,7 +95,13 @@
              que: 'ÚLTIMA OPORTUNIDAD. Si llega a 20 días te descuentan $10.000.', descuento: 100 },
     M2:    { et: 'M2',    nombre: 'Mora de más de 20 días', color: 'rojo',
              que: 'Pasó los 20 días: el descuento de $10.000 ya se aplicó. Sigue cobrando.', descuento: 100 },
-    PAGADO: { et: 'PAGADO', nombre: 'Pagó', color: 'verde',
+    /* 4-nov-2026 — LA LLAVE SIGUE SIENDO PAGADO (base/20260922q la compara, y una
+       etapa desconocida cae del lado del cobro), PERO NO LO QUE SE LEE. Desde que
+       «Se lo perdoné» cierra con cualquier monto, aquí también está quien entregó
+       $0, y el equipo no tiene cómo distinguirlo: cuánto entró no viaja (decisión
+       de Joan: sin marca en el cliente). «Cerró su crédito» es cierto de todos;
+       «Pagó» no. */
+    PAGADO: { et: 'CERRADO', nombre: 'Cerró su crédito', color: 'verde',
              que: 'Cerró su crédito. Ofrécele el siguiente.', descuento: 0 }
   };
 

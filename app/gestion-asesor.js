@@ -41,6 +41,12 @@
  * los emoji son gratis — no se confundan con las de app/cobranza-envio.js, que
  * son para SMS y tienen que caber en 160 caracteres sin tildes.
  * ========================================================================= */
+/* 4-nov-2026 — LA FIRMA DE LLEGADA, la misma de app/puente.js (ver su nota del
+   23-oct). Este archivo cambió desde lo publicado —la plantilla de quien cerró su
+   crédito— y panel/crm.html lo pide con la versión en la dirección (…?v=142). Va
+   PRIMERO a propósito, y en Node no hace nada. */
+(function () { try { var s = document.currentScript; if (s && s.src) (window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();
+
 (function (raiz, fabrica) {
   if (typeof module === 'object' && module.exports) module.exports = fabrica();
   else raiz.GestionAsesor = fabrica();
@@ -164,12 +170,17 @@
              'quiero ayudarte a resolverlo. Cuéntame cómo estás y buscamos algo que ' +
              'te sirva.' },
     /* --- servicio --- */
-    confirmar_pago: { grupo: 'Servicio', et: 'Confirmarle que pagó',
-      /* Decía «¡Listo María! Ya quedó registrado tu pago» sin nombrar a nadie.
-         Lo cazó la prueba: un mensaje de un número desconocido confirmando un
-         pago que uno hizo es exactamente la forma de una estafa. */
-      texto: '¡Listo {nombre}! Soy {asesor}, de Tu Garantía: ya quedó registrado ' +
-             'tu pago. Gracias por cumplir 🙂 Cuando necesites, aquí estamos.' },
+    /* 4-nov-2026 — ERA «Confirmarle que pagó»: «ya quedó registrado tu pago. Gracias
+       por cumplir», marcada de una para toda la etapa PAGADO. Desde que «Se lo
+       perdoné» cierra con cualquier monto, ahí también está quien entregó $0, y el
+       equipo no tiene cómo saberlo (cuánto entró no viaja: decisión de Joan, sin
+       marca). Es la misma frase que 56d70de quitó del CRM de Joan y del celular; este
+       era el tercer camino. Lo que sí es cierto de todos: su crédito quedó cerrado.
+       Y sigue nombrando a quien escribe: un mensaje de un número desconocido sobre
+       un crédito de uno es exactamente la forma de una estafa. */
+    credito_cerrado: { grupo: 'Servicio', et: 'Decirle que su crédito quedó cerrado',
+      texto: 'Hola {nombre}, soy {asesor}, de Tu Garantía: tu crédito quedó cerrado 🙂 ' +
+             'Cuando necesites, aquí estamos.' },
     reagendar: { grupo: 'Servicio', et: 'Reagendar',
       texto: 'Hola {nombre}, soy {asesor} de Tu Garantía. ¿Te queda mejor que ' +
              'hablemos más tarde? Dime a qué hora te llamo.' }
@@ -177,7 +188,7 @@
 
   var ORDEN = ['presentacion', 'invitar_app', 'seguimiento',
                'recordar', 'vence_hoy', 'acuerdo',
-               'confirmar_pago', 'reagendar'];
+               'credito_cerrado', 'reagendar'];
 
   /**
    * Cuál plantilla proponer para esta persona. Se PROPONE, no se impone: el
@@ -187,7 +198,7 @@
     var e = String(etapa || '');
     if (e === 'PC') return 'presentacion';
     if (e === 'CR') return 'invitar_app';
-    if (e === 'PAGADO') return 'confirmar_pago';
+    if (e === 'PAGADO') return 'credito_cerrado';
     if (e === 'D0') return 'vence_hoy';
     if (e === 'D-1' || e === 'D-2' || e === 'D-3') return 'recordar';
     if (e === 'CA') return 'seguimiento';
