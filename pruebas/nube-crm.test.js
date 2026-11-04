@@ -34,7 +34,7 @@ const { crear } = require('../panel/nube-crm.js');
 
 const {
   RAIZ, KEY, ESPEJO, SELLO, ESTADO, DUENO, TABLAS, CAMPO, clon, azar, almacenDoble,
-  servidor, fnv, pestana, RELOJ, montar, socio, credito, cartera, leerDisco, espejoDisco,
+  servidor, fnv, pestana, pestanaDeAntes, RELOJ, montar, socio, credito, cartera, leerDisco, espejoDisco,
   congeladas, sembrar, invariante
 } = require('./banco-nube-crm.js');
 
@@ -371,7 +371,8 @@ describe('la puerta del sello', () => {
     const alm = almacenDoble();
     const A = montar({ alm, db: cartera(3, 1) });
     await sembrar(A);
-    const B = pestana(alm, 'B');
+    /* 4-nov-2026: de ANTES de v143, la única que todavía pisa (pestana-vieja.test.js). */
+    const B = pestanaDeAntes(alm, 'B');
     const memoriaB = B.leer();                    // B abre a las 8:00
     const dbA = A.tab.leer();                     // A sigue trabajando
     dbA.prestamos[0].abonos.push({ fecha: '2026-10-01', monto: 70000 });
@@ -764,7 +765,12 @@ describe('el CRM de verdad (crm.html en el banco de pruebas)', () => {
     }
   });
 
-  test('guardar() sobre una cartera que escribió OTRO suelta el espejo; sobre la propia, no', () => {
+  /* 4-nov-2026 — antes: «guardar() sobre una cartera que escribió OTRO suelta el
+     espejo». Soltarlo evitaba que la cartera retrocedida le pisara la NUBE al
+     celular, pero el cobro de la otra pestaña ya estaba perdido en el disco
+     (pestana-vieja.test.js). Lo que esta prueba vigilaba —que el espejo no siga
+     afirmando una cartera que ya no es— se cumple mejor: la cartera no retrocede. */
+  test('guardar() sobre una cartera que escribió OTRO no escribe nada: ni cartera, ni espejo, ni sello', () => {
     const P = abrirPanel();
     P.cargarCartera(cartera(2, 1));
     P.ev('_selloDesdeDisco(false)');
@@ -773,11 +779,13 @@ describe('el CRM de verdad (crm.html en el banco de pruebas)', () => {
     assert.ok(P.almacen[ESPEJO], 'guardar() soltó el espejo sin que nadie más escribiera');
     /* otra pestaña escribe la cartera por fuera */
     const otra = JSON.parse(P.almacen[KEY]); otra.socios[0].telefono = '3000000001';
-    P.almacen[KEY] = JSON.stringify(otra);
-    assert.equal(P.ev('guardar()'), true);
-    assert.equal(P.almacen[ESPEJO], undefined, 'la pestaña vieja pisó la cartera ajena y el espejo la siguió afirmando');
-    const s = JSON.parse(P.almacen[SELLO]);
-    assert.equal(s.largo, P.almacen[KEY].length, 'el sello no describe lo que quedó en el disco');
+    const texto = JSON.stringify(otra);
+    P.almacen[KEY] = texto;
+    const selloAntes = P.almacen[SELLO];
+    assert.equal(P.ev('guardar()'), false);
+    assert.equal(P.almacen[KEY], texto, 'la pestaña vieja pisó la cartera ajena');
+    assert.ok(P.almacen[ESPEJO], 'soltó el espejo sin haber escrito nada');
+    assert.equal(P.almacen[SELLO], selloAntes, 'selló una escritura que no hizo');
   });
 
   test('guardar() SIN espacio que salva sin fotos también sella; si no salva nada, no', () => {

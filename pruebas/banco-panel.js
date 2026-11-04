@@ -292,9 +292,13 @@ function abrirPanel(opciones) {
   bloques.forEach((m, i) => vm.runInContext(m[1], ctx, { filename: 'crm.html#' + i }));
 
   const ev = expr => vm.runInContext(expr, ctx, { filename: 'banco' });
+  /* 4-nov-2026 — con el sello, igual que el arranque de la página: «la cartera
+     estaba ahí cuando se abrió». Sin él, esta pestaña de pruebas tendría en el
+     disco una cartera que no conoce, y desde hoy guardar() se niega a pisarla. Lo
+     que quiera probar una escritura de otro la escribe en `almacen` después. */
   const cargarCartera = d => {
     almacen['joan_socios_v1'] = JSON.stringify(d);
-    return ev('DB=cargar()');
+    return ev('DB=cargar(); _selloDesdeDisco(false); DB');
   };
   /* `ctx` sale afuera para poder meterle objetos a la página —un nodo de
      mentira, por ejemplo— y leer después lo que el CRM les hizo. Sin esto, todo

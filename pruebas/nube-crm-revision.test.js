@@ -21,7 +21,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const N = require('../panel/nube.js');
 const {
-  RAIZ, KEY, ESPEJO, SELLO, ESTADO, DUENO, clon, comoJsonb, fnv, pestana, montar, socio, credito,
+  RAIZ, KEY, ESPEJO, SELLO, ESTADO, DUENO, clon, comoJsonb, fnv, pestanaDeAntes, montar, socio, credito,
   cartera, leerDisco, espejoDisco, estadoDisco, congeladas, sembrar, invariante
 } = require('./banco-nube-crm.js');
 
@@ -33,8 +33,9 @@ describe('plata 1 · el espejo no renace encima de una cartera que cambió duran
   test('otra pestaña guarda su cartera vieja MIENTRAS el pedazo sube: el cobro sigue en la nube', async () => {
     const m = montar({ db: cartera(3, 2) });
     await sembrar(m);
-    /* La pestaña B, olvidada desde antes del cobro, con la cartera en memoria. */
-    const B = pestana(m.alm, 'B');
+    /* La pestaña B, olvidada desde antes del cobro, con la cartera en memoria.
+       4-nov-2026: de ANTES de v143, la única que todavía pisa (pestana-vieja.test.js). */
+    const B = pestanaDeAntes(m.alm, 'B');
     const viejaB = B.leer();
     /* Joan cobra C en el P1 en la pestaña A. */
     const db = m.tab.leer();
@@ -67,7 +68,7 @@ describe('plata 1 · el espejo no renace encima de una cartera que cambió duran
   test('plata 9 · la pestaña que pierde el sello a mitad de subida suelta su latido «en vuelta»', async () => {
     const m = montar({ db: cartera(2, 1) });
     await sembrar(m);
-    const B = pestana(m.alm, 'B');
+    const B = pestanaDeAntes(m.alm, 'B');
     const viejaB = B.leer();
     const db = m.tab.leer(); db.prestamos[0].abonos.push({ fecha: '2026-10-01', monto: 1 }); m.tab.guardar(db);
     const original = m.srv.empujar;

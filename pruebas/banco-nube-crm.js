@@ -151,18 +151,20 @@ function fnv(t) {
 }
 
 /* Una pestaña del CRM con el MISMO contrato de sello que crm.html: guardar()
-   pregunta si la cartera es ajena, escribe, suelta el espejo si pisó algo
-   ajeno, y sella. */
+   pregunta si la cartera es ajena; si lo es, no escribe nada y contesta false
+   (4-nov-2026; antes pisaba y soltaba el espejo). Si no, escribe y sella.
+   pestana-vieja.test.js comprueba que este doble y crm.html dicen lo mismo. */
 function pestana(alm, quien) {
   const p = { quien, v: 0, mio: null };
   p.sellar = t => { p.mio = { v: ++p.v, quien, largo: t.length, huella: fnv(t) }; alm.setItem(SELLO, JSON.stringify(p.mio)); };
   p.guardar = db => {
     const antes = alm.getItem(KEY) || '';
     const ajena = !!p.mio && (antes.length !== p.mio.largo || fnv(antes) !== p.mio.huella);
+    if (ajena) return false;
     const t = JSON.stringify(db);
     alm.setItem(KEY, t);
-    if (ajena) alm.removeItem(ESPEJO);
     p.sellar(t);
+    return true;
   };
   p.leer = () => { const t = alm.getItem(KEY) || ''; p.mio = { v: p.v, quien, largo: t.length, huella: fnv(t) }; return JSON.parse(t || '{}'); };
   p.reclamar = () => {
@@ -171,6 +173,25 @@ function pestana(alm, quien) {
     p.sellar(t); return true;
   };
   p.cfg = { sello: () => p.mio, huella: fnv, retomarSello: () => p.reclamar(), recargar: () => { p.leer(); p.reclamar(); } };
+  return p;
+}
+
+/* 4-nov-2026 — LA PESTAÑA DE ANTES. El mismo doble con el guardar() de hasta v142:
+   pisa lo que escribió otro y suelta el espejo. crm.html ya no hace esto, pero una
+   pestaña abierta antes de publicar sigue corriendo ese código hasta que se
+   recargue, y las defensas de nube-crm.js contra una cartera que retrocede (la
+   puerta del sello, el espejo que no renace) siguen sirviendo contra ella y contra
+   cualquier otro que escriba el disco. */
+function pestanaDeAntes(alm, quien) {
+  const p = pestana(alm, quien);
+  p.guardar = db => {
+    const antes = alm.getItem(KEY) || '';
+    const ajena = !!p.mio && (antes.length !== p.mio.largo || fnv(antes) !== p.mio.huella);
+    const t = JSON.stringify(db);
+    alm.setItem(KEY, t);
+    if (ajena) alm.removeItem(ESPEJO);
+    p.sellar(t);
+  };
   return p;
 }
 
@@ -262,6 +283,6 @@ function invariante(alm, donde) {
 
 module.exports = {
   RAIZ, KEY, ESPEJO, SELLO, ESTADO, DUENO, TABLAS, CAMPO, clon, azar, almacenDoble, comoJsonb,
-  servidor, fnv, pestana, RELOJ, montar, socio, credito, cartera, leerDisco, espejoDisco, estadoDisco,
+  servidor, fnv, pestana, pestanaDeAntes, RELOJ, montar, socio, credito, cartera, leerDisco, espejoDisco, estadoDisco,
   congeladas, sembrar, invariante
 };

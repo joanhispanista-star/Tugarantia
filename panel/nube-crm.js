@@ -63,6 +63,9 @@
  *      cartera retrocedida ya lleva su sello y la siguiente subida pisaría el
  *      cobro del celular con la revisión buena. Sin espejo, toca emparejar, y
  *      emparejar congela lo que difiere en vez de pisarlo.
+ *      4-nov-2026: esa pestaña ya no escribe (guardar() se niega y lo dice), así
+ *      que la cartera no retrocede y el espejo no hace falta soltarlo. Soltarlo
+ *      solo queda para cuando no se pudo saber quién escribió.
  *   5. El sello se RECLAMA después del PIN, no al abrir. Una pestaña olvidada
  *      en la pantalla del PIN no puede quitarle el turno a la que trabaja.
  *   6. El freno cuenta FICHAS y usa el mayor entre 3 y el 5% (lo que la receta

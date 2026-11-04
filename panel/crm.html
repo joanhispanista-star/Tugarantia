@@ -1539,6 +1539,11 @@ var _SELLO_MIO=null;   // lo último que esta pestaña selló: lo que cree que h
    cualquier escritura que sí entre (_trasGuardar). `var` y acá arriba por lo
    mismo que el sello: guardar() puede correr antes de su línea. */
 var _libroSinGuardar=false;
+/* 4-nov-2026 — UNA PESTAÑA VIEJA YA NO PISA (ver guardar()). null mientras no haya
+   nada que decir; 'sin-guardar' cuando esta pestaña se negó a escribir porque otra
+   guardó; 'al-dia' cuando ya se releyó, pero lo último que Joan hizo aquí no
+   quedó. Con `var` y acá arriba por lo mismo que el sello. */
+var _otraPestana=null, _cajaOtraPestana=null;
 function _huella(t){ t=String(t==null?'':t); var h=0x811c9dc5; for(var i=0;i<t.length;i++){ h^=t.charCodeAt(i); h=Math.imul(h,0x01000193); } return (h>>>0).toString(36); }
 function _sello(t){
   t=String(t==null?'':t);
@@ -1570,6 +1575,22 @@ function _carteraAjena(){
     var t=localStorage.getItem(KEY)||'';
     return t.length!==_SELLO_MIO.largo || _huella(t)!==_SELLO_MIO.huella;
   }catch(e){ return true; }
+}
+/* 4-nov-2026 — LA MISMA PREGUNTA, PARA NEGARSE A ESCRIBIR. _carteraAjena contesta
+   «sí» cuando no sabe, porque ahí equivocarse cuesta un emparejar. Para decirle a
+   Joan «Otra pestaña guardó» hay que haberlo medido: si el disco no se pudo leer,
+   esta contesta que no y guardar() sigue por donde siempre (el setItem dirá lo
+   suyo). En modo equipo, nunca: esa DB no es la de Joan. CARTERA_EQUIPO es un
+   `let` de miles de líneas más abajo y guardar() puede correr en el arranque
+   (la migración de fechas): leerlo antes de su línea lanza, y sin ese try el
+   script entero se cae y el botón Entrar no hace nada. */
+function _otraPestanaEscribio(){
+  try{ if(CARTERA_EQUIPO) return false; }catch(e){ return false; }
+  try{
+    if(!_SELLO_MIO) return false;
+    var t=localStorage.getItem(KEY)||'';
+    return t.length!==_SELLO_MIO.largo || _huella(t)!==_SELLO_MIO.huella;
+  }catch(e){ return false; }
 }
 /* Lo que pasa DESPUÉS de cada escritura que sí entró, en las dos ramas de
    guardar(). El orden importa: primero se suelta el espejo si se pisó algo
@@ -1796,8 +1817,24 @@ function codRespaldado(r){ return PUENTE.codRespaldado(r); }
 var _guardadoOk = true;
 
 function guardar(){
+  /* 4-nov-2026 — UNA PESTAÑA VIEJA NO BORRA UN COBRO. Medido el 3-nov con este
+     mismo archivo en dos pestañas: la A cobra y guarda; la B tiene un cuadro
+     abierto, así que no se recarga sola (alEscribirOtraPagina espera), y al
+     guardar ese cuadro escribía encima SU copia de antes. Abonos en el disco: 1
+     tras A, 0 tras B, sin un solo aviso, y como el cobro todavía no había subido
+     (faltaban sus 30-90 s de calma), no quedaba en ninguna parte.
+     Soltar el espejo, que era lo que se hacía hasta hoy, protegía la NUBE de esa
+     cartera retrocedida; el cobro ya estaba perdido en el disco. Ahora no se
+     escribe: la cartera, el espejo y el sello se quedan como los dejó quien
+     cobró, y esa pestaña sigue subiendo sin enterarse. Lo que no entró es lo de
+     ESTA pestaña, y se dice. No se relee aquí mismo: DB tiene en memoria lo que
+     Joan acaba de hacer, y quien llamó sigue trabajando con sus referencias; con
+     dos guardar() en una misma acción, el segundo escribiría media acción sobre
+     la cartera releída. */
+  if (_otraPestanaEscribio()) return negarseAGuardar();
   /* 1-oct-2026 — se pregunta ANTES de escribir si lo que se va a pisar lo
-     escribió otro (ver EL SELLO DE LA CARTERA, arriba). */
+     escribió otro (ver EL SELLO DE LA CARTERA, arriba). Desde el 4-nov solo puede
+     ser «sí» cuando no se pudo saber, o en modo equipo. */
   var ajena = _carteraAjena(), t;
   try {
     t = JSON.stringify(DB);
@@ -1884,6 +1921,58 @@ function pintarAvisoGuardado(salvadoSinFotos){
     'border:0;border-radius:8px;background:#fff;color:#7A1020;font-weight:700;' +
     'cursor:pointer">⬇ Bajar respaldo ahora</button>';
 }
+
+/* 4-nov-2026 — CUANDO ESTA PESTAÑA SE NIEGA A GUARDAR (ver guardar()).
+   _libroSinGuardar porque lo de la memoria no está en el disco: los historiales
+   no lo suben (historiales-auto.js, cfg.sinGuardar), y un cliente no ve un pago
+   que después desaparece. El aviso va arriba y por encima de los cuadros (z-index
+   50): lo más probable es que Joan esté mirando uno, y el de «el navegador se
+   llenó» ya ocupa abajo. Por debajo de la puerta de la sesión, como los demás.
+   La recarga es de verdad (location.reload) y no un DB=cargar(): así no queda
+   ningún cuadro a medio llenar con la copia de antes, y es lo que dice el botón. */
+function negarseAGuardar(){
+  _otraPestana='sin-guardar';
+  _libroSinGuardar=true;
+  try{ pintarAvisoOtraPestana(); }catch(e){}
+  return false;
+}
+function pintarAvisoOtraPestana(){
+  if(!_otraPestana){
+    if(_cajaOtraPestana){
+      _cajaOtraPestana.innerHTML='';
+      if(typeof _cajaOtraPestana.remove==='function') _cajaOtraPestana.remove();
+      _cajaOtraPestana=null;
+    }
+    return;
+  }
+  if(!_cajaOtraPestana){
+    _cajaOtraPestana=document.createElement('div');
+    _cajaOtraPestana.id='avisoOtraPestana';
+    _cajaOtraPestana.setAttribute('role','alert');
+    _cajaOtraPestana.style.cssText='position:fixed;left:0;right:0;top:0;z-index:10000;padding:14px 18px;'+
+      'background:var(--rojo);color:var(--papel);font-size:14px;line-height:1.5;box-shadow:0 4px 20px rgba(0,0,0,.4)';
+    document.body.appendChild(_cajaOtraPestana);
+  }
+  const boton=(fn,txt)=>' <button type="button" onclick="'+fn+'()" style="margin-left:10px;padding:6px 12px;'+
+    'border:0;border-radius:8px;background:var(--papel);color:var(--rojo);font-weight:700;cursor:pointer">'+txt+'</button>';
+  _cajaOtraPestana.innerHTML=_otraPestana==='sin-guardar'
+    ? '<b>Otra pestaña guardó. Esto no se guardó: recarga.</b> Lo que guardó la otra pestaña está a salvo; '+
+      'lo último que hiciste aquí hay que volver a hacerlo.'+boton('recargarPorOtraPestana','Recargar')
+    : '<b>Otra pestaña guardó y esta ya se puso al día.</b> Lo último que hiciste aquí no se guardó: vuelve a hacerlo.'+
+      boton('entendidoOtraPestana','Entendido');
+}
+function recargarPorOtraPestana(){ try{ location.reload(); }catch(e){} }
+function entendidoOtraPestana(){ _otraPestana=null; pintarAvisoOtraPestana(); }
+/* Lo que hay en memoria acaba de salir del disco: ya no queda nada sin guardar.
+   Si esta pestaña se había negado a guardar, el aviso sigue, pero ya no pide
+   recargar: pide volver a hacer lo que no quedó. */
+function _carteraReleida(){
+  _libroSinGuardar=false;
+  if(_otraPestana){ _otraPestana='al-dia'; try{ pintarAvisoOtraPestana(); }catch(e){} }
+}
+/* Los avisos que afirman que algo quedó. «Ajustes guardados.» justo después de
+   negarse a guardar sería mentira, y la franja ya dijo lo que pasó. */
+function avisoDeExito(m){ if(_otraPestana==='sin-guardar') return; alert(m); }
 
 
 const COP=n=>'$'+Math.round(n||0).toLocaleString('es-CO');
@@ -3312,7 +3401,7 @@ function marcarEnviados(canal) {
     tocados++;
   });
   guardar(); render(); cerrarModal();
-  alert('Anotado: ' + tocados + ' contacto(s) por ' +
+  avisoDeExito('Anotado: ' + tocados + ' contacto(s) por ' +
     (canal === 'voz' ? 'voz' : 'texto') + '. No se les vuelve a escribir hasta la semana que viene.');
 }
 
@@ -4147,7 +4236,7 @@ function agregarNumeroWA() {
   l.push({ numero: n, desde: hoyISO(), hasta: null, motivo: '' });
   DB.config.whatsapp = n;        /* el activo, derivado — es el que entra en los mensajes */
   guardar(); pintarMisNumeros();
-  alert('Listo. Desde hoy los mensajes salen diciendo ' + n + '.\n\n' +
+  avisoDeExito('Listo. Desde hoy los mensajes salen diciendo ' + n + '.\n\n' +
         'El anterior queda guardado con su fecha: eso es lo que te sirve si alguien reclama por ' +
         'un mensaje de antes.');
 }
@@ -4160,7 +4249,7 @@ function jubilarNumero(numero, desde) {
   n.hasta = hoyISO();
   n.motivo = String(motivo).trim() || 'sin motivo';
   guardar(); pintarMisNumeros();
-  alert('Anotado: dejaste de usar el ' + numero + ' hoy (' + n.motivo + ').\n\n' +
+  avisoDeExito('Anotado: dejaste de usar el ' + numero + ' hoy (' + n.motivo + ').\n\n' +
         'Agrega el número nuevo abajo para que los mensajes salgan con él.\n\n' +
         'OJO: tu número también está escrito dentro de tres páginas publicadas del sitio. ' +
         'Avísame para cambiarlo ahí — eso no se edita desde acá, hay que volver a publicar.');
@@ -4333,7 +4422,7 @@ function guardarAnotacionCobro() {
   guardar();
   cerrarModal();
   renderCobranzas();
-  alert('Anotado: ' + TIPOS_GESTION[tipo.value].et + '.\n\n' +
+  avisoDeExito('Anotado: ' + TIPOS_GESTION[tipo.value].et + '.\n\n' +
         (gastaSemana
           ? 'Cuenta como tu contacto de la semana: el CRM no te lo va a ofrecer para escribirle ' +
             'hasta dentro de 7 días.'
@@ -5628,8 +5717,8 @@ function insertarVar(k,token){ const ta=document.querySelector('#pltWrap textare
   const s=ta.selectionStart!=null?ta.selectionStart:ta.value.length, e=ta.selectionEnd!=null?ta.selectionEnd:ta.value.length;
   ta.value=ta.value.slice(0,s)+token+ta.value.slice(e); ta.focus(); const pos=s+token.length; ta.selectionStart=ta.selectionEnd=pos; previewPlt(k); }
 function restaurarUna(k){ if(!confirm('¿Volver al mensaje recomendado para "'+PLANTILLAS_DEF[k].t+'"?\nSe reemplaza tu versión actual de esta plantilla.'))return; DB.plantillas[k]=PLANTILLAS_DEF[k].m; guardar(); renderPlantillas(); }
-function restaurarPlantillas(){ if(!confirm('¿Restaurar TODOS los mensajes recomendados (las versiones nuevas, más cálidas)?\nSe reemplazan tus plantillas actuales. Esto NO afecta clientes ni créditos.'))return; Object.keys(PLANTILLAS_DEF).forEach(k=>DB.plantillas[k]=PLANTILLAS_DEF[k].m); guardar(); renderPlantillas(); alert('Listo. Ahora tus mensajes usan las versiones recomendadas.'); }
-function guardarPlantillas(){ document.querySelectorAll('#pltWrap textarea').forEach(t=>DB.plantillas[t.dataset.k]=t.value); guardar(); renderPlantillas(); alert('Plantillas guardadas.'); }
+function restaurarPlantillas(){ if(!confirm('¿Restaurar TODOS los mensajes recomendados (las versiones nuevas, más cálidas)?\nSe reemplazan tus plantillas actuales. Esto NO afecta clientes ni créditos.'))return; Object.keys(PLANTILLAS_DEF).forEach(k=>DB.plantillas[k]=PLANTILLAS_DEF[k].m); guardar(); renderPlantillas(); avisoDeExito('Listo. Ahora tus mensajes usan las versiones recomendadas.'); }
+function guardarPlantillas(){ document.querySelectorAll('#pltWrap textarea').forEach(t=>DB.plantillas[t.dataset.k]=t.value); guardar(); renderPlantillas(); avisoDeExito('Plantillas guardadas.'); }
 
 /* ===== GESTIÓN WhatsApp ===== */
 /* 4-ago-2026 — EL RECIBO QUE LE QUEDA AL SOCIO EN EL CELULAR.
@@ -8848,7 +8937,7 @@ function registrarPlanDePagos(id){
   addComp(p,'plan',r.total_a_pagar);
   p.cicloActual=p.planPagos.cuotas[0].fecha;
   guardar(); cerrarModal(); render();
-  alert('✓ Plan de pagos registrado.\n\nLa próxima cuota de '+p.socioNombre+' es '
+  avisoDeExito('✓ Plan de pagos registrado.\n\nLa próxima cuota de '+p.socioNombre+' es '
     +COP(p.planPagos.cuotas[0].total)+' el '+fmtFecha(p.planPagos.cuotas[0].fecha)
     +'. Se cobra por la misma pantalla de siempre.');
 }
@@ -10609,7 +10698,7 @@ function guardarYPintar(){
   try { render(); }
   catch(e){
     console.error('render() falló después de traer:', e);
-    alert('Traje los datos y quedaron guardados, pero no pude repintar la pantalla.\n\n' +
+    avisoDeExito('Traje los datos y quedaron guardados, pero no pude repintar la pantalla.\n\n' +
       'Recarga la página (Ctrl+Shift+R) y vas a verlos.\n\nDetalle: ' + ((e&&e.message)||e));
   }
 }
@@ -18793,6 +18882,13 @@ function confirmarCargaBase() {
      base de prospectos obligaba a emparejar otra vez, y emparejar congela lo
      que el celular tocó entretanto. Se pregunta ANTES si lo de antes era ajeno
      y se sella lo que entró, igual que guardar(). */
+  /* 4-nov-2026 — y desde una pestaña vieja esta escritura pisaba igual que
+     guardar() (ver guardar()). Se deshace la carga, como cuando no cabe, y se dice. */
+  if (_otraPestanaEscribio()) {
+    prospectos().splice(antes); basesCargadas().splice(basesAntes);
+    cerrarModal();
+    return negarseAGuardar();
+  }
   const ajenaBase = _carteraAjena();
   try { localStorage.setItem(KEY, JSON.stringify(DB)); }
   catch (e) {
@@ -21413,7 +21509,7 @@ function aplicarCruce(idReg,idSocio,op){
     if(girosC) s2.girosFotos=girosC;
     guardar();
     if(a.fallo){
-      alert('Quedó cruzado, pero NO pude traer las fotos: '+a.fallo+
+      avisoDeExito('Quedó cruzado, pero NO pude traer las fotos: '+a.fallo+
             '\n\nEl registro sigue en la bandeja para que lo vuelvas a intentar en un minuto.');
       render(); return;
     }
@@ -23233,7 +23329,7 @@ function guardarCfg(){ DB.config.negocio=gv('cfgNeg')||'Tu Garantía'; DB.config
       +'\n\n¿Lo enciendo?')) return;
   }
   DB.config.freno={ activo:prender, fraccion_quincena:pct/100 };
-  guardar(); render(); pintarFreno(); alert('Ajustes guardados.'); }
+  guardar(); render(); pintarFreno(); avisoDeExito('Ajustes guardados.'); }
 /* 15-sep-2026 — EL RESPALDO SE ANOTA. Hasta hoy nada guardaba cuando fue el
    ultimo, asi que la pregunta «¿cuanto hace que no respaldo?» no tenia
    respuesta en ninguna parte y la unica forma de saberlo era acordarse.
@@ -23324,7 +23420,10 @@ function importar(e){ const f=e.target.files[0]; if(!f)return; const inp=e.targe
        lo que Joan hizo aquí mismo. Sin espejo, lo que dice ahora es «falta
        emparejar», que es la verdad. El sello va DESPUÉS de la migración de
        fechas: si esa guardó, el sello describe lo que quedó en el disco. */
-    DB=cargar(); if(_fechasMigradas) guardar(); _selloDesdeDisco(true); render();
+    /* 4-nov-2026 — el _selloDesdeDisco(false) antes de la migración: la cartera del
+       disco la acaba de escribir esta misma pestaña, y sin esto su guardar() la
+       tomaba por la de otra y se negaba («Otra pestaña guardó»). */
+    _selloDesdeDisco(false); DB=cargar(); if(_fechasMigradas) guardar(); _selloDesdeDisco(true); _carteraReleida(); render();
     try{ if(window.NubeCRM) NubeCRM.algoCambio(); }catch(e){}
     /* 7-oct-2026 — un respaldo es casi siempre una cartera VIEJA: los
        historiales no la suben solos (pisaría pagos que los clientes ya ven)
@@ -23396,6 +23495,11 @@ function entrar(){ const retomada=_retomandoDueno===true, campoPin=document.getE
        a arrancar, y lo que Joan tenía a medio escribir sigue ahí. */
     if(!retomada){ campoPin.value=''; abrirSesionDueno(); if(_crmAbierto){ quitarCandado(); return; } }
     _crmAbierto=true;
+    /* 4-nov-2026 — UNA PESTAÑA OLVIDADA EN LA PUERTA. Mientras no se entra nadie
+       oye `storage` (el oyente se pone abajo), así que la cartera que tiene en
+       memoria puede ser la de hace horas. Sin nada a medio hacer no hay nada que
+       perder: se relee, en vez de dejarla chocar con el primer cobro. */
+    if(!_oyendoCartera && _otraPestanaEscribio()){ DB=cargar(); _selloDesdeDisco(false); if(_fechasMigradas) guardar(); }
     document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='grid'; render();
     /* 1-oct-2026 — EL ARRANQUE DE LA SUBIDA (RECETA-NUBE-CRM.md, Etapa 1, paso 15).
        Acá y no arriba junto a la definición de render(): este es el único sitio
@@ -23451,8 +23555,8 @@ function entrar(){ const retomada=_retomandoDueno===true, campoPin=document.getE
    es suyo) y NUNCA debajo de Joan: con un modal abierto o un campo enfocado se
    espera a que termine. No se recarga dentro de guardar(): ahí DB ya tiene en
    memoria lo que Joan acaba de hacer, y recargar sería tirarlo. Si guarda
-   antes de que se recargue, guardar() suelta el espejo como siempre, y lo de
-   la nube sigue a salvo. Nunca en modo equipo: esa DB no es la de Joan. */
+   antes de que se recargue, desde el 4-nov guardar() se niega y lo dice: ya no
+   pisa ni suelta el espejo. Nunca en modo equipo: esa DB no es la de Joan. */
 var _oyendoCartera=false, _recargaPendiente=false;
 function alEscribirOtraPagina(ev){
   try{
@@ -23461,14 +23565,14 @@ function alEscribirOtraPagina(ev){
     recargarSinReclamar();
   }catch(e){}
 }
-function recargarSinReclamar(){ _recargaPendiente=false; DB=cargar(); _selloDesdeDisco(false); if(_fechasMigradas) guardar(); render(); }
+function recargarSinReclamar(){ _recargaPendiente=false; DB=cargar(); _selloDesdeDisco(false); _carteraReleida(); if(_fechasMigradas) guardar(); render(); }
 function esperarParaRecargar(){
   if(_recargaPendiente) return;
   _recargaPendiente=true;
   (function mirar(){ setTimeout(function(){
     try{
       if(!_recargaPendiente) return;
-      /* Ya guardó encima (y soltó el espejo) o ya se recargó: nada que hacer. */
+      /* Ya se recargó, o el disco volvió a ser el suyo: nada que hacer. */
       if(CARTERA_EQUIPO || !_carteraAjena()){ _recargaPendiente=false; return; }
       if(estoyOcupado()) return mirar();
       recargarSinReclamar();
@@ -23484,7 +23588,7 @@ function estoyOcupado(){ try{ if(modal.classList.contains('on')) return true; va
    cartera: las MISMAS tres líneas del arranque y de importar(), con el sello en
    medio. Sin el `if(_fechasMigradas) guardar()`, la migración de fechas se
    vuelve a correr y vuelve la garantía duplicada que cargar() documenta. */
-function recargarCartera(){ DB=cargar(); _selloDesdeDisco(true); if(_fechasMigradas) guardar(); render(); }
+function recargarCartera(){ DB=cargar(); _selloDesdeDisco(true); _carteraReleida(); if(_fechasMigradas) guardar(); render(); }
 
 /* ===========================================================================
  * ☁ TODO SUBE SOLO — LA LÍNEA COMÚN — 22-oct-2026
