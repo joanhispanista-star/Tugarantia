@@ -355,10 +355,22 @@ describe('F4. Traer se puede usar desde la primera pantalla', () => {
   const PLEGADO_CIERRA = i('</details>', PLEGADO_ABRE);
 
   test('a la vista, una sola frase; y es la frase que es', () => {
-    assert.match(VISIBLE, /id="fraseDeArriba">Sirve para mirar: lo que anotes aquí no llega a tu computador ni a tus clientes\.</);
+    assert.match(VISIBLE, /id="fraseDeArriba">Sirve para mirar: lo que anotes aquí sube a la nube, pero no entra solo a tu computador ni les llega a tus clientes\.</);
     assert.ok(i('fraseDeArriba') > 0 && i('fraseDeArriba') < PLEGADO_ABRE, 'la frase quedó dentro de lo plegado');
     const cabecera = VISIBLE.slice(i('<header'), i('</header>'));
     assert.doesNotMatch(cabecera, /class="sub"/, 'la cabecera sigue con otra frase más encima');
+  });
+
+  test('la frase de arriba no se contradice con lo que hace el código', () => {
+    /* «Sube a la nube»: el CRM carga nube-crm.js y ese archivo empuja. Decía que no llegaba. */
+    assert.doesNotMatch(VISIBLE, /no llega a tu computador/);
+    assert.match(LEER('panel/nube-crm.js'), /\.empujar\(/);
+    assert.match(CRM, /<script src="nube-crm\.js\?v=\d+"><\/script>/);
+    /* «Ni les llega a tus clientes»: lo que los alcanza exige la clave de sincronización, y
+       ningún paso de esta página la trae. Un teléfono nuevo sale de aquí sin ella. */
+    assert.match(CRM, /function sbListo\(\)\{ const c=sbCfg\(\); return !!\(c\.url&&c\.anon&&c\.clave\); \}/);
+    const T = abrirTraer();
+    assert.equal(JSON.parse(T.almacen.joan_socios_sb).clave, '', 'traer dejó una clave de sincronización');
   });
 
   test('el desplegable nace cerrado', () => {
