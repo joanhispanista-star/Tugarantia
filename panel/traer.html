@@ -225,6 +225,8 @@ details>summary::-webkit-details-marker{display:none}
 /* La nota de la conexión y un error a la vez: en la cara de siempre van seguidas, y las
    dos son el primer hijo de su cajón, así que quedarían pegadas. */
 #notaConexion:not(:empty)+#msg2 .aviso{margin-top:var(--e3)}
+/* El aviso del PIN es el primer hijo de su cajón, y encima siempre tiene otro aviso. */
+#avisoPinPaso3 .aviso,#avisoPinAntesDeTraer .aviso{margin-top:var(--e3)}
 /* 6-nov-2026 — «Cambiar la conexión» casi nadie la necesita: como enlace, para que debajo
    de «Entrar» no parezca el paso siguiente. 44 px para el dedo igual. */
 .btn-texto{display:block;width:100%;min-height:44px;background:none;border:0;color:var(--gris);

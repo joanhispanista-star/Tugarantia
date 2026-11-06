@@ -788,6 +788,11 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
       assert.ok(c5 < h.indexOf('id="avisoPinAntesDeTraer"') && h.indexOf('id="avisoPinAntesDeTraer"') < h.indexOf('id="btnTraer"'), 'no va encima del botón');
     });
 
+    test('no queda pegado al aviso de arriba: es el primer hijo de su cajón, y ahí el margen se va', () => {
+      assert.match(LEER('panel/traer.html'), /\.aviso:first-child\{margin-top:0\}/);
+      assert.match(LEER('panel/traer.html'), /#avisoPinPaso3 \.aviso,#avisoPinAntesDeTraer \.aviso\{margin-top:var\(--e3\)\}/);
+    });
+
     test('subir.html y el botón que nombra existen: si cambian, esto avisa', () => {
       assert.match(CRM, /<a class="btn btn-ghost btn-sm" href="subir\.html" target="_blank" rel="noopener">☁ Subir<\/a>/);
       assert.match(LEER('panel/subir.html'), /Sube tu configuración del negocio, y ahí adentro está el <b>PIN del Panel<\/b>/);
