@@ -632,7 +632,7 @@ describe('Con algo que perder, traer.html es la de siempre: lo único que cambia
       assert.equal(T.bajoA('abajoDeEntrar').filter(x => x === 'ayudaClave').length, 1);
     });
 
-    test('sin poder leer el cajón ni con una conexión dañada no se rompe la página', () => {
+    test('control: sin poder leer el cajón ni con una conexión dañada no se rompe la página', () => {
       assert.equal(abrirTraer({ sinCajon: true }).plegada(), false);
       assert.equal(abrirTraer({ almacen: { joan_socios_sb: '{roto' } }).elems.c2.classList.contains('dormido'), false);
     });
