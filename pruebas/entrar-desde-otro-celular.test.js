@@ -73,7 +73,8 @@ describe('F2. La puerta del PIN de un navegador sin fichas tiene salida', () => 
     const P = conAlmacen({});
     const h = P.elems['gate-card'].innerHTML;
     assert.match(h, /<button class="gate-link" onclick="soyDelEquipo\(\)">Soy del equipo \(gerente o asesor\)<\/button>/);
-    assert.ok(h.indexOf('id="salidaPuerta"') < h.indexOf('soyDelEquipo()'), 'la salida empujó el enlace del gerente hacia arriba o lo tapó');
+    const salida = h.indexOf('id="salidaPuerta"');
+    assert.ok(salida >= 0 && salida < h.indexOf('soyDelEquipo()'), 'la salida empujó el enlace del gerente hacia arriba o lo tapó');
   });
 
   test('con cualquiera de las tres clases de ficha no sale, y la tarjeta nace escondida', () => {
@@ -189,7 +190,7 @@ describe('F3. La puerta de traer.html solo sale si hay algo que tapar', () => {
     assert.equal(T.texto('e1'), 'Vacío');
   });
 
-  test('con fichas sigue, aunque el PIN sea el de fábrica', () => {
+  test('control: con fichas sigue, aunque el PIN sea el de fábrica', () => {
     [{ socios: [SOCIO] }, { prestamos: [CREDITO] }, { respaldados: [RESPALDADO] }, { papelera: [CREDITO] }, { invitaciones: [{ id: 'I1' }] }]
       .forEach(d => assert.equal(abrirTraer({ almacen: cartera(Object.assign({ config: { pin: '1234' } }, d)) }).puerta(), true, Object.keys(d)[0]));
   });
@@ -237,7 +238,7 @@ describe('F3. La puerta de traer.html solo sale si hay algo que tapar', () => {
     assert.equal(T.elems.btnEntrar.disabled, true);
   });
 
-  test('el respaldo del paso 4 no cambió: sin fichas se baja y se anota; con fichas exige que digas que lo tienes', () => {
+  test('control: el respaldo del paso 4 no cambió, sin fichas se baja y se anota; con fichas exige que digas que lo tienes', () => {
     const sinFichas = abrirTraer({ almacen: cartera({ socios: [], config: { pin: '1234' } }) });
     sinFichas.tocar('btnRespaldo');
     assert.equal(sinFichas.descargas.length, 1);
@@ -291,7 +292,7 @@ describe('F4. Traer se puede usar desde la primera pantalla', () => {
     assert.match(VISIBLE.slice(PLEGADO_ABRE, PLEGADO_CIERRA), /<summary>Antes de nada: para qué sirve esto y para qué no<\/summary>/);
   });
 
-  test('siguen antes de los botones, y «Tu correo», «Tu contraseña» y «Entrar» van en ese orden', () => {
+  test('control: siguen antes de los botones, y «Tu correo», «Tu contraseña» y «Entrar» van en ese orden', () => {
     const entrar = i('id="btnEntrar"'), correo = i('for="sbCorreo"'), clave = i('for="sbClave"');
     assert.ok(PLEGADO_CIERRA < i('id="c1"') && PLEGADO_CIERRA < correo, 'los avisos ya no van antes de los botones');
     assert.ok(correo < clave && clave < entrar);
@@ -468,7 +469,7 @@ describe('F7. Mirar el CRM no crea una cartera', () => {
     });
   });
 
-  test('con datos, Ventas guarda como siempre: lo que el embudo movió no se pierde', () => {
+  test('control: con datos, Ventas guarda como siempre, lo que el embudo movió no se pierde', () => {
     const conSocio = {
       socios: [SOCIO], prestamos: [CREDITO], config: { pin: '4321' },
       prospectos: [{ id: 'p1', nombre: 'Prospecto Inventado', celular: '3000000301', estado: 'nuevo' }]
