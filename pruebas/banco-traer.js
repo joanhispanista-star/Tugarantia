@@ -79,6 +79,8 @@ function abrirTraer(opciones) {
     const attrs = m[1] + ' ' + m[3];
     const c = (/\bclass="([^"]*)"/.exec(attrs) || [])[1] || '';
     elems[m[2]] = crear(m[2], c.split(/\s+/).filter(Boolean));
+    const propio = /^([^<]*)</.exec(cuerpo.slice(m.index + m[0].length));
+    if (propio && propio[1].trim()) elems[m[2]].textContent = propio[1].trim();
     if (/\bdisabled\b/.test(attrs)) elems[m[2]].disabled = true;
   }
 

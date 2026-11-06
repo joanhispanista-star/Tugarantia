@@ -638,3 +638,65 @@ describe('F9. «Qué es» no deja escoger lo que no va a hacer', () => {
     assert.equal(e.rol, 'gerente');
   });
 });
+
+/* ------------------------------------------------------------------ F10 */
+describe('F10. Lo que traer.html dice de la conexión es cierto, y no se borra', () => {
+  const CONEXION = 'joan_socios_sb';
+  const VIEJA = () => {
+    /* Una conexión guardada de antes: la que dejó el espejo en este teléfono. */
+    const A = {};
+    abrirTraer({ almacen: A });
+    return A;
+  };
+
+  test('en un teléfono nuevo no dice que «ya estaba guardada»: la guardó esta página un instante antes', () => {
+    const T = abrirTraer();
+    assert.equal(T.texto('msg2'), '', 'afirma algo de la conexión');
+    assert.equal(T.elems.notaConexion.textContent, '');
+    assert.equal(T.elems.camposConexion.classList.contains('oculto'), true, 'los dos campos largos volvieron a la vista');
+    assert.ok(JSON.parse(T.almacen[CONEXION]).url, 'tampoco es que no la tenga');
+  });
+
+  test('en un teléfono nuevo se puede cambiar igual: la llave de fábrica se puede rotar', () => {
+    const T = abrirTraer();
+    assert.equal(T.elems.btnVerCampos.classList.contains('oculto'), false);
+    assert.equal(T.elems.btnVerCampos.textContent, 'Cambiar la conexión');
+    T.tocar('btnVerCampos');
+    assert.equal(T.elems.camposConexion.classList.contains('oculto'), false);
+    assert.equal(T.elems.btnVerCampos.classList.contains('oculto'), true);
+  });
+
+  test('si de verdad ya estaba, lo dice, con su dirección y «Cambiarla»', () => {
+    const T = abrirTraer({ almacen: VIEJA() });
+    assert.match(T.texto('notaConexion'), /^La conexión ya estaba guardada en este teléfono \( ?https:\/\/[a-z0-9]+\.supabase\.co ?\)\.$/);
+    assert.equal(T.elems.btnVerCampos.textContent, 'Cambiarla');
+    assert.equal(T.elems.btnVerCampos.classList.contains('oculto'), false);
+    assert.equal(T.texto('msg2'), '', 'se quedó en msg2: el primer «Entrando…» lo borra');
+  });
+
+  test('«Cambiarla» sobrevive al primer error: era justo cuando más podía hacer falta', async () => {
+    const T = abrirTraer({ almacen: VIEJA(), red: () => ({ status: 401, cuerpo: { message: 'Invalid API key' } }) });
+    T.elems.sbCorreo.value = 'duena@prueba.test'; T.elems.sbClave.value = 'una-clave-inventada';
+    T.tocar('btnEntrar');
+    await asentar();
+    assert.equal(T.texto('e2'), 'No entró');
+    assert.notEqual(T.texto('msg2'), '');
+    assert.equal(T.elems.btnVerCampos.classList.contains('oculto'), false, 'desapareció con el primer error');
+    assert.match(T.texto('notaConexion'), /ya estaba guardada/);
+    T.tocar('btnVerCampos');
+    assert.equal(T.elems.camposConexion.classList.contains('oculto'), false, 'el botón ya no abre los campos');
+  });
+
+  test('una sesión ya abierta ahora sí se dice: msg2 ya no viene lleno con la conexión', () => {
+    const A = VIEJA();
+    A.joan_panel_sesion = JSON.stringify({ access_token: 'acceso-de-prueba', refresh_token: 'renovar-de-prueba', correo: 'duena@prueba.test', expira_en: Date.now() + 3600000 });
+    const T = abrirTraer({ almacen: A });
+    assert.match(T.texto('msg2'), /Ya había una sesión abierta como duena@prueba\.test/);
+    assert.equal(T.texto('e2'), 'Conectado');
+  });
+
+  test('sin acceso al cajón no ofrece cambiar nada', () => {
+    const T = abrirTraer({ sinCajon: true });
+    assert.equal(T.elems.btnVerCampos.classList.contains('oculto'), true);
+  });
+});

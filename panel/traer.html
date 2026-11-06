@@ -214,6 +214,10 @@ summary.card-cab::-webkit-details-marker{display:none}
 summary.card-cab h3{margin-right:auto}
 summary.card-cab::after{content:'▸';color:var(--gris);font-size:13px}
 details[open]>summary.card-cab::after{content:'▾'}
+/* 6-nov-2026 — «Cambiar la conexión» casi nadie la necesita: como enlace, para que debajo
+   de «Entrar» no parezca el paso siguiente. 44 px para el dedo igual. */
+.btn-texto{display:block;width:100%;min-height:44px;background:none;border:0;color:var(--gris);
+  font:inherit;font-size:13px;text-decoration:underline;cursor:pointer}
 .pie{text-align:center;font-size:12px;color:var(--gris);margin:24px 0 8px;line-height:1.6}
 .pie a{color:var(--gris)}
 </style>
@@ -348,6 +352,10 @@ details[open]>summary.card-cab::after{content:'▾'}
            líneas que no le piden nada, y «Entrar» sube a la primera pantalla. -->
       <div class="ayuda">No se guarda en este teléfono. Se cambia por una sesión, y la sesión sí queda guardada.</div>
       <button class="btn sec sm oculto" type="button" id="btnSalir">Cerrar sesión</button>
+      <!-- 6-nov-2026 — fuera de msg2: lo que se pinta ahí se borra al primer «Entrando…»,
+           y «Cambiarla» desaparecía justo cuando la conexión podía ser lo que falla. -->
+      <div class="ayuda" id="notaConexion"></div>
+      <button class="btn-texto oculto" type="button" id="btnVerCampos">Cambiarla</button>
     </div>
   </div>
 
@@ -530,6 +538,7 @@ var NUBE   = window.NubeTuGarantia;
    campos largos (URL y llave publishable) no los deberia teclear nadie. La
    llave es publica por diseno; lo unico secreto sigue siendo la contrasena.
    Una conexion ya guardada NO se pisa: esto solo rellena el cajon vacio. */
+var CONEXION_RECIEN_PUESTA = false;   // ver precargarConexion: «ya estaba» no puede ser esto
 (function () {
   try {
     var c = (NUBE && NUBE.config) ? NUBE.config() : null;
@@ -538,6 +547,7 @@ var NUBE   = window.NubeTuGarantia;
         url: 'https://wnsioekvjspwtghbodbg.supabase.co',
         anon: 'sb_publishable_uWFyReBljFSh7l0KYkWmmg_Swo4SOxj'
       });
+      CONEXION_RECIEN_PUESTA = true;
     }
   } catch (e) { /* sin conexion guardable se sigue pidiendo a mano, como antes */ }
 })();
@@ -865,15 +875,26 @@ function precargarConexion(){
   if(s && s.correo) $('sbCorreo').value = s.correo;
   /* Si la conexión ya está puesta (el espejo la dejó), los dos campos largos se
      esconden: en un teléfono, teclear una URL y un JWT es lo que hace que Joan
-     abandone. Siguen ahí para quien los necesite cambiar. */
+     abandone. Siguen ahí para quien los necesite cambiar.
+     6-nov-2026 — «La conexión ya estaba guardada en este teléfono» era falso en un
+     teléfono nuevo: la guardó esta misma página un instante antes (arriba, «LA
+     CONEXION VIENE PUESTA DE FABRICA»). Ahí no se dice nada, y se ofrece cambiarla con
+     otro nombre, porque «Cambiarla» sola no se entiende sin la frase de antes. Y todo
+     esto vive debajo del botón y fuera de msg2 (ver el HTML del paso 2). */
   if(c.url && c.anon){
     $('camposConexion').classList.add('oculto');
-    $('msg2').innerHTML='<div class="aviso info">La conexión ya estaba guardada en este teléfono '+
-      '(<span class="mono">'+esc(c.url)+'</span>). '+
-      '<button class="btn sec sm" type="button" id="btnVerCampos">Cambiarla</button></div>';
-    var b=$('btnVerCampos');
-    if(b) b.addEventListener('click', function(){ $('camposConexion').classList.remove('oculto'); });
+    if(CONEXION_RECIEN_PUESTA){
+      $('btnVerCampos').textContent='Cambiar la conexión';
+    }else{
+      $('notaConexion').innerHTML='La conexión ya estaba guardada en este teléfono (<span class="mono">'+esc(c.url)+'</span>).';
+    }
+    $('btnVerCampos').classList.remove('oculto');
   }
+}
+function verCamposConexion(){
+  $('camposConexion').classList.remove('oculto');
+  $('btnVerCampos').classList.add('oculto');
+  $('sbUrl').focus();      // quedan arriba de lo que se estaba mirando
 }
 
 function entrar(){
@@ -1377,6 +1398,7 @@ document.addEventListener('DOMContentLoaded', function(){
   $('btnRecontar').addEventListener('click', recontar);
   $('btnEntrar').addEventListener('click', entrar);
   $('btnSalir').addEventListener('click', salir);
+  $('btnVerCampos').addEventListener('click', verCamposConexion);
   $('btnMirar').addEventListener('click', mirar);
   $('btnRespaldo').addEventListener('click', bajarRespaldo);
   $('btnConfirmoRespaldo').addEventListener('click', confirmarRespaldo);
