@@ -1187,10 +1187,18 @@ function fraseDelPinQueViaja(m){
    fichas, la puerta del CRM solo dice «PIN incorrecto.» y ya no ofrece traer; esta página
    también pide ese PIN; y /panel/ deja de llevarlo al espejo. Después de traer no hay
    vuelta, así que se avisa antes, con lo único que sí lo arregla: subir.html sube los
-   ajustes, y con ellos viaja el PIN de hoy. */
+   ajustes, y con ellos viaja el PIN de hoy.
+   PERO SOLO SI SE VUELVE A MIRAR. «Traer» escribe el paquete del último «Mirar» y sigue
+   prendido: con la página abierta en el teléfono, subir en el computador y volver a apretar
+   «Traer» deja el PIN viejo. traerYEscribir no le vuelve a preguntar a la nube porque eso
+   cambiaría lo que hace en el computador, así que se dice aquí.
+   «La de hoy» y no «tiene que cambiar»: la fecha va por días, y con dos subidas el mismo día
+   no cambia aunque la segunda sí haya entrado. Y «del PIN», no «la de arriba»: en este paso
+   también están a la vista «Último cambio allá» y «Hora del servidor», y esa siempre es hoy. */
 var AVISO_PIN_QUE_VIAJA = '<div class="aviso ambar"><b class="tit">Antes de traer: ¿recuerdas ese PIN?</b>'+
   'Si no recuerdas ese PIN, no traigas todavía: en el computador abre ☁ Subir (Ajustes → Avanzado, o '+
   '<span class="mono">subir.html</span>) y sube tus ajustes, así viaja el de hoy. '+
+  'Después vuelve aquí y aprieta otra vez «Mirar qué hay en la nube» (paso 3): la fecha del PIN tiene que ser la de hoy. '+
   'Después de traer, este aparato solo abre con ese PIN.</div>';
 
 /* Las dos razones por las que esta pantalla se NIEGA a escribir. Devuelve el

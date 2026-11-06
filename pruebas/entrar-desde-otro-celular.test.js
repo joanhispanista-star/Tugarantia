@@ -808,7 +808,7 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
   });
 
   describe('si no recuerda ese PIN, se dice antes de traer', () => {
-    const AVISO = 'Si no recuerdas ese PIN, no traigas todavía: en el computador abre ☁ Subir (Ajustes → Avanzado, o subir.html ) y sube tus ajustes, así viaja el de hoy. Después de traer, este aparato solo abre con ese PIN.';
+    const AVISO = 'Si no recuerdas ese PIN, no traigas todavía: en el computador abre ☁ Subir (Ajustes → Avanzado, o subir.html ) y sube tus ajustes, así viaja el de hoy. Después vuelve aquí y aprieta otra vez «Mirar qué hay en la nube» (paso 3): la fecha del PIN tiene que ser la de hoy. Después de traer, este aparato solo abre con ese PIN.';
 
     test('en el paso 3 y encima del botón del paso 5, sin pintar el PIN', async () => {
       const T = await hastaMirar(paquete([CONFIG]));
@@ -851,6 +851,85 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
       const T = await hastaMirar(parcial);
       assert.match(T.texto('resumen3'), /Esto no se puede traer/);
       assert.equal(T.texto('avisoPinAntesDeTraer'), '');
+    });
+
+    describe('si sube los ajustes con la página abierta, tiene que volver a mirar', () => {
+      /* El computador sube mientras la página del teléfono sigue abierta: aquí «la nube» es esta
+         variable, cambia lo que contesta y la página no se entera. Si Safari recarga la pestaña al
+         volver, hay que repetir los pasos y esto no pasa; eso no se puede saber desde aquí. */
+      const fila = (pin, cuando) => ({ clave: 'config', datos: { pin, negocio: 'Tu Garantía' }, actualizado_en: cuando, actualizado_por: 'subir' });
+      const conPaginaAbierta = async () => {
+        const enLaNube = { paq: paquete([fila('1111', '2026-08-18T20:15:00Z')]) };
+        const T = abrirTraer({ red: url => nube(enLaNube.paq)(url) });
+        T.elems.sbCorreo.value = 'duena@prueba.test'; T.elems.sbClave.value = 'una-clave-inventada';
+        T.tocar('btnEntrar');
+        await asentar();
+        T.tocar('btnMirar');
+        await asentar();
+        T.tocar('btnRespaldo');
+        const subir = (pin, cuando) => { enLaNube.paq = paquete([fila(pin, cuando)]); };
+        const preguntas = () => T.llamadas.filter(l => /rpc\/panel_traer/.test(l.url)).length;
+        return { T, subir, preguntas };
+      };
+      const pinQueQuedo = T => JSON.parse(T.almacen[LLAVE]).config.pin;
+      const diaDe = iso => new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
+      const fechaDelPin = T => /subieron por última vez, el (.*?) \./.exec(T.texto('resumen3'))[1];
+
+      test('control: «Traer» escribe lo del último «Mirar» y no le pregunta a la nube: por eso lo dice el aviso', async () => {
+        const { T, subir, preguntas } = await conPaginaAbierta();
+        const antes = preguntas();
+        subir('4321', new Date().toISOString());
+        T.tocar('btnTraer');
+        await asentar();
+        assert.equal(preguntas(), antes, 'si un día vuelve a preguntar, la frase del aviso sobra y el computador ya no hace lo de siempre');
+        assert.equal(pinQueQuedo(T), '1111');
+      });
+
+      test('haciendo lo que dice, la fecha del PIN es la de hoy, «Traer» sigue prendido y viaja el de hoy', async () => {
+        const { T, subir } = await conPaginaAbierta();
+        assert.equal(fechaDelPin(T), '18 de agosto de 2026');
+        const ahora = new Date().toISOString();
+        subir('4321', ahora);
+        T.tocar('btnMirar');
+        await asentar();
+        assert.equal(fechaDelPin(T), diaDe(ahora), 'la frase promete una fecha que no se pinta');
+        assert.equal(T.elems.btnTraer.disabled, false, 'no se le puede pedir otro respaldo por volver a mirar');
+        T.tocar('btnTraer');
+        await asentar();
+        assert.equal(pinQueQuedo(T), '4321');
+      });
+
+      test('con dos subidas el mismo día la fecha no cambia: por eso pide «la de hoy» y no que cambie', async () => {
+        const { T, subir } = await conPaginaAbierta();
+        subir('2222', '2026-11-06T13:00:00Z');
+        T.tocar('btnMirar');
+        await asentar();
+        const primera = fechaDelPin(T);
+        subir('4321', '2026-11-06T14:00:00Z');
+        T.tocar('btnMirar');
+        await asentar();
+        assert.equal(fechaDelPin(T), primera);
+        assert.doesNotMatch(T.texto('avisoPinAntesDeTraer'), /tiene que cambiar/);
+        T.tocar('btnTraer');
+        await asentar();
+        assert.equal(pinQueQuedo(T), '4321', 'la segunda subida sí entró');
+      });
+
+      test('nombra la fecha del PIN: «Hora del servidor» siempre dice hoy, y mirar esa no probaría nada', async () => {
+        const { T } = await conPaginaAbierta();
+        for (const donde of ['resumen3', 'avisoPinAntesDeTraer']) {
+          assert.match(T.texto(donde), /la fecha del PIN tiene que ser la de hoy/, donde);
+          assert.doesNotMatch(T.texto(donde), /la fecha de arriba/, donde);
+        }
+        assert.match(T.texto('resumen3'), /Hora del servidor/);
+      });
+
+      test('control: el botón que nombra existe con ese texto, y es el del paso 3', () => {
+        const h = LEER('panel/traer.html');
+        assert.match(h, /<button class="btn negro" type="button" id="btnMirar">Mirar qué hay en la nube<\/button>/);
+        assert.ok(h.indexOf('id="c3"') < h.indexOf('id="btnMirar"') && h.indexOf('id="btnMirar"') < h.indexOf('id="c4"'), 'el botón ya no está en el paso 3');
+        assert.match(h, /<span class="paso-n">3<\/span>/);
+      });
     });
   });
 
