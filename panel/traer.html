@@ -899,11 +899,21 @@ function entrar(){
     despertar(3);
   }).catch(function(e){
     estado(2,'fallo','No entró');
+    /* 6-nov-2026 — decía que el usuario se crea en Supabase → Add user, y eso no
+       sirve: uno nuevo no está en la lista de dueños y entra a una nube que no le
+       contesta nada. Y salía también con un 429, un 500 o sin señal, donde la
+       contraseña no tiene la culpa: ahí se dice solo lo que pasó. */
     pinta('msg2','ambar','<b class="tit">No pude entrar</b>'+esc(motivo(e))+
-      '<br>Si dice que el correo o la contraseña no sirven: el usuario se crea en Supabase → Authentication → '+
-      'Users → Add user.');
+      (motivo(e)===CLAVE_QUE_NO_COINCIDE
+        ? '<br>Es la contraseña de la nube, no tu PIN. Si no la recuerdas, no crees otro usuario: no tendría tu '+
+          'cartera. Se cambia desde Supabase, con tu cuenta.'
+        : ''));
   }).then(function(){ $('btnEntrar').disabled=false; refrescarBotones(); });
 }
+/* El texto con el que nube.js (motivoDe) dice que el correo o la contraseña no
+   sirven. Se compara con ese y no con el error crudo de Supabase, que trae dos
+   formatos (invalid_grant e invalid_credentials) y ya los resuelve ese archivo. */
+var CLAVE_QUE_NO_COINCIDE = 'El correo o la contraseña no coinciden.';
 
 function salir(){
   Promise.resolve().then(function(){ return NUBE.salir(); }).catch(function(){})

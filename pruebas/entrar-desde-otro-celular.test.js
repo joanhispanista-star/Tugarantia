@@ -323,3 +323,48 @@ describe('F4. Traer se puede usar desde la primera pantalla', () => {
     assert.equal(abrirTraer({ sinCajon: true }).elems.c1.open, true, 'sin acceso al cajón');
   });
 });
+
+/* ------------------------------------------------------------------ F5 */
+describe('F5. La clave mala no manda a crear otro usuario', () => {
+  const TEXTO = 'Es la contraseña de la nube, no tu PIN. Si no la recuerdas, no crees otro usuario: no tendría tu cartera. Se cambia desde Supabase, con tu cuenta.';
+  const entrarCon = async red => {
+    const T = abrirTraer({ red });
+    T.elems.sbCorreo.value = 'duena@prueba.test'; T.elems.sbClave.value = 'una-clave-inventada';
+    T.tocar('btnEntrar');
+    await asentar();
+    return T;
+  };
+
+  test('con la contraseña mala, en los dos formatos en que contesta Supabase, dice lo que es', async () => {
+    for (const cuerpo of [{ error: 'invalid_grant', error_description: 'Invalid login credentials' },
+                          { code: 400, error_code: 'invalid_credentials', msg: 'Invalid login credentials' }]) {
+      const T = await entrarCon(() => ({ status: 400, cuerpo }));
+      assert.equal(T.texto('e2'), 'No entró');
+      const m = T.texto('msg2');
+      assert.ok(m.includes('El correo o la contraseña no coinciden.'), m);
+      assert.ok(m.includes(TEXTO), 'no explicó qué contraseña es: ' + m);
+      assert.equal(T.elems.sbClave.value, 'una-clave-inventada', 'se tiene que poder corregir sin escribirla toda');
+    }
+  });
+
+  test('«Add user» se fue: un usuario nuevo no está en la lista de dueños', () => {
+    const t = LEER('panel/traer.html').replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.doesNotMatch(t, /Add user/);
+    assert.doesNotMatch(t, /el usuario se crea en Supabase/);
+  });
+
+  test('con un 429, un 500 o sin señal no le echa la culpa a la contraseña', async () => {
+    for (const red of [() => ({ status: 429, cuerpo: { code: 429, msg: 'Request rate limit reached' } }),
+                       () => ({ status: 500, cuerpo: { code: 500, msg: 'Database error querying schema' } }),
+                       () => { throw new TypeError('Load failed'); }]) {
+      const T = await entrarCon(red);
+      assert.equal(T.texto('e2'), 'No entró');
+      assert.doesNotMatch(T.texto('msg2'), /no tu PIN|Add user/, T.texto('msg2'));
+    }
+  });
+
+  test('la frase que compara es la que escribe nube.js: si cambia allá, esto avisa', () => {
+    assert.match(LEER('panel/nube.js'), /return 'El correo o la contraseña no coinciden\.';/);
+    assert.match(LEER('panel/traer.html'), /var CLAVE_QUE_NO_COINCIDE = 'El correo o la contraseña no coinciden\.';/);
+  });
+});
