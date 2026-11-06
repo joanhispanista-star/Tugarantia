@@ -220,14 +220,14 @@ describe('F3. La puerta de traer.html solo sale si hay algo que tapar', () => {
     'un texto suelto': { algoSuelto: 'Prospecta Inventada 3000000000' }
   };
 
-  test('con cualquier otro dato en el cajón la puerta sigue, aunque el PIN sea el de fábrica', () => {
+  test('control: con cualquier otro dato en el cajón la puerta sigue, aunque el PIN sea el de fábrica', () => {
     Object.keys(CON_DATOS).forEach(nombre => {
       const T = abrirTraer({ almacen: cartera(Object.assign({}, CRM_VACIO, CON_DATOS[nombre])) });
       assert.equal(T.puerta(), true, nombre + ' pasó derecho, y el respaldo se lo lleva sin PIN');
     });
   });
 
-  test('un arreglo arriba del todo tampoco pasa: no se sabe qué es, y se decide del lado de proteger', () => {
+  test('control: un arreglo arriba del todo tampoco pasa: no se sabe qué es, y se decide del lado de proteger', () => {
     assert.equal(abrirTraer({ almacen: { [LLAVE]: '[{"nombre":"Socia Suelta Inventada"}]' } }).puerta(), true);
   });
 
@@ -257,7 +257,7 @@ describe('F3. La puerta de traer.html solo sale si hay algo que tapar', () => {
     assert.equal(T.elems.btnEntrar._oyentes.click.length, 1);
   });
 
-  test('si no apareció nada que tapar, volver a contar no pone puerta', () => {
+  test('control: si no apareció nada que tapar, volver a contar no pone puerta', () => {
     const A = {};
     const T = abrirTraer({ almacen: A });
     A[LLAVE] = JSON.stringify(CRM_VACIO);
@@ -363,7 +363,7 @@ describe('F4. En un aparato nuevo, traer se puede usar desde la primera pantalla
     assert.deepEqual(T.bajoA('paraQueSirve'), ['queHace'], 'la cabecera sigue con otra frase más encima');
   });
 
-  test('la frase de arriba no se contradice con lo que hace el código', () => {
+  test('control: la frase de arriba no se contradice con lo que hace el código', () => {
     /* «Sube a la nube»: el CRM carga nube-crm.js y ese archivo empuja. Decía que no llegaba. */
     assert.doesNotMatch(VISIBLE, /no llega a tu computador/);
     assert.match(LEER('panel/nube-crm.js'), /\.empujar\(/);
@@ -475,7 +475,7 @@ describe('Con algo que perder, traer.html es la de siempre: lo único que cambia
     siempre(abrirTraer({ sinCajon: true }), 'sin cajón');
   });
 
-  test('control: solo en un aparato nuevo se pliega, vacío o con ajustes de fábrica', () => {
+  test('solo en un aparato nuevo se pliega, vacío o con ajustes de fábrica', () => {
     const vacio = abrirTraer();
     assert.equal(vacio.plegada(), true);
     assert.equal(vacio.elems.c1.open, false);
@@ -516,7 +516,7 @@ describe('Con algo que perder, traer.html es la de siempre: lo único que cambia
     assert.equal(frenados, 2, 'un toque sin querer escondería el bloque rojo');
   });
 
-  test('control: en un aparato nuevo sí se pliegan, y sí se llega con el tabulador', () => {
+  test('en un aparato nuevo sí se pliegan, y sí se llega con el tabulador', () => {
     const T = abrirTraer();
     let frenados = 0;
     ['cabAvisos', 'cabPaso1'].forEach(id => {
@@ -696,7 +696,7 @@ describe('Sin señal, traer.html dice lo que pasó: no se guardó nada y nada va
     assert.match(m, /No se tocó nada de este aparato\./);
   });
 
-  test('control: con otro error dice lo que dijo la nube, y con la contraseña mala lo de siempre', async () => {
+  test('con otro error dice lo que dijo la nube, y con la contraseña mala lo de siempre', async () => {
     const T = abrirTraer({ red: () => ({ status: 429, cuerpo: { code: 429, msg: 'Request rate limit reached' } }) });
     conClave(T);
     await asentar();
@@ -709,7 +709,7 @@ describe('Sin señal, traer.html dice lo que pasó: no se guardó nada y nada va
     assert.ok(!M.texto('msg2').includes(FRASE));
   });
 
-  test('nube.js no se tocó: la frase de allá les sirve a las pantallas que sí guardan y reintentan', () => {
+  test('control: nube.js no se tocó: la frase de allá les sirve a las pantallas que sí guardan y reintentan', () => {
     assert.match(LEER('panel/nube.js'), /var SIN_RED = 'Sin internet\. Lo que hiciste queda guardado y sube solo cuando vuelva\.';/);
     assert.match(LEER('panel/nube.js'), /throw fallo\(SIN_RED, \{ sin_red: true \}\);/);
   });
@@ -793,7 +793,7 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
       assert.match(LEER('panel/traer.html'), /#avisoPinPaso3 \.aviso,#avisoPinAntesDeTraer \.aviso\{margin-top:var\(--e3\)\}/);
     });
 
-    test('subir.html y el botón que nombra existen: si cambian, esto avisa', () => {
+    test('control: subir.html y el botón que nombra existen: si cambian, esto avisa', () => {
       assert.match(CRM, /<a class="btn btn-ghost btn-sm" href="subir\.html" target="_blank" rel="noopener">☁ Subir<\/a>/);
       assert.match(LEER('panel/subir.html'), /Sube tu configuración del negocio, y ahí adentro está el <b>PIN del Panel<\/b>/);
     });
@@ -831,7 +831,7 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
       assert.equal(T.texto('avisoRespaldo'), 'Ese respaldo es de antes de traer El archivo que ya bajaste guarda lo que había aquí antes de traer. Si lo bajas otra vez, sale lo que hay ahora.');
     });
 
-    test('es cierto lo que dice del paso 4: bajarlo otra vez saca lo que hay ahora', async () => {
+    test('control: es cierto lo que dice del paso 4: bajarlo otra vez saca lo que hay ahora', async () => {
       const T = await hastaTraer(paquete([CONFIG]));
       assert.equal(T.descargas.length, 1);
       T.tocar('btnRespaldo');
