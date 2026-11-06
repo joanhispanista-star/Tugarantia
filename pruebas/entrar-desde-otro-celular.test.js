@@ -716,6 +716,48 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
     assert.doesNotMatch(T.texto('msg6'), /te va a pedir un PIN/);
   });
 
+  describe('si no recuerda ese PIN, se dice antes de traer', () => {
+    const AVISO = 'Si no recuerdas ese PIN, no traigas todavía: en el computador abre ☁ Subir (Ajustes → Avanzado, o subir.html ) y sube tus ajustes, así viaja el de hoy. Después de traer, este aparato solo abre con ese PIN.';
+
+    test('en el paso 3 y encima del botón del paso 5, sin pintar el PIN', async () => {
+      const T = await hastaMirar(paquete([CONFIG]));
+      assert.ok(T.texto('resumen3').includes(AVISO), T.texto('resumen3'));
+      assert.ok(T.texto('avisoPinAntesDeTraer').includes(AVISO), T.texto('avisoPinAntesDeTraer'));
+      assert.ok(!T.texto('avisoPinAntesDeTraer').includes('4321'), 'la pantalla pintó el PIN');
+      const h = LEER('panel/traer.html');
+      const c5 = h.indexOf('id="c5"');
+      assert.ok(c5 < h.indexOf('id="avisoPinAntesDeTraer"') && h.indexOf('id="avisoPinAntesDeTraer"') < h.indexOf('id="btnTraer"'), 'no va encima del botón');
+    });
+
+    test('subir.html y el botón que nombra existen: si cambian, esto avisa', () => {
+      assert.match(CRM, /<a class="btn btn-ghost btn-sm" href="subir\.html" target="_blank" rel="noopener">☁ Subir<\/a>/);
+      assert.match(LEER('panel/subir.html'), /Sube tu configuración del negocio, y ahí adentro está el <b>PIN del Panel<\/b>/);
+    });
+
+    test('al traer se va: ya no le sirve a nadie, y el paso 6 sigue diciendo de qué fecha es', async () => {
+      const T = await hastaTraer(paquete([CONFIG]));
+      assert.equal(T.texto('e5'), 'Traído');
+      assert.equal(T.texto('avisoPinAntesDeTraer'), '');
+      assert.equal(T.texto('avisoPinPaso3'), '');
+      assert.ok(T.texto('msg6').includes(FRASE), T.texto('msg6'));
+    });
+
+    test('sin PIN en el paquete no avisa de nada: ahí arranca con el de fábrica', async () => {
+      for (const ajustes of [[], [{ clave: 'config', datos: { negocio: 'Tu Garantía' }, actualizado_en: '2026-08-18T20:15:00Z' }]]) {
+        const T = await hastaMirar(paquete(ajustes));
+        assert.ok(!T.texto('resumen3').includes('no traigas todavía'), T.texto('resumen3'));
+        assert.equal(T.texto('avisoPinAntesDeTraer'), '');
+      }
+    });
+
+    test('si la página se niega a escribir, encima del botón no sobra el aviso', async () => {
+      const parcial = Object.assign(paquete([CONFIG]), { completo: false });
+      const T = await hastaMirar(parcial);
+      assert.match(T.texto('resumen3'), /Esto no se puede traer/);
+      assert.equal(T.texto('avisoPinAntesDeTraer'), '');
+    });
+  });
+
   test('control: sin la fila config, como siempre', async () => {
     const T = await hastaTraer(paquete([]));
     assert.match(T.texto('resumen3'), /Los ajustes no vienen/);

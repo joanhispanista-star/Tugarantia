@@ -425,6 +425,7 @@ details>summary::-webkit-details-marker{display:none}
       </div>
       <div id="msg5"></div>
       <div id="resumen5"></div>
+      <div id="avisoPinAntesDeTraer"></div>
       <button class="btn" type="button" id="btnTraer" disabled>Traer y reemplazar lo de este aparato</button>
       <div class="porque-off" id="porqueOff"></div>
     </div>
@@ -1138,6 +1139,16 @@ function fraseDelPinQueViaja(m){
       'Si lo cambiaste después, en este aparato sirve el de esa vez.';
 }
 
+/* 6-nov-2026 — Y SI NO RECUERDA ESE PIN, TRAER LO DEJA EN UN CALLEJÓN PEOR QUE EL DE HOY: con
+   fichas, la puerta del CRM solo dice «PIN incorrecto.» y ya no ofrece traer; esta página
+   también pide ese PIN; y /panel/ deja de llevarlo al espejo. Después de traer no hay
+   vuelta, así que se avisa antes, con lo único que sí lo arregla: subir.html sube los
+   ajustes, y con ellos viaja el PIN de hoy. */
+var AVISO_PIN_QUE_VIAJA = '<div class="aviso ambar"><b class="tit">Antes de traer: ¿recuerdas ese PIN?</b>'+
+  'Si no recuerdas ese PIN, no traigas todavía: en el computador abre ☁ Subir (Ajustes → Avanzado, o '+
+  '<span class="mono">subir.html</span>) y sube tus ajustes, así viaja el de hoy. '+
+  'Después de traer, este aparato solo abre con ese PIN.</div>';
+
 /* Las dos razones por las que esta pantalla se NIEGA a escribir. Devuelve el
    texto del motivo, o null si se puede. Se decide con lo MEDIDO, no con lo
    supuesto. */
@@ -1200,10 +1211,12 @@ function pintarLoQueViene(){
     h += '<div class="aviso ambar"><b class="tit">Los ajustes sí vienen, pero sin PIN</b>'+
          'El CRM de este aparato va a arrancar con el <b>PIN '+esc(PIN_DE_FABRICA)+'</b>. Cámbialo desde el CRM apenas entres.</div>';
   }else{
-    h += '<div class="aviso info"><b class="tit">Los ajustes sí vienen</b>'+fraseDelPinQueViaja(m)+'</div>';
+    h += '<div class="aviso info"><b class="tit">Los ajustes sí vienen</b>'+fraseDelPinQueViaja(m)+'</div>'+
+         '<div id="avisoPinPaso3">'+AVISO_PIN_QUE_VIAJA+'</div>';
   }
 
   var no = razonParaNoEscribir();
+  $('avisoPinAntesDeTraer').innerHTML = (m.pinViaja && !no) ? AVISO_PIN_QUE_VIAJA : '';
   if(no){
     estado(3,'fallo','No se puede traer');
     h += '<div class="peligro"><div class="et">No voy a escribir</div>'+
@@ -1411,6 +1424,9 @@ function traerYEscribir(){
   E.escrito = true;
   var quedaron = E.hay;
   var esperados = m.tablas.socios.quedan;
+  /* Ya se trajo: «no traigas todavía» ya no le sirve a nadie. El paso 6 dice de qué fecha es. */
+  $('avisoPinAntesDeTraer').innerHTML='';
+  if($('avisoPinPaso3')) $('avisoPinPaso3').innerHTML='';
 
   estado(5,'listo','Traído');
   $('resumen5').innerHTML =
