@@ -764,22 +764,48 @@ function pintarEsteAparato(){
    La puerta de verdad de esta página, en los dos casos, es el correo y la
    contraseña de Supabase: sin eso no baja nada.
 
-   6-nov-2026 — Y LO MISMO SI HAY LLAVE PERO NO HAY NADA QUE TAPAR. Antes bastaba la
-   llave: un CRM vacío que guardó sus ajustes una vez dejaba esta puerta puesta en un
-   teléfono donde nunca hubo un PIN de Joan. Solo abría con 1234, sin decirlo, y
-   afirmaba que era «el mismo PIN del Panel»: su PIN de verdad se rechazaba, y el
-   camino para traer la cartera quedaba detrás de eso. Con fichas, con algo ilegible
-   (lo único que salva esa cartera es el respaldo de abajo, y se decide del lado de
-   proteger) o con un PIN que alguien puso aquí, la puerta sigue. */
+   6-nov-2026 — Y LO MISMO SI LO ÚNICO GUARDADO SON AJUSTES CON EL PIN DE FÁBRICA. Antes
+   bastaba la llave: un CRM vacío que guardó sus ajustes una vez dejaba esta puerta
+   puesta en un teléfono donde nunca hubo un PIN de Joan. Solo abría con 1234, sin
+   decirlo, y afirmaba que era «el mismo PIN del Panel»: su PIN de verdad se rechazaba,
+   y el camino para traer la cartera quedaba detrás de eso. La puerta se quita SOLO ahí.
+   Con fichas, con algo ilegible (lo único que salva esa cartera es el respaldo de abajo,
+   y se decide del lado de proteger), con cualquier otro dato o con un PIN que alguien
+   puso aquí, sigue.
+
+   «Cualquier otro dato» va por lista blanca, no por una lista de lo que hay que tapar.
+   Las fichas no cuentan prospectos, gestiones, contactos con el texto del WhatsApp ni un
+   equipo con nombres y celulares, y el respaldo de abajo se los lleva crudos, con el PIN
+   en claro. Lo que el CRM estrene mañana tiene que nacer tapado, no destapado por no
+   estar nombrado. Lo que un CRM vacío guarda por su cuenta es config, plantillas,
+   contadores y arreglos vacíos: se comprobó tocando las 16 entradas del menú y «Guardar
+   ajustes», y por eso esto no le vuelve a cerrar la puerta a Joan. */
 function pinGuardado(){
   try{
     var d=JSON.parse(localStorage.getItem(KEY)||'{}');
     return (d && d.config && d.config.pin) ? String(d.config.pin) : PIN_DE_FABRICA;
   }catch(e){ return PIN_DE_FABRICA; }
 }
+var SOLO_AJUSTES = { config:1, plantillas:1, contadores:1 };
+function guardaAlgoMasQueAjustes(crudo){
+  var d;
+  try{ d=JSON.parse(crudo); }catch(e){ return true; }
+  if(!d || typeof d!=='object' || Array.isArray(d)) return true;
+  /* El número de quien cobra vive en los ajustes, pero no es un ajuste de fábrica:
+     de fábrica va vacío (cargar() de crm.html). «telefono» es su nombre viejo. */
+  if(d.config && (d.config.whatsapp || d.config.telefono)) return true;
+  return Object.keys(d).some(function(k){
+    if(SOLO_AJUSTES[k]) return false;
+    var v=d[k];
+    if(Array.isArray(v)) return v.length>0;
+    if(v && typeof v==='object') return Object.keys(v).length>0;
+    return v!==null && v!==undefined && v!=='' && v!==false && v!==0;
+  });
+}
 function hayAlgoQueTapar(inv){
   if(!hayAlgoQuePerder(inv)) return false;
   if(hayFichas(inv) || !inv.legible) return true;
+  if(guardaAlgoMasQueAjustes(inv.crudo)) return true;
   return pinGuardado() !== PIN_DE_FABRICA;
 }
 function decidirPuerta(){
@@ -800,7 +826,8 @@ function abrirPuerta(){
     $('pin').value=''; return;
   }
   $('gate').classList.remove('on');
-  arrancarDeVerdad();
+  E.pasoLaPuerta = true;
+  if(!E.arranco) arrancarDeVerdad();
 }
 
 /* ============================================================ ARRANQUE ====*/
@@ -822,6 +849,7 @@ function arrancar(){
 }
 
 function arrancarDeVerdad(){
+  E.arranco = true;
   pintarEsteAparato();
   pintarAvisoRespaldo();
 
@@ -864,6 +892,10 @@ function recontar(){
   pintarEsteAparato();
   pintarAvisoRespaldo();
   refrescarBotones();
+  /* 6-nov-2026 — quien entró derecho porque no había nada que tapar, ya sí puede tenerlo:
+     la otra pestaña acaba de guardar, y el respaldo de arriba se lo llevaría sin PIN. El
+     que ya pasó la puerta no la vuelve a ver, como siempre. */
+  if(!E.pasoLaPuerta) decidirPuerta();
 }
 
 /* ================================================== PASO 2 · CONECTAR ====*/

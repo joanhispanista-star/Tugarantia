@@ -184,6 +184,98 @@ describe('F3. La puerta de traer.html solo sale si hay algo que tapar', () => {
     assert.equal(T.puerta(), false);
   });
 
+  /* Lo que un CRM vacío guarda de verdad (se sacó de Chrome: las 16 entradas del menú en
+     main y «Guardar ajustes»). Si esto pidiera PIN, a Joan se le volvería a cerrar la
+     puerta en el teléfono donde nunca hubo uno. */
+  const CRM_VACIO = {
+    socios: [], prestamos: [], papelera: [], invitaciones: [], respaldados: [], papeleraSocios: [],
+    plantillas: { recordatorio: 'Hola {nombre}' },
+    config: { costoBasePct: 20, tasaUsuraEA: 0, pin: '1234', negocio: 'Tu Garantía', whatsapp: '', freno: { activo: false, fraccion_quincena: 0.3 } },
+    contadores: { cliente: 0, credito: 0, respaldado: 0 },
+    equipo: [], asignaciones: [], prospectos: [], bases: []
+  };
+
+  test('un CRM vacío de verdad, con todos sus arreglos vacíos, sigue pasando derecho', () => {
+    assert.equal(abrirTraer({ almacen: cartera(CRM_VACIO) }).puerta(), false);
+    assert.equal(abrirTraer({ almacen: cartera(Object.assign({}, CRM_VACIO, { gestiones: [], contactos: [], actosComision: [], misNumeros: [], nubeBorrados: [] })) }).puerta(), false);
+    assert.equal(abrirTraer({ almacen: { [LLAVE]: '{}' } }).puerta(), false);
+  });
+
+  /* Inventados: los estados que F3 dejaba pasar sin PIN, y que el respaldo se lleva crudos. */
+  const P = { id: 'P1-0', nombre: 'Prospecta Inventada', celular: '3000000000', estado: 'nuevo' };
+  const CON_DATOS = {
+    prospectos: { prospectos: [P] },
+    gestiones: { gestiones: [{ id: 'g1', persona_id: 'P1-0', tipo: 'contesto', nota: 'dijo que paga el viernes' }] },
+    contactos: { contactos: [{ id: 'c1', persona_id: 'P1-0', canal: 'whatsapp', texto: 'hola Prospecta Inventada' }] },
+    equipo: { equipo: [{ id: 'E1', nombre: 'Gerente Inventado', celular: '3000000001', rol: 'gerente' }] },
+    asignaciones: { asignaciones: [{ id: 'A1', socio_id: 'P1-0', asesor_id: 'E1' }] },
+    actosComision: { actosComision: [{ id: 'x', tipo: 'desbloqueo', asesor_id: 'E1' }] },
+    bases: { bases: [{ id: 'B1', archivo: 'una-base.xlsx', entraron: 200 }] },
+    misNumeros: { misNumeros: [{ numero: '3000000002', desde: '2026-11-01' }] },
+    'config con whatsapp': { config: { pin: '1234', negocio: 'Tu Garantía', whatsapp: '3000000003' } },
+    'config con telefono': { config: { pin: '1234', negocio: 'Tu Garantía', telefono: '3000000004' } },
+    'un campo que nadie conoce': { solicitudesDelFuturo: [{ nombre: 'Prospecta Inventada' }] },
+    'clientes con socios vacío': { socios: [], clientes: [{ id: 'S1', nombre: 'Socia Vieja Inventada' }] },
+    'socios como objeto': { socios: { a: { id: 'S1', nombre: 'Socia Rara Inventada' } } },
+    'un texto suelto': { algoSuelto: 'Prospecta Inventada 3000000000' }
+  };
+
+  test('con cualquier otro dato en el cajón la puerta sigue, aunque el PIN sea el de fábrica', () => {
+    Object.keys(CON_DATOS).forEach(nombre => {
+      const T = abrirTraer({ almacen: cartera(Object.assign({}, CRM_VACIO, CON_DATOS[nombre])) });
+      assert.equal(T.puerta(), true, nombre + ' pasó derecho, y el respaldo se lo lleva sin PIN');
+    });
+  });
+
+  test('un arreglo arriba del todo tampoco pasa: no se sabe qué es, y se decide del lado de proteger', () => {
+    assert.equal(abrirTraer({ almacen: { [LLAVE]: '[{"nombre":"Socia Suelta Inventada"}]' } }).puerta(), true);
+  });
+
+  test('esa puerta abre con el PIN de ese navegador, y el 1234 es el suyo si nadie lo cambió', () => {
+    const T = abrirTraer({ almacen: cartera(Object.assign({}, CRM_VACIO, { prospectos: [P] })) });
+    T.elems.pin.value = '9999';
+    T.tocar('btnPuerta');
+    assert.equal(T.puerta(), true);
+    assert.equal(T.elems.pinErr.textContent, 'Ese no es el PIN guardado en este navegador.');
+    T.elems.pin.value = '1234';
+    T.tocar('btnPuerta');
+    assert.equal(T.puerta(), false);
+    assert.equal(T.elems.c2.classList.contains('dormido'), false, 'abrió, pero la página no arrancó');
+  });
+
+  test('si otra pestaña escribe en un aparato que entró sin puerta, al volver a contar sale', () => {
+    const A = {};
+    const T = abrirTraer({ almacen: A });
+    assert.equal(T.puerta(), false);
+    A[LLAVE] = JSON.stringify(Object.assign({}, CRM_VACIO, { prospectos: [P] }));
+    T.ev('recontar()');
+    assert.equal(T.puerta(), true, 'el conteo nuevo dejó bajar el respaldo sin PIN');
+    T.elems.pin.value = '1234';
+    T.tocar('btnPuerta');
+    assert.equal(T.puerta(), false);
+    /* Abrir no arranca la página otra vez: los botones siguen con un solo oyente. */
+    assert.equal(T.elems.btnEntrar._oyentes.click.length, 1);
+  });
+
+  test('si no apareció nada que tapar, volver a contar no pone puerta', () => {
+    const A = {};
+    const T = abrirTraer({ almacen: A });
+    A[LLAVE] = JSON.stringify(CRM_VACIO);
+    T.ev('recontar()');
+    assert.equal(T.puerta(), false);
+  });
+
+  test('control: quien ya pasó la puerta no la vuelve a ver al contar, como siempre', () => {
+    const A = cartera({ socios: [SOCIO], config: { pin: '4321' } });
+    const T = abrirTraer({ almacen: A });
+    T.elems.pin.value = '4321';
+    T.tocar('btnPuerta');
+    A[LLAVE] = JSON.stringify({ socios: [SOCIO, Object.assign({}, SOCIO, { id: 'C2' })], config: { pin: '4321' } });
+    T.ev('recontar()');
+    assert.equal(T.puerta(), false);
+    assert.match(T.elems.cuerpo1.innerHTML, /<b>2<\/b> socios/, 'no volvió a contar');
+  });
+
   test('control: un aparato vacío pasa derecho, como siempre', () => {
     const T = abrirTraer();
     assert.equal(T.puerta(), false);
