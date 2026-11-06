@@ -57,13 +57,17 @@ function abrirTraer(opciones) {
       id, value: '', disabled: false, style: {}, dataset: {}, classList: clases(clasesDe),
       _html: '', _texto: '', _oyentes: {},
       addEventListener(t, f) { (this._oyentes[t] = this._oyentes[t] || []).push(f); },
-      focus() {}, setAttribute() {}, appendChild() {}, removeChild() {}, click() { descargas.push({ nombre: this.download, href: this.href }); }
+      focus() {}, setAttribute() {}, appendChild(hijo) { (this._hijos = this._hijos || []).push(hijo); }, removeChild() {},
+      click() { descargas.push({ nombre: this.download, href: this.href }); }
     };
     Object.defineProperty(e, 'innerHTML', {
       get() { return this._html; },
       set(v) {
         this._html = String(v);
-        for (const m of this._html.matchAll(/\bid="([^"]+)"/g)) if (!elems[m[1]]) elems[m[1]] = crear(m[1]);
+        for (const m of this._html.matchAll(/\bid="([^"]+)"[^>]*>([^<]*)/g)) {
+          if (!elems[m[1]]) elems[m[1]] = crear(m[1]);
+          if (m[2].trim()) elems[m[1]].textContent = m[2].trim();
+        }
       }
     });
     Object.defineProperty(e, 'textContent', {
@@ -88,7 +92,7 @@ function abrirTraer(opciones) {
     getElementById: id => elems[id] || null,
     addEventListener(t, f) { if (t === 'DOMContentLoaded') alCargar.push(f); },
     createElement: () => crear('sin-id'),
-    body: { appendChild() {}, removeChild() {} }, documentElement: {},
+    body: { appendChild() {}, removeChild() {} }, documentElement: crear('html'),
     currentScript: null
   };
   const local = {
@@ -138,6 +142,10 @@ function abrirTraer(opciones) {
       (e._oyentes.click || []).forEach(f => f({ target: e }));
     },
     puerta: () => elems.gate.classList.contains('on'),
+    /* La cara corta de la página: true en un aparato nuevo. La cara de siempre es sin clase. */
+    plegada: () => doc.documentElement.classList.contains('aparato-nuevo'),
+    /* Lo que la página movió con appendChild adentro de ese elemento: el banco no mueve nada. */
+    bajoA: id => (elems[id]._hijos || []).map(e => e.id),
     texto: id => String(elems[id].innerHTML || elems[id].textContent).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
   };
 }

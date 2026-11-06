@@ -347,18 +347,20 @@ describe('F3. La puerta de traer.html solo sale si hay algo que tapar', () => {
 });
 
 /* ------------------------------------------------------------------ F4 */
-describe('F4. Traer se puede usar desde la primera pantalla', () => {
+describe('F4. En un aparato nuevo, traer se puede usar desde la primera pantalla', () => {
   const TRAER = LEER('panel/traer.html').replace(/\r\n/g, '\n');
   const VISIBLE = TRAER.slice(TRAER.indexOf('<body>')).replace(/<!--[\s\S]*?-->/g, '').replace(/<script[\s\S]*<\/script>/, '');
   const i = (texto, desde) => VISIBLE.indexOf(texto, desde || 0);
-  const PLEGADO_ABRE = i('<details class="plegable" id="losDetalles">');
+  const PLEGADO_ABRE = i('<details id="losDetalles" open>');
   const PLEGADO_CIERRA = i('</details>', PLEGADO_ABRE);
 
   test('a la vista, una sola frase; y es la frase que es', () => {
     assert.match(VISIBLE, /id="fraseDeArriba">Sirve para mirar: lo que anotes aquí sube a la nube, pero no entra solo a tu computador ni les llega a tus clientes\.</);
     assert.ok(i('fraseDeArriba') > 0 && i('fraseDeArriba') < PLEGADO_ABRE, 'la frase quedó dentro de lo plegado');
-    const cabecera = VISIBLE.slice(i('<header'), i('</header>'));
-    assert.doesNotMatch(cabecera, /class="sub"/, 'la cabecera sigue con otra frase más encima');
+    /* La de la cabecera baja al desplegable: arriba no queda otra frase más. */
+    const T = abrirTraer();
+    assert.equal(T.plegada(), true);
+    assert.deepEqual(T.bajoA('paraQueSirve'), ['queHace'], 'la cabecera sigue con otra frase más encima');
   });
 
   test('la frase de arriba no se contradice con lo que hace el código', () => {
@@ -373,15 +375,16 @@ describe('F4. Traer se puede usar desde la primera pantalla', () => {
     assert.equal(JSON.parse(T.almacen.joan_socios_sb).clave, '', 'traer dejó una clave de sincronización');
   });
 
-  test('el desplegable nace cerrado', () => {
+  test('en un aparato nuevo el desplegable queda cerrado', () => {
     assert.ok(PLEGADO_ABRE > 0, 'no hay desplegable');
-    assert.doesNotMatch(VISIBLE.slice(PLEGADO_ABRE, i('>', PLEGADO_ABRE)), /\bopen\b/, 'nace abierto: los avisos vuelven a empujar «Entrar»');
+    assert.equal(abrirTraer().elems.losDetalles.open, false, 'abierto: los avisos vuelven a empujar «Entrar»');
   });
 
   test('con los mismos textos, los cinco avisos y la frase de la cabecera (es decisión de Joan que estén)', () => {
     const adentro = VISIBLE.slice(PLEGADO_ABRE, PLEGADO_CIERRA).replace(/\s+/g, ' ');
+    assert.match(VISIBLE.slice(i('<header'), i('</header>')).replace(/\s+/g, ' '),
+      /id="queHace">Baja tu cartera de la nube y la deja donde el CRM de siempre la busca\. Después abres <span class="mono">crm\.html<\/span> y lo ves completo, sin instalar nada\./);
     [
-      'Baja tu cartera de la nube y la deja donde el CRM de siempre la busca.',
       '<b class="tit">Este camino es para MIRAR</b>',
       'Lo que <b>no hace es bajar</b>: lo que se haga en otro aparato no aparece en',
       '<b class="tit">Y los choques se deciden en otro sitio</b>',
@@ -393,7 +396,7 @@ describe('F4. Traer se puede usar desde la primera pantalla', () => {
       '<b class="tit">El espejo y el CRM son dos copias distintas en este mismo teléfono</b>',
       'Traer acá <b>no toca</b> lo que tenga el espejo'
     ].forEach(t => assert.ok(adentro.includes(t), 'se perdió: ' + t));
-    assert.match(VISIBLE.slice(PLEGADO_ABRE, PLEGADO_CIERRA), /<summary>Antes de nada: para qué sirve esto y para qué no<\/summary>/);
+    assert.match(VISIBLE.slice(PLEGADO_ABRE, PLEGADO_CIERRA), /<summary id="cabAvisos" tabindex="-1"><div class="card-cab"><h3>Antes de nada: para qué sirve esto y para qué no<\/h3><\/div><\/summary>/);
   });
 
   test('control: siguen antes de los botones, y «Tu correo», «Tu contraseña» y «Entrar» van en ese orden', () => {
@@ -402,11 +405,10 @@ describe('F4. Traer se puede usar desde la primera pantalla', () => {
     assert.ok(correo < clave && clave < entrar);
   });
 
-  test('entre la contraseña y «Entrar» no queda nada que lo empuje', () => {
-    const tramo = VISIBLE.slice(i('id="sbClave"'), i('id="btnEntrar"'));
-    assert.doesNotMatch(tramo, /class="ayuda"/);
-    /* Pero lo que decía sigue en el paso 2, justo debajo. */
-    assert.match(VISIBLE.slice(i('id="btnEntrar"')), /^[^]*?No se guarda en este teléfono\. Se cambia por una sesión/);
+  test('entre la contraseña y «Entrar» no queda nada que lo empuje: la ayuda baja, y debajo del botón sigue', () => {
+    assert.ok(abrirTraer().bajoA('abajoDeEntrar').includes('ayudaClave'), 'lo que no le pide nada sigue empujando «Entrar»');
+    assert.ok(i('id="abajoDeEntrar"') > i('id="btnEntrar"'));
+    assert.match(VISIBLE, /id="ayudaClave">No se guarda en este teléfono\. Se cambia por una sesión/);
   });
 
   test('el paso 1 se pliega solo en un aparato vacío; con cualquier otra cosa, abierto', () => {
@@ -426,6 +428,186 @@ describe('F4. Traer se puede usar desde la primera pantalla', () => {
     assert.equal(fichas.elems.c1.open, true, 'el bloque rojo se escondió');
     assert.match(fichas.elems.cuerpo1.innerHTML, /En este aparato ya hay una cartera/);
     assert.equal(abrirTraer({ sinCajon: true }).elems.c1.open, true, 'sin acceso al cajón');
+  });
+});
+
+/* --------------------------------------------------------- la regla 8 */
+describe('Con algo que perder, traer.html es la de siempre: lo único que cambia es el texto de la puerta', () => {
+  /* El píxel a píxel contra 76af475, a 1280x800 y a 390x844, se corre en Chrome sin ventana
+     fuera de este archivo: el banco no pinta. Lo que esta prueba amarra es lo que lo hace
+     posible, y que nada de esto dependa del ancho: vale igual a 1280 que a 390. */
+  const TRAER = LEER('panel/traer.html').replace(/\r\n/g, '\n');
+  const HOJA = TRAER.slice(TRAER.indexOf('<style>'), TRAER.indexOf('</style>'));
+  const VISIBLE = TRAER.slice(TRAER.indexOf('<body>')).replace(/<!--[\s\S]*?-->/g, '').replace(/<script[\s\S]*<\/script>/, '');
+  const con = d => abrirTraer({ almacen: { [LLAVE]: typeof d === 'string' ? d : JSON.stringify(d) } });
+  const pasar = (T, pin) => { T.elems.pin.value = pin; T.tocar('btnPuerta'); return T; };
+  const siempre = (T, que) => {
+    assert.equal(T.plegada(), false, que + ': se plegó');
+    assert.equal(T.elems.losDetalles.open, true, que + ': los avisos quedaron plegados');
+    assert.equal(T.elems.c1.open, true, que + ': el paso 1 quedó plegado');
+    assert.deepEqual(T.bajoA('paraQueSirve'), [], que + ': la frase de la cabecera se fue de la cabecera');
+    assert.ok(!T.bajoA('abajoDeEntrar').includes('ayudaClave'), que + ': la ayuda se movió de encima de «Entrar»');
+  };
+
+  test('con cartera en el computador, con su clave y su PIN', () => {
+    const A = { [LLAVE]: JSON.stringify(CARTERA), joan_socios_sb: JSON.stringify({ url: 'https://inventado.supabase.co', anon: 'llave-inventada', clave: 'clave-inventada' }) };
+    siempre(pasar(abrirTraer({ almacen: A }), '4321'), 'computador');
+  });
+
+  test('con fichas en un teléfono, con el PIN de fábrica o con otro', () => {
+    siempre(pasar(con({ socios: [SOCIO], config: { pin: '1234' } }), '1234'), 'fichas y PIN de fábrica');
+    siempre(pasar(con(CARTERA), '4321'), 'fichas y PIN propio');
+  });
+
+  test('con algo ilegible, con otros datos, o con un PIN propio', () => {
+    siempre(pasar(con('{"socios":['), '1234'), 'ilegible');
+    siempre(pasar(con({ socios: [], prospectos: [{ id: 'P1', celular: '3000000000' }], config: { pin: '1234' } }), '1234'), 'prospectos');
+    siempre(pasar(con({ socios: [], config: { pin: '4321' } }), '4321'), 'PIN propio');
+  });
+
+  test('con la clave de sincronización, aunque no haya cartera: la frase de arriba ahí sería falsa', () => {
+    const T = abrirTraer({ almacen: { joan_socios_sb: JSON.stringify({ url: 'https://inventado.supabase.co', anon: 'llave-inventada', clave: 'clave-inventada' }) } });
+    assert.equal(T.puerta(), false);
+    siempre(T, 'con clave y sin cartera');
+  });
+
+  test('sin poder leer el cajón no se sabe, y ante la duda como siempre', () => {
+    siempre(abrirTraer({ sinCajon: true }), 'sin cajón');
+  });
+
+  test('control: solo en un aparato nuevo se pliega, vacío o con ajustes de fábrica', () => {
+    const vacio = abrirTraer();
+    assert.equal(vacio.plegada(), true);
+    assert.equal(vacio.elems.c1.open, false);
+    const ajustes = con({ socios: [], config: { pin: '1234', negocio: 'Tu Garantía' } });
+    assert.equal(ajustes.plegada(), true);
+    assert.equal(ajustes.elems.losDetalles.open, false);
+    assert.equal(ajustes.elems.c1.open, true, 'hay algo guardado: el paso 1 lo dice abierto');
+  });
+
+  test('el HTML, tal cual viene, es la cara de siempre: si algo falla antes de arrancar se ve como hoy', () => {
+    assert.match(VISIBLE, /<details id="losDetalles" open>/);
+    assert.match(VISIBLE, /<details class="card" id="c1" open>/);
+    assert.match(VISIBLE.slice(VISIBLE.indexOf('<header'), VISIBLE.indexOf('</header>')), /class="sub" id="queHace"/);
+    assert.match(VISIBLE, /class="aviso ambar solo-aparato-nuevo" id="fraseDeArriba"/);
+    assert.match(HOJA, /\n\.solo-aparato-nuevo\{display:none\}/);
+    assert.ok(VISIBLE.indexOf('id="ayudaClave"') < VISIBLE.indexOf('id="btnEntrar"'), 'la ayuda no va antes de «Entrar», como siempre');
+    assert.ok(VISIBLE.indexOf('id="notaConexion"') < VISIBLE.indexOf('id="msg2"') && VISIBLE.indexOf('id="msg2"') < VISIBLE.indexOf('id="camposConexion"'));
+  });
+
+  test('todo lo que acorta la página cuelga de .aparato-nuevo, y no depende del ancho', () => {
+    for (const m of HOJA.matchAll(/^[^\n{]*(#cabAvisos|#cabPaso1|\.card-antes|#paraQueSirve)[^\n{]*\{/gm)) {
+      assert.match(m[0], /^\.aparato-nuevo /, 'esto no cuelga de la clase: ' + m[0]);
+    }
+    /* Sin marca ni dedo en la cara de siempre: en Safari el triángulo se quita con esto. */
+    assert.match(HOJA, /details>summary\{display:block;list-style:none;cursor:auto\}/);
+    assert.match(HOJA, /details>summary::-webkit-details-marker\{display:none\}/);
+    assert.doesNotMatch(TRAER, /matchMedia|innerWidth/);
+    assert.doesNotMatch(HOJA, /@media[^{]*width/);
+  });
+
+  test('en la cara de siempre un toque no pliega nada, y los dos encabezados no piden el tabulador', () => {
+    const T = pasar(con(CARTERA), '4321');
+    let frenados = 0;
+    ['cabAvisos', 'cabPaso1'].forEach(id => {
+      T.elems[id]._oyentes.click.forEach(f => f({ preventDefault() { frenados++; } }));
+      assert.equal(T.elems[id].tabIndex, -1);
+    });
+    assert.equal(frenados, 2, 'un toque sin querer escondería el bloque rojo');
+  });
+
+  test('control: en un aparato nuevo sí se pliegan, y sí se llega con el tabulador', () => {
+    const T = abrirTraer();
+    let frenados = 0;
+    ['cabAvisos', 'cabPaso1'].forEach(id => {
+      T.elems[id]._oyentes.click.forEach(f => f({ preventDefault() { frenados++; } }));
+      assert.equal(T.elems[id].tabIndex, 0);
+    });
+    assert.equal(frenados, 0);
+  });
+
+  test('volver a contar no le pliega la página a quien ya la tenía a la vista', () => {
+    const A = { [LLAVE]: JSON.stringify(CARTERA) };
+    const T = pasar(abrirTraer({ almacen: A }), '4321');
+    delete A[LLAVE];
+    T.ev('recontar()');
+    siempre(T, 'otra pestaña la vació');
+  });
+
+  test('si en un aparato nuevo aparece algo que perder, al volver a contar se ve como siempre', () => {
+    const A = {};
+    const T = abrirTraer({ almacen: A });
+    assert.equal(T.plegada(), true);
+    A[LLAVE] = JSON.stringify(CARTERA);
+    T.ev('recontar()');
+    assert.equal(T.plegada(), false);
+    assert.equal(T.elems.losDetalles.open, true);
+    assert.equal(T.elems.c1.open, true);
+  });
+
+  describe('el paso 2 de la cara de siempre', () => {
+    const PC = () => ({ [LLAVE]: JSON.stringify(CARTERA), joan_socios_sb: JSON.stringify({ url: 'https://inventado.supabase.co', anon: 'llave-inventada', clave: 'clave-inventada' }) });
+    const NOTA = /^<div class="aviso info">La conexión ya estaba guardada en este teléfono \(<span class="mono">https:\/\/inventado\.supabase\.co<\/span>\)\. <button class="btn sec sm" type="button" id="btnVerCampos">Cambiarla<\/button><\/div>$/;
+    const SESION = JSON.stringify({ access_token: 'acceso-de-prueba', refresh_token: 'renovar-de-prueba', correo: 'duena@prueba.test', expira_en: Date.now() + 3600000 });
+    const SALE_BIEN = () => ({ status: 200, cuerpo: { access_token: 'acceso-de-prueba', refresh_token: 'renovar-de-prueba', expires_in: 3600, user: { id: 'u1', email: 'duena@prueba.test' } } });
+
+    test('la conexión guardada se dice arriba, con el texto y el botón de siempre', () => {
+      const T = pasar(abrirTraer({ almacen: PC() }), '4321');
+      assert.match(T.elems.notaConexion.innerHTML, NOTA);
+      assert.equal(T.texto('msg2'), '');
+      assert.deepEqual(T.bajoA('abajoDeEntrar'), [], 'se fue de arriba');
+    });
+
+    test('«Cambiarla» abre los campos y se queda, como siempre', () => {
+      const T = pasar(abrirTraer({ almacen: PC() }), '4321');
+      assert.equal(T.elems.camposConexion.classList.contains('oculto'), true);
+      T.tocar('btnVerCampos');
+      assert.equal(T.elems.camposConexion.classList.contains('oculto'), false);
+      assert.match(T.elems.notaConexion.innerHTML, NOTA, 'la nota se fue');
+    });
+
+    test('con una sesión guardada dice lo mismo que siempre: la nota y no «Ya había una sesión»', () => {
+      const A = PC(); A.joan_panel_sesion = SESION;
+      const T = pasar(abrirTraer({ almacen: A }), '4321');
+      assert.match(T.elems.notaConexion.innerHTML, NOTA);
+      assert.equal(T.texto('msg2'), '');
+      assert.equal(T.texto('e2'), 'Conectado');
+    });
+
+    test('al entrar se va, como siempre; con un error ya no, y es lo que pidió F10', async () => {
+      const bien = pasar(abrirTraer({ almacen: PC(), red: SALE_BIEN }), '4321');
+      bien.elems.sbCorreo.value = 'duena@prueba.test'; bien.elems.sbClave.value = 'una-clave-inventada';
+      bien.tocar('btnEntrar');
+      await asentar();
+      assert.equal(bien.elems.notaConexion.innerHTML, '');
+      assert.match(bien.texto('msg2'), /^Entraste/);
+      const mal = pasar(abrirTraer({ almacen: PC(), red: () => ({ status: 401, cuerpo: { message: 'Invalid API key' } }) }), '4321');
+      mal.elems.sbCorreo.value = 'duena@prueba.test'; mal.elems.sbClave.value = 'una-clave-inventada';
+      mal.tocar('btnEntrar');
+      await asentar();
+      assert.equal(mal.texto('e2'), 'No entró');
+      assert.match(mal.elems.notaConexion.innerHTML, NOTA);
+    });
+
+    test('al cerrar sesión se va, como siempre', async () => {
+      const A = PC(); A.joan_panel_sesion = SESION;
+      const T = pasar(abrirTraer({ almacen: A, red: () => ({ status: 204 }) }), '4321');
+      T.tocar('btnSalir');
+      await asentar();
+      assert.equal(T.elems.notaConexion.innerHTML, '');
+      assert.match(T.texto('msg2'), /Sesión cerrada/);
+    });
+
+    test('con cartera y sin conexión guardada, también como siempre: lo que manda ahí es que nada cambie', () => {
+      const T = pasar(con(CARTERA), '4321');
+      assert.match(T.elems.notaConexion.innerHTML, /^<div class="aviso info">La conexión ya estaba guardada en este teléfono/);
+      assert.equal(T.elems.btnVerCampos.textContent, 'Cambiarla');
+      assert.deepEqual(T.bajoA('abajoDeEntrar'), []);
+    });
+  });
+
+  test('el texto de la puerta sí cambió: es lo único', () => {
+    assert.match(VISIBLE, /id="porquePuerta">Es el PIN guardado en este navegador\. Se pide porque aquí ya hay algo guardado:/);
   });
 });
 
@@ -757,7 +939,7 @@ describe('F10. Lo que traer.html dice de la conexión es cierto, y no se borra',
   test('en un teléfono nuevo no dice que «ya estaba guardada»: la guardó esta página un instante antes', () => {
     const T = abrirTraer();
     assert.equal(T.texto('msg2'), '', 'afirma algo de la conexión');
-    assert.equal(T.elems.notaConexion.textContent, '');
+    assert.equal(T.texto('notaConexion'), 'Cambiar la conexión', 'afirma algo de la conexión');
     assert.equal(T.elems.camposConexion.classList.contains('oculto'), true, 'los dos campos largos volvieron a la vista');
     assert.ok(JSON.parse(T.almacen[CONEXION]).url, 'tampoco es que no la tenga');
   });
@@ -773,10 +955,11 @@ describe('F10. Lo que traer.html dice de la conexión es cierto, y no se borra',
 
   test('si de verdad ya estaba, lo dice, con su dirección y «Cambiarla»', () => {
     const T = abrirTraer({ almacen: VIEJA() });
-    assert.match(T.texto('notaConexion'), /^La conexión ya estaba guardada en este teléfono \( ?https:\/\/[a-z0-9]+\.supabase\.co ?\)\.$/);
+    assert.match(T.texto('notaConexion'), /^La conexión ya estaba guardada en este teléfono \( ?https:\/\/[a-z0-9]+\.supabase\.co ?\)\. Cambiarla$/);
     assert.equal(T.elems.btnVerCampos.textContent, 'Cambiarla');
     assert.equal(T.elems.btnVerCampos.classList.contains('oculto'), false);
     assert.equal(T.texto('msg2'), '', 'se quedó en msg2: el primer «Entrando…» lo borra');
+    assert.ok(T.bajoA('abajoDeEntrar').includes('notaConexion'), 'en un teléfono nada de esto puede empujar «Entrar»');
   });
 
   test('«Cambiarla» sobrevive al primer error: era justo cuando más podía hacer falta', async () => {
@@ -802,6 +985,7 @@ describe('F10. Lo que traer.html dice de la conexión es cierto, y no se borra',
 
   test('sin acceso al cajón no ofrece cambiar nada', () => {
     const T = abrirTraer({ sinCajon: true });
-    assert.equal(T.elems.btnVerCampos.classList.contains('oculto'), true);
+    assert.equal(T.elems.btnVerCampos, undefined);
+    assert.equal(T.texto('notaConexion'), '');
   });
 });

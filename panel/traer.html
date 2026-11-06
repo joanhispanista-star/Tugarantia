@@ -195,25 +195,36 @@ input[type=text],input[type=email],input[type=password],input[type=url]{
 input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
 :where(button,a,summary,[tabindex]):focus-visible{outline:2px solid var(--rojo-texto);outline-offset:2px;border-radius:8px}
 .ayuda{font-size:12px;color:var(--gris);margin-top:6px;line-height:1.45}
-/* 6-nov-2026 — LOS AVISOS DE ARRIBA, PLEGADOS. Marca propia y no la del navegador:
-   con display:flex, el triángulo de <summary> desaparece en Safari y lo plegado no
-   se vería tocable. 44 px de alto, como todo lo que se toca con el dedo. */
-.card-antes{padding:var(--e3) 16px}
-.plegable summary{display:flex;align-items:center;gap:var(--e2);min-height:44px;margin-top:var(--e1);
-  font-size:14px;font-weight:600;color:var(--tinta);cursor:pointer;list-style:none}
-.plegable summary::-webkit-details-marker{display:none}
-.plegable summary::before{content:'▸';color:var(--gris);font-size:13px;width:13px;flex:none}
-.plegable[open] summary::before{content:'▾'}
-.plegable p{margin:0 0 var(--e3);font-size:14px}
-/* El paso 1 se pliega en un teléfono vacío (ver pintarEsteAparato). Su encabezado es el
-   mismo de los demás pasos: 44 px para el dedo sin que el renglón crezca, y la marca a
-   la derecha, después de la pastilla. */
-summary.card-cab{list-style:none;cursor:pointer;padding:9px 0;margin:-9px 0;flex-wrap:nowrap;gap:6px}
-summary.card-cab .pill{flex:none}
-summary.card-cab::-webkit-details-marker{display:none}
-summary.card-cab h3{margin-right:auto}
-summary.card-cab::after{content:'▸';color:var(--gris);font-size:13px}
-details[open]>summary.card-cab::after{content:'▾'}
+/* 6-nov-2026 — ESTA PÁGINA TIENE DOS CARAS. Tal como viene en el HTML es la de siempre: la
+   del computador de Joan, con su cartera, y la que queda si algo falla antes de arrancar.
+   Todo lo que la acorta para un teléfono cuelga de .aparato-nuevo, que pintarEsteAparato le
+   pone a <html> solo donde no hay nada que perder (ver esAparatoNuevo). Sin esa clase, estos
+   dos <details> se pintan como los <div> de antes: abiertos, sin marca y sin plegarse.
+   La fila va en un <div> y no en el <summary>: Safari no siempre le hace caso a display:flex
+   en un <summary>, y el teléfono de Joan es Safari. */
+details>summary{display:block;list-style:none;cursor:auto}
+details>summary::-webkit-details-marker{display:none}
+.solo-aparato-nuevo{display:none}
+.aparato-nuevo .solo-aparato-nuevo{display:block}
+/* Los avisos de arriba, plegados. 44 px de alto, como todo lo que se toca con el dedo. */
+.aparato-nuevo .card-antes{padding:var(--e3) 16px}
+.aparato-nuevo #cabAvisos{margin-top:var(--e1);cursor:pointer}
+.aparato-nuevo #cabAvisos .card-cab{justify-content:flex-start;flex-wrap:nowrap;min-height:44px}
+.aparato-nuevo #cabAvisos .card-cab::before{content:'▸';color:var(--gris);font-size:13px;width:13px;flex:none}
+.aparato-nuevo #losDetalles[open] #cabAvisos .card-cab::before{content:'▾'}
+.aparato-nuevo #cabAvisos h3{font-family:inherit;font-size:14px;letter-spacing:normal}
+.aparato-nuevo #paraQueSirve .sub{margin-top:var(--e3);font-size:14px}
+/* El paso 1 se pliega en un teléfono vacío. Su encabezado es el mismo de los demás pasos:
+   44 px para el dedo sin que el renglón crezca, y la marca a la derecha de la pastilla. */
+.aparato-nuevo #cabPaso1{cursor:pointer;padding:9px 0;margin:-9px 0}
+.aparato-nuevo #cabPaso1 .card-cab{flex-wrap:nowrap;gap:6px}
+.aparato-nuevo #cabPaso1 .pill{flex:none}
+.aparato-nuevo #cabPaso1 h3{margin-right:auto}
+.aparato-nuevo #cabPaso1 .card-cab::after{content:'▸';color:var(--gris);font-size:13px}
+.aparato-nuevo #c1[open] #cabPaso1 .card-cab::after{content:'▾'}
+/* La nota de la conexión y un error a la vez: en la cara de siempre van seguidas, y las
+   dos son el primer hijo de su cajón, así que quedarían pegadas. */
+#notaConexion:not(:empty)+#msg2 .aviso{margin-top:var(--e3)}
 /* 6-nov-2026 — «Cambiar la conexión» casi nadie la necesita: como enlace, para que debajo
    de «Entrar» no parezca el paso siguiente. 44 px para el dedo igual. */
 .btn-texto{display:block;width:100%;min-height:44px;background:none;border:0;color:var(--gris);
@@ -243,6 +254,8 @@ details[open]>summary.card-cab::after{content:'▾'}
   <div class="wrap">
     <div class="marca"><span class="sello">G</span> Tu Garantía</div>
     <h1>Traer el CRM a este aparato</h1>
+    <div class="sub" id="queHace">Baja tu cartera de la nube y la deja donde el CRM de siempre la busca. Después abres
+      <span class="mono">crm.html</span> y lo ves completo, sin instalar nada.</div>
   </div>
 </header>
 
@@ -253,11 +266,13 @@ details[open]>summary.card-cab::after{content:'▾'}
 
   <!-- LO QUE DECIDE SI ESTO AYUDA O HACE DAÑO. Va arriba del todo, antes de
        cualquier botón, porque es lo que Joan tiene que saber ANTES de usarlo.
-       6-nov-2026 — y sigue antes de los botones, pero plegado. A 390 px estos cinco
-       avisos empujaban «Entrar» a 1.945 px: la primera pantalla no tenía nada que
-       tocar y parecía una página de avisos, no algo que se usa. A la vista queda lo
-       único que no se puede ignorar; el resto, a un toque y con los mismos textos. La
-       frase de lo que hace esta página, que iba en la cabecera, también vive aquí.
+       6-nov-2026 — y sigue antes de los botones, y donde hay algo que perder sigue a la
+       vista, como siempre (la línea de las fotos es lo único que le dice a quien está en
+       el computador que traer aquí se las llevaría). Solo en un aparato nuevo va plegado,
+       porque a 390 px estos cinco avisos empujaban «Entrar» a 1.945 px: la primera pantalla
+       no tenía nada que tocar y parecía una página de avisos, no algo que se usa. Ahí, a la
+       vista queda lo único que no se puede ignorar; el resto, a un toque y con los mismos
+       textos. La frase de la cabecera baja también (ver ponerCara).
        La frase decía «lo que anotes aquí no llega a tu computador ni a tus clientes», y la
        primera mitad era falsa: el CRM del teléfono sube solo (nube-crm.js, panel_empujar) y
        en el computador ☁ Subir lo ofrece para aplicar. Se leía como una libreta de pruebas,
@@ -265,12 +280,11 @@ details[open]>summary.card-cab::after{content:'▾'}
        SOLO. Y a los clientes no les llega desde aquí porque sbListo() pide la clave de
        sincronización, y este camino no la trae. -->
   <div class="card card-antes">
-    <div class="aviso ambar" id="fraseDeArriba">Sirve para mirar: lo que anotes aquí sube a la nube, pero no entra solo a tu computador ni les llega a tus clientes.</div>
-    <details class="plegable" id="losDetalles">
-    <summary>Antes de nada: para qué sirve esto y para qué no</summary>
+    <div class="aviso ambar solo-aparato-nuevo" id="fraseDeArriba">Sirve para mirar: lo que anotes aquí sube a la nube, pero no entra solo a tu computador ni les llega a tus clientes.</div>
+    <details id="losDetalles" open>
+    <summary id="cabAvisos" tabindex="-1"><div class="card-cab"><h3>Antes de nada: para qué sirve esto y para qué no</h3></div></summary>
+    <div id="paraQueSirve"></div>
     <div class="cuerpo">
-      <p>Baja tu cartera de la nube y la deja donde el CRM de siempre la busca. Después abres
-        <span class="mono">crm.html</span> y lo ves completo, sin instalar nada.</p>
       <div class="aviso ambar">
         <b class="tit">Este camino es para MIRAR</b>
         <!-- 1-oct-2026 — decía «el CRM de siempre no sabe subir». Desde hoy sube
@@ -322,10 +336,10 @@ details[open]>summary.card-cab::after{content:'▾'}
 
   <!-- =============================== PASO 1 · QUÉ HAY ACÁ =============== -->
   <details class="card" id="c1" open>
-    <summary class="card-cab">
+    <summary id="cabPaso1" tabindex="-1"><div class="card-cab">
       <h3><span class="paso-n">1</span> Qué hay en este aparato</h3>
       <span class="pill" id="e1">Contando</span>
-    </summary>
+    </div></summary>
     <div class="cuerpo" id="cuerpo1">
       <div class="aviso info">Contando lo que hay guardado…</div>
     </div>
@@ -338,6 +352,10 @@ details[open]>summary.card-cab::after{content:'▾'}
       <span class="pill" id="e2">Sin conectar</span>
     </div>
     <div class="cuerpo">
+      <!-- 6-nov-2026 — fuera de msg2: lo que se pinta ahí se borra al primer «Entrando…»,
+           y «Cambiarla» desaparecía justo cuando la conexión podía ser lo que falla.
+           Sin espacios adentro: la hoja mira si está :empty. -->
+      <div id="notaConexion"></div>
       <div id="msg2"></div>
       <div id="camposConexion">
         <label for="sbUrl">Dirección del proyecto (URL)</label>
@@ -353,15 +371,12 @@ details[open]>summary.card-cab::after{content:'▾'}
       <input id="sbCorreo" type="email" placeholder="joan@…" autocomplete="username" inputmode="email" spellcheck="false">
       <label for="sbClave">Tu contraseña</label>
       <input id="sbClave" type="password" placeholder="••••••••••••" autocomplete="current-password">
+      <div class="ayuda" id="ayudaClave">No se guarda en este teléfono. Se cambia por una sesión, y la sesión sí queda guardada.</div>
       <button class="btn" type="button" id="btnEntrar">Entrar</button>
-      <!-- 6-nov-2026 — debajo del botón y no entre la contraseña y el botón: son dos
-           líneas que no le piden nada, y «Entrar» sube a la primera pantalla. -->
-      <div class="ayuda">No se guarda en este teléfono. Se cambia por una sesión, y la sesión sí queda guardada.</div>
       <button class="btn sec sm oculto" type="button" id="btnSalir">Cerrar sesión</button>
-      <!-- 6-nov-2026 — fuera de msg2: lo que se pinta ahí se borra al primer «Entrando…»,
-           y «Cambiarla» desaparecía justo cuando la conexión podía ser lo que falla. -->
-      <div class="ayuda" id="notaConexion"></div>
-      <button class="btn-texto oculto" type="button" id="btnVerCampos">Cambiarla</button>
+      <!-- 6-nov-2026 — en un aparato nuevo, lo de arriba que no le pide nada baja aquí
+           (ver ponerCara y precargarConexion), y «Entrar» sube a la primera pantalla. -->
+      <div id="abajoDeEntrar"></div>
     </div>
   </div>
 
@@ -573,7 +588,8 @@ var E = {
   lectura:null,        // lo medido del paquete (ver medirPaquete)
   respaldoHecho:false,
   otraPestanaEscribio:false,
-  escrito:false
+  escrito:false,
+  aparatoNuevo:null    // la cara de la página (ver ponerCara); null hasta decidirla
 };
 
 /* ------------------------------------------------------------- utilidades */
@@ -683,14 +699,40 @@ function hayAlgoQuePerder(inv){
   return hayFichas(inv) || !inv.legible || inv.hayAjustes || inv.tieneLlave;
 }
 
+/* 6-nov-2026 — ¿APARATO NUEVO? Es lo único que decide acortar la página para un teléfono.
+   Se pregunta lo mismo que la puerta, a propósito: si aquí hay algo que tapar, también hay
+   algo que perder, y la página se ve como siempre, con el bloque rojo y los avisos a la
+   vista. Con la clave de la sincronización vieja tampoco: ese es un computador aunque hoy
+   esté sin cartera, y ahí lo anotado sí les llega a los clientes, así que la frase de arriba
+   sería falsa. Sin poder leer el cajón no se sabe, y ante la duda, como siempre. */
+function esAparatoNuevo(inv){
+  if(inv.sinAcceso || hayAlgoQueTapar(inv)) return false;
+  try{ return !NUBE.config().clave; }catch(e){ return false; }
+}
+function ponerCara(inv){
+  /* Una vez en la cara de siempre no se vuelve a plegar: volver a contar no le puede
+     esconder los avisos a quien ya los tenía a la vista. */
+  E.aparatoNuevo = E.aparatoNuevo!==false && esAparatoNuevo(inv);
+  document.documentElement.classList.toggle('aparato-nuevo', E.aparatoNuevo);
+  $('cabAvisos').tabIndex = $('cabPaso1').tabIndex = E.aparatoNuevo ? 0 : -1;
+  $('losDetalles').open = !E.aparatoNuevo;
+  /* El paso 1 también se pliega, con el mismo texto: la pastilla «Vacío» ya dice lo que
+     hay que saber aquí, y seis líneas de más dejaban «Entrar» debajo de la primera
+     pantalla. */
+  $('c1').open = !E.aparatoNuevo || inv.tieneLlave;
+  if(E.aparatoNuevo){
+    $('paraQueSirve').appendChild($('queHace'));
+    $('abajoDeEntrar').appendChild($('ayudaClave'));
+  }
+}
+/* Con la cara de siempre, estos dos no se pliegan: en 76af475 no eran plegables, y ahí un
+   toque sin querer escondería el bloque rojo. */
+function noPlegarLaCaraDeSiempre(ev){ if(!E.aparatoNuevo) ev.preventDefault(); }
+
 function pintarEsteAparato(){
   var inv = E.hay, h='';
 
-  /* 6-nov-2026 — en un teléfono vacío este paso se pliega, con el mismo texto: la
-     pastilla «Vacío» ya dice lo que hay que saber aquí, y seis líneas de más dejaban
-     «Entrar» debajo de la primera pantalla. En todo lo demás nace abierto: el bloque
-     rojo de cuando HAY cartera tiene que ganarle a todo. */
-  $('c1').open = !!(inv.sinAcceso || inv.tieneLlave);
+  ponerCara(inv);
 
   if(inv.sinAcceso){
     estado(1,'fallo','No pude leer');
@@ -918,16 +960,34 @@ function precargarConexion(){
      teléfono nuevo: la guardó esta misma página un instante antes (arriba, «LA
      CONEXION VIENE PUESTA DE FABRICA»). Ahí no se dice nada, y se ofrece cambiarla con
      otro nombre, porque «Cambiarla» sola no se entiende sin la frase de antes. Y todo
-     esto vive debajo del botón y fuera de msg2 (ver el HTML del paso 2). */
+     esto vive fuera de msg2 (ver el HTML del paso 2). */
   if(c.url && c.anon){
     $('camposConexion').classList.add('oculto');
-    if(CONEXION_RECIEN_PUESTA){
-      $('btnVerCampos').textContent='Cambiar la conexión';
-    }else{
-      $('notaConexion').innerHTML='La conexión ya estaba guardada en este teléfono (<span class="mono">'+esc(c.url)+'</span>).';
+    /* La cara de siempre, con el mismo texto y en el mismo sitio, también si la conexión la
+       acaba de poner esta página: con cartera y sin conexión la frase queda como hoy, porque
+       ahí manda que nada cambie, y no es el teléfono nuevo que le hacía daño. */
+    if(!E.aparatoNuevo){
+      E.notaArriba = true;
+      $('notaConexion').innerHTML='<div class="aviso info">La conexión ya estaba guardada en este teléfono '+
+        '(<span class="mono">'+esc(c.url)+'</span>). '+
+        '<button class="btn sec sm" type="button" id="btnVerCampos">Cambiarla</button></div>';
+      $('btnVerCampos').addEventListener('click', function(){ $('camposConexion').classList.remove('oculto'); });
+      return;
     }
-    $('btnVerCampos').classList.remove('oculto');
+    /* Lo demás, debajo de «Entrar»: en un teléfono nada de esto puede empujarlo. */
+    $('abajoDeEntrar').appendChild($('notaConexion'));
+    $('notaConexion').innerHTML=(CONEXION_RECIEN_PUESTA ? '' :
+        '<div class="ayuda">La conexión ya estaba guardada en este teléfono (<span class="mono">'+esc(c.url)+'</span>).</div>')+
+      '<button class="btn-texto" type="button" id="btnVerCampos">'+(CONEXION_RECIEN_PUESTA ? 'Cambiar la conexión' : 'Cambiarla')+'</button>';
+    $('btnVerCampos').addEventListener('click', verCamposConexion);
   }
+}
+/* En la cara de siempre, esa nota se iba al entrar y al salir, porque vivía en msg2. Se
+   sigue yendo ahí; lo que ya no hace es irse con un error, que es cuando hace falta. */
+function quitarNotaDeArriba(){
+  if(!E.notaArriba) return;
+  E.notaArriba = false;
+  $('notaConexion').innerHTML='';
 }
 function verCamposConexion(){
   $('camposConexion').classList.remove('oculto');
@@ -951,6 +1011,7 @@ function entrar(){
 
   NUBE.entrar(correo, clave).then(function(){
     $('sbClave').value='';        // la contraseña no se queda en un campo abierto
+    quitarNotaDeArriba();
     pinta('msg2','ok','<b class="tit">Entraste</b>Como <b>'+esc(correo)+'</b>. La contraseña no se guardó en '+
       'este teléfono.');
     estado(2,'listo','Conectado');
@@ -977,6 +1038,7 @@ var CLAVE_QUE_NO_COINCIDE = 'El correo o la contraseña no coinciden.';
 function salir(){
   Promise.resolve().then(function(){ return NUBE.salir(); }).catch(function(){})
     .then(function(){
+      quitarNotaDeArriba();
       pintarSesion(); estado(2,'','Sin conectar');
       pinta('msg2','info','Sesión cerrada.');
       refrescarBotones();
@@ -990,7 +1052,8 @@ function pintarSesion(){
   if(hay){
     estado(2,'listo','Conectado');
     despertar(3);
-    if(!$('msg2').innerHTML){
+    /* En la cara de siempre, la nota de la conexión ocupa este lugar. */
+    if(!$('msg2').innerHTML && !E.notaArriba){
       pinta('msg2','ok','Ya había una sesión abierta'+(s.correo?' como <b>'+esc(s.correo)+'</b>':'')+'.');
     }
   }
@@ -1436,7 +1499,8 @@ document.addEventListener('DOMContentLoaded', function(){
   $('btnRecontar').addEventListener('click', recontar);
   $('btnEntrar').addEventListener('click', entrar);
   $('btnSalir').addEventListener('click', salir);
-  $('btnVerCampos').addEventListener('click', verCamposConexion);
+  $('cabAvisos').addEventListener('click', noPlegarLaCaraDeSiempre);
+  $('cabPaso1').addEventListener('click', noPlegarLaCaraDeSiempre);
   $('btnMirar').addEventListener('click', mirar);
   $('btnRespaldo').addEventListener('click', bajarRespaldo);
   $('btnConfirmoRespaldo').addEventListener('click', confirmarRespaldo);
