@@ -139,7 +139,7 @@ h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Tim
 .pill.fallo{border-color:var(--ambar-filete);background:var(--ambar-papel);color:var(--ambar-tinta)}
 
 /* ---------------- avisos ---------------- */
-.aviso{border-radius:14px;padding:13px;font-size:14px;margin-top:var(--e3);line-height:1.5;
+.aviso{border-radius:14px;padding:13px;font-size:14px;margin-top:var(--e3);line-height:1.5;overflow-wrap:anywhere;
   border:1px solid var(--linea)}
 .aviso:first-child{margin-top:0}
 .aviso.info{border-color:color-mix(in srgb, var(--azul-texto) 25%, transparent);
@@ -1205,11 +1205,15 @@ function fraseDelPinQueViaja(m){
    cambiaría lo que hace en el computador, así que se dice aquí.
    «La de hoy» y no «tiene que cambiar»: la fecha va por días, y con dos subidas el mismo día
    no cambia aunque la segunda sí haya entrado. Y «del PIN», no «la de arriba»: en este paso
-   también están a la vista «Último cambio allá» y «Hora del servidor», y esa siempre es hoy. */
+   también están a la vista «Último cambio allá» y «Hora del servidor», y esa siempre es hoy.
+   Y SI NO HAY NADA QUE SUBIR, LA FECHA NO SE MUEVE: sin cambios en los ajustes, ☁ Subir no los
+   manda y la fila conserva su fecha, justo cuando lo que viaja ya es lo de hoy. Sin decirlo, esta
+   frase pedía algo imposible. La casilla «Ajustes» de subir.html nombra lo que va a subir. */
 var AVISO_PIN_QUE_VIAJA = '<div class="aviso ambar"><b class="tit">Antes de traer: ¿recuerdas ese PIN?</b>'+
   'Si no recuerdas ese PIN, no traigas todavía: en el computador abre ☁ Subir (Ajustes → Avanzado, o '+
   '<span class="mono">subir.html</span>) y sube tus ajustes, así viaja el de hoy. '+
   'Después vuelve aquí y aprieta otra vez «Mirar qué hay en la nube» (paso 3): la fecha del PIN tiene que ser la de hoy. '+
+  'Si en ☁ Subir la casilla «Ajustes» no nombra «config», tus ajustes no cambiaron y ya viaja el de hoy. '+
   'Después de traer, este aparato solo abre con ese PIN.</div>';
 
 /* Las dos razones por las que esta pantalla se NIEGA a escribir. Devuelve el

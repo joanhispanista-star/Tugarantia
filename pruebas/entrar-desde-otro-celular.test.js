@@ -108,6 +108,32 @@ describe('F2. La puerta del PIN de un navegador sin fichas tiene salida', () => 
     entrarCon(P, '1234');
     P.ev("pedirEntrarOtraVez('salir')");
     assert.equal(aLaVista(P), true);
+    /* La tarjeta acaba de pedir «escribe tu PIN»: decir debajo que aquí no sirve se contradice. */
+    assert.equal(dice(P), '¿Eres Joan? Este aparato todavía no tiene tu cartera.');
+  });
+
+  test('la puerta solo deja bajar con la salida a la vista: con fichas, ni un cambio', () => {
+    const clases = conAlmacen => {
+      const P = abrirPanel({ tarjeta: true, almacen: conAlmacen });
+      const vio = [];
+      P.elems.gate.classList.toggle = (c, v) => vio.push([c, v]);
+      P.ev('pintarSalidaDeLaPuerta()');
+      return vio;
+    };
+    assert.deepEqual(clases({}), [['con-salida', true]]);
+    assert.deepEqual(clases({ [LLAVE]: JSON.stringify(CARTERA) }), [['con-salida', false]]);
+    const sin = CRM.replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.match(sin, /\.gate\{[^}]*overflow:hidden\}/, 'la puerta de siempre perdió su overflow');
+    assert.match(sin, /\.gate\.con-salida\{place-items:start center;overflow-y:auto;overflow-x:hidden\}/);
+    const bloque = /@media\(max-width:880px\)\{[\s\S]*?\n  \}/.exec(sin)[0];
+    assert.doesNotMatch(bloque, /\.gate\{/, 'la puerta volvió a depender del ancho');
+  });
+
+  test('imprimir desde el PC no saca una hoja de más: min-height solo en pantalla', () => {
+    const sin = CRM.replace(/\/\*[\s\S]*?\*\//g, '');
+    const bloque = /@media\(max-width:880px\)\{[\s\S]*?\n  \}/.exec(sin)[0];
+    assert.doesNotMatch(bloque, /min-height:100vh/, 'esa media query también aplica al imprimir');
+    assert.match(sin, /@media screen and \(max-width:880px\)\{\s*\.main\{min-height:100vh\}\s*#txtJefe\{font-size:16px\}/);
   });
 
   test('en modo equipo no sale', () => {
@@ -836,7 +862,7 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
   });
 
   describe('si no recuerda ese PIN, se dice antes de traer', () => {
-    const AVISO = 'Si no recuerdas ese PIN, no traigas todavía: en el computador abre ☁ Subir (Ajustes → Avanzado, o subir.html ) y sube tus ajustes, así viaja el de hoy. Después vuelve aquí y aprieta otra vez «Mirar qué hay en la nube» (paso 3): la fecha del PIN tiene que ser la de hoy. Después de traer, este aparato solo abre con ese PIN.';
+    const AVISO = 'Si no recuerdas ese PIN, no traigas todavía: en el computador abre ☁ Subir (Ajustes → Avanzado, o subir.html ) y sube tus ajustes, así viaja el de hoy. Después vuelve aquí y aprieta otra vez «Mirar qué hay en la nube» (paso 3): la fecha del PIN tiene que ser la de hoy. Si en ☁ Subir la casilla «Ajustes» no nombra «config», tus ajustes no cambiaron y ya viaja el de hoy. Después de traer, este aparato solo abre con ese PIN.';
 
     test('en el paso 3 y encima del botón del paso 5, sin pintar el PIN', async () => {
       const T = await hastaMirar(paquete([CONFIG]));

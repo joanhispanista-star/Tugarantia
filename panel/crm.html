@@ -171,6 +171,12 @@
     font-size:12.5px;line-height:1.45;color:var(--tinta-2);text-align:left}
   .gate-salida a{display:block;margin-top:10px;padding:12px;border:1.5px solid var(--azul);border-radius:10px;
     color:var(--azul);font-size:14px;font-weight:700;text-align:center;text-decoration:none}
+  /* Con su salida, la tarjeta mide unos 500 px: en un teléfono bajito, o en uno grande
+     acostado, lo de abajo queda cortado. Solo con la salida a la vista: con fichas la puerta
+     sigue sin barra, como siempre. Arriba y con margin:auto, y no centrada: una tarjeta
+     centrada más alta que la pantalla pierde su parte de arriba, y a esa no se llega bajando. */
+  .gate.con-salida{place-items:start center;overflow-y:auto;overflow-x:hidden}
+  .gate.con-salida .gate-card{margin:auto}
 
   /* 10-sep-2026 — EL OJO. Joan lo pidió por su nombre: una contraseña dictada
      por WhatsApp y tecleada a ciegas en un celular se escribe mal y no hay cómo
@@ -564,19 +570,23 @@
 
   .cfg{max-width:560px}
   @media(max-width:880px){
-    /* 6-nov-2026 — con su salida, la tarjeta del PIN mide unos 500 px: en un teléfono
-       bajito «Soy del equipo» quedaría cortado debajo, sin forma de bajar. */
-    .gate{overflow-y:auto;overflow-x:hidden}
     .app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;flex-wrap:wrap}
     .side .brand{width:100%}.side .marcagua{display:none}.side .horario{margin:8px 0 0}.side .sep{width:100%}
-    /* 6-nov-2026 — min-height: el toque del menú lleva el contenido a la vista (ver
-       alTocarElMenu), y una vista corta no deja bajar hasta arriba: quedaría a media
-       pantalla con el final del menú encima, distinta cada vez. */
-    .kpis{grid-template-columns:1fr 1fr}.kpis2{grid-template-columns:1fr 1fr}.main{padding:16px;min-height:100vh}
+    .kpis{grid-template-columns:1fr 1fr}.kpis2{grid-template-columns:1fr 1fr}.main{padding:16px}
     .two{grid-template-columns:1fr}.up-row{grid-template-columns:1fr}
     .cal-day{min-height:60px}.cal-ev{display:none}.cal-day .dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:2px}
     .card>div{overflow-x:auto;-webkit-overflow-scrolling:touch}
     table{min-width:560px}
+  }
+  /* 6-nov-2026 — SOLO EN PANTALLA, porque el bloque de arriba también aplica al imprimir
+     (A4 y carta miden menos de 880) y esto sacaba una hoja en blanco de más desde el PC.
+     min-height: el toque del menú lleva el contenido a la vista (ver alTocarElMenu), y una
+     vista corta no deja bajar hasta arriba: quedaría a media pantalla con el final del menú
+     encima, distinta cada vez. #txtJefe a 16 px: por debajo, Safari en iOS hace zoom al
+     enfocar y no lo deshace, y ahora que «Enviar» funciona el gerente va a tocar ahí. */
+  @media screen and (max-width:880px){
+    .main{min-height:100vh}
+    #txtJefe{font-size:16px}
   }
 </style>
 </head>
@@ -12636,7 +12646,9 @@ function textoSalidaDeLaPuerta() {
     try { d = JSON.parse(crudo); } catch (e) {}
     if (!d || typeof d !== 'object') return '¿Eres Joan? Lo guardado en este aparato está dañado y no lo puedo leer, y tu PIN estaba ahí.';
   }
-  if (String(DB.config.pin) !== '1234') return '¿Eres Joan? Este aparato todavía no tiene tu cartera.';
+  /* Con el candado encima tampoco: la misma tarjeta acaba de pedir «escribe tu PIN», y ahí sí
+     sirve el que se acaba de usar. */
+  if (_candado || String(DB.config.pin) !== '1234') return '¿Eres Joan? Este aparato todavía no tiene tu cartera.';
   return '¿Eres Joan? Este aparato todavía no tiene tu cartera. Tu PIN vive en tu computador, por eso aquí no sirve.';
 }
 /* Al arrancar, al reponer la tarjeta («← Soy Joan») y cuando la puerta vuelve encima
@@ -12649,6 +12661,8 @@ function pintarSalidaDeLaPuerta() {
   if (!caja) return;
   const t = textoSalidaDeLaPuerta();
   caja.style.display = t ? '' : 'none';
+  const puerta = document.getElementById('gate');
+  if (puerta && puerta.classList) puerta.classList.toggle('con-salida', !!t);
   if (!t) return;
   const txt = document.getElementById('salidaPuertaTexto');
   if (txt) txt.textContent = t;
@@ -15196,6 +15210,7 @@ function subirFotoJefe(grande, chica, err) {
   }).then(function (res) {
     var j = res && res.j;
     if (!res.ok || !j || j.ok !== true) {
+      if (esFinDeSesion(null, res)) { falloJefe(err, 'Se cerró tu sesión: esta foto no salió.'); return avisarFinDeSesion('Tu foto NO salió. '); }
       var m = j && j.motivo;
       return falloJefe(err,
         res.status === 404 ? 'Tu nube todavía no recibe fotos del equipo. Avísale a Joan.'
@@ -15210,7 +15225,8 @@ function subirFotoJefe(grande, chica, err) {
     var t = document.getElementById('txtJefe'); if (t) t.value = '';
     err.classList.add('oculto');
     if (_jefeVivo) _jefeVivo.latir(); else traerJefeEq(true);
-  }).catch(function () {
+  }).catch(function (e) {
+    if (esFinDeSesion(e)) { falloJefe(err, 'Se cerró tu sesión: esta foto no salió.'); return avisarFinDeSesion('Tu foto NO salió. '); }
     falloJefe(err, 'No pude mandar la foto. Revisa tu internet.');
   });
 }
@@ -15290,6 +15306,7 @@ function enviarAJefe() {
     if (b) { b.disabled = false; b.textContent = 'Enviar'; }
     var j = res && res.j;
     if (!res.ok || !j || j.ok !== true) {
+      if (esFinDeSesion(null, res)) return avisarFinDeSesion('Tu mensaje NO salió: sigue escrito en el cuadro. ');
       var m = j && j.motivo;
       err.textContent =
         res.status === 404 ? 'Tu nube todavía no tiene los mensajes del equipo. Avísale a Joan.'
@@ -15302,8 +15319,9 @@ function enviarAJefe() {
     }
     el.value = '';
     if (_jefeVivo) _jefeVivo.latir(); else traerJefeEq(true);
-  }).catch(function () {
+  }).catch(function (e) {
     if (b) { b.disabled = false; b.textContent = 'Enviar'; }
+    if (esFinDeSesion(e)) return avisarFinDeSesion('Tu mensaje NO salió: sigue escrito en el cuadro. ');
     err.textContent = 'No pude conectarme. Revisa la señal.';
     err.classList.remove('oculto');
   });

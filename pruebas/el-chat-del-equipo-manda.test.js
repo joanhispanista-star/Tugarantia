@@ -104,6 +104,35 @@ describe('«Enviar», tocado de verdad', () => {
     assert.equal(txt.value, 'jefe, probando');
   });
 
+  test('con la sesión vencida saca la puerta de entrar otra vez, y el texto no se pierde', async () => {
+    const { P } = abrirChat(null, { equipo_chat_escribir: { status: 401, j: { code: 'PGRST301', message: 'JWT expired' } } });
+    const html = P.ev('vistaJefeEq()');
+    const txt = P.ctx.document.getElementById('txtJefe');
+    txt.value = 'jefe, probando';
+    const dijo = [];
+    P.ctx.__anotar = q => dijo.push(q);
+    P.ev('avisarFinDeSesion = q => __anotar(q)');
+    tocarDePantalla(P, html, 'btnJefe');
+    await asentar();
+    assert.equal(dijo.length, 1, 'un JWT vencido se quedó en «No pude enviarlo»');
+    assert.match(dijo[0], /NO salió/);
+    assert.equal(txt.value, 'jefe, probando');
+    assert.equal(P.ctx.document.getElementById('btnJefe').textContent, 'Enviar');
+  });
+
+  test('sin señal sigue diciendo que es la señal: no se confunde con la sesión', async () => {
+    const { P } = abrirChat(null, { equipo_chat_escribir: { falla: 'sin red' } });
+    const html = P.ev('vistaJefeEq()');
+    P.ctx.document.getElementById('txtJefe').value = 'jefe, probando';
+    const dijo = [];
+    P.ctx.__anotar = q => dijo.push(q);
+    P.ev('avisarFinDeSesion = q => __anotar(q)');
+    tocarDePantalla(P, html, 'btnJefe');
+    await asentar();
+    assert.equal(dijo.length, 0);
+    assert.match(P.ctx.document.getElementById('errJefe').textContent, /Revisa la señal/);
+  });
+
   test('un mensaje vacío lo frena la pantalla con el motivo de chat.js, sin molestar a la nube', async () => {
     const { P, N } = abrirChat();
     const html = P.ev('vistaJefeEq()');
@@ -137,6 +166,18 @@ describe('la foto', () => {
     assert.equal(van.length, 1, 'la foto no salió');
     assert.equal(van[0].cuerpo.p_texto, 'mire esta');
     assert.equal(van[0].cuerpo.p_imagen, 'data:image/jpeg;base64,AAAA');
+  });
+
+  test('con la sesión vencida no se queda en «Mandando la foto…» y saca la puerta', async () => {
+    const { P } = abrirChat(null, { equipo_foto_escribir: { status: 401, j: { code: 'PGRST301', message: 'JWT expired' } } });
+    P.ev('vistaJefeEq()');
+    const dijo = [];
+    P.ctx.__anotar = q => dijo.push(q);
+    P.ev('avisarFinDeSesion = q => __anotar(q)');
+    P.ev("subirFotoJefe('data:image/jpeg;base64,AAAA', '', document.getElementById('errJefe'))");
+    await asentar();
+    assert.equal(dijo.length, 1);
+    assert.match(P.ctx.document.getElementById('errJefe').textContent, /no salió/);
   });
 
   test('con un texto de más, lo dice y no se queda en «Mandando la foto…»', async () => {
