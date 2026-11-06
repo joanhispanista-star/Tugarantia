@@ -15099,7 +15099,10 @@ function subirFotoJefe(grande, chica, err) {
   err.textContent = 'Mandando la foto…';
   err.classList.remove('ambar');
   var pie = String((document.getElementById('txtJefe') || {}).value || '').trim();
-  if (pie.length > CH.LARGO_MAX) {
+  /* Ver enviarAJefe, abajo. Sin esta reja se quedaba para siempre en «Mandando
+     la foto…»: el error salía en un onload, donde nadie lo atrapa. */
+  if (!CHAT) return falloJefe(err, 'No cargó app/chat.js. Recarga la página con señal: esta foto no salió.');
+  if (pie.length > CHAT.LARGO_MAX) {
     return falloJefe(err, 'El texto que acompaña la foto es muy largo.');
   }
   rpcEquipo('equipo_foto_escribir', {
@@ -15178,7 +15181,20 @@ function enviarAJefe() {
   var el = document.getElementById('txtJefe');
   var err = document.getElementById('errJefe');
   if (!el || !err) return;
-  var v = CH.revisar(el.value);
+  /* 6-nov-2026 — EL CHAT DEL EQUIPO NO MANDABA, DESDE EL 22-SEP. Aquí y en
+     subirFotoJefe decía «CH», que es el nombre del módulo en play/index.html;
+     en esta página se llama CHAT (arriba, junto a COMIS y ETAPAS). «Enviar» y la
+     foto reventaban con un ReferenceError que nadie ve: el gerente tocaba, el
+     texto se quedaba ahí y la pantalla no decía nada. Y ninguna prueba tocó el
+     botón nunca (pruebas/el-chat-del-equipo-manda.test.js ya lo toca).
+     Si app/chat.js no llegó (el <script> va sin versión, así que la guardia de
+     arriba no lo ataja), se dice, en vez de otro reventón callado. */
+  if (!CHAT) {
+    err.textContent = 'No cargó app/chat.js. Recarga la página con señal: este mensaje no salió.';
+    err.classList.remove('oculto');
+    return;
+  }
+  var v = CHAT.revisar(el.value);
   if (!v.ok) { err.textContent = v.motivo; err.classList.remove('oculto'); return; }
   err.classList.add('oculto');
   var b = document.getElementById('btnJefe');
