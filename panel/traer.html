@@ -460,6 +460,34 @@ details>summary::-webkit-details-marker{display:none}
   </div>
 </main>
 
+<!-- 6-nov-2026 — EL PLIEGUE, ANTES DE PINTAR. Los tres archivos de abajo pesan 550 KB: con la
+     red lenta, y sin nada guardado, se medía la primera pintura a 0,3 s y el arranque a 3,4 s, y
+     en un teléfono vacío se veía la página larga y luego se le encogía bajo el dedo. Por eso un
+     aparato sin nada se pliega aquí, antes de que paren a cargar. Solo un aparato sin nada: lo
+     demás lo decide ponerCara, y un computador con su cartera no pasa de la primera línea.
+     La llave va escrita a mano, la única vez en esta pantalla, porque el puente todavía no ha
+     llegado. Solo se lee, y pruebas/entrar-desde-otro-celular.test.js avisa si cambia allá. -->
+<script>
+function plegarLaPagina(){
+  var raiz=document.documentElement, de=function(id){ return document.getElementById(id); };
+  if(raiz.classList.contains('aparato-nuevo')) return;   // ya se plegó antes de pintar
+  raiz.classList.add('aparato-nuevo');
+  de('losDetalles').open=false;
+  de('c1').open=false;
+  /* Lo que no le pide nada baja: la frase de la cabecera a los avisos, y la ayuda de la
+     contraseña debajo de «Entrar», que así sube a la primera pantalla. */
+  de('paraQueSirve').appendChild(de('queHace'));
+  de('abajoDeEntrar').appendChild(de('ayudaClave'));
+}
+(function(){
+  try{
+    if(localStorage.getItem('joan_socios_v1')) return;
+    if(JSON.parse(localStorage.getItem('joan_socios_sb')||'{}').clave) return;
+  }catch(e){ return; }
+  plegarLaPagina();
+})();
+</script>
+
 <!-- El motor y el puente se cargan por UNA razón concreta: la llave donde vive
      la cartera (PUENTE.LLAVE_PANEL) no se escribe a mano en esta pantalla.
      Escrita a mano, el día que cambie quedan dos verdades, y una de ellas
@@ -592,7 +620,10 @@ var E = {
   respaldoHecho:false,
   otraPestanaEscribio:false,
   escrito:false,
-  aparatoNuevo:null    // la cara de la página (ver ponerCara); null hasta decidirla
+  aparatoNuevo:null,   // la cara de la página (ver ponerCara); null hasta decidirla
+  notaArriba:false,    // la nota de la conexión va arriba, en la cara de siempre
+  arranco:false,       // arrancarDeVerdad ya corrió: la puerta no lo repite
+  pasoLaPuerta:false   // volver a contar no le vuelve a pedir PIN a quien ya pasó
 };
 
 /* ------------------------------------------------------------- utilidades */
@@ -723,17 +754,17 @@ function ponerCara(inv){
   /* Una vez en la cara de siempre no se vuelve a plegar: volver a contar no le puede
      esconder los avisos a quien ya los tenía a la vista. */
   E.aparatoNuevo = E.aparatoNuevo!==false && esAparatoNuevo(inv);
-  document.documentElement.classList.toggle('aparato-nuevo', E.aparatoNuevo);
+  if(E.aparatoNuevo){
+    plegarLaPagina();
+  }else{
+    document.documentElement.classList.remove('aparato-nuevo');
+    $('losDetalles').open = true;
+  }
   $('cabAvisos').tabIndex = $('cabPaso1').tabIndex = E.aparatoNuevo ? 0 : -1;
-  $('losDetalles').open = !E.aparatoNuevo;
   /* El paso 1 también se pliega, con el mismo texto: la pastilla «Vacío» ya dice lo que
      hay que saber aquí, y seis líneas de más dejaban «Entrar» debajo de la primera
-     pantalla. */
+     pantalla. Con algo guardado, aunque sean ajustes, se dice abierto. */
   $('c1').open = !E.aparatoNuevo || inv.tieneLlave;
-  if(E.aparatoNuevo){
-    $('paraQueSirve').appendChild($('queHace'));
-    $('abajoDeEntrar').appendChild($('ayudaClave'));
-  }
 }
 /* Con la cara de siempre, estos dos no se pliegan: en 76af475 no eran plegables, y ahí un
    toque sin querer escondería el bloque rojo. */

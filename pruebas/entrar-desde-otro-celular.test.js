@@ -606,6 +606,33 @@ describe('Con algo que perder, traer.html es la de siempre: lo único que cambia
     });
   });
 
+  describe('un aparato vacío se pliega antes de pintar, sin esperar a los archivos de afuera', () => {
+    const pliegue = VISIBLE.length ? TRAER.indexOf('function plegarLaPagina()') : -1;
+    const primerArchivo = TRAER.indexOf('<script src="../app/motor.js');
+
+    test('va después de todo lo que pliega y antes del primer archivo que pone a esperar', () => {
+      assert.ok(pliegue > TRAER.indexOf('</main>'), 'corre antes de que existan los elementos');
+      assert.ok(pliegue < primerArchivo, 'espera a los archivos: con la red lenta se ve la página larga y luego se encoge');
+    });
+
+    test('la llave escrita a mano es la del puente: si cambia allá, esto avisa', () => {
+      assert.match(TRAER.slice(pliegue, primerArchivo), /localStorage\.getItem\('joan_socios_v1'\)/);
+      assert.equal(abrirTraer().ev('KEY'), 'joan_socios_v1');
+      assert.match(TRAER.slice(pliegue, primerArchivo), /localStorage\.getItem\('joan_socios_sb'\)/);
+    });
+
+    test('se pliega una sola vez: lo que se movió no se vuelve a mover', () => {
+      const T = abrirTraer();
+      assert.deepEqual(T.bajoA('paraQueSirve'), ['queHace']);
+      assert.equal(T.bajoA('abajoDeEntrar').filter(x => x === 'ayudaClave').length, 1);
+    });
+
+    test('sin poder leer el cajón ni con una conexión dañada no se rompe la página', () => {
+      assert.equal(abrirTraer({ sinCajon: true }).plegada(), false);
+      assert.equal(abrirTraer({ almacen: { joan_socios_sb: '{roto' } }).elems.c2.classList.contains('dormido'), false);
+    });
+  });
+
   test('el texto de la puerta sí cambió: es lo único', () => {
     assert.match(VISIBLE, /id="porquePuerta">Es el PIN guardado en este navegador\. Se pide porque aquí ya hay algo guardado:/);
   });
