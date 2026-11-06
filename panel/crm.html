@@ -17297,7 +17297,14 @@ var _ventas = { paso: 'nuevo' };
 function renderVentas() {
   var caja = document.getElementById('tblVentas'); if (!caja) return;
   recalcularEmbudo();
-  guardar();
+  /* 6-nov-2026 — MIRAR NO CREA UNA CARTERA. Guarda porque recalcularEmbudo mueve
+     estados, pero en un navegador sin nada no hay qué mover, y este guardar() era el
+     único camino del menú que escribía: con solo tocar «Ventas» en un CRM vacío nacía
+     la llave, y desde ahí panel/index.html afirmaba «Tu cartera completa está en este
+     aparato» y lo mandaba aquí en vez de al espejo. Peor con una cartera dañada, que
+     cargar() lee como vacía: la pisaba con una vacía, sin avisar, y lo que traer.html
+     habría respaldado ya no existía. Con datos, como siempre. */
+  if ((DB.socios || []).length || (DB.prestamos || []).length || (DB.respaldados || []).length || prospectos().length) guardar();
 
   var c = conteoEmbudo();
   var total = prospectos().length;

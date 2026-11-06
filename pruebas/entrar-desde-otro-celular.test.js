@@ -435,3 +435,53 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
     assert.match(T.texto('msg6'), /PIN de fábrica \(1234\).*los ajustes no vinieron/);
   });
 });
+
+/* ------------------------------------------------------------------ F7 */
+describe('F7. Mirar el CRM no crea una cartera', () => {
+  const ENTRADAS = [...CRM.matchAll(/<button class="navbtn[^"]*" data-v="([a-z]+)">/g)].map(m => m[1]);
+
+  test('control: el menú sigue teniendo sus 16 entradas', () => {
+    assert.equal(ENTRADAS.length, 16, ENTRADAS.join(','));
+    assert.ok(ENTRADAS.includes('ventas'));
+  });
+
+  test('en un navegador vacío, tocar «Ventas» ya no escribe nada', () => {
+    const P = abrirPanel();
+    P.ev('irA("ventas")');
+    assert.equal(P.almacen[LLAVE], undefined, 'con solo mirar nació la llave de la cartera');
+  });
+
+  test('ninguna de las 16 entradas del menú la crea', () => {
+    const P = abrirPanel({ red: () => Promise.reject(new Error('sin red')) });
+    ENTRADAS.forEach(v => {
+      P.ev('irA(' + JSON.stringify(v) + ')');
+      assert.equal(P.almacen[LLAVE], undefined, '«' + v + '» creó la cartera');
+    });
+  });
+
+  test('con una cartera dañada, tocar todo el menú no la pisa', () => {
+    const roto = '{"socios":[{"id":"C1","nombre":"Cliente Inventado"';
+    const P = abrirPanel({ red: () => Promise.reject(new Error('sin red')), almacen: { [LLAVE]: roto } });
+    ENTRADAS.forEach(v => {
+      P.ev('irA(' + JSON.stringify(v) + ')');
+      assert.equal(P.almacen[LLAVE], roto, '«' + v + '» pisó lo que traer.html habría respaldado');
+    });
+  });
+
+  test('con datos, Ventas guarda como siempre: lo que el embudo movió no se pierde', () => {
+    const conSocio = {
+      socios: [SOCIO], prestamos: [CREDITO], config: { pin: '4321' },
+      prospectos: [{ id: 'p1', nombre: 'Prospecto Inventado', celular: '3000000301', estado: 'nuevo' }]
+    };
+    const P = abrirPanel({ almacen: { [LLAVE]: JSON.stringify(conSocio) } });
+    P.ev('irA("ventas")');
+    assert.equal(JSON.parse(P.almacen[LLAVE]).prospectos[0].estado, 'cliente', 'el embudo movió el estado y no se guardó');
+    /* Cada una de las cuatro basta sola. */
+    [{ socios: [SOCIO] }, { prestamos: [CREDITO] }, { respaldados: [RESPALDADO] }, { prospectos: [{ id: 'p1', celular: '3000000301' }] }].forEach(d => {
+      const Q = abrirPanel({ almacen: { [LLAVE]: JSON.stringify(Object.assign({ config: { pin: '4321', marca: 'x' } }, d)) } });
+      const antes = Q.almacen[LLAVE];
+      Q.ev('irA("ventas")');
+      assert.notEqual(Q.almacen[LLAVE], antes, 'con ' + Object.keys(d)[0] + ' dejó de guardar');
+    });
+  });
+});
