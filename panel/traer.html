@@ -1434,6 +1434,17 @@ function traerYEscribir(){
   /* Ya se trajo: «no traigas todavía» ya no le sirve a nadie. El paso 6 dice de qué fecha es. */
   $('avisoPinAntesDeTraer').innerHTML='';
   if($('avisoPinPaso3')) $('avisoPinPaso3').innerHTML='';
+  /* 6-nov-2026 — los pasos 1 y 4 seguían diciendo lo de antes: «Vacío» con la llave ya
+     escrita, o «Se va a reemplazar» sobre lo que ya se reemplazó. No se llama a
+     pintarEsteAparato: sacaría ese bloque rojo encima de lo que se acaba de traer. Los
+     números son los que se acaban de releer, no los que se esperaban. */
+  estado(1,'listo','Traído');
+  $('cuerpo1').innerHTML='<div class="aviso ok"><b class="tit">Ya quedó traído</b>'+
+    'Este aparato ya tiene lo que bajó de la nube: '+plural(quedaron.socios,'socio','socios')+', '+
+    plural(quedaron.creditos,'crédito','créditos')+' y '+plural(quedaron.respaldados,'respaldado','respaldados')+'.</div>';
+  /* E.hay ya es lo de ahora, y de ahí saca el botón lo que baja. */
+  $('avisoRespaldo').innerHTML='<div class="aviso info"><b class="tit">Ese respaldo es de antes de traer</b>'+
+    'El archivo que ya bajaste guarda lo que había aquí antes de traer. Si lo bajas otra vez, sale lo que hay ahora.</div>';
 
   estado(5,'listo','Traído');
   $('resumen5').innerHTML =

@@ -817,6 +817,67 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
     });
   });
 
+  describe('después de traer, los pasos 1 y 4 dicen lo que quedó', () => {
+    test('en un aparato vacío ya no sigue diciendo «Vacío»', async () => {
+      const T = await hastaTraer(paquete([CONFIG]));
+      assert.ok(T.almacen[LLAVE], 'no escribió');
+      assert.equal(T.texto('e1'), 'Traído');
+      assert.equal(T.texto('cuerpo1'), 'Ya quedó traído Este aparato ya tiene lo que bajó de la nube: 1 socio, 1 crédito y 0 respaldados.');
+      assert.equal(T.texto('avisoRespaldo'), 'Ese respaldo es de antes de traer El archivo que ya bajaste guarda lo que había aquí antes de traer. Si lo bajas otra vez, sale lo que hay ahora.');
+    });
+
+    test('es cierto lo que dice del paso 4: bajarlo otra vez saca lo que hay ahora', async () => {
+      const T = await hastaTraer(paquete([CONFIG]));
+      assert.equal(T.descargas.length, 1);
+      T.tocar('btnRespaldo');
+      assert.equal(T.descargas.length, 2);
+      assert.equal(T.ev('E.hay.crudo'), T.almacen[LLAVE], 'el respaldo no sale de lo que quedó');
+    });
+
+    test('sobre una cartera que ya había, el bloque rojo se va: ya se reemplazó', async () => {
+      const A = { [LLAVE]: JSON.stringify(CARTERA) };
+      const T = abrirTraer({ almacen: A, red: nube(paquete([CONFIG])) });
+      T.elems.pin.value = '4321';
+      T.tocar('btnPuerta');
+      assert.match(T.elems.cuerpo1.innerHTML, /Se va a reemplazar/);
+      T.elems.sbCorreo.value = 'duena@prueba.test'; T.elems.sbClave.value = 'una-clave-inventada';
+      T.tocar('btnEntrar');
+      await asentar();
+      T.tocar('btnMirar');
+      await asentar();
+      T.tocar('btnRespaldo');
+      T.tocar('btnConfirmoRespaldo');
+      T.tocar('btnTraer');
+      await asentar();
+      assert.equal(T.texto('e1'), 'Traído');
+      assert.doesNotMatch(T.elems.cuerpo1.innerHTML, /Se va a reemplazar|class="peligro"/);
+    });
+
+    test('control: si dijo que no, o si no cupo, siguen diciendo lo de antes: no se escribió nada', async () => {
+      const no = abrirTraer({ red: nube(paquete([CONFIG])), confirmar: false });
+      no.elems.sbCorreo.value = 'duena@prueba.test'; no.elems.sbClave.value = 'una-clave-inventada';
+      no.tocar('btnEntrar');
+      await asentar();
+      no.tocar('btnMirar');
+      await asentar();
+      no.tocar('btnRespaldo');
+      no.tocar('btnTraer');
+      await asentar();
+      assert.equal(no.almacen[LLAVE], undefined);
+      assert.equal(no.texto('e1'), 'Vacío');
+      assert.match(no.elems.cuerpo1.innerHTML, /Este aparato está vacío/);
+
+      const lleno = await hastaMirar(paquete([CONFIG]));
+      lleno.tocar('btnRespaldo');
+      lleno.ctx.localStorage.setItem = () => { throw Object.assign(new Error('lleno'), { name: 'QuotaExceededError' }); };
+      lleno.tocar('btnTraer');
+      await asentar();
+      assert.equal(lleno.texto('e5'), 'No cupo');
+      assert.equal(lleno.texto('e1'), 'Vacío');
+      assert.match(lleno.elems.avisoRespaldo.innerHTML, /Este aparato está vacío, y se baja igual/);
+    });
+  });
+
   test('control: sin la fila config, como siempre', async () => {
     const T = await hastaTraer(paquete([]));
     assert.match(T.texto('resumen3'), /Los ajustes no vienen/);
