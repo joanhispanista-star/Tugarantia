@@ -531,6 +531,34 @@ describe('Con algo que perder, traer.html es la de siempre: lo único que cambia
     assert.equal(frenados, 0);
   });
 
+  describe('el foco de los dos encabezados', () => {
+    /* Los turnos siguientes se guardan aquí: el banco no corre relojes. */
+    const conTurnos = T => { const turnos = []; T.ctx.setTimeout = f => { turnos.push(f); return 1; }; return turnos; };
+
+    test('en la cara de siempre no se quedan con él, ni sin click: el botón derecho y arrastrar enfocan y no lo disparan', () => {
+      const T = pasar(con(CARTERA), '4321');
+      const turnos = conTurnos(T);
+      ['cabAvisos', 'cabPaso1'].forEach(id => {
+        let soltado = 0;
+        T.elems[id].blur = () => { soltado++; };
+        T.elems[id]._oyentes.focus.forEach(f => f({ currentTarget: T.elems[id] }));
+        assert.equal(soltado, 0, 'soltarlo dentro de su evento hace que el navegador se trague la pulsación, y el título ya no se selecciona');
+        turnos.splice(0).forEach(f => f());
+        assert.equal(soltado, 1, 'se queda con el foco: la primera tecla pinta un anillo y Espacio no baja la página');
+      });
+    });
+
+    test('en un aparato nuevo sí se quedan con él: ahí se llega con el tabulador y se abren con Espacio', () => {
+      const T = abrirTraer();
+      const turnos = conTurnos(T);
+      ['cabAvisos', 'cabPaso1'].forEach(id => {
+        T.elems[id].blur = () => assert.fail('soltó el foco en un aparato nuevo: ' + id);
+        T.elems[id]._oyentes.focus.forEach(f => f({ currentTarget: T.elems[id] }));
+      });
+      assert.equal(turnos.length, 0);
+    });
+  });
+
   test('volver a contar no le pliega la página a quien ya la tenía a la vista', () => {
     const A = { [LLAVE]: JSON.stringify(CARTERA) };
     const T = pasar(abrirTraer({ almacen: A }), '4321');

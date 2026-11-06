@@ -773,6 +773,17 @@ function ponerCara(inv){
 function noPlegarLaCaraDeSiempre(ev){
   if(!document.documentElement.classList.contains('aparato-nuevo')) ev.preventDefault();
 }
+/* Y tampoco se quedan con el foco. Un <summary> se enfoca al BAJAR el botón, y en 76af475 ahí
+   no había nada enfocable: la primera tecla pintaba un anillo rojo alrededor del título, y
+   Espacio dejaba de bajar la página. Se suelta al recibirlo y no en el click, porque el botón
+   derecho, el del medio y arrastrar hasta afuera enfocan sin disparar click. Y en el turno
+   siguiente, no ahí mismo: si el foco se mueve dentro de su propio evento, el navegador se
+   traga la pulsación y el título ya no se puede seleccionar con el ratón. */
+function soltarElFocoEnLaCaraDeSiempre(ev){
+  if(document.documentElement.classList.contains('aparato-nuevo')) return;
+  var encabezado = ev.currentTarget;
+  setTimeout(function(){ encabezado.blur(); },0);
+}
 
 function pintarEsteAparato(){
   var inv = E.hay, h='';
@@ -1580,6 +1591,8 @@ document.addEventListener('DOMContentLoaded', function(){
   $('btnSalir').addEventListener('click', salir);
   $('cabAvisos').addEventListener('click', noPlegarLaCaraDeSiempre);
   $('cabPaso1').addEventListener('click', noPlegarLaCaraDeSiempre);
+  $('cabAvisos').addEventListener('focus', soltarElFocoEnLaCaraDeSiempre);
+  $('cabPaso1').addEventListener('focus', soltarElFocoEnLaCaraDeSiempre);
   $('btnMirar').addEventListener('click', mirar);
   $('btnRespaldo').addEventListener('click', bajarRespaldo);
   $('btnConfirmoRespaldo').addEventListener('click', confirmarRespaldo);
