@@ -252,3 +252,74 @@ describe('F3. La puerta de traer.html solo sale si hay algo que tapar', () => {
     assert.equal(conFichas.ev('E.respaldoHecho'), true);
   });
 });
+
+/* ------------------------------------------------------------------ F4 */
+describe('F4. Traer se puede usar desde la primera pantalla', () => {
+  const TRAER = LEER('panel/traer.html').replace(/\r\n/g, '\n');
+  const VISIBLE = TRAER.slice(TRAER.indexOf('<body>')).replace(/<!--[\s\S]*?-->/g, '').replace(/<script[\s\S]*<\/script>/, '');
+  const i = (texto, desde) => VISIBLE.indexOf(texto, desde || 0);
+  const PLEGADO_ABRE = i('<details class="plegable" id="losDetalles">');
+  const PLEGADO_CIERRA = i('</details>', PLEGADO_ABRE);
+
+  test('a la vista, una sola frase; y es la frase que es', () => {
+    assert.match(VISIBLE, /id="fraseDeArriba">Sirve para mirar: lo que anotes aquí no llega a tu computador ni a tus clientes\.</);
+    assert.ok(i('fraseDeArriba') > 0 && i('fraseDeArriba') < PLEGADO_ABRE, 'la frase quedó dentro de lo plegado');
+    const cabecera = VISIBLE.slice(i('<header'), i('</header>'));
+    assert.doesNotMatch(cabecera, /class="sub"/, 'la cabecera sigue con otra frase más encima');
+  });
+
+  test('el desplegable nace cerrado', () => {
+    assert.ok(PLEGADO_ABRE > 0, 'no hay desplegable');
+    assert.doesNotMatch(VISIBLE.slice(PLEGADO_ABRE, i('>', PLEGADO_ABRE)), /\bopen\b/, 'nace abierto: los avisos vuelven a empujar «Entrar»');
+  });
+
+  test('con los mismos textos, los cinco avisos y la frase de la cabecera (es decisión de Joan que estén)', () => {
+    const adentro = VISIBLE.slice(PLEGADO_ABRE, PLEGADO_CIERRA).replace(/\s+/g, ' ');
+    [
+      'Baja tu cartera de la nube y la deja donde el CRM de siempre la busca.',
+      '<b class="tit">Este camino es para MIRAR</b>',
+      'Lo que <b>no hace es bajar</b>: lo que se haga en otro aparato no aparece en',
+      '<b class="tit">Y los choques se deciden en otro sitio</b>',
+      'El espejo (<span class="mono">espejo.html</span>) sí te muestra las dos y te pregunta.',
+      '<b class="tit">La recomendación, entonces</b>',
+      '<b>Para cobrar en la calle, el espejo.</b>',
+      '<b class="tit">Las fotos no viajan en esta fase</b>',
+      'Las fichas se van a ver <b>sin foto</b>.',
+      '<b class="tit">El espejo y el CRM son dos copias distintas en este mismo teléfono</b>',
+      'Traer acá <b>no toca</b> lo que tenga el espejo'
+    ].forEach(t => assert.ok(adentro.includes(t), 'se perdió: ' + t));
+    assert.match(VISIBLE.slice(PLEGADO_ABRE, PLEGADO_CIERRA), /<summary>Antes de nada: para qué sirve esto y para qué no<\/summary>/);
+  });
+
+  test('siguen antes de los botones, y «Tu correo», «Tu contraseña» y «Entrar» van en ese orden', () => {
+    const entrar = i('id="btnEntrar"'), correo = i('for="sbCorreo"'), clave = i('for="sbClave"');
+    assert.ok(PLEGADO_CIERRA < i('id="c1"') && PLEGADO_CIERRA < correo, 'los avisos ya no van antes de los botones');
+    assert.ok(correo < clave && clave < entrar);
+  });
+
+  test('entre la contraseña y «Entrar» no queda nada que lo empuje', () => {
+    const tramo = VISIBLE.slice(i('id="sbClave"'), i('id="btnEntrar"'));
+    assert.doesNotMatch(tramo, /class="ayuda"/);
+    /* Pero lo que decía sigue en el paso 2, justo debajo. */
+    assert.match(VISIBLE.slice(i('id="btnEntrar"')), /^[^]*?No se guarda en este teléfono\. Se cambia por una sesión/);
+  });
+
+  test('el paso 1 se pliega solo en un aparato vacío; con cualquier otra cosa, abierto', () => {
+    assert.equal(abrirTraer().elems.c1.open, false, 'vacío: seis líneas de más encima de «Entrar»');
+    assert.equal(abrirTraer().texto('e1'), 'Vacío', 'plegado, la pastilla es lo único que se ve: tiene que decirlo');
+    assert.match(abrirTraer().elems.cuerpo1.innerHTML, /Este aparato está vacío/, 'plegado no quiere decir borrado');
+    const con = d => abrirTraer({ almacen: { [LLAVE]: typeof d === 'string' ? d : JSON.stringify(d) } });
+    assert.equal(con({ socios: [], config: { pin: '1234' } }).elems.c1.open, true, 'solo ajustes');
+    const ilegible = con('{"socios":[');
+    ilegible.elems.pin.value = '1234';
+    ilegible.tocar('btnPuerta');
+    assert.equal(ilegible.elems.c1.open, true, 'ilegible');
+    assert.match(ilegible.elems.cuerpo1.innerHTML, /Hay algo guardado y no lo entiendo/);
+    const fichas = con({ socios: [SOCIO], config: { pin: '1234' } });
+    fichas.elems.pin.value = '1234';
+    fichas.tocar('btnPuerta');
+    assert.equal(fichas.elems.c1.open, true, 'el bloque rojo se escondió');
+    assert.match(fichas.elems.cuerpo1.innerHTML, /En este aparato ya hay una cartera/);
+    assert.equal(abrirTraer({ sinCajon: true }).elems.c1.open, true, 'sin acceso al cajón');
+  });
+});

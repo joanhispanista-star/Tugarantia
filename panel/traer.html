@@ -195,6 +195,25 @@ input[type=text],input[type=email],input[type=password],input[type=url]{
 input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
 :where(button,a,summary,[tabindex]):focus-visible{outline:2px solid var(--rojo-texto);outline-offset:2px;border-radius:8px}
 .ayuda{font-size:12px;color:var(--gris);margin-top:6px;line-height:1.45}
+/* 6-nov-2026 — LOS AVISOS DE ARRIBA, PLEGADOS. Marca propia y no la del navegador:
+   con display:flex, el triángulo de <summary> desaparece en Safari y lo plegado no
+   se vería tocable. 44 px de alto, como todo lo que se toca con el dedo. */
+.card-antes{padding:var(--e3) 16px}
+.plegable summary{display:flex;align-items:center;gap:var(--e2);min-height:44px;margin-top:var(--e1);
+  font-size:14px;font-weight:600;color:var(--tinta);cursor:pointer;list-style:none}
+.plegable summary::-webkit-details-marker{display:none}
+.plegable summary::before{content:'▸';color:var(--gris);font-size:13px;width:13px;flex:none}
+.plegable[open] summary::before{content:'▾'}
+.plegable p{margin:0 0 var(--e3);font-size:14px}
+/* El paso 1 se pliega en un teléfono vacío (ver pintarEsteAparato). Su encabezado es el
+   mismo de los demás pasos: 44 px para el dedo sin que el renglón crezca, y la marca a
+   la derecha, después de la pastilla. */
+summary.card-cab{list-style:none;cursor:pointer;padding:9px 0;margin:-9px 0;flex-wrap:nowrap;gap:6px}
+summary.card-cab .pill{flex:none}
+summary.card-cab::-webkit-details-marker{display:none}
+summary.card-cab h3{margin-right:auto}
+summary.card-cab::after{content:'▸';color:var(--gris);font-size:13px}
+details[open]>summary.card-cab::after{content:'▾'}
 .pie{text-align:center;font-size:12px;color:var(--gris);margin:24px 0 8px;line-height:1.6}
 .pie a{color:var(--gris)}
 </style>
@@ -220,8 +239,6 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
   <div class="wrap">
     <div class="marca"><span class="sello">G</span> Tu Garantía</div>
     <h1>Traer el CRM a este aparato</h1>
-    <div class="sub">Baja tu cartera de la nube y la deja donde el CRM de siempre la busca. Después abres
-      <span class="mono">crm.html</span> y lo ves completo, sin instalar nada.</div>
   </div>
 </header>
 
@@ -231,10 +248,19 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
   <div id="faltaAlgo"></div>
 
   <!-- LO QUE DECIDE SI ESTO AYUDA O HACE DAÑO. Va arriba del todo, antes de
-       cualquier botón, porque es lo que Joan tiene que saber ANTES de usarlo. -->
-  <div class="card">
-    <div class="card-cab"><h3>Antes de nada: para qué sirve esto y para qué no</h3></div>
+       cualquier botón, porque es lo que Joan tiene que saber ANTES de usarlo.
+       6-nov-2026 — y sigue antes de los botones, pero plegado. A 390 px estos cinco
+       avisos empujaban «Entrar» a 1.945 px: la primera pantalla no tenía nada que
+       tocar y parecía una página de avisos, no algo que se usa. A la vista queda lo
+       único que no se puede ignorar; el resto, a un toque y con los mismos textos. La
+       frase de lo que hace esta página, que iba en la cabecera, también vive aquí. -->
+  <div class="card card-antes">
+    <div class="aviso ambar" id="fraseDeArriba">Sirve para mirar: lo que anotes aquí no llega a tu computador ni a tus clientes.</div>
+    <details class="plegable" id="losDetalles">
+    <summary>Antes de nada: para qué sirve esto y para qué no</summary>
     <div class="cuerpo">
+      <p>Baja tu cartera de la nube y la deja donde el CRM de siempre la busca. Después abres
+        <span class="mono">crm.html</span> y lo ves completo, sin instalar nada.</p>
       <div class="aviso ambar">
         <b class="tit">Este camino es para MIRAR</b>
         <!-- 1-oct-2026 — decía «el CRM de siempre no sabe subir». Desde hoy sube
@@ -273,6 +299,7 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
         el espejo <b>no toca</b> lo que traigas acá.
       </div>
     </div>
+    </details>
   </div>
 
   <!-- El aviso que salva el martes: otra pestaña escribió en la cartera. -->
@@ -284,15 +311,15 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
   </div>
 
   <!-- =============================== PASO 1 · QUÉ HAY ACÁ =============== -->
-  <div class="card" id="c1">
-    <div class="card-cab">
+  <details class="card" id="c1" open>
+    <summary class="card-cab">
       <h3><span class="paso-n">1</span> Qué hay en este aparato</h3>
       <span class="pill" id="e1">Contando</span>
-    </div>
+    </summary>
     <div class="cuerpo" id="cuerpo1">
       <div class="aviso info">Contando lo que hay guardado…</div>
     </div>
-  </div>
+  </details>
 
   <!-- =============================== PASO 2 · CONECTAR ================== -->
   <div class="card dormido" id="c2">
@@ -316,8 +343,10 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
       <input id="sbCorreo" type="email" placeholder="joan@…" autocomplete="username" inputmode="email" spellcheck="false">
       <label for="sbClave">Tu contraseña</label>
       <input id="sbClave" type="password" placeholder="••••••••••••" autocomplete="current-password">
-      <div class="ayuda">No se guarda en este teléfono. Se cambia por una sesión, y la sesión sí queda guardada.</div>
       <button class="btn" type="button" id="btnEntrar">Entrar</button>
+      <!-- 6-nov-2026 — debajo del botón y no entre la contraseña y el botón: son dos
+           líneas que no le piden nada, y «Entrar» sube a la primera pantalla. -->
+      <div class="ayuda">No se guarda en este teléfono. Se cambia por una sesión, y la sesión sí queda guardada.</div>
       <button class="btn sec sm oculto" type="button" id="btnSalir">Cerrar sesión</button>
     </div>
   </div>
@@ -640,6 +669,12 @@ function hayAlgoQuePerder(inv){
 
 function pintarEsteAparato(){
   var inv = E.hay, h='';
+
+  /* 6-nov-2026 — en un teléfono vacío este paso se pliega, con el mismo texto: la
+     pastilla «Vacío» ya dice lo que hay que saber aquí, y seis líneas de más dejaban
+     «Entrar» debajo de la primera pantalla. En todo lo demás nace abierto: el bloque
+     rojo de cuando HAY cartera tiene que ganarle a todo. */
+  $('c1').open = !!(inv.sinAcceso || inv.tieneLlave);
 
   if(inv.sinAcceso){
     estado(1,'fallo','No pude leer');
