@@ -584,3 +584,57 @@ describe('F8. En el celular, tocar el menú lleva al contenido', () => {
     assert.match(CRM, /<button class="navbtn" onclick="agregarEq\(\)">/);
   });
 });
+
+/* ------------------------------------------------------------------ F9 */
+describe('F9. «Qué es» no deja escoger lo que no va a hacer', () => {
+  const FRASE = 'El puesto de alguien que ya existe no se cambia desde aquí.';
+  const conEquipo = (o) => abrirPanel(Object.assign({ red: () => Promise.reject(new Error('sin red')), almacen: { [LLAVE]: JSON.stringify({
+    socios: [], prestamos: [], config: { pin: '4321' },
+    equipo: [{ id: 'E1', nombre: 'ASESORA PRUEBA', celular: '3000000001', rol: 'asesor', estado: 'activo', jefe: '3000000000', codigo: 'X1', creadoEn: '2026-09-10' },
+             { id: 'E2', nombre: 'GERENTE PRUEBA', celular: '3000000000', rol: 'gerente', estado: 'activo', jefe: '', codigo: 'X2', creadoEn: '2026-09-10' }]
+  }) } }, o || {}));
+  const cuadro = (P, id) => { P.ev('editarPersona(' + JSON.stringify(id) + ')'); return String(P.elems.mBody.innerHTML); };
+
+  test('en alguien que ya existe sale apagado, con su rol, y dice por qué', () => {
+    const P = conEquipo();
+    const h = cuadro(P, 'E1');
+    assert.match(h, /<select id="eqRol" disabled>/, 'sigue dejando escoger algo que guardarPersona ignora');
+    assert.match(h, /<option value="asesor" selected>/, 'no muestra el puesto que tiene');
+    assert.ok(h.includes(FRASE), 'apagado sin explicar parece un error');
+  });
+
+  test('control: al crear una persona nueva, igual que hoy, encendido y sin la frase', () => {
+    const P = conEquipo();
+    const h = cuadro(P, null);
+    assert.match(h, /<select id="eqRol">/, 'no se podría crear a nadie con otro puesto');
+    assert.ok(!h.includes(FRASE));
+  });
+
+  test('control: guardar a alguien que ya existe sigue funcionando y no le toca rol ni jefe', () => {
+    const P = conEquipo();
+    cuadro(P, 'E1');
+    /* Lo que un <select disabled> de verdad devuelve: su opción marcada. */
+    P.ctx.document.getElementById('eqRol').value = 'asesor';
+    P.ctx.document.getElementById('eqNombre').value = 'ASESORA CORREGIDA';
+    P.ctx.document.getElementById('eqTel').value = '3000000001';
+    P.ctx.document.getElementById('eqJefe').value = '3000000000';
+    P.ctx.document.getElementById('eqEstado').value = 'activo';
+    P.ev("guardarPersona('E1')");
+    const e = JSON.parse(P.almacen[LLAVE]).equipo.find(x => x.id === 'E1');
+    assert.equal(e.nombre, 'ASESORA CORREGIDA');
+    assert.equal(e.rol, 'asesor');
+    assert.equal(e.jefe, '3000000000', 'guardar le quitó el jefe');
+  });
+
+  test('control: crear a una persona nueva con el puesto escogido sigue funcionando', () => {
+    const P = conEquipo();
+    cuadro(P, null);
+    P.ctx.document.getElementById('eqRol').value = 'gerente';
+    P.ctx.document.getElementById('eqNombre').value = 'GERENTE NUEVO';
+    P.ctx.document.getElementById('eqTel').value = '3000000002';
+    P.ctx.document.getElementById('eqJefe').value = '';
+    P.ev('guardarPersona(null)');
+    const e = JSON.parse(P.almacen[LLAVE]).equipo.find(x => x.nombre === 'GERENTE NUEVO');
+    assert.equal(e.rol, 'gerente');
+  });
+});

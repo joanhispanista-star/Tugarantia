@@ -19728,13 +19728,18 @@ function editarPersona(id) {
      sin esa línea, o la que Joan acaba de crear cerrando «Falta un paso» antes
      de pegarla. Verde solo con claveEquipoLista (la anotan claveListaEnSupabase
      y cambiarClave al comprobarlo); si no, lo que se sabe y la salida. */
+  /* 6-nov-2026 — «QUÉ ES», APAGADO EN QUIEN YA EXISTE. guardarPersona no cambia el rol a
+     propósito (allá dice por qué), y este cuadro dejaba escoger «Gerente», cerraba sin
+     decir nada y la persona seguía de asesor, con Joan creyendo que ya era gerente. Peor:
+     a un asesor con jefe, escoger «Gerente» le borraba el jefe al guardar. */
   openModal(p ? 'Editar a ' + p.nombre : 'Crear una persona del equipo', `
     <div class="field"><label>Nombre completo</label><input id="eqNombre" value="${p ? escHTML(p.nombre) : ''}"></div>
     <div class="field"><label>Celular</label><input id="eqTel" inputmode="numeric" value="${p ? escHTML(p.celular || '') : ''}"></div>
     <div class="field"><label>Qué es</label>
-      <select id="eqRol">${Object.keys(ROLES).map(k =>
+      <select id="eqRol"${p ? ' disabled' : ''}>${Object.keys(ROLES).map(k =>
         `<option value="${k}"${p && p.rol === k ? ' selected' : ''}>${ROLES[k].ic} ${ROLES[k].nombre}</option>`).join('')}</select>
-      <div class="help" id="eqAyudaRol"></div></div>
+      <div class="help" id="eqAyudaRol"></div>
+      ${p ? '<div class="help" id="eqRolFijo">El puesto de alguien que ya existe no se cambia desde aquí.</div>' : ''}</div>
     <div class="field"><label>Reporta a <span class="opc">(solo asesores)</span></label>
       <select id="eqJefe"><option value="">Nadie — reporta a ti</option>${
         opcionesJefe.map(x => `<option value="${escHTML(x.celular || '')}"${celJefe && celJefe === celDe(x) ? ' selected' : ''}>${escHTML(x.nombre)}</option>`).join('')}${jefeFuera}</select>
