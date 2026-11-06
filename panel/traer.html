@@ -986,10 +986,34 @@ function medirPaquete(paq){
     if(a && a.actualizado_en && (!m.ultimoCambio || String(a.actualizado_en) > String(m.ultimoCambio))){
       m.ultimoCambio = a.actualizado_en; m.ultimoPor = a.actualizado_por || '';
     }
+    /* Se mide si el PIN viene, no se supone. De su valor no se guarda nada acá. */
+    if(a && a.clave === 'config'){
+      m.fechaConfig = a.actualizado_en || null;
+      m.pinViaja = !!(a.datos && a.datos.pin);
+    }
   });
   m.hayConfig = m.claves.indexOf('config') >= 0;
   m.hayPapelera = m.claves.indexOf('papelera') >= 0 || m.claves.indexOf('papeleraSocios') >= 0;
   return m;
+}
+
+/* 6-nov-2026 — EL PIN QUE VIAJA NO ES «EL DEL COMPUTADOR» DE HOY. Es el de la última
+   vez que se subieron los ajustes: el CRM no los sube solo (panel/nube-crm.js), solo
+   subir.html (panel/nube.js). Esta pantalla prometía «el mismo PIN del computador», y
+   a Joan, con un PIN cambiado después de esa subida, el CRM se lo iba a rechazar justo
+   después de decirle «Listo». La fecha sale de la fila config del paquete. */
+function fechaDelDia(iso){
+  var d=new Date(iso);
+  if(!iso || isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'});
+}
+function fraseDelPinQueViaja(m){
+  var f=fechaDelDia(m.fechaConfig);
+  return f
+    ? 'Con ellos viaja el <b>PIN que tenías cuando se subieron por última vez, el '+esc(f)+'</b>. '+
+      'Si lo cambiaste después, en este aparato sirve el de esa fecha.'
+    : 'Con ellos viaja el <b>PIN que tenías cuando se subieron por última vez</b>; la nube no dice cuándo fue. '+
+      'Si lo cambiaste después, en este aparato sirve el de esa vez.';
 }
 
 /* Las dos razones por las que esta pantalla se NIEGA a escribir. Devuelve el
@@ -1050,10 +1074,11 @@ function pintarLoQueViene(){
     h += '<div class="aviso ambar"><b class="tit">Los ajustes no vienen</b>'+
          'El paquete no trae tu configuración. El CRM de este aparato va a arrancar con los valores de fábrica, '+
          'y eso incluye el <b>PIN '+esc(PIN_DE_FABRICA)+'</b>. Cámbialo desde el CRM apenas entres.</div>';
+  }else if(!m.pinViaja){
+    h += '<div class="aviso ambar"><b class="tit">Los ajustes sí vienen, pero sin PIN</b>'+
+         'El CRM de este aparato va a arrancar con el <b>PIN '+esc(PIN_DE_FABRICA)+'</b>. Cámbialo desde el CRM apenas entres.</div>';
   }else{
-    h += '<div class="aviso info"><b class="tit">Los ajustes sí vienen</b>'+
-         'Con ellos viaja el <b>PIN del Panel</b>: el CRM de este aparato te va a pedir el mismo PIN del '+
-         'computador.</div>';
+    h += '<div class="aviso info"><b class="tit">Los ajustes sí vienen</b>'+fraseDelPinQueViaja(m)+'</div>';
   }
 
   var no = razonParaNoEscribir();
@@ -1288,10 +1313,10 @@ function traerYEscribir(){
   despertar(6);
   estado(6,'listo','Puedes abrirlo');
   pinta('msg6','ok','<b class="tit">Ya puedes abrirlo</b>'+
-    (m.hayConfig
-      ? 'El CRM te va a pedir el <b>PIN del computador</b>, porque los ajustes vinieron en el paquete.'
-      : 'El CRM va a arrancar con el <b>PIN de fábrica ('+esc(PIN_DE_FABRICA)+')</b>: los ajustes no vinieron. '+
-        'Cámbialo apenas entres.')+
+    (m.hayConfig && m.pinViaja
+      ? 'El CRM te va a pedir un PIN, porque los ajustes vinieron en el paquete. '+fraseDelPinQueViaja(m)
+      : 'El CRM va a arrancar con el <b>PIN de fábrica ('+esc(PIN_DE_FABRICA)+')</b>: '+
+        (m.hayConfig ? 'los ajustes vinieron sin PIN' : 'los ajustes no vinieron')+'. Cámbialo apenas entres.')+
     '<br><br>Si tenías el CRM abierto en otra pestaña, <b>ciérrala y ábrelo de nuevo</b>: esa pestaña todavía '+
     'tiene en memoria la cartera vieja y, si guarda algo, te pisa lo que acabo de traer.');
   refrescarBotones();

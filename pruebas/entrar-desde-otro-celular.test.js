@@ -368,3 +368,70 @@ describe('F5. La clave mala no manda a crear otro usuario', () => {
     assert.match(LEER('panel/traer.html'), /var CLAVE_QUE_NO_COINCIDE = 'El correo o la contraseña no coinciden\.';/);
   });
 });
+
+/* ------------------------------------------------------------------ F6 */
+describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fecha', () => {
+  const FRASE = 'Con ellos viaja el PIN que tenías cuando se subieron por última vez, el 18 de agosto de 2026 . Si lo cambiaste después, en este aparato sirve el de esa fecha.';
+  const FILA = (id, datos) => ({ id, datos, borrado: false, actualizado_en: '2026-11-05T15:00:00Z', actualizado_por: 'crm' });
+  const paquete = ajustes => ({ completo: true, servidor_ahora: '2026-11-06T15:00:00Z', contadores: { cliente: 1, credito: 1, respaldado: 0 },
+    socios: [FILA('C1', SOCIO)], creditos: [FILA('P1', CREDITO)], respaldados: [], ajustes });
+  const CONFIG = { clave: 'config', datos: { pin: '4321', negocio: 'Tu Garantía' }, actualizado_en: '2026-08-18T20:15:00Z', actualizado_por: 'subir' };
+  const nube = paq => url => /grant_type=password/.test(url)
+    ? { status: 200, cuerpo: { access_token: 'acceso-de-prueba', refresh_token: 'renovar-de-prueba', expires_in: 3600, user: { id: 'u1', email: 'duena@prueba.test' } } }
+    : /rpc\/panel_traer/.test(url) ? { status: 200, cuerpo: paq } : { status: 404, cuerpo: {} };
+  const hastaMirar = async paq => {
+    const T = abrirTraer({ red: nube(paq) });
+    T.elems.sbCorreo.value = 'duena@prueba.test'; T.elems.sbClave.value = 'una-clave-inventada';
+    T.tocar('btnEntrar');
+    await asentar();
+    T.tocar('btnMirar');
+    await asentar();
+    return T;
+  };
+  const hastaTraer = async paq => {
+    const T = await hastaMirar(paq);
+    T.tocar('btnRespaldo');
+    T.tocar('btnTraer');
+    await asentar();
+    return T;
+  };
+
+  test('paso 3: dice de qué fecha es el PIN, con la de la fila config y no la del último cambio', async () => {
+    const T = await hastaMirar(paquete([CONFIG, { clave: 'plantillas', datos: { a: 'x' }, actualizado_en: '2026-11-01T15:00:00Z' }]));
+    assert.ok(T.texto('resumen3').includes(FRASE), T.texto('resumen3'));
+    assert.equal(T.ev('E.lectura.fechaConfig'), '2026-08-18T20:15:00Z');
+    assert.ok(!T.texto('resumen3').includes('4321'), 'la pantalla pintó el PIN');
+  });
+
+  test('paso 6: lo mismo, y después de traer el PIN que quedó guardado es ese', async () => {
+    const T = await hastaTraer(paquete([CONFIG]));
+    const m = T.texto('msg6');
+    assert.ok(m.includes(FRASE), m);
+    assert.equal(JSON.parse(T.almacen[LLAVE]).config.pin, '4321');
+  });
+
+  test('«el mismo PIN del computador» se fue de los dos sitios', () => {
+    const t = LEER('panel/traer.html').replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.doesNotMatch(t, /mismo PIN del\s+'?\+?\s*'?computador/);
+    assert.doesNotMatch(t, /PIN del computador/);
+  });
+
+  test('sin fecha en la fila no se inventa ninguna, y lo dice', async () => {
+    const T = await hastaMirar(paquete([{ clave: 'config', datos: { pin: '4321' } }]));
+    assert.match(T.texto('resumen3'), /la nube no dice cuándo fue/);
+    assert.doesNotMatch(T.texto('resumen3'), /Invalid|NaN|undefined/);
+  });
+
+  test('una fila config sin PIN no promete uno: el CRM va a arrancar con el de fábrica', async () => {
+    const T = await hastaTraer(paquete([{ clave: 'config', datos: { negocio: 'Tu Garantía' }, actualizado_en: '2026-08-18T20:15:00Z' }]));
+    assert.match(T.texto('resumen3'), /Los ajustes sí vienen, pero sin PIN/);
+    assert.match(T.texto('msg6'), /PIN de fábrica \(1234\).*los ajustes vinieron sin PIN/);
+    assert.doesNotMatch(T.texto('msg6'), /te va a pedir un PIN/);
+  });
+
+  test('control: sin la fila config, como siempre', async () => {
+    const T = await hastaTraer(paquete([]));
+    assert.match(T.texto('resumen3'), /Los ajustes no vienen/);
+    assert.match(T.texto('msg6'), /PIN de fábrica \(1234\).*los ajustes no vinieron/);
+  });
+});
