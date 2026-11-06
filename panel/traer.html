@@ -629,6 +629,13 @@ function fechaLarga(iso){
   return d.toLocaleString('es-CO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 }
 function motivo(e){ return (e&&e.motivo)||(e&&e.message)||'No pude hablar con la nube.'; }
+/* 6-nov-2026 — sin señal, nube.js dice «Lo que hiciste queda guardado y sube solo cuando
+   vuelva». Es cierto en el espejo, que guarda y reintenta. Aquí no: nada quedó guardado y
+   nada va a reintentar, y Joan se quedaría esperando algo que no pasa. No se cambia allá:
+   esa frase les sirve a las pantallas donde sí es cierta. */
+function motivoConLaNube(e){
+  return (e && e.sin_red) ? 'Sin señal: no pude hablar con la nube. No se guardó nada; inténtalo otra vez con señal.' : motivo(e);
+}
 
 function pinta(donde, clase, html){
   var d=$(donde); if(!d) return;
@@ -1024,7 +1031,7 @@ function entrar(){
        sirve: uno nuevo no está en la lista de dueños y entra a una nube que no le
        contesta nada. Y salía también con un 429, un 500 o sin señal, donde la
        contraseña no tiene la culpa: ahí se dice solo lo que pasó. */
-    pinta('msg2','ambar','<b class="tit">No pude entrar</b>'+esc(motivo(e))+
+    pinta('msg2','ambar','<b class="tit">No pude entrar</b>'+esc(motivoConLaNube(e))+
       (motivo(e)===CLAVE_QUE_NO_COINCIDE
         ? '<br>Es la contraseña de la nube, no tu PIN. Si no la recuerdas, no crees otro usuario: no tendría tu '+
           'cartera. Se cambia desde Supabase, con tu cuenta.'
@@ -1078,7 +1085,7 @@ function mirar(){
   }).catch(function(e){
     E.paquete=null; E.lectura=null;
     estado(3,'fallo','No pude mirar');
-    pinta('msg3','ambar','<b class="tit">No pude leer la nube</b>'+esc(motivo(e))+
+    pinta('msg3','ambar','<b class="tit">No pude leer la nube</b>'+esc(motivoConLaNube(e))+
       '<br>No se tocó nada de este aparato.');
     $('resumen3').innerHTML='';
   }).then(function(){ $('btnMirar').disabled=false; refrescarBotones(); });

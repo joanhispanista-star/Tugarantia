@@ -656,6 +656,65 @@ describe('F5. La clave mala no manda a crear otro usuario', () => {
   });
 });
 
+/* --------------------------------------------------------- sin señal */
+describe('Sin señal, traer.html dice lo que pasó: no se guardó nada y nada va a reintentar', () => {
+  const FRASE = 'Sin señal: no pude hablar con la nube. No se guardó nada; inténtalo otra vez con señal.';
+  const VIEJA = /queda guardado|sube solo cuando vuelva/;
+  const SIN_RED = () => { throw new TypeError('Load failed'); };
+  const conClave = T => { T.elems.sbCorreo.value = 'duena@prueba.test'; T.elems.sbClave.value = 'una-clave-inventada'; T.tocar('btnEntrar'); };
+  const SESION = JSON.stringify({ access_token: 'acceso-de-prueba', refresh_token: 'renovar-de-prueba', correo: 'duena@prueba.test', expira_en: Date.now() + 3600000 });
+
+  test('«Entrar» con fetch rechazado', async () => {
+    const T = abrirTraer({ red: SIN_RED });
+    conClave(T);
+    await asentar();
+    assert.equal(T.texto('e2'), 'No entró');
+    assert.ok(T.texto('msg2').includes(FRASE), T.texto('msg2'));
+    assert.doesNotMatch(T.texto('msg2'), VIEJA);
+    assert.doesNotMatch(T.texto('msg2'), /no tu PIN/, 'le echó la culpa a la contraseña');
+    assert.equal(T.almacen.joan_panel_sesion, undefined, 'tampoco es que se haya guardado');
+    assert.equal(T.elems.btnEntrar.disabled, false, 'no deja intentarlo otra vez');
+  });
+
+  test('«Entrar» con el navegador diciendo que no hay red', async () => {
+    const T = abrirTraer({ red: SIN_RED });
+    T.ctx.navigator.onLine = false;
+    conClave(T);
+    await asentar();
+    assert.ok(T.texto('msg2').includes(FRASE), T.texto('msg2'));
+    assert.equal(T.llamadas.length, 0, 'con onLine false ni siquiera se intenta');
+  });
+
+  test('«Mirar» con fetch rechazado: la misma frase, y sigue diciendo que no tocó nada', async () => {
+    const T = abrirTraer({ almacen: { joan_panel_sesion: SESION }, red: SIN_RED });
+    T.tocar('btnMirar');
+    await asentar();
+    assert.equal(T.texto('e3'), 'No pude mirar');
+    const m = T.texto('msg3');
+    assert.ok(m.includes(FRASE), m);
+    assert.doesNotMatch(m, VIEJA);
+    assert.match(m, /No se tocó nada de este aparato\./);
+  });
+
+  test('control: con otro error dice lo que dijo la nube, y con la contraseña mala lo de siempre', async () => {
+    const T = abrirTraer({ red: () => ({ status: 429, cuerpo: { code: 429, msg: 'Request rate limit reached' } }) });
+    conClave(T);
+    await asentar();
+    assert.match(T.texto('msg2'), /Supabase respondió 429/);
+    assert.ok(!T.texto('msg2').includes(FRASE));
+    const M = abrirTraer({ red: () => ({ status: 400, cuerpo: { error: 'invalid_grant', error_description: 'Invalid login credentials' } }) });
+    conClave(M);
+    await asentar();
+    assert.match(M.texto('msg2'), /El correo o la contraseña no coinciden\. Es la contraseña de la nube, no tu PIN\./);
+    assert.ok(!M.texto('msg2').includes(FRASE));
+  });
+
+  test('nube.js no se tocó: la frase de allá les sirve a las pantallas que sí guardan y reintentan', () => {
+    assert.match(LEER('panel/nube.js'), /var SIN_RED = 'Sin internet\. Lo que hiciste queda guardado y sube solo cuando vuelva\.';/);
+    assert.match(LEER('panel/nube.js'), /throw fallo\(SIN_RED, \{ sin_red: true \}\);/);
+  });
+});
+
 /* ------------------------------------------------------------------ F6 */
 describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fecha', () => {
   const FRASE = 'Con ellos viaja el PIN que tenías cuando se subieron por última vez, el 18 de agosto de 2026 . Si lo cambiaste después, en este aparato sirve el de esa fecha.';
