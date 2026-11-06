@@ -569,7 +569,10 @@
     .gate{overflow-y:auto;overflow-x:hidden}
     .app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;flex-wrap:wrap}
     .side .brand{width:100%}.side .marcagua{display:none}.side .horario{margin:8px 0 0}.side .sep{width:100%}
-    .kpis{grid-template-columns:1fr 1fr}.kpis2{grid-template-columns:1fr 1fr}.main{padding:16px}
+    /* 6-nov-2026 — min-height: el toque del menú lleva el contenido a la vista (ver
+       alTocarElMenu), y una vista corta no deja bajar hasta arriba: quedaría a media
+       pantalla con el final del menú encima, distinta cada vez. */
+    .kpis{grid-template-columns:1fr 1fr}.kpis2{grid-template-columns:1fr 1fr}.main{padding:16px;min-height:100vh}
     .two{grid-template-columns:1fr}.up-row{grid-template-columns:1fr}
     .cal-day{min-height:60px}.cal-ev{display:none}.cal-day .dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:2px}
     .card>div{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -13659,7 +13662,14 @@ function irEquipo(v) {
      cualquier momento, y una lista vieja haría que el gerente le escriba tarde
      justo al que acaba de pedir. */
   if (v === 'registros' && REG_EQ.estado !== 'cargando') traerRegistrosEq();
-  window.scrollTo(0, 0);
+  /* La vista nueva empieza arriba: esto es a propósito, y a más de 880 px sigue igual.
+     6-nov-2026 — a 880 o menos, arriba está el menú, y subir hasta allá escondía lo que
+     acababa de cambiar: tocar un asesor en «Mi equipo», «↻ Mirar» o guardar una cita
+     dejaba a la persona mirando el menú. Si estaba leyendo el contenido, vuelve al
+     principio del contenido; si estaba en el menú, ahí se queda, que es donde cae al
+     entrar. El toque del menú lo resuelve alTocarElMenu. */
+  if (!pantallaDeCelular()) window.scrollTo(0, 0);
+  else if (main.getBoundingClientRect().top <= 1) llevarAlContenido();
 }
 
 function genteEquipo() { return (CARTERA_EQUIPO && CARTERA_EQUIPO.gente) || []; }
@@ -23016,6 +23026,33 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
   if(v==='mensajes'){ renderMensajes(); traerConversaciones(); traerChatEquipo(true); }
   if(v==='resp')renderRespaldados(); }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>irA(b.dataset.v)));
+/* 6-nov-2026 — EN EL CELULAR EL TOQUE SE NOTA. A 880 px o menos el menú no va al lado
+   del contenido sino encima (la media query de la hoja): mide 1.301 px en el CRM de
+   Joan y 804 en el del gerente, y en una pantalla de 844 lo único que cambiaba al tocar
+   era el resaltado. Parecía que el botón no hacía nada.
+   Va en un oyente de .side y al TOCAR, no dentro de irA ni de irEquipo: el código llama
+   a irA para cambiar de vista por muchas razones, y arrastrar la pantalla ahí no le toca.
+   Y .side porque sobrevive al modo equipo, que le reemplaza el contenido. El oyente de
+   cada botón ya corrió cuando el toque sube hasta aquí, así que la vista ya está pintada.
+   La misma condición de la hoja, con la misma cifra: a más de 880 no se mueve nada. */
+function pantallaDeCelular() {
+  try { return typeof window.matchMedia === 'function' && window.matchMedia('(max-width:880px)').matches; }
+  catch (e) { return false; }
+}
+function llevarAlContenido() {
+  const main = document.querySelector('.main');
+  if (!main || !pantallaDeCelular()) return;
+  window.scrollTo(0, main.getBoundingClientRect().top + (window.pageYOffset || 0));
+}
+function alTocarElMenu(ev) {
+  const b = ev && ev.target && typeof ev.target.closest === 'function' ? ev.target.closest('.navbtn') : null;
+  if (!b) return;
+  /* «Agregar prospectos» y «Mi WhatsApp» abren un cuadro encima: no hay contenido nuevo
+     que mostrar, y al cerrar el cuadro la persona tiene que seguir donde estaba. */
+  if (!b.dataset.v && !/irEquipo\(/.test(b.getAttribute('onclick') || '')) return;
+  llevarAlContenido();
+}
+(function () { const lado = document.querySelector('.side'); if (lado) lado.addEventListener('click', alTocarElMenu); })();
 function entrar(){ const retomada=_retomandoDueno===true, campoPin=document.getElementById('pinInput');
   if(!retomada) document.getElementById('pinErr').className='gate-err';
   if(retomada||campoPin.value===DB.config.pin){

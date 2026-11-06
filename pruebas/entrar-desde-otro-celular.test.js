@@ -485,3 +485,102 @@ describe('F7. Mirar el CRM no crea una cartera', () => {
     });
   });
 });
+
+/* ------------------------------------------------------------------ F8 */
+describe('F8. En el celular, tocar el menú lleva al contenido', () => {
+  /* El banco no pinta: se le dan la medida de la pantalla, el <main> con su posición y un
+     scrollTo que anota. Dónde queda de verdad se midió en Chrome sin ventana. */
+  function montar(ancho, topeDelMain, o) {
+    const P = abrirPanel(o || {});
+    const mov = [];
+    P.ctx.matchMedia = q => ({ matches: q === '(max-width:880px)' && ancho <= 880 });
+    P.ctx.scrollTo = (x, y) => { mov.push([x, y]); };
+    P.ctx.pageYOffset = 100;
+    P.ctx.document.querySelector = s => (s === '.main' ? { innerHTML: '', getBoundingClientRect: () => ({ top: topeDelMain }) } : null);
+    return { P, mov };
+  }
+  const boton = attrs => {
+    const b = { dataset: attrs.v ? { v: attrs.v } : {}, getAttribute: k => (k === 'onclick' ? attrs.onclick || null : null) };
+    return { target: { closest: s => (s === '.navbtn' ? b : null) } };
+  };
+  const adentro = P => P.ev('CARTERA_EQUIPO = ' + JSON.stringify({ ok: true, yo: { nombre: 'GERENTE PRUEBA', rol: 'gerente', celular: '3000000000' }, equipo: [], gente: [] }));
+
+  test('el toque del menú de Joan, a 880 px o menos, deja el contenido arriba de la pantalla', () => {
+    const { P, mov } = montar(390, 1301);
+    P.ctx.__toque = boton({ v: 'clientes' });
+    P.ev('alTocarElMenu(__toque)');
+    assert.deepEqual(mov, [[0, 1401]], 'tocar no llevó al contenido');
+  });
+
+  test('control: llamar a irA desde el código no arrastra la pantalla', () => {
+    const { P, mov } = montar(390, 1301);
+    P.ev('irA("clientes"); irA("cfg")');
+    assert.deepEqual(mov, []);
+  });
+
+  test('a más de 880 px el toque no mueve nada, en ninguno de los dos menús', () => {
+    const { P, mov } = montar(881, 0);
+    P.ctx.__a = boton({ v: 'clientes' }); P.ctx.__b = boton({ onclick: "irEquipo('base')" });
+    P.ev('alTocarElMenu(__a); alTocarElMenu(__b)');
+    assert.deepEqual(mov, []);
+    assert.equal(P.ev('pantallaDeCelular()'), false);
+  });
+
+  test('el menú del equipo también lleva; lo que abre un cuadro encima, no', () => {
+    const { P, mov } = montar(390, 804);
+    P.ctx.__a = boton({ onclick: "irEquipo('base')" });
+    P.ev('alTocarElMenu(__a)');
+    assert.deepEqual(mov, [[0, 904]]);
+    mov.length = 0;
+    ["agregarEq()", "miWhatsappEq()"].forEach(c => {
+      P.ctx.__b = boton({ onclick: c });
+      P.ev('alTocarElMenu(__b)');
+    });
+    assert.deepEqual(mov, [], 'al cerrar el cuadro la persona ya no estaría donde estaba');
+  });
+
+  test('lo que no es una entrada del menú no mueve nada', () => {
+    const { P, mov } = montar(390, 804);
+    P.ctx.__c = { target: { closest: () => null } };
+    P.ev('alTocarElMenu(__c)');
+    assert.deepEqual(mov, []);
+  });
+
+  test('control: irEquipo a más de 880 px sigue subiendo arriba del todo, que es a propósito', () => {
+    const { P, mov } = montar(1280, 0);
+    adentro(P);
+    P.ev('irEquipo("plata")');
+    assert.deepEqual(mov, [[0, 0]]);
+  });
+
+  test('irEquipo a 880 o menos ya no sube al menú: si leía el contenido vuelve a su principio; si estaba en el menú, ahí se queda', () => {
+    const leyendo = montar(390, -300);
+    adentro(leyendo.P);
+    leyendo.P.ev('irEquipo("plata")');
+    assert.deepEqual(leyendo.mov, [[0, -200]], 'subió al menú y escondió lo que acababa de cambiar');
+    const enElMenu = montar(390, 804);
+    adentro(enElMenu.P);
+    enElMenu.P.ev('irEquipo("tablero")');
+    assert.deepEqual(enElMenu.mov, [], 'al entrar, o desde el menú, el código no tiene por qué arrastrarlo');
+  });
+
+  test('sin matchMedia (un navegador raro, o este banco) se porta como en el computador', () => {
+    const { P, mov } = montar(390, 0);
+    delete P.ctx.matchMedia;
+    assert.equal(P.ev('pantallaDeCelular()'), false);
+    adentro(P);
+    P.ev('irEquipo("plata")');
+    assert.deepEqual(mov, [[0, 0]]);
+  });
+
+  test('el oyente está puesto en .side, y la cifra es la de la hoja', () => {
+    assert.match(CRM, /const lado = document\.querySelector\('\.side'\); if \(lado\) lado\.addEventListener\('click', alTocarElMenu\);/);
+    assert.match(CRM, /@media\(max-width:880px\)\{/);
+    assert.match(CRM, /window\.matchMedia\('\(max-width:880px\)'\)/);
+  });
+
+  test('control: los botones del equipo siguen llamando a irEquipo con su onclick', () => {
+    assert.match(CRM, /<button class="navbtn" onclick="irEquipo\('base'\)">/);
+    assert.match(CRM, /<button class="navbtn" onclick="agregarEq\(\)">/);
+  });
+});
