@@ -20,6 +20,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { abrirPanel } = require('./banco-panel.js');
+const { abrirTraer } = require('./banco-traer.js');
 const { asentar } = require('./esperar.js');
 
 const RAIZ = path.join(__dirname, '..');
@@ -162,5 +163,92 @@ describe('F2. La puerta del PIN de un navegador sin fichas tiene salida', () => 
     Q.almacen[LLAVE] = JSON.stringify({ socios: [] });
     o2({ persisted: true });
     assert.equal(otras, 0);
+  });
+});
+
+/* ------------------------------------------------------------------ F3 */
+describe('F3. La puerta de traer.html solo sale si hay algo que tapar', () => {
+  const cartera = d => ({ [LLAVE]: JSON.stringify(d) });
+
+  test('un CRM vacío que guardó sus ajustes (PIN de fábrica, sin fichas) ya no pone puerta', () => {
+    /* Es lo que dejaba tocar «Guardar ajustes» o, hasta hoy, solo mirar «Ventas». */
+    const T = abrirTraer({ almacen: cartera({ socios: [], prestamos: [], respaldados: [], config: { pin: '1234', negocio: 'Tu Garantía' }, plantillas: { a: 'x' } }) });
+    assert.equal(T.puerta(), false, 'puerta que solo abre con 1234, sin decirlo');
+    assert.equal(T.texto('e1'), 'Solo ajustes', 'no siguió derecho a contar lo que hay');
+    assert.equal(T.elems.c2.classList.contains('dormido'), false, 'el paso 2 no despertó');
+  });
+
+  test('legible, sin fichas y sin PIN guardado, tampoco', () => {
+    const T = abrirTraer({ almacen: cartera({ socios: [], config: { negocio: 'Tu Garantía' } }) });
+    assert.equal(T.puerta(), false);
+  });
+
+  test('control: un aparato vacío pasa derecho, como siempre', () => {
+    const T = abrirTraer();
+    assert.equal(T.puerta(), false);
+    assert.equal(T.texto('e1'), 'Vacío');
+  });
+
+  test('con fichas sigue, aunque el PIN sea el de fábrica', () => {
+    [{ socios: [SOCIO] }, { prestamos: [CREDITO] }, { respaldados: [RESPALDADO] }, { papelera: [CREDITO] }, { invitaciones: [{ id: 'I1' }] }]
+      .forEach(d => assert.equal(abrirTraer({ almacen: cartera(Object.assign({ config: { pin: '1234' } }, d)) }).puerta(), true, Object.keys(d)[0]));
+  });
+
+  test('con un PIN propio sigue, aunque no haya fichas, y abre con ese PIN', () => {
+    const T = abrirTraer({ almacen: cartera({ socios: [], config: { pin: '4321' } }) });
+    assert.equal(T.puerta(), true);
+    T.elems.pin.value = '1234';
+    T.tocar('btnPuerta');
+    assert.equal(T.puerta(), true, 'abrió con el de fábrica');
+    assert.equal(T.elems.pinErr.textContent, 'Ese no es el PIN guardado en este navegador.');
+    T.elems.pin.value = '4321';
+    T.tocar('btnPuerta');
+    assert.equal(T.puerta(), false);
+    assert.equal(T.texto('e1'), 'Solo ajustes');
+  });
+
+  test('ilegible sigue, y como ahí no hay PIN que leer, dice con cuál abre', () => {
+    const roto = '{"socios":[{"id":"C1"';
+    const T = abrirTraer({ almacen: { [LLAVE]: roto } });
+    assert.equal(T.puerta(), true);
+    assert.match(T.elems.porquePuerta.textContent, /está dañado.*el de fábrica: 1234/, 'otro callejón: solo abre con 1234 y no lo dice');
+    T.elems.pin.value = '4321';
+    T.tocar('btnPuerta');
+    assert.match(T.elems.pinErr.textContent, /el de fábrica/);
+    T.elems.pin.value = '1234';
+    T.tocar('btnPuerta');
+    assert.equal(T.puerta(), false);
+    assert.equal(T.texto('e1'), 'Ilegible');
+    assert.equal(T.almacen[LLAVE], roto, 'abrir la puerta tocó lo guardado');
+  });
+
+  test('el texto ya no promete «el mismo PIN del Panel»', () => {
+    const T = abrirTraer();
+    const t = T.html.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.doesNotMatch(t, /mismo PIN del Panel/);
+    assert.doesNotMatch(t, /no es el PIN del Panel/);
+    assert.match(t, /id="porquePuerta">Es el PIN guardado en este navegador./);
+  });
+
+  test('control: sin acceso al cajón no hay nada que tapar, y se dice', () => {
+    const T = abrirTraer({ sinCajon: true });
+    assert.equal(T.puerta(), false);
+    assert.equal(T.texto('e1'), 'No pude leer');
+    assert.equal(T.elems.btnEntrar.disabled, true);
+  });
+
+  test('el respaldo del paso 4 no cambió: sin fichas se baja y se anota; con fichas exige que digas que lo tienes', () => {
+    const sinFichas = abrirTraer({ almacen: cartera({ socios: [], config: { pin: '1234' } }) });
+    sinFichas.tocar('btnRespaldo');
+    assert.equal(sinFichas.descargas.length, 1);
+    assert.equal(sinFichas.texto('e4'), 'Respaldo bajado');
+    const conFichas = abrirTraer({ almacen: cartera({ socios: [SOCIO], config: { pin: '4321' } }) });
+    conFichas.elems.pin.value = '4321';
+    conFichas.tocar('btnPuerta');
+    conFichas.tocar('btnRespaldo');
+    assert.equal(conFichas.texto('e4'), 'Compruébalo');
+    assert.equal(conFichas.ev('E.respaldoHecho'), false, 'con cartera, bajar no basta: lo tiene que decir Joan');
+    conFichas.tocar('btnConfirmoRespaldo');
+    assert.equal(conFichas.ev('E.respaldoHecho'), true);
   });
 });

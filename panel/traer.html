@@ -201,9 +201,9 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
 </head>
 <body>
 
-<!-- LA PUERTA. Solo aparece si en este aparato YA hay una cartera; ver
-     decidirPuerta() abajo, que explica por qué un PIN sobre un aparato vacío
-     sería un candado de mentiras. -->
+<!-- LA PUERTA. Solo aparece si en este aparato hay algo que tapar; ver
+     hayAlgoQueTapar() abajo, que explica por qué un PIN de fábrica sobre un aparato
+     sin fichas sería un candado de mentiras. -->
 <div class="gate" id="gate">
   <div class="gate-caja">
     <div class="mk"><span class="sello">G</span> Tu&nbsp;Garantía</div>
@@ -211,8 +211,8 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
     <input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off">
     <button class="btn" id="btnPuerta" type="button">Entrar</button>
     <div class="gate-err" id="pinErr"></div>
-    <div class="porque">Es el mismo PIN del Panel. Se pide porque en este aparato ya hay una cartera:
-      esta página puede bajártela entera como archivo, así que sin PIN sería la puerta de atrás del Panel.</div>
+    <div class="porque" id="porquePuerta">Es el PIN guardado en este navegador. Se pide porque aquí ya hay algo guardado:
+      esta página puede bajártelo entero como archivo, así que sin PIN sería la puerta de atrás del Panel.</div>
   </div>
 </div>
 
@@ -717,21 +717,41 @@ function pintarEsteAparato(){
    cartera entera como archivo, y sin PIN esta página sería la puerta de atrás
    del Panel.
    La puerta de verdad de esta página, en los dos casos, es el correo y la
-   contraseña de Supabase: sin eso no baja nada. */
+   contraseña de Supabase: sin eso no baja nada.
+
+   6-nov-2026 — Y LO MISMO SI HAY LLAVE PERO NO HAY NADA QUE TAPAR. Antes bastaba la
+   llave: un CRM vacío que guardó sus ajustes una vez dejaba esta puerta puesta en un
+   teléfono donde nunca hubo un PIN de Joan. Solo abría con 1234, sin decirlo, y
+   afirmaba que era «el mismo PIN del Panel»: su PIN de verdad se rechazaba, y el
+   camino para traer la cartera quedaba detrás de eso. Con fichas, con algo ilegible
+   (lo único que salva esa cartera es el respaldo de abajo, y se decide del lado de
+   proteger) o con un PIN que alguien puso aquí, la puerta sigue. */
 function pinGuardado(){
   try{
     var d=JSON.parse(localStorage.getItem(KEY)||'{}');
     return (d && d.config && d.config.pin) ? String(d.config.pin) : PIN_DE_FABRICA;
   }catch(e){ return PIN_DE_FABRICA; }
 }
+function hayAlgoQueTapar(inv){
+  if(!hayAlgoQuePerder(inv)) return false;
+  if(hayFichas(inv) || !inv.legible) return true;
+  return pinGuardado() !== PIN_DE_FABRICA;
+}
 function decidirPuerta(){
-  if(!hayAlgoQuePerder(E.hay)) return true;   // nada que tapar: se pasa derecho
+  if(!hayAlgoQueTapar(E.hay)) return true;   // nada que tapar: se pasa derecho
+  /* Ilegible no hay PIN guardado que leer: pinGuardado() da el de fábrica, y sin
+     decirlo esta puerta sería otro callejón (se llega aquí justo desde la salida de
+     la puerta del CRM, con la cartera dañada). */
+  if(!E.hay.legible){
+    $('porquePuerta').textContent='Lo guardado en este navegador está dañado y no pude leer su PIN, así que aquí abre '+
+      'con el de fábrica: '+PIN_DE_FABRICA+'. Se pide porque esta página puede bajarlo entero como archivo.';
+  }
   $('gate').classList.add('on');
   return false;
 }
 function abrirPuerta(){
   if($('pin').value !== pinGuardado()){
-    $('pinErr').textContent='Ese no es el PIN del Panel.';
+    $('pinErr').textContent=E.hay.legible ? 'Ese no es el PIN guardado en este navegador.' : 'Ese no es: aquí abre con el de fábrica.';
     $('pin').value=''; return;
   }
   $('gate').classList.remove('on');
