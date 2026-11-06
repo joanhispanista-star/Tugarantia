@@ -519,10 +519,15 @@ describe('Con algo que perder, traer.html es la de siempre: lo único que cambia
   test('en un aparato nuevo sí se pliegan, y sí se llega con el tabulador', () => {
     const T = abrirTraer();
     let frenados = 0;
-    ['cabAvisos', 'cabPaso1'].forEach(id => {
+    const tocar = () => ['cabAvisos', 'cabPaso1'].forEach(id => {
       T.elems[id]._oyentes.click.forEach(f => f({ preventDefault() { frenados++; } }));
       assert.equal(T.elems[id].tabIndex, 0);
     });
+    tocar();
+    assert.equal(frenados, 0);
+    /* Lo mismo si la página nació plegada y no alcanzó a arrancar: lo plegado se tiene que poder leer. */
+    T.ev('E.aparatoNuevo = null');
+    tocar();
     assert.equal(frenados, 0);
   });
 

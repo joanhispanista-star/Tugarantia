@@ -197,7 +197,7 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
 .ayuda{font-size:12px;color:var(--gris);margin-top:6px;line-height:1.45}
 /* 6-nov-2026 — ESTA PÁGINA TIENE DOS CARAS. Tal como viene en el HTML es la de siempre: la
    del computador de Joan, con su cartera, y la que queda si algo falla antes de arrancar.
-   Todo lo que la acorta para un teléfono cuelga de .aparato-nuevo, que pintarEsteAparato le
+   Todo lo que la acorta para un teléfono cuelga de .aparato-nuevo, que plegarLaPagina le
    pone a <html> solo donde no hay nada que perder (ver esAparatoNuevo). Sin esa clase, estos
    dos <details> se pintan como los <div> de antes: abiertos, sin marca y sin plegarse.
    La fila va en un <div> y no en el <summary>: Safari no siempre le hace caso a display:flex
@@ -274,7 +274,7 @@ details>summary::-webkit-details-marker{display:none}
        porque a 390 px estos cinco avisos empujaban «Entrar» a 1.945 px: la primera pantalla
        no tenía nada que tocar y parecía una página de avisos, no algo que se usa. Ahí, a la
        vista queda lo único que no se puede ignorar; el resto, a un toque y con los mismos
-       textos. La frase de la cabecera baja también (ver ponerCara).
+       textos. La frase de la cabecera baja también (ver plegarLaPagina).
        La frase decía «lo que anotes aquí no llega a tu computador ni a tus clientes», y la
        primera mitad era falsa: el CRM del teléfono sube solo (nube-crm.js, panel_empujar) y
        en el computador ☁ Subir lo ofrece para aplicar. Se leía como una libreta de pruebas,
@@ -377,7 +377,7 @@ details>summary::-webkit-details-marker{display:none}
       <button class="btn" type="button" id="btnEntrar">Entrar</button>
       <button class="btn sec sm oculto" type="button" id="btnSalir">Cerrar sesión</button>
       <!-- 6-nov-2026 — en un aparato nuevo, lo de arriba que no le pide nada baja aquí
-           (ver ponerCara y precargarConexion), y «Entrar» sube a la primera pantalla. -->
+           (ver plegarLaPagina y precargarConexion), y «Entrar» sube a la primera pantalla. -->
       <div id="abajoDeEntrar"></div>
     </div>
   </div>
@@ -474,6 +474,7 @@ function plegarLaPagina(){
   raiz.classList.add('aparato-nuevo');
   de('losDetalles').open=false;
   de('c1').open=false;
+  de('cabAvisos').tabIndex=de('cabPaso1').tabIndex=0;
   /* Lo que no le pide nada baja: la frase de la cabecera a los avisos, y la ayuda de la
      contraseña debajo de «Entrar», que así sube a la primera pantalla. */
   de('paraQueSirve').appendChild(de('queHace'));
@@ -759,16 +760,19 @@ function ponerCara(inv){
   }else{
     document.documentElement.classList.remove('aparato-nuevo');
     $('losDetalles').open = true;
+    $('cabAvisos').tabIndex = $('cabPaso1').tabIndex = -1;
   }
-  $('cabAvisos').tabIndex = $('cabPaso1').tabIndex = E.aparatoNuevo ? 0 : -1;
   /* El paso 1 también se pliega, con el mismo texto: la pastilla «Vacío» ya dice lo que
      hay que saber aquí, y seis líneas de más dejaban «Entrar» debajo de la primera
      pantalla. Con algo guardado, aunque sean ajustes, se dice abierto. */
   $('c1').open = !E.aparatoNuevo || inv.tieneLlave;
 }
 /* Con la cara de siempre, estos dos no se pliegan: en 76af475 no eran plegables, y ahí un
-   toque sin querer escondería el bloque rojo. */
-function noPlegarLaCaraDeSiempre(ev){ if(!E.aparatoNuevo) ev.preventDefault(); }
+   toque sin querer escondería el bloque rojo. Se pregunta por la clase y no por E: un aparato
+   vacío nace plegado, y si faltó un archivo y no arrancó, lo plegado se tiene que poder leer. */
+function noPlegarLaCaraDeSiempre(ev){
+  if(!document.documentElement.classList.contains('aparato-nuevo')) ev.preventDefault();
+}
 
 function pintarEsteAparato(){
   var inv = E.hay, h='';
