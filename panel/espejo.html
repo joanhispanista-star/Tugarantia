@@ -4897,9 +4897,14 @@ function vistaQuincena() {
          capital devuelto» sería contar plata que no entró. */
       var perdio = P.perdidaDelCierre ? P.perdidaDelCierre(p) : 0;
       /* 4-nov-2026 — y no se llama «Pago» si no fue un pago. */
+      /* 9-nov-2026 — y con pérdida, «volvieron X de Y», como el Calendario del CRM: el
+         capital que volvió incluye abonos de otros días, y bajo «Lo que registraste
+         hoy» decía «$100.000 de capital devuelto» de un cierre con $0 cuyo abono era
+         del 25-oct (segunda ronda de la revisión). */
       h += '<div class="linea-item"><span>' + (perdio ? 'Cierre con pérdida · ' : 'Pago · ') + esc(p.socioNombre || '')
-        + '<br><span class="muted">' + COP(P.capitalRecuperadoDe(p)) + ' de capital devuelto'
-        + (perdio ? ' · ' + COP(perdio) + ' de capital perdido' : '') + '</span></span>'
+        + '<br><span class="muted">' + (perdio
+          ? 'volvieron ' + COP(P.capitalRecuperadoDe(p)) + ' de ' + COP(Number(p.capital) || 0) + ' · ' + COP(perdio) + ' de capital perdido'
+          : COP(P.capitalRecuperadoDe(p)) + ' de capital devuelto') + '</span></span>'
         /* La cifra de la derecha, entera: con la pérdida, el texto de la
            izquierda es más largo y la partía en «$» y «0». */
         + '<span style="white-space:nowrap">' + COP(Number(p.gananciaPago) || 0) + '</span></div>';

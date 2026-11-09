@@ -70,7 +70,7 @@ describe('1 · el celular lee el cierre con pérdida sin romperse y sin contar d
     const c = copia(p); c.condonaciones = [r.registros.condonacion]; Object.assign(c, r.registros.credito);
     const e = abrirEspejo({ cartera: cartera([c]), ahora: '2026-10-30T15:00:00' });
     const q = plano(e.ev('vistaQuincena()'));
-    assert.match(q, /\$200\.000 de capital devuelto · \$100\.000 de capital perdido/);
+    assert.match(q, /volvieron \$200\.000 de \$300\.000 · \$100\.000 de capital perdido/);
     assert.doesNotMatch(q, /\$300\.000 de capital devuelto/, 'contó como devuelto capital que no entró');
     assert.match(q, /Capital perdido en el ciclo \$100\.000/);
     assert.equal(e.json("P.capitalPerdidoDeQuincena(DB,'2026-10-31').capital"), 100000);
@@ -124,7 +124,30 @@ describe('1-bis · 4-nov-2026: el celular no le dice «Pagado» a un crédito ce
     const q = plano(e.ev('vistaQuincena()'));
     assert.doesNotMatch(q, /Pago · Marta/);
     assert.match(q, /Cierre con pérdida · Marta/);
-    assert.match(q, /\$0 de capital devuelto · \$300\.000 de capital perdido/);
+    assert.match(q, /volvieron \$0 de \$300\.000 · \$300\.000 de capital perdido/);
+  });
+
+  /* 9-nov-2026 — la segunda ronda: bajo «Lo que registraste hoy» decía «$100.000 de
+     capital devuelto» de un crédito cerrado hoy con $0, y los 100.000 eran un abono
+     del 25-oct. El CRM ya decía «volvieron» por esto mismo. */
+  test('«Lo que registraste hoy» no cuenta como devuelto hoy un abono de otro día', () => {
+    const p = quincenal({ fechaDesembolso: '2026-10-16', cicloActual: '2026-10-31', abonosCapital: [{ fecha: '2026-10-25', monto: 100000 }] });
+    const r = P.cierreConPerdon(cartera([p]), p, '2026-10-30', 0, { motivo: 'x', entiende: true });
+    assert.equal(r.ok, true, r.detalle);
+    const c = copia(p); c.condonaciones = [r.registros.condonacion]; Object.assign(c, r.registros.credito);
+    const e = abrirEspejo({ cartera: cartera([c]), ahora: '2026-10-30T15:00:00' });
+    const q = plano(e.ev('vistaQuincena()'));
+    assert.doesNotMatch(q, /\$100\.000 de capital devuelto/, 'contó como devuelto hoy un abono del 25-oct');
+    assert.match(q, /volvieron \$100\.000 de \$300\.000 · \$200\.000 de capital perdido/);
+  });
+
+  test('un pago de verdad sigue diciendo «capital devuelto»', () => {
+    const p = quincenal({ fechaDesembolso: '2026-10-16', cicloActual: '2026-10-31' });
+    const liq = P.liquidarCiclo(p, '2026-10-30');
+    const c = Object.assign(copia(p), { pagado: true, fechaPagado: '2026-10-30', cicloPago: '2026-10-31', cobroRegistrado: true,
+      gananciaPago: liq.costo + liq.recargo_mora, recargoMora: liq.recargo_mora, montoRecibido: liq.total_a_pagar, capitalPerdido: 0 });
+    const e = abrirEspejo({ cartera: cartera([c]), ahora: '2026-10-30T15:00:00' });
+    assert.match(plano(e.ev('vistaQuincena()')), /Pago · Marta.*\$300\.000 de capital devuelto/);
   });
 });
 
