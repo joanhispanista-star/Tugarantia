@@ -4955,6 +4955,13 @@ function papeleraHTML(){
    REVISA, NO CORRIGE. Cada hallazgo dice dónde mirar; la decisión de tocar
    plata es de Joan, crédito por crédito. Un botón que "arregla solo" la
    cartera es exactamente la clase de magia que metió el $29.961. */
+/* 9-nov-2026 — «🔍 Revisar la cartera» leía p.pagado a mano y decía «pagado» de un
+   cierre con pérdida, hasta de uno con $0 entregados, justo en la pantalla donde Joan
+   decide cuál registro doble borrar (segunda ronda de la revisión). */
+function estadoEnLaRevision(p){
+  if(!p.pagado) return 'abierto';
+  return (PUENTE.cerroConPerdida&&PUENTE.cerroConPerdida(p))?'cerrado con pérdida':'pagado';
+}
 function revisarCartera(){
   const hoy=hoyISO();
   const grupos=[];
@@ -4965,7 +4972,7 @@ function revisarCartera(){
   if(noRedondos.length) grupos.push({t:'💵 Montos que no son cifras redondas',
     x:'La plata que se entrega va en billetes: esto suele ser un número calculado que se coló, no una decisión.',
     filas:noRedondos.map(p=>codCredito(p)+' · '+escHTML(p.socioNombre)+' · '+COP(p.capital)
-      +' · '+fmtFecha(p.fechaDesembolso)+(p.pagado?' · pagado':' · ABIERTO'))});
+      +' · '+fmtFecha(p.fechaDesembolso)+(p.pagado?' · '+estadoEnLaRevision(p):' · ABIERTO'))});
 
   /* 2. Mismo cliente, misma fecha de desembolso: huele a doble registro,
      sobre todo si además es el mismo monto y se crearon en días distintos. */
@@ -4975,7 +4982,7 @@ function revisarCartera(){
   if(dobles.length) grupos.push({t:'👯 Mismo cliente, mismo día de desembolso',
     x:'Puede ser legítimo (dos préstamos el mismo día) o un doble registro. El doble registro infla la ganancia y la garantía de ese cliente. Compara los montos y borra el que sobre (va a la papelera, no se pierde).',
     filas:dobles.map(a=>escHTML(a[0].socioNombre)+' ('+fmtFecha(a[0].fechaDesembolso)+'): '
-      +a.map(p=>codCredito(p)+' '+COP(p.capital)+(p.pagado?' pagado':' abierto')).join('  +  '))});
+      +a.map(p=>codCredito(p)+' '+COP(p.capital)+' '+estadoEnLaRevision(p)).join('  +  '))});
 
   /* 3. Contradicciones de fechas y estados: no ambiguas, siempre son error. */
   const contradic=[];
@@ -6780,7 +6787,12 @@ function verCredito(id){
   const comps=(p.comprobantes||[]);
   /* 1-oct-2026: la foto del comprobante pasa por fotoSegura, igual que las del
      registro. Si no es una imagen, queda la tarjeta con su monto y fecha. */
-  const gal=comps.length?`<div class="gal">${comps.map(c=>{const ft=fotoSegura(c.foto);return `${ft?`<a href="${ft}" target="_blank"><img src="${ft}">`:'<a><span class="muted" style="display:block;padding:18px 6px;font-size:12px">sin imagen válida</span>'}<div class="cap">${({pago:'Pago',prorroga:'Prórroga',abonoProrroga:'Abono + prórroga',abono:'Abono',abonoCuota:'Abono a cuota',plan:'Plan de pagos'}[c.tipo]||'Comprob.')} ${COP(c.monto)}<br>${fmtFecha(c.fecha)}</div></a>`;}).join('')}</div>`:'<p class="muted">Sin comprobantes aún.</p>';
+  /* 9-nov-2026 — el comprobante de un «Se lo perdoné» lleva el id de su condonación
+     (cerrarConPerdon): bajo «Comprobantes de pago» decía «Pago $0». La foto y su
+     identidad en la nube no cambian; cambia el rótulo. */
+  const idsCierre=new Set((p.condonaciones||[]).map(x=>x&&x.id!=null?String(x.id):'').filter(Boolean));
+  const tipoComp=c=>(c.tipo==='pago'&&c.id!=null&&idsCierre.has(String(c.id)))?'cierre':c.tipo;
+  const gal=comps.length?`<div class="gal">${comps.map(c=>{const ft=fotoSegura(c.foto);return `${ft?`<a href="${ft}" target="_blank"><img src="${ft}">`:'<a><span class="muted" style="display:block;padding:18px 6px;font-size:12px">sin imagen válida</span>'}<div class="cap">${({cierre:'Cierre con perdón',pago:'Pago',prorroga:'Prórroga',abonoProrroga:'Abono + prórroga',abono:'Abono',abonoCuota:'Abono a cuota',plan:'Plan de pagos'}[tipoComp(c)]||'Comprob.')} ${COP(c.monto)}<br>${fmtFecha(c.fecha)}</div></a>`;}).join('')}</div>`:'<p class="muted">Sin comprobantes aún.</p>';
   /* El plan de pagos, cuota por cuota. Es el historial de la salida del §8: qué
      se cobró al pactarlo y en qué va.
      16-oct-2026 — y del crédito que NACIÓ a cuotas, que tiene otro título

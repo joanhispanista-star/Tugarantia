@@ -5208,8 +5208,8 @@ function ladosHTML(c) {
   var izq = '<div class="lado"><h4>Lo mío (este celular)</h4>';
   var der = '<div class="lado"><h4>Lo de la nube</h4>';
   pisables.slice(0, 12).forEach(function (p) {
-    izq += '<div class="d"><span>' + esc(etiquetaCampo(p.campo, p.mio)) + '</span><span>' + esc(valorCorto(p.campo, p.mio)) + '</span></div>';
-    der += '<div class="d"><span>' + esc(etiquetaCampo(p.campo, p.suyo)) + '</span><span>' + esc(valorCorto(p.campo, p.suyo)) + '</span></div>';
+    izq += '<div class="d"><span>' + esc(etiquetaCampo(p.campo, p.mio)) + '</span><span>' + esc(valorCorto(p.campo, p.mio, c.mio)) + '</span></div>';
+    der += '<div class="d"><span>' + esc(etiquetaCampo(p.campo, p.suyo)) + '</span><span>' + esc(valorCorto(p.campo, p.suyo, c.suyo)) + '</span></div>';
   });
   return '<div class="lados">' + izq + '</div>' + der + '</div></div>';
 }
@@ -5248,9 +5248,12 @@ function etiquetaCampo(k, v) {
   if (k === 'abonosCapital' && typeof v === 'string') return 'Lo que entró por las cuotas';
   return ETIQUETAS[k] || k;
 }
-function valorCorto(campo, v) {
+function valorCorto(campo, v, fila) {
   if (v === undefined) return '(no estaba)';
   if (v === null) return '—';
+  /* 9-nov-2026 — en la tarjeta del choque, justo donde Joan decide qué versión queda,
+     «¿Pagado? sí» de un crédito cerrado con pérdida (segunda ronda de la revisión). */
+  if (campo === 'pagado' && v === true && fila && cerroConPerdida(fila)) return 'cerrado con pérdida';
   /* El plan de cuotas en una línea que Joan pueda leer: cuántas van pagadas y
      cuándo se pagó cada una. «objeto» no le dejaba saber cuál de los dos
      aparatos tenía el cobro bueno. */
@@ -5288,11 +5291,21 @@ function valorCorto(campo, v) {
    «pendiente», una cuota reprogramada en un aparato (otra fecha, otro %) y la
    misma sin reprogramar en el otro se leían iguales, y Joan elegía sin ver
    que un lado le cobraba el 15-nov y el otro el 20. Joan sí ve porcentajes. */
+function cuotaCerradaConPerdon(c) { return !!(c && c.pagado && (c.conPerdon || Number(c.capitalPerdido) > 0)); }
 function resumenDelPlan(pp) {
   var cs = (pp && Array.isArray(pp.cuotas)) ? pp.cuotas : [];
   if (!cs.length) return 'sin cuotas';
-  var pagas = cs.filter(function (c) { return c && c.pagado; }).length;
-  var txt = pagas + ' de ' + cs.length + ' cuotas pagadas: ' + cs.map(function (c) {
+  /* 9-nov-2026 — una cuota cerrada con «Se lo perdoné» no es una cuota pagada: la
+     tarjeta del choque decía «2 de 2 cuotas pagadas» de un crédito de 600.000 cerrado
+     con 300.000. Mismo criterio que el detalle (cuotaCerradaConPerdon). */
+  var pagas = cs.filter(function (c) { return c && c.pagado && !cuotaCerradaConPerdon(c); }).length;
+  var cerradas = cs.filter(cuotaCerradaConPerdon).length;
+  var txt = pagas + ' de ' + cs.length + ' cuotas pagadas'
+    + (cerradas ? ' y ' + cerradas + (cerradas > 1 ? ' cerradas' : ' cerrada') + ' con perdón' : '') + ': ' + cs.map(function (c) {
+    if (cuotaCerradaConPerdon(c)) {
+      return 'cuota ' + (c.n || '?') + ' cerrada con perdón' + (c.fechaPagado ? ' el ' + fmtFecha(c.fechaPagado) : '')
+        + (Number(c.capitalPerdido) > 0 ? ' (' + COP(c.capitalPerdido) + ' de capital perdido)' : '');
+    }
     if (c && c.pagado) {
       return 'cuota ' + (c.n || '?') + ' pagada' + (c.fechaPagado ? ' el ' + fmtFecha(c.fechaPagado) : '')
         + (c.saldadoAntes ? ' (antes de empezar)' : '');

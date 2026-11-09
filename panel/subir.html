@@ -1856,7 +1856,7 @@ function cara(titulo, obj, otro, tabla, enDiscusion){
   campos.forEach(function(c){
     var v=obj[c], o=otro?otro[c]:undefined;
     var dif = normalizarJSON(v)!==normalizarJSON(o);
-    h+='<div class="lin'+(dif?' dif':'')+'"><span>'+esc(c)+'</span><b>'+esc(muestra(v, c))+'</b></div>';
+    h+='<div class="lin'+(dif?' dif':'')+'"><span>'+esc(c)+'</span><b>'+esc(muestra(v, c, obj))+'</b></div>';
   });
   /* Las listas que solo suman: se dice cuántas trae cada lado, porque es la
      pregunta que Joan se hace ("¿se me pierde el abono de esta mañana?"). */
@@ -1938,8 +1938,15 @@ function textoLegible(s){
 function resumenDelPlan(pp){
   var cs=(pp&&Array.isArray(pp.cuotas))?pp.cuotas:[];
   if(!cs.length) return 'sin cuotas';
-  var txt=cs.filter(function(c){ return c&&c.pagado; }).length+' de '+cs.length+' pagadas: '+
+  /* 9-nov-2026 — una cuota cerrada con «Se lo perdoné» no es una cuota pagada (ver
+     panel/espejo.html, resumenDelPlan). */
+  var perdon=function(c){ return !!(c&&c.pagado&&(c.conPerdon||Number(c.capitalPerdido)>0)); };
+  var cerradas=cs.filter(perdon).length;
+  var txt=cs.filter(function(c){ return c&&c.pagado&&!perdon(c); }).length+' de '+cs.length+' pagadas'+
+    (cerradas?' y '+cerradas+(cerradas>1?' cerradas':' cerrada')+' con perdón':'')+': '+
     cs.map(function(c){
+      if(perdon(c)) return 'cuota '+(c.n||'?')+' cerrada con perdón'+(c.fechaPagado?' el '+fechaCorta(c.fechaPagado):'')+
+        (Number(c.capitalPerdido)>0?' ('+pesosCO(c.capitalPerdido)+' de capital perdido)':'');
       if(c&&c.pagado) return 'cuota '+(c.n||'?')+' pagada'+(c.fechaPagado?' el '+fechaCorta(c.fechaPagado):'');
       return 'cuota '+((c&&c.n)||'?')+' pendiente'+
         (c&&c.fecha?': '+fechaCorta(c.fecha):'')+
@@ -1959,8 +1966,10 @@ function textoDelCambio(u){
   if(de.pct!==a.pct) partes.push(de.pct+'% → '+a.pct+'%');
   return 'cuota '+((u&&u.n)||'?')+' '+(partes.join(', ')||'sin cambios');
 }
-function muestra(v, campo){
+function muestra(v, campo, fila){
   if(campo==='planPagos' && v!=null) return resumenDelPlan(v);
+  /* 9-nov-2026 — «pagado: sí» de un crédito cerrado con pérdida, en la cara del choque. */
+  if(campo==='pagado' && v===true && fila && PUENTE && typeof PUENTE.cerroConPerdida==='function' && PUENTE.cerroConPerdida(fila)) return 'cerrado con pérdida';
   if(v===undefined) return '—';
   if(v===null) return 'nada';
   if(typeof v==='boolean') return v?'sí':'no';

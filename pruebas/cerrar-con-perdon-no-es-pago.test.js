@@ -834,3 +834,83 @@ describe('7 · Lo que Joan lee de un cierre con pérdida', () => {
     assert.match(k, /Capital perdido \$0 ninguno en créditos con corte del 31 oct/, 'la tarjeta dijo otra cosa: ' + k);
   });
 });
+/* ==========================================================================
+ * 8. 9-nov-2026 — LA SEGUNDA RONDA: LO QUE QUEDABA DICIENDO «PAGADO»
+ *    «🔍 Revisar la cartera» (donde Joan decide qué registro doble borrar), la
+ *    galería de comprobantes y la tarjeta del choque, en el celular y en
+ *    panel/subir.html.
+ * ======================================================================== */
+describe('8 · lo que quedaba diciendo «pagado» de un cierre con pérdida', () => {
+  const credito = (id, numero, capital) => quincenal({ id, numero, socioId: 's1', socioNombre: SOCIO.nombre, capital: capital || 300000,
+    fechaDesembolso: '2026-10-01', cicloActual: '2026-10-15' });
+  const cerradoCon = (p, monto) => cerrar({ socios: [SOCIO], prestamos: [p] }, p, '2026-10-31', monto);
+
+  test('«Revisar la cartera» dice «cerrado con pérdida», no «pagado»; un pago de verdad sigue diciendo «pagado»', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerradoCon(credito('a', 1), 0), pagarTodo(credito('b', 2, 200000), '2026-10-31'),
+      cerradoCon(credito('c', 3, 300500), 0)]);
+    CRM.ev('revisarCartera()');
+    const v = texto(CRM.elems.mBody.innerHTML);
+    assert.match(v, /CR-0001 \$300\.000 cerrado con pérdida/, 'el doble registro: ' + v);
+    assert.match(v, /CR-0002 \$200\.000 pagado/);
+    assert.doesNotMatch(v, /CR-0001 \$300\.000 pagado/);
+    assert.match(v, /CR-0003 · Marta Gómez · \$300\.500 · 01 de oct de 2026 · cerrado con pérdida/, 'el monto no redondo: ' + v);
+  });
+
+  test('la galería: el comprobante de un «Se lo perdoné» no dice «Pago $0»', () => {
+    const c = cerradoCon(credito('p7', 7), 0);
+    c.comprobantes = [{ fecha: '2026-10-31', tipo: 'pago', monto: 0, foto: 'data:image/jpeg;base64,QQ==', id: c.condonaciones[0].id }];
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [c]);
+    CRM.ev("verCredito('p7')");
+    const v = texto(CRM.elems.mBody.innerHTML);
+    assert.doesNotMatch(v, /Pago \$0/);
+    assert.match(v, /Cierre con perdón \$0/);
+    const pago = pagarTodo(credito('p7', 7), '2026-10-31');
+    pago.comprobantes = [{ fecha: '2026-10-31', tipo: 'pago', monto: 360000, foto: 'data:image/jpeg;base64,QQ==' }];
+    const OTRO = crmCon('2026-10-31T10:30:00', [SOCIO], [pago]);
+    OTRO.ev("verCredito('p7')");
+    assert.match(texto(OTRO.elems.mBody.innerHTML), /Pago \$360\.000/, 'un pago de verdad sigue siendo «Pago»');
+  });
+
+  /* El crédito a cuotas de la maqueta (650.000 en dos cuotas) cerrado con 300.000. */
+  function cuotasCerrado() {
+    const p = aCuotas({ id: 'q1', numero: 1, socioId: 's1', socioNombre: SOCIO.nombre });
+    return cerrar({ socios: [SOCIO], prestamos: [p] }, p, '2026-10-31', 300000);
+  }
+
+  test('la tarjeta del choque en el celular: ni «¿Pagado? sí» ni «2 de 2 cuotas pagadas» de un cierre con pérdida', () => {
+    const c = cuotasCerrado();
+    assert.ok(P.cerroConPerdida(c), 'precondición: se cerró con pérdida');
+    const e = abrirEspejo({ cartera: { socios: [copia(SOCIO)], prestamos: [copia(c)] }, ahora: '2026-10-31T15:00:00' });
+    e.ctx.__c = copia(c);
+    assert.equal(e.ev("valorCorto('pagado', true, __c)"), 'cerrado con pérdida');
+    const plan = e.ev('resumenDelPlan(__c.planPagos)');
+    assert.doesNotMatch(plan, /2 de 2 cuotas pagadas/, plan);
+    assert.match(plan, /cerrada con perdón/);
+    assert.doesNotMatch(plan, /cuota \d pagada/, 'una cuota cerrada con perdón no se pagó: ' + plan);
+    /* Control: un crédito pagado de verdad sigue diciendo «sí». */
+    e.ctx.__p = pagarTodo(credito('x', 9), '2026-10-31');
+    assert.equal(e.ev("valorCorto('pagado', true, __p)"), 'sí');
+    const hoja = fs.readFileSync(path.join(RAIZ, 'panel', 'espejo.html'), 'utf8');
+    assert.match(hoja, /valorCorto\(p\.campo, p\.mio, c\.mio\)/);
+    assert.match(hoja, /valorCorto\(p\.campo, p\.suyo, c\.suyo\)/);
+  });
+
+  test('la tarjeta del choque en panel/subir.html dice lo mismo', () => {
+    const hoja = fs.readFileSync(path.join(RAIZ, 'panel', 'subir.html'), 'utf8').split(String.fromCharCode(13)).join('');
+    const trozo = (desde, hasta) => { const i = hoja.indexOf(desde), j = hoja.indexOf(hasta, i); assert.ok(i >= 0 && j > i, 'no encontré ' + desde); return hoja.slice(i, j); };
+    const codigo = trozo('function resumenDelPlan(pp){', '\nfunction textoDelCambio') + trozo('function textoDelCambio(u){', '\n}\n') + '\n}\n'
+      + trozo('function muestra(v, campo, fila){', '\nfunction decidir');
+    const caja = { PUENTE: P, fechaCorta: x => String(x), pesosCO: n => '$' + Number(n).toLocaleString('es-CO') };
+    vm.createContext(caja);
+    vm.runInContext(codigo.replace(/\r/g, ''), caja);
+    const c = cuotasCerrado();
+    caja.__c = c;
+    assert.equal(vm.runInContext("muestra(true, 'pagado', __c)", caja), 'cerrado con pérdida');
+    const plan = vm.runInContext('resumenDelPlan(__c.planPagos)', caja);
+    assert.doesNotMatch(plan, /2 de 2 pagadas/, plan);
+    assert.match(plan, /cerrada con perdón/);
+    caja.__p = pagarTodo(credito('x', 9), '2026-10-31');
+    assert.equal(vm.runInContext("muestra(true, 'pagado', __p)", caja), 'sí');
+    assert.match(hoja, /esc\(muestra\(v, c, obj\)\)/);
+  });
+});
