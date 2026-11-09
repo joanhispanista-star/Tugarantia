@@ -5380,11 +5380,11 @@ function cerrarSesionLocal() {
   /* 26-oct-2026 (chat-1) — sin sesión no hay a quién preguntarle: los dos
      relojes del chat se paran y el número de la barra se borra. */
   pararChat(); pararLatidoChat();
+  if (SS) SS.borrar(localStorage);
+  try { sessionStorage.removeItem(SS ? SS.LLAVE_PLAY : 'play_sesion'); } catch (e) {}
   /* 9-nov-2026 — y la propuesta: la casilla, la cuenta elegida y las cuentas
      del registro de esta cuenta no se quedan para la siguiente. */
   if (PDA) PDA.soltar();
-  if (SS) SS.borrar(localStorage);
-  try { sessionStorage.removeItem(SS ? SS.LLAVE_PLAY : 'play_sesion'); } catch (e) {}
 }
 
 function salir() {
