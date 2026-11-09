@@ -2128,7 +2128,15 @@
    llegar, y socio.html no arranca sin él), y cambia uno publicado, app/sesion-socio.js
    (textoSinJuntar dice primero lo de su crédito), que pasa a ?v=143 en socio.html y en
    la precarga. socio.html pide además app/bancos-colombia.js y app/cuentas-pago.js, que
-   no cambiaron y ya estaban en la precarga. No hay base nueva. */
+   no cambiaron y ya estaban en la precarga. No hay base nueva.
+   Y en el CRM (panel/crm.html, la misma tanda): la ficha trae «Lo que pidió» —cada
+   solicitud abierta de esa persona, de la ficha y de su registro, con lo pedido, lo
+   propuesto, en qué va y los botones de la bandeja; aceptada, «Registrar el crédito
+   con lo que aceptó» (crearDesdeSolicitud)— y dice si la cuenta de su registro no está
+   junta, con el botón de juntar de siempre (nunca la junta sola). «＋ Nuevo crédito»,
+   «＋ Con garantía» y el formulario de Créditos avisan ANTES si hay una propuesta
+   abierta, con las dos salidas. Y al crear la ficha desde una solicitud se ofrece
+   juntar su cuenta. Solo cambia la página: ningún .js del CRM sube de versión. */
 const CACHE = 'tugarantia-v143';
 const BASE = new URL('./', self.location).pathname;
 

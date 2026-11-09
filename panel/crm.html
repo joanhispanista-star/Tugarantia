@@ -6211,6 +6211,7 @@ function verCliente(id){
     ${bloqueCuenta}
     ${bloqueSalida}
     ${bloqueAtiende}
+    ${bloqueLoQuePidio(s)}
     <div class="info-row"><span class="k">Ganancia generada</span><span class="vv gano">${COP(gan)}</span></div>
     ${huellaHTML}
     <div class="alerta info solo-tuyo"><b class="tit-solo">Solo para ti · el fondo del cupón (reparto ${REPARTO_TXT})</b>
@@ -6268,6 +6269,10 @@ function verCliente(id){
   /* 8-oct-2026 — los giros que esta ficha guarda (↻ Girar), y la ubicación
      aproximada de su IP de registro. */
   _girosFicha=(s.girosFotos&&typeof s.girosFotos==='object')?s.girosFotos:null;
+  /* 9-nov-2026 — «Lo que pidió» sale de la bandeja de solicitudes: si hace rato
+     que no se le pregunta a la nube, se pregunta, y el bloque se repinta solo al
+     llegar (pintarLoQuePidio, desde traerSolicitudes). */
+  try { traerSolicitudesSiToca(); } catch(e){}
   try { resolverFotos(document.getElementById('mBody')).then(()=>botonParecido()); } catch(e){}
   try { resolverUbicaciones(); } catch(e){}
   /* 22-oct-2026 (C2) — y lo que llegó a la nube DESPUÉS de crear la ficha. */
@@ -6583,8 +6588,14 @@ function marcarInvitacionUsada(cod,socio){
 }
 
 /* ===== CRÉDITO: nuevo (con pegar de WhatsApp) ===== */
-function nuevoCredito(preId){
+function nuevoCredito(preId,aMano){
   const pre=preId?DB.socios.find(x=>x.id===preId):null;
+  /* 9-nov-2026 — CON UNA PROPUESTA ABIERTA, PRIMERO EL AVISO (ver LO QUE PIDIÓ,
+     EN SU FICHA). Joan registró a mano el crédito de una clienta que tenía una
+     propuesta esperando: el crédito no llevó lo que se le propuso y la
+     solicitud quedó colgando. `aMano` es «Registrarlo a mano igual». */
+  if(pre&&aMano!==true){ const abiertas=solicitudesConPropuesta(pre); if(abiertas.length) return avisoAntesDeAMano(pre,abiertas); }
+  _aManoVisto=pre?pre.id:null;
   openModal(pre?'Nuevo crédito · '+codCliente(pre)+' '+pre.nombre:'Nuevo crédito',`
     <div class="sub-h">Pega el mensaje de WhatsApp (opcional)</div>
     <textarea class="pastebox" id="qPaste" placeholder="Ej:&#10;Hola, soy Carlos Rincón 311 245 7788&#10;correo carlos@gmail.com&#10;Necesito 400.000"></textarea>
@@ -6918,6 +6929,10 @@ function guardarRapido(){
   const nombre=gv('qNombre'),tel=gv('qTel'),cap=Number(gv('qCap'))||0,costo=cc.pct,f=gv('qFecha'),ovr=gv('qCiclo');
   if(!nombre||!tel){ alert('Pon al menos nombre y celular.'); return; } if(cap<=0){ alert('Pon el capital.'); return; }
   let s=socioDelCredito(tel);
+  /* 9-nov-2026 — y si esa persona tiene una propuesta abierta, las dos salidas
+     antes (seguirAManoPese): desde Créditos el formulario no sabe de quién es
+     hasta aquí. */
+  if(!seguirAManoPese(s)) return;
   /* El cupo se revisa ANTES de tocar el DB: si dices que no, no queda ni la
      ficha ni el crédito a medio crear. Al cliente nuevo no hay qué revisarle:
      todavía no tiene historia, y su cupo sale de los datos que le cargues. */
@@ -6980,6 +6995,7 @@ function guardarRapidoACuotas(){
   if(!a.ok){ alert('No registré nada: el plan de cuotas no cuadra.\n\n'+a.error); return; }
   const plan=a.plan;
   let s=socioDelCredito(tel);
+  if(!seguirAManoPese(s)) return;   // 9-nov-2026 — la propuesta abierta, como en guardarRapido
   const r=revisarCupo(s,cap);
   if(r&&(r.pasa||r.pasaSumando)&&!confirm(textoCupo(r)+'\n¿Lo registro igual?'))return;
   const ea=eaDelPlanAlta(f,cap,plan), usura=DB.config.tasaUsuraEA;
@@ -22295,6 +22311,10 @@ function marcarRegistro(id,estado){
    monto ni el plazo que mandó la app se dan por buenos, los recalcula el motor
    con tus datos igual que si lo escribieras a mano. */
 function nuevoRespaldado(preId,sol){
+  /* 9-nov-2026 — «＋ Con garantía» a mano desde la ficha, con una propuesta
+     abierta: el mismo aviso que «＋ Nuevo crédito» (ver LO QUE PIDIÓ, EN SU
+     FICHA). Con `sol` viene de la solicitud: ya es lo que pidió. */
+  if(preId&&!sol){ _aManoVisto=null; const ps=DB.socios.find(x=>x.id===preId); if(ps&&!seguirAManoPese(ps)) return; }
   const elegibles=DB.socios.filter(s=>maxRespaldadoDe(s)>0)
     .sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
   if(!elegibles.length) return alert('Ahora mismo ningún cliente tiene garantía ganada LIBRE.\n\nLa garantía ganada sale de pagar: cada crédito quincenal que te pagan le deja al cliente el '+PCT_GARANTIA+' del costo. El cupón por sus datos NO sirve de respaldo para este producto.\n\nY la que ya está sosteniendo un crédito quincenal abierto tampoco: se libera cuando te lo paguen.');
@@ -22636,6 +22656,7 @@ function fallaSolicitudes(html){
   _solEstado='error'; _solErrorHTML=html;
   renderBandeja(); pintarAvisos();
   if(_registros.length) renderRegistros();
+  try{ pintarLoQuePidio(); }catch(e){}   // 9-nov-2026 — la ficha abierta dice que no pudo preguntar
 }
 function traerSolicitudes(callado){
   const c=sbCfg(), b=document.getElementById('bandeja');
@@ -22672,6 +22693,8 @@ function traerSolicitudes(callado){
     /* Registrados dice qué pidió cada uno (pedidoEnRegistro): con la lista
        nueva, se repinta. */
     if(_registros.length) renderRegistros();
+    /* 9-nov-2026 — y la ficha abierta, «Lo que pidió» (ver LO QUE PIDIÓ, EN SU FICHA). */
+    try{ pintarLoQuePidio(); }catch(e){}
   })
   .catch(()=>{ if(turno===_solTurno) fallaSolicitudes('Sin conexión. Revisa el internet.'); });
   /* 22-sep-2026 — y de paso los recados de acceso. Un botón aparte para una
@@ -23267,13 +23290,27 @@ function crearDesdeSolicitud(id){
     +'Antes de prestar, mándale la propuesta con «✏️ Proponer»: en su app la ve con «Las condiciones de este crédito», la acepta, y ahí te aparece el botón de desembolsar.');
   if(!cli&&s.datos&&typeof s.datos==='object'&&Object.keys(s.datos).length){
     if(!confirm('«'+s.nombre+'» todavía no tiene ficha. La creo ahora con los datos que declaró al registrarse (sin verificar), y sigo con el crédito.\n\n¿Continúo?')) return;
+    /* 9-nov-2026 — Y EN EL MISMO PASO, SU CUENTA DE LA APP. Así nació la ficha de
+       la clienta del 9-nov, y su cuenta se quedó sin juntar: su app le decía
+       «nos falta un paso de nuestro lado» y no veía el crédito que le
+       registraron. Se ofrece, no se hace solo (decisión de Joan del 7-oct): con
+       su sí queda «por juntar», igual que al abrirle la ficha desde 📥
+       Registrados (guardarCliente), y se junta cuando su historial suba a la
+       nube (juntarCuentasPendientes); si la nube ve algo raro, no la junta y lo
+       dice en su ficha. Solo si la solicitud trae su registro y su celular. */
+    const telCuenta=telDeSolicitud(s);
+    const juntarCuenta=!!(s.registro_id!=null&&telCuenta)&&confirm('¿Junto también su cuenta de la app (el '+(UP?UP.bonito(telCuenta):telCuenta)+') con esa ficha?\n\n'
+      +'Así ve en su app su historial y el crédito que le registres. Es lo mismo que pasa cuando le abres la ficha desde 📥 Registrados: se junta cuando su ficha suba a la nube, y si la nube ve algo raro no la junta y te lo dice en su ficha.\n\n'
+      +'Si no estás seguro de que esa cuenta sea suya, toca Cancelar: la ficha se crea igual, y la juntas después con «🔗 Buscar su registro».');
     /* Primero sus fotos, su ubicación y su huella (una llamada); después la
        ficha con todo, y se vuelve a entrar acá ya con ficha. */
     /* 15-sep-2026 — se le pasa a socioDesdeDatos EL IDENTIFICADOR con el que se
        le pregunto a la nube, para que el token guarde exactamente eso y el
        resolvedor vuelva a preguntar lo mismo. Ver el comentario de adentro:
        `s.cedula` de una solicitud NO es la cedula. */
-    return archivosDe(s.cedula).then(a=>{ const nuevo=socioDesdeDatos(s,a,diez(s.cedula)); DB.socios.push(nuevo);
+    return archivosDe(s.cedula).then(a=>{ const nuevo=socioDesdeDatos(s,a,diez(s.cedula));
+      if(juntarCuenta) nuevo.cuentaPorJuntar={registro_id:Number(s.registro_id),desde:hoyISO()};
+      DB.socios.push(nuevo);
       /* 9-nov-2026 — primero el disco, después la nube (ver quedoEnDisco). */
       if(!quedoEnDisco()){ render(); return; }
       if(s.registro_id&&sbListo()) rpc('marcar_registro',{p_clave:sbCfg().clave,p_id:Number(s.registro_id),p_estado:'atendido'}).catch(()=>{});
@@ -23433,6 +23470,206 @@ function socioDeSolicitud(s) {
 }
 function esSolicitudSinJuntar(s) {
   return !!(s && (s.cuenta_sin_juntar === true || /^0\d{10}$/.test(String(s.cedula || '').replace(/\D/g, ''))));
+}
+
+/* ===========================================================================
+ * LO QUE PIDIÓ, EN SU FICHA — 9 de noviembre de 2026
+ *
+ * Una clienta pidió en play/ y Joan le mandó una propuesta. Ella no la veía
+ * (app/socio.html no preguntaba por la solicitud: ver app/propuesta-en-la-app.js),
+ * y Joan, sin «✅ Aceptó» a la vista, abrió su ficha y le registró un crédito
+ * desde cero con «＋ Nuevo crédito». La ficha no decía nada de lo que ella
+ * había pedido ni de lo que él le había propuesto: la solicitud vivía solo en
+ * 📋 Socios y en 📥 Registrados, y el crédito a mano no llevó ni la propuesta,
+ * ni el techo del recargo que aceptó, ni a dónde consignarle.
+ *
+ * Desde hoy la ficha trae «Lo que pidió»: cada solicitud abierta de esa
+ * persona —las que el cruce de siempre le pega (socioDeSolicitud) y las de su
+ * registro (solicitudesDeRegistro, por el celular o el registro de la
+ * ficha)— con lo pedido, lo propuesto, en qué va y los MISMOS botones de la
+ * bandeja; aceptada, «Registrar el crédito con lo que aceptó», que es
+ * crearDesdeSolicitud. Y «＋ Nuevo crédito» avisa antes si hay una propuesta
+ * abierta (ver nuevoCredito).
+ *
+ * Si la cuenta de su registro no está junta con esta ficha, se dice, con el
+ * botón de juntar que ya existe. No se junta solo: Joan decidió el 7-oct que
+ * juntar sea siempre su toque, mirando.
+ * ======================================================================== */
+/* ¿La app del cliente puede mostrar esta solicitud para que la acepte?
+   mi_solicitud (base/20261007_una_puerta.sql) lee «cedula = celular de la
+   sesión»: ve las que quedaron con su CELULAR (las de play/, y las de su app
+   cuando la ficha tiene el celular por llave). Las que pidió desde su cuenta
+   junta con una ficha de CÉDULA (solicitar_por_sesion guarda la llave de la
+   ficha) su app no las encuentra, ni aceptar_contrapropuesta las acepta: decir
+   «en su app la ve» de esas sería prometer lo que la base no hace. PlataChat
+   tiene su propia puerta (mi_solicitud_platachat). Las pegadas no tienen app. */
+function laVeEnSuApp(s) {
+  if (!s || s.origen === 'pegada') return false;
+  if (String(s.app || '') === 'platachat') return true;
+  return !!telDeSolicitud(s);
+}
+/* Lo que se le dice a Joan cuando su app NO la puede mostrar. */
+const NO_LA_VE_EN_SU_APP = 'Ojo: esta solicitud quedó guardada con su cédula (la pidió desde su cuenta junta), y su app solo muestra las que quedan con su celular: hoy no la va a ver ni a poder aceptarla desde ahí. Confírmale las condiciones por el chat.';
+
+/* Las solicitudes abiertas de esta ficha, cada una una vez: las que el cruce le
+   pega y las de su registro. `por` dice de dónde salió; `sinJuntar`, que la
+   pidió una cuenta que ESTE computador no ha juntado con esta ficha. */
+function solicitudesDeLaFicha(s) {
+  if (!s) return [];
+  const vistas = {}, out = [];
+  const poner = (x, por) => {
+    if (!x || x.id == null || vistas[String(x.id)]) return;
+    vistas[String(x.id)] = 1;
+    const tel = telDeSolicitud(x);
+    const junta = !!(s.cuentaJunta && tel && diez(s.cuentaJunta.celular) === tel);
+    out.push({ sol: x, por, tel, sinJuntar: !!tel && !junta && String(x.app || '') !== 'platachat' });
+  };
+  (_solicitudes || []).forEach(x => { const c = socioDeSolicitud(x); if (c && c.id === s.id) poner(x, 'ficha'); });
+  /* Las de su registro: solicitudesDeRegistro mira el registro del que nació
+     cada una y el celular. Los registros que se le conocen a la ficha (el que
+     la abrió, el que se juntó, los que se cruzaron) y sus celulares. */
+  const ids = [s.cuentaPorJuntar && s.cuentaPorJuntar.registro_id, s.cuentaJunta && s.cuentaJunta.registro_id]
+    .concat((Array.isArray(s.cruces) ? s.cruces : []).filter(c => c && !c.deshecho).map(c => c.registro_id))
+    .filter(v => v != null && v !== '');
+  ids.forEach(id => solicitudesDeRegistro({ id, telefono: '' }).forEach(x => poner(x, 'registro')));
+  celularesDeFicha(s).forEach(t => solicitudesDeRegistro({ id: null, telefono: t }).forEach(x => poner(x, 'registro')));
+  return out;
+}
+/* Las que tienen una propuesta abierta (esperando o aceptada): las que un
+   crédito a mano dejaría colgando. */
+function solicitudesConPropuesta(s) {
+  return solicitudesDeLaFicha(s).filter(x => x.sol.contrapropuesta && typeof x.sol.contrapropuesta === 'object'
+    && (x.sol.estado === 'contrapropuesta' || x.sol.estado === 'aceptada'));
+}
+/* Lo propuesto, en una línea: lo mismo que el cliente ve en pesos. */
+function propuestaEnUnaLinea(sol) {
+  const cp = sol && sol.contrapropuesta;
+  if (!cp || typeof cp !== 'object') return '';
+  const cuotas = Array.isArray(cp.cuotas) && cp.cuotas.length > 1 ? cp.cuotas : null;
+  return 'le propusiste ' + COP(Number(cp.capital) || 0) + ' y devuelve ' + COP(Number(cp.total) || 0)
+    + (cuotas ? ' en ' + cuotas.length + ' cuotas' : cp.fecha_pago ? ' el ' + fmtFecha(String(cp.fecha_pago).slice(0, 10)) : '');
+}
+function loQuePidioDe(sol) {
+  const p = (sol && sol.pedido && typeof sol.pedido === 'object') ? sol.pedido : {};
+  const monto = Math.round(Number(sol.pedido_monto) || Number(p.capital) || Number(sol.capital) || 0);
+  const pz = plazoPedido(sol);
+  const prod = productoSolicitud(sol) === 'respaldado';
+  return 'Pidió ' + (monto ? '<b>' + COP(monto) + '</b>' : 'un crédito')
+    + (pz ? ' ' + escHTML(pz.texto) : prod ? ' a ' + plazoSolicitud(sol) + ' meses' : sol.fecha_corte ? ' para el ' + escHTML(fmtFecha(String(sol.fecha_corte).slice(0, 10))) : '')
+    + (prod ? ' · con garantía' : '')
+    + (String(sol.app || '') === 'platachat' ? ' · por PlataChat' : sol.origen === 'pegada' ? ' · pegada de WhatsApp' : '');
+}
+/* El bloque. Sin nube no hay solicitudes que mostrar, y se dice; mientras se
+   pregunta o si la pregunta falló, también (el patrón de la bandeja: «no
+   pidió nada» solo con una respuesta buena). */
+function bloqueLoQuePidio(s) {
+  return '<div id="fichaPidio" data-socio="' + escHTML(String(s && s.id || '')) + '">' + loQuePidioHTML(s) + '</div>';
+}
+function loQuePidioHTML(s) {
+  /* La bandeja es de Joan (listar_solicitudes_abiertas pide su clave): en el
+     modo #equipo no hay qué mostrar, y «Preguntando…» se quedaría para siempre. */
+  if (!s || (typeof CARTERA_EQUIPO !== 'undefined' && CARTERA_EQUIPO)) return '';
+  const lista = solicitudesDeLaFicha(s);
+  const estado = !sbListo() ? (lista.length ? '' : 'sin_nube')
+    : _solEstado === 'ok' ? '' : _solEstado === 'error' ? 'error' : 'cargando';
+  if (!lista.length && estado !== 'error' && estado !== 'cargando') return '';
+  let h = '<div class="sub-h">Lo que pidió</div>';
+  if (estado === 'cargando') h += '<div class="muted" style="font-size:12.5px;margin-bottom:6px">Preguntando a la nube qué pidió…</div>';
+  if (estado === 'error') h += '<div class="muted" style="font-size:12.5px;margin-bottom:6px">No pude preguntarle a la nube qué pidió: si pidió algo, puede no salir aquí. <button class="btn btn-ghost btn-sm" onclick="traerSolicitudes()">↻ Buscar en la nube</button></div>';
+  lista.forEach(x => { h += filaLoQuePidio(s, x); });
+  /* La cuenta de su registro, si este computador no la ha juntado con esta
+     ficha: una vez por celular, con el toque que ya existe. */
+  const sueltas = lista.filter(x => x.sinJuntar).map(x => x.tel).filter((t, i, a) => a.indexOf(t) === i);
+  sueltas.forEach(t => {
+    const deOtro = lista.some(x => x.tel === t && esSolicitudSinJuntar(x.sol) && !socioDeSolicitud(x.sol));
+    const cpj = s.cuentaPorJuntar && !s.cuentaJunta;
+    h += '<div class="alerta ' + (deOtro ? 'warn' : 'info') + '" style="margin-top:8px">'
+      + (deOtro
+        ? '<b>La pidió la cuenta del ' + escHTML(UP ? UP.bonito(t) : t) + ', que no está junta con esta ficha.</b> Ese celular es el de esta ficha, pero no sabemos si la cuenta es de esta persona: no le registres nada con esa solicitud hasta juntarla, mirando.'
+        : '<b>Su cuenta de la app (el ' + escHTML(UP ? UP.bonito(t) : t) + ') no está junta con esta ficha desde este computador.</b> En su app ve su solicitud y tu propuesta, pero no su historial ni los créditos que le registres. Júntala cuando revises que es ella.')
+      + '<div style="margin-top:8px">' + (cpj
+        ? '<button class="btn btn-sm" onclick="juntarPendienteAhora(\'' + escHTML(s.id) + '\')">🔗 Juntar su cuenta</button>'
+        : '<button class="btn btn-ghost btn-sm" onclick="buscarRegistroParaJuntar(\'' + escHTML(s.id) + '\')" title="Trae el registro de su celular o su cédula y abre «¿Es la misma persona?» para juntar su cuenta">🔗 Buscar su registro</button>')
+      + '</div></div>';
+  });
+  return h;
+}
+function filaLoQuePidio(s, x) {
+  const sol = x.sol, id = escHTML(String(sol.id));
+  const cp = (sol.contrapropuesta && typeof sol.contrapropuesta === 'object') ? sol.contrapropuesta : null;
+  const pc = String(sol.app || '') === 'platachat';
+  const conConst = !!(cp && cp.condiciones && typeof cp.condiciones === 'object');
+  let chip = '', accion = '';
+  if (!cp) {
+    chip = sol.origen === 'pegada' ? '' : '<span class="chip al-dia">⏳ Esperando TU propuesta</span>';
+    accion = sol.origen === 'pegada'
+      ? '<button class="btn btn-rojo btn-sm" onclick="cerrarModal();crearDesdeSolicitud(\'' + id + '\')">Registrar el crédito con lo que pidió</button>'
+      : '<button class="btn btn-rojo btn-sm" onclick="editarContrapropuesta(\'' + id + '\')">✏️ Proponer</button>';
+  } else if (sol.estado === 'aceptada') {
+    chip = conConst || sol.origen === 'pegada' ? '<span class="chip pagado">✅ Aceptó</span>'
+      : '<span class="chip mora" title="Aceptó por una puerta que no guarda lo que leyó. Confírmale las condiciones por el chat antes de desembolsar.">⚠️ Aceptó SIN constancia de condiciones</span>';
+    accion = '<button class="btn btn-rojo btn-sm" onclick="cerrarModal();crearDesdeSolicitud(\'' + id + '\')">Registrar el crédito con lo que aceptó</button>';
+  } else {
+    chip = '<span class="chip al-dia">📨 Esperando que acepte</span>';
+    accion = '<button class="btn btn-ghost btn-sm" onclick="editarContrapropuesta(\'' + id + '\')">✏️ Cambiar propuesta</button>';
+  }
+  const noLaVe = cp && sol.estado !== 'aceptada' && !laVeEnSuApp(sol) && sol.origen !== 'pegada';
+  return '<div class="info-row con-botones"><span class="k">🙋 ' + loQuePidioDe(sol)
+    + (sol.pedido_nota ? '<div class="muted" style="font-style:italic">«' + escHTML(String(sol.pedido_nota)) + '»</div>' : '')
+    + '<div class="muted">' + (cp ? escHTML(propuestaEnUnaLinea(sol)) : pc && sol.estado === 'nueva' ? 'todavía sin propuesta: el automático le propone si dejas correr la hora' : 'todavía sin propuesta') + '</div>'
+    + (chip ? '<div style="margin-top:4px">' + chip + '</div>' : '')
+    + condicionesAceptadasDe(sol) + destinoEnLaFila(sol)
+    + (noLaVe ? '<div class="muted" style="color:var(--ambar);white-space:normal">⚠️ ' + escHTML(NO_LA_VE_EN_SU_APP) + '</div>' : '')
+    + '</span><span class="vv">' + accion + '</span></div>';
+}
+/* Cuando llegan las solicitudes de la nube (traerSolicitudes), la ficha que
+   está abierta se repinta sola: si no, diría «Preguntando…» para siempre. */
+function pintarLoQuePidio() {
+  const c = document.getElementById('fichaPidio');
+  if (!c || !_fichaVista || (c.dataset && c.dataset.socio && c.dataset.socio !== String(_fichaVista))) return;
+  const s = DB.socios.find(x => x.id === _fichaVista);
+  if (s) c.innerHTML = loQuePidioHTML(s);
+}
+
+/* «＋ Nuevo crédito» con una propuesta abierta: las dos salidas, ANTES. A mano,
+   el crédito no lleva lo que aceptó (el monto, la fecha, el techo del recargo
+   ni a dónde consignar), la solicitud se queda en la bandeja y su app sigue
+   esperando. Joan puede tener sus razones: se avisa, no se prohíbe. */
+let _aManoVisto = null;   // la ficha cuyo aviso ya vio Joan en este «＋ Nuevo crédito»
+function textoAntesDeAMano(s, abiertas) {
+  const aceptada = abiertas.find(x => x.sol.estado === 'aceptada');
+  return (s.nombre || 'Este cliente') + ' tiene ' + (abiertas.length === 1 ? 'una propuesta abierta' : abiertas.length + ' propuestas abiertas') + ':\n\n'
+    + abiertas.map(x => '• ' + propuestaEnUnaLinea(x.sol).replace(/^le/, 'Le') + ' — ' + (x.sol.estado === 'aceptada' ? 'la ACEPTÓ' : 'esperando que la acepte')).join('\n') + '\n\n'
+    + (aceptada
+      ? 'Lo bueno es registrarlo desde la solicitud («Registrar el crédito con lo que aceptó», en su ficha): lleva lo que aceptó, el techo del recargo y a dónde consignarle, y la solicitud sale de la bandeja.\n\n'
+      : 'Lo bueno es esperar a que la acepte (o cambiarle la propuesta con «✏️ Cambiar propuesta») y registrarlo desde la solicitud.\n\n')
+    + 'Si lo registras a mano, la propuesta queda abierta: su app seguirá esperando, y la solicitud sigue en la bandeja hasta que la descartes (✕).\n\n¿Lo registro a mano igual?';
+}
+function avisoAntesDeAMano(s, abiertas) {
+  const aceptada = abiertas.find(x => x.sol.estado === 'aceptada');
+  const id = escHTML(s.id);
+  openModal('Antes de registrarlo a mano · ' + (s.nombre || ''), `
+    <div class="alerta warn"><b>${escHTML(s.nombre || 'Este cliente')} tiene ${abiertas.length === 1 ? 'una propuesta abierta' : abiertas.length + ' propuestas abiertas'}.</b>
+      Un crédito a mano no lleva lo que aceptó: ni el monto y la fecha de la propuesta, ni el techo del recargo, ni a dónde consignarle.</div>
+    ${abiertas.map(x => filaLoQuePidio(s, x)).join('')}
+    <div class="sub-h">${aceptada ? 'Lo bueno: registrarlo desde la solicitud' : 'Lo bueno: esperar a que la acepte'}</div>
+    <div class="help">${aceptada
+      ? 'Con «Registrar el crédito con lo que aceptó» el crédito lleva lo que aceptó, y la solicitud sale de la bandeja.'
+      : 'Cuando la acepte desde su app, en su ficha te sale «Registrar el crédito con lo que aceptó». Si quieres cambiarle algo, usa «✏️ Cambiar propuesta».'}</div>
+    <div class="sub-h">Si lo registras a mano</div>
+    <div class="help">La propuesta queda abierta: <b>su app seguirá esperando</b>, y la solicitud sigue en la bandeja hasta que la descartes (✕).</div>
+    <div class="two" style="margin-top:12px">
+      <button class="btn btn-ghost" onclick="verCliente('${id}')">Volver a su ficha</button>
+      <button class="btn btn-ghost" onclick="nuevoCredito('${id}',true)">Registrarlo a mano igual</button>
+    </div>`);
+}
+/* El formulario de Créditos (sin ficha de entrada) se entera de quién es al
+   guardar, por el celular: ahí va el mismo aviso, como pregunta. */
+function seguirAManoPese(s) {
+  if (!s || _aManoVisto === s.id) return true;
+  const abiertas = solicitudesConPropuesta(s);
+  if (!abiertas.length) return true;
+  return confirm(textoAntesDeAMano(s, abiertas));
 }
 
 /* `modo` se recibe y NO se lee de _cpModo, y ahí estaba el defecto: cambiar de
