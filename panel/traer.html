@@ -139,7 +139,7 @@ h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Tim
 .pill.fallo{border-color:var(--ambar-filete);background:var(--ambar-papel);color:var(--ambar-tinta)}
 
 /* ---------------- avisos ---------------- */
-.aviso{border-radius:14px;padding:13px;font-size:14px;margin-top:var(--e3);line-height:1.5;
+.aviso{border-radius:14px;padding:13px;font-size:14px;margin-top:var(--e3);line-height:1.5;overflow-wrap:anywhere;
   border:1px solid var(--linea)}
 .aviso:first-child{margin-top:0}
 .aviso.info{border-color:color-mix(in srgb, var(--azul-texto) 25%, transparent);
@@ -195,15 +195,51 @@ input[type=text],input[type=email],input[type=password],input[type=url]{
 input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
 :where(button,a,summary,[tabindex]):focus-visible{outline:2px solid var(--rojo-texto);outline-offset:2px;border-radius:8px}
 .ayuda{font-size:12px;color:var(--gris);margin-top:6px;line-height:1.45}
+/* 6-nov-2026 — ESTA PÁGINA TIENE DOS CARAS. Tal como viene en el HTML es la de siempre: la
+   del computador de Joan, con su cartera, y la que queda si algo falla antes de arrancar.
+   Todo lo que la acorta para un teléfono cuelga de .aparato-nuevo, que plegarLaPagina le
+   pone a <html> solo donde no hay nada que perder (ver esAparatoNuevo). Sin esa clase, estos
+   dos <details> se pintan como los <div> de antes: abiertos, sin marca y sin plegarse.
+   La fila va en un <div> y no en el <summary>: Safari no siempre le hace caso a display:flex
+   en un <summary>, y el teléfono de Joan es Safari. */
+details>summary{display:block;list-style:none;cursor:auto}
+details>summary::-webkit-details-marker{display:none}
+.solo-aparato-nuevo{display:none}
+.aparato-nuevo .solo-aparato-nuevo{display:block}
+/* Los avisos de arriba, plegados. 44 px de alto, como todo lo que se toca con el dedo. */
+.aparato-nuevo .card-antes{padding:var(--e3) 16px}
+.aparato-nuevo #cabAvisos{margin-top:var(--e1);cursor:pointer}
+.aparato-nuevo #cabAvisos .card-cab{justify-content:flex-start;flex-wrap:nowrap;min-height:44px}
+.aparato-nuevo #cabAvisos .card-cab::before{content:'▸';color:var(--gris);font-size:13px;width:13px;flex:none}
+.aparato-nuevo #losDetalles[open] #cabAvisos .card-cab::before{content:'▾'}
+.aparato-nuevo #cabAvisos h3{font-family:inherit;font-size:14px;letter-spacing:normal}
+.aparato-nuevo #paraQueSirve .sub{margin-top:var(--e3);font-size:14px}
+/* El paso 1 se pliega en un teléfono vacío. Su encabezado es el mismo de los demás pasos:
+   44 px para el dedo sin que el renglón crezca, y la marca a la derecha de la pastilla. */
+.aparato-nuevo #cabPaso1{cursor:pointer;padding:9px 0;margin:-9px 0}
+.aparato-nuevo #cabPaso1 .card-cab{flex-wrap:nowrap;gap:6px}
+.aparato-nuevo #cabPaso1 .pill{flex:none}
+.aparato-nuevo #cabPaso1 h3{margin-right:auto}
+.aparato-nuevo #cabPaso1 .card-cab::after{content:'▸';color:var(--gris);font-size:13px}
+.aparato-nuevo #c1[open] #cabPaso1 .card-cab::after{content:'▾'}
+/* La nota de la conexión y un error a la vez: en la cara de siempre van seguidas, y las
+   dos son el primer hijo de su cajón, así que quedarían pegadas. */
+#notaConexion:not(:empty)+#msg2 .aviso{margin-top:var(--e3)}
+/* El aviso del PIN es el primer hijo de su cajón, y encima siempre tiene otro aviso. */
+#avisoPinPaso3 .aviso,#avisoPinAntesDeTraer .aviso{margin-top:var(--e3)}
+/* 6-nov-2026 — «Cambiar la conexión» casi nadie la necesita: como enlace, para que debajo
+   de «Entrar» no parezca el paso siguiente. 44 px para el dedo igual. */
+.btn-texto{display:block;width:100%;min-height:44px;background:none;border:0;color:var(--gris);
+  font:inherit;font-size:13px;text-decoration:underline;cursor:pointer}
 .pie{text-align:center;font-size:12px;color:var(--gris);margin:24px 0 8px;line-height:1.6}
 .pie a{color:var(--gris)}
 </style>
 </head>
 <body>
 
-<!-- LA PUERTA. Solo aparece si en este aparato YA hay una cartera; ver
-     decidirPuerta() abajo, que explica por qué un PIN sobre un aparato vacío
-     sería un candado de mentiras. -->
+<!-- LA PUERTA. Solo aparece si en este aparato hay algo que tapar; ver
+     hayAlgoQueTapar() abajo, que explica por qué un PIN de fábrica sobre un aparato
+     que solo guarda ajustes sería un candado de mentiras. -->
 <div class="gate" id="gate">
   <div class="gate-caja">
     <div class="mk"><span class="sello">G</span> Tu&nbsp;Garantía</div>
@@ -211,8 +247,8 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
     <input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off">
     <button class="btn" id="btnPuerta" type="button">Entrar</button>
     <div class="gate-err" id="pinErr"></div>
-    <div class="porque">Es el mismo PIN del Panel. Se pide porque en este aparato ya hay una cartera:
-      esta página puede bajártela entera como archivo, así que sin PIN sería la puerta de atrás del Panel.</div>
+    <div class="porque" id="porquePuerta">Es el PIN guardado en este navegador. Se pide porque aquí ya hay algo guardado:
+      esta página puede bajártelo entero como archivo, así que sin PIN sería la puerta de atrás del Panel.</div>
   </div>
 </div>
 
@@ -220,7 +256,7 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
   <div class="wrap">
     <div class="marca"><span class="sello">G</span> Tu Garantía</div>
     <h1>Traer el CRM a este aparato</h1>
-    <div class="sub">Baja tu cartera de la nube y la deja donde el CRM de siempre la busca. Después abres
+    <div class="sub" id="queHace">Baja tu cartera de la nube y la deja donde el CRM de siempre la busca. Después abres
       <span class="mono">crm.html</span> y lo ves completo, sin instalar nada.</div>
   </div>
 </header>
@@ -231,9 +267,25 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
   <div id="faltaAlgo"></div>
 
   <!-- LO QUE DECIDE SI ESTO AYUDA O HACE DAÑO. Va arriba del todo, antes de
-       cualquier botón, porque es lo que Joan tiene que saber ANTES de usarlo. -->
-  <div class="card">
-    <div class="card-cab"><h3>Antes de nada: para qué sirve esto y para qué no</h3></div>
+       cualquier botón, porque es lo que Joan tiene que saber ANTES de usarlo.
+       6-nov-2026 — y sigue antes de los botones, y donde hay algo que perder sigue a la
+       vista, como siempre (la línea de las fotos es lo único que le dice a quien está en
+       el computador que traer aquí se las llevaría). Solo en un aparato nuevo va plegado,
+       porque a 390 px estos cinco avisos empujaban «Entrar» a 1.945 px: la primera pantalla
+       no tenía nada que tocar y parecía una página de avisos, no algo que se usa. Ahí, a la
+       vista queda lo único que no se puede ignorar; el resto, a un toque y con los mismos
+       textos. La frase de la cabecera baja también (ver plegarLaPagina).
+       La frase decía «lo que anotes aquí no llega a tu computador ni a tus clientes», y la
+       primera mitad era falsa: el CRM del teléfono sube solo (nube-crm.js, panel_empujar) y
+       en el computador ☁ Subir lo ofrece para aplicar. Se leía como una libreta de pruebas,
+       justo antes de una pantalla que dice «☁ Todo sube solo». Lo cierto es que no entra
+       SOLO. Y a los clientes no les llega desde aquí porque sbListo() pide la clave de
+       sincronización, y este camino no la trae. -->
+  <div class="card card-antes">
+    <div class="aviso ambar solo-aparato-nuevo" id="fraseDeArriba">Sirve para mirar: lo que anotes aquí sube a la nube, pero no entra solo a tu computador ni les llega a tus clientes.</div>
+    <details id="losDetalles" open>
+    <summary id="cabAvisos" tabindex="-1"><div class="card-cab"><h3>Antes de nada: para qué sirve esto y para qué no</h3></div></summary>
+    <div id="paraQueSirve"></div>
     <div class="cuerpo">
       <div class="aviso ambar">
         <b class="tit">Este camino es para MIRAR</b>
@@ -273,6 +325,7 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
         el espejo <b>no toca</b> lo que traigas acá.
       </div>
     </div>
+    </details>
   </div>
 
   <!-- El aviso que salva el martes: otra pestaña escribió en la cartera. -->
@@ -284,15 +337,15 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
   </div>
 
   <!-- =============================== PASO 1 · QUÉ HAY ACÁ =============== -->
-  <div class="card" id="c1">
-    <div class="card-cab">
+  <details class="card" id="c1" open>
+    <summary id="cabPaso1" tabindex="-1"><div class="card-cab">
       <h3><span class="paso-n">1</span> Qué hay en este aparato</h3>
       <span class="pill" id="e1">Contando</span>
-    </div>
+    </div></summary>
     <div class="cuerpo" id="cuerpo1">
       <div class="aviso info">Contando lo que hay guardado…</div>
     </div>
-  </div>
+  </details>
 
   <!-- =============================== PASO 2 · CONECTAR ================== -->
   <div class="card dormido" id="c2">
@@ -301,6 +354,10 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
       <span class="pill" id="e2">Sin conectar</span>
     </div>
     <div class="cuerpo">
+      <!-- 6-nov-2026 — fuera de msg2: lo que se pinta ahí se borra al primer «Entrando…»,
+           y «Cambiarla» desaparecía justo cuando la conexión podía ser lo que falla.
+           Sin espacios adentro: la hoja mira si está :empty. -->
+      <div id="notaConexion"></div>
       <div id="msg2"></div>
       <div id="camposConexion">
         <label for="sbUrl">Dirección del proyecto (URL)</label>
@@ -316,9 +373,12 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
       <input id="sbCorreo" type="email" placeholder="joan@…" autocomplete="username" inputmode="email" spellcheck="false">
       <label for="sbClave">Tu contraseña</label>
       <input id="sbClave" type="password" placeholder="••••••••••••" autocomplete="current-password">
-      <div class="ayuda">No se guarda en este teléfono. Se cambia por una sesión, y la sesión sí queda guardada.</div>
+      <div class="ayuda" id="ayudaClave">No se guarda en este teléfono. Se cambia por una sesión, y la sesión sí queda guardada.</div>
       <button class="btn" type="button" id="btnEntrar">Entrar</button>
       <button class="btn sec sm oculto" type="button" id="btnSalir">Cerrar sesión</button>
+      <!-- 6-nov-2026 — en un aparato nuevo, lo de arriba que no le pide nada baja aquí
+           (ver plegarLaPagina y precargarConexion), y «Entrar» sube a la primera pantalla. -->
+      <div id="abajoDeEntrar"></div>
     </div>
   </div>
 
@@ -367,6 +427,7 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
       </div>
       <div id="msg5"></div>
       <div id="resumen5"></div>
+      <div id="avisoPinAntesDeTraer"></div>
       <button class="btn" type="button" id="btnTraer" disabled>Traer y reemplazar lo de este aparato</button>
       <div class="porque-off" id="porqueOff"></div>
     </div>
@@ -398,6 +459,35 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
     <a href="espejo.html">Espejo</a> · <a href="subir.html">Subir</a> · <a href="crm.html">CRM</a>
   </div>
 </main>
+
+<!-- 6-nov-2026 — EL PLIEGUE, ANTES DE PINTAR. Los tres archivos de abajo pesan 550 KB: con la
+     red lenta, y sin nada guardado, se medía la primera pintura a 0,3 s y el arranque a 3,4 s, y
+     en un teléfono vacío se veía la página larga y luego se le encogía bajo el dedo. Por eso un
+     aparato sin nada se pliega aquí, antes de que paren a cargar. Solo un aparato sin nada: lo
+     demás lo decide ponerCara, y un computador con su cartera no pasa de la primera línea.
+     La llave va escrita a mano, la única vez en esta pantalla, porque el puente todavía no ha
+     llegado. Solo se lee, y pruebas/entrar-desde-otro-celular.test.js avisa si cambia allá. -->
+<script>
+function plegarLaPagina(){
+  var raiz=document.documentElement, de=function(id){ return document.getElementById(id); };
+  if(raiz.classList.contains('aparato-nuevo')) return;   // ya se plegó antes de pintar
+  raiz.classList.add('aparato-nuevo');
+  de('losDetalles').open=false;
+  de('c1').open=false;
+  de('cabAvisos').tabIndex=de('cabPaso1').tabIndex=0;
+  /* Lo que no le pide nada baja: la frase de la cabecera a los avisos, y la ayuda de la
+     contraseña debajo de «Entrar», que así sube a la primera pantalla. */
+  de('paraQueSirve').appendChild(de('queHace'));
+  de('abajoDeEntrar').appendChild(de('ayudaClave'));
+}
+(function(){
+  try{
+    if(localStorage.getItem('joan_socios_v1')) return;
+    if(JSON.parse(localStorage.getItem('joan_socios_sb')||'{}').clave) return;
+  }catch(e){ return; }
+  plegarLaPagina();
+})();
+</script>
 
 <!-- El motor y el puente se cargan por UNA razón concreta: la llave donde vive
      la cartera (PUENTE.LLAVE_PANEL) no se escribe a mano en esta pantalla.
@@ -501,6 +591,7 @@ var NUBE   = window.NubeTuGarantia;
    campos largos (URL y llave publishable) no los deberia teclear nadie. La
    llave es publica por diseno; lo unico secreto sigue siendo la contrasena.
    Una conexion ya guardada NO se pisa: esto solo rellena el cajon vacio. */
+var CONEXION_RECIEN_PUESTA = false;   // ver precargarConexion: «ya estaba» no puede ser esto
 (function () {
   try {
     var c = (NUBE && NUBE.config) ? NUBE.config() : null;
@@ -509,6 +600,7 @@ var NUBE   = window.NubeTuGarantia;
         url: 'https://wnsioekvjspwtghbodbg.supabase.co',
         anon: 'sb_publishable_uWFyReBljFSh7l0KYkWmmg_Swo4SOxj'
       });
+      CONEXION_RECIEN_PUESTA = true;
     }
   } catch (e) { /* sin conexion guardable se sigue pidiendo a mano, como antes */ }
 })();
@@ -528,7 +620,11 @@ var E = {
   lectura:null,        // lo medido del paquete (ver medirPaquete)
   respaldoHecho:false,
   otraPestanaEscribio:false,
-  escrito:false
+  escrito:false,
+  aparatoNuevo:null,   // la cara de la página (ver ponerCara); null hasta decidirla
+  notaArriba:false,    // la nota de la conexión va arriba, en la cara de siempre
+  arranco:false,       // arrancarDeVerdad ya corrió: la puerta no lo repite
+  pasoLaPuerta:false   // volver a contar no le vuelve a pedir PIN a quien ya pasó
 };
 
 /* ------------------------------------------------------------- utilidades */
@@ -567,6 +663,13 @@ function fechaLarga(iso){
   return d.toLocaleString('es-CO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 }
 function motivo(e){ return (e&&e.motivo)||(e&&e.message)||'No pude hablar con la nube.'; }
+/* 6-nov-2026 — sin señal, nube.js dice «Lo que hiciste queda guardado y sube solo cuando
+   vuelva». Es cierto en el espejo, que guarda y reintenta. Aquí no: nada quedó guardado y
+   nada va a reintentar, y Joan se quedaría esperando algo que no pasa. No se cambia allá:
+   esa frase les sirve a las pantallas donde sí es cierta. */
+function motivoConLaNube(e){
+  return (e && e.sin_red) ? 'Sin señal: no pude hablar con la nube. No se guardó nada; inténtalo otra vez con señal.' : motivo(e);
+}
 
 function pinta(donde, clase, html){
   var d=$(donde); if(!d) return;
@@ -638,8 +741,54 @@ function hayAlgoQuePerder(inv){
   return hayFichas(inv) || !inv.legible || inv.hayAjustes || inv.tieneLlave;
 }
 
+/* 6-nov-2026 — ¿APARATO NUEVO? Es lo único que decide acortar la página para un teléfono.
+   Se pregunta lo mismo que la puerta, a propósito: si aquí hay algo que tapar, también hay
+   algo que perder, y la página se ve como siempre, con el bloque rojo y los avisos a la
+   vista. Con la clave de la sincronización vieja tampoco: ese es un computador aunque hoy
+   esté sin cartera, y ahí lo anotado sí les llega a los clientes, así que la frase de arriba
+   sería falsa. Sin poder leer el cajón no se sabe, y ante la duda, como siempre. */
+function esAparatoNuevo(inv){
+  if(inv.sinAcceso || hayAlgoQueTapar(inv)) return false;
+  try{ return !NUBE.config().clave; }catch(e){ return false; }
+}
+function ponerCara(inv){
+  /* Una vez en la cara de siempre no se vuelve a plegar: volver a contar no le puede
+     esconder los avisos a quien ya los tenía a la vista. */
+  E.aparatoNuevo = E.aparatoNuevo!==false && esAparatoNuevo(inv);
+  if(E.aparatoNuevo){
+    plegarLaPagina();
+  }else{
+    document.documentElement.classList.remove('aparato-nuevo');
+    $('losDetalles').open = true;
+    $('cabAvisos').tabIndex = $('cabPaso1').tabIndex = -1;
+  }
+  /* El paso 1 también se pliega, con el mismo texto: la pastilla «Vacío» ya dice lo que
+     hay que saber aquí, y seis líneas de más dejaban «Entrar» debajo de la primera
+     pantalla. Con algo guardado, aunque sean ajustes, se dice abierto. */
+  $('c1').open = !E.aparatoNuevo || inv.tieneLlave;
+}
+/* Con la cara de siempre, estos dos no se pliegan: en 76af475 no eran plegables, y ahí un
+   toque sin querer escondería el bloque rojo. Se pregunta por la clase y no por E: un aparato
+   vacío nace plegado, y si faltó un archivo y no arrancó, lo plegado se tiene que poder leer. */
+function noPlegarLaCaraDeSiempre(ev){
+  if(!document.documentElement.classList.contains('aparato-nuevo')) ev.preventDefault();
+}
+/* Y tampoco se quedan con el foco. Un <summary> se enfoca al BAJAR el botón, y en 76af475 ahí
+   no había nada enfocable: la primera tecla pintaba un anillo rojo alrededor del título, y
+   Espacio dejaba de bajar la página. Se suelta al recibirlo y no en el click, porque el botón
+   derecho, el del medio y arrastrar hasta afuera enfocan sin disparar click. Y en el turno
+   siguiente, no ahí mismo: si el foco se mueve dentro de su propio evento, el navegador se
+   traga la pulsación y el título ya no se puede seleccionar con el ratón. */
+function soltarElFocoEnLaCaraDeSiempre(ev){
+  if(document.documentElement.classList.contains('aparato-nuevo')) return;
+  var encabezado = ev.currentTarget;
+  setTimeout(function(){ encabezado.blur(); },0);
+}
+
 function pintarEsteAparato(){
   var inv = E.hay, h='';
+
+  ponerCara(inv);
 
   if(inv.sinAcceso){
     estado(1,'fallo','No pude leer');
@@ -717,25 +866,72 @@ function pintarEsteAparato(){
    cartera entera como archivo, y sin PIN esta página sería la puerta de atrás
    del Panel.
    La puerta de verdad de esta página, en los dos casos, es el correo y la
-   contraseña de Supabase: sin eso no baja nada. */
+   contraseña de Supabase: sin eso no baja nada.
+
+   6-nov-2026 — Y LO MISMO SI LO ÚNICO GUARDADO SON AJUSTES CON EL PIN DE FÁBRICA. Antes
+   bastaba la llave: un CRM vacío que guardó sus ajustes una vez dejaba esta puerta
+   puesta en un teléfono donde nunca hubo un PIN de Joan. Solo abría con 1234, sin
+   decirlo, y afirmaba que era «el mismo PIN del Panel»: su PIN de verdad se rechazaba,
+   y el camino para traer la cartera quedaba detrás de eso. La puerta se quita SOLO ahí.
+   Con fichas, con algo ilegible (lo único que salva esa cartera es el respaldo de abajo,
+   y se decide del lado de proteger), con cualquier otro dato o con un PIN que alguien
+   puso aquí, sigue.
+
+   «Cualquier otro dato» va por lista blanca, no por una lista de lo que hay que tapar.
+   Las fichas no cuentan prospectos, gestiones, contactos con el texto del WhatsApp ni un
+   equipo con nombres y celulares, y el respaldo de abajo se los lleva crudos, con el PIN
+   en claro. Lo que el CRM estrene mañana tiene que nacer tapado, no destapado por no
+   estar nombrado. Lo que un CRM vacío guarda por su cuenta es config, plantillas,
+   contadores y arreglos vacíos: se comprobó tocando las 16 entradas del menú y «Guardar
+   ajustes», y por eso esto no le vuelve a cerrar la puerta a Joan. */
 function pinGuardado(){
   try{
     var d=JSON.parse(localStorage.getItem(KEY)||'{}');
     return (d && d.config && d.config.pin) ? String(d.config.pin) : PIN_DE_FABRICA;
   }catch(e){ return PIN_DE_FABRICA; }
 }
+var SOLO_AJUSTES = { config:1, plantillas:1, contadores:1 };
+function guardaAlgoMasQueAjustes(crudo){
+  var d;
+  try{ d=JSON.parse(crudo); }catch(e){ return true; }
+  if(!d || typeof d!=='object' || Array.isArray(d)) return true;
+  /* El número de quien cobra vive en los ajustes, pero no es un ajuste de fábrica:
+     de fábrica va vacío (cargar() de crm.html). «telefono» es su nombre viejo. */
+  if(d.config && (d.config.whatsapp || d.config.telefono)) return true;
+  return Object.keys(d).some(function(k){
+    if(SOLO_AJUSTES[k]) return false;
+    var v=d[k];
+    if(Array.isArray(v)) return v.length>0;
+    if(v && typeof v==='object') return Object.keys(v).length>0;
+    return v!==null && v!==undefined && v!=='' && v!==false && v!==0;
+  });
+}
+function hayAlgoQueTapar(inv){
+  if(!hayAlgoQuePerder(inv)) return false;
+  if(hayFichas(inv) || !inv.legible) return true;
+  if(guardaAlgoMasQueAjustes(inv.crudo)) return true;
+  return pinGuardado() !== PIN_DE_FABRICA;
+}
 function decidirPuerta(){
-  if(!hayAlgoQuePerder(E.hay)) return true;   // nada que tapar: se pasa derecho
+  if(!hayAlgoQueTapar(E.hay)) return true;   // nada que tapar: se pasa derecho
+  /* Ilegible no hay PIN guardado que leer: pinGuardado() da el de fábrica, y sin
+     decirlo esta puerta sería otro callejón (se llega aquí justo desde la salida de
+     la puerta del CRM, con la cartera dañada). */
+  if(!E.hay.legible){
+    $('porquePuerta').textContent='Lo guardado en este navegador está dañado y no pude leer su PIN, así que aquí abre '+
+      'con el de fábrica: '+PIN_DE_FABRICA+'. Se pide porque esta página puede bajarlo entero como archivo.';
+  }
   $('gate').classList.add('on');
   return false;
 }
 function abrirPuerta(){
   if($('pin').value !== pinGuardado()){
-    $('pinErr').textContent='Ese no es el PIN del Panel.';
+    $('pinErr').textContent=E.hay.legible ? 'Ese no es el PIN guardado en este navegador.' : 'Ese no es: aquí abre con el de fábrica.';
     $('pin').value=''; return;
   }
   $('gate').classList.remove('on');
-  arrancarDeVerdad();
+  E.pasoLaPuerta = true;
+  if(!E.arranco) arrancarDeVerdad();
 }
 
 /* ============================================================ ARRANQUE ====*/
@@ -757,6 +953,7 @@ function arrancar(){
 }
 
 function arrancarDeVerdad(){
+  E.arranco = true;
   pintarEsteAparato();
   pintarAvisoRespaldo();
 
@@ -799,6 +996,10 @@ function recontar(){
   pintarEsteAparato();
   pintarAvisoRespaldo();
   refrescarBotones();
+  /* 6-nov-2026 — quien entró derecho porque no había nada que tapar, ya sí puede tenerlo:
+     la otra pestaña acaba de guardar, y el respaldo de arriba se lo llevaría sin PIN. El
+     que ya pasó la puerta no la vuelve a ver, como siempre. */
+  if(!E.pasoLaPuerta) decidirPuerta();
 }
 
 /* ================================================== PASO 2 · CONECTAR ====*/
@@ -810,15 +1011,44 @@ function precargarConexion(){
   if(s && s.correo) $('sbCorreo').value = s.correo;
   /* Si la conexión ya está puesta (el espejo la dejó), los dos campos largos se
      esconden: en un teléfono, teclear una URL y un JWT es lo que hace que Joan
-     abandone. Siguen ahí para quien los necesite cambiar. */
+     abandone. Siguen ahí para quien los necesite cambiar.
+     6-nov-2026 — «La conexión ya estaba guardada en este teléfono» era falso en un
+     teléfono nuevo: la guardó esta misma página un instante antes (arriba, «LA
+     CONEXION VIENE PUESTA DE FABRICA»). Ahí no se dice nada, y se ofrece cambiarla con
+     otro nombre, porque «Cambiarla» sola no se entiende sin la frase de antes. Y todo
+     esto vive fuera de msg2 (ver el HTML del paso 2). */
   if(c.url && c.anon){
     $('camposConexion').classList.add('oculto');
-    $('msg2').innerHTML='<div class="aviso info">La conexión ya estaba guardada en este teléfono '+
-      '(<span class="mono">'+esc(c.url)+'</span>). '+
-      '<button class="btn sec sm" type="button" id="btnVerCampos">Cambiarla</button></div>';
-    var b=$('btnVerCampos');
-    if(b) b.addEventListener('click', function(){ $('camposConexion').classList.remove('oculto'); });
+    /* La cara de siempre, con el mismo texto y en el mismo sitio, también si la conexión la
+       acaba de poner esta página: con cartera y sin conexión la frase queda como hoy, porque
+       ahí manda que nada cambie, y no es el teléfono nuevo que le hacía daño. */
+    if(!E.aparatoNuevo){
+      E.notaArriba = true;
+      $('notaConexion').innerHTML='<div class="aviso info">La conexión ya estaba guardada en este teléfono '+
+        '(<span class="mono">'+esc(c.url)+'</span>). '+
+        '<button class="btn sec sm" type="button" id="btnVerCampos">Cambiarla</button></div>';
+      $('btnVerCampos').addEventListener('click', function(){ $('camposConexion').classList.remove('oculto'); });
+      return;
+    }
+    /* Lo demás, debajo de «Entrar»: en un teléfono nada de esto puede empujarlo. */
+    $('abajoDeEntrar').appendChild($('notaConexion'));
+    $('notaConexion').innerHTML=(CONEXION_RECIEN_PUESTA ? '' :
+        '<div class="ayuda">La conexión ya estaba guardada en este teléfono (<span class="mono">'+esc(c.url)+'</span>).</div>')+
+      '<button class="btn-texto" type="button" id="btnVerCampos">'+(CONEXION_RECIEN_PUESTA ? 'Cambiar la conexión' : 'Cambiarla')+'</button>';
+    $('btnVerCampos').addEventListener('click', verCamposConexion);
   }
+}
+/* En la cara de siempre, esa nota se iba al entrar y al salir, porque vivía en msg2. Se
+   sigue yendo ahí; lo que ya no hace es irse con un error, que es cuando hace falta. */
+function quitarNotaDeArriba(){
+  if(!E.notaArriba) return;
+  E.notaArriba = false;
+  $('notaConexion').innerHTML='';
+}
+function verCamposConexion(){
+  $('camposConexion').classList.remove('oculto');
+  $('btnVerCampos').classList.add('oculto');
+  $('sbUrl').focus();      // quedan arriba de lo que se estaba mirando
 }
 
 function entrar(){
@@ -837,6 +1067,7 @@ function entrar(){
 
   NUBE.entrar(correo, clave).then(function(){
     $('sbClave').value='';        // la contraseña no se queda en un campo abierto
+    quitarNotaDeArriba();
     pinta('msg2','ok','<b class="tit">Entraste</b>Como <b>'+esc(correo)+'</b>. La contraseña no se guardó en '+
       'este teléfono.');
     estado(2,'listo','Conectado');
@@ -844,15 +1075,26 @@ function entrar(){
     despertar(3);
   }).catch(function(e){
     estado(2,'fallo','No entró');
-    pinta('msg2','ambar','<b class="tit">No pude entrar</b>'+esc(motivo(e))+
-      '<br>Si dice que el correo o la contraseña no sirven: el usuario se crea en Supabase → Authentication → '+
-      'Users → Add user.');
+    /* 6-nov-2026 — decía que el usuario se crea en Supabase → Add user, y eso no
+       sirve: uno nuevo no está en la lista de dueños y entra a una nube que no le
+       contesta nada. Y salía también con un 429, un 500 o sin señal, donde la
+       contraseña no tiene la culpa: ahí se dice solo lo que pasó. */
+    pinta('msg2','ambar','<b class="tit">No pude entrar</b>'+esc(motivoConLaNube(e))+
+      (motivo(e)===CLAVE_QUE_NO_COINCIDE
+        ? '<br>Es la contraseña de la nube, no tu PIN. Si no la recuerdas, no crees otro usuario: no tendría tu '+
+          'cartera. Se cambia desde Supabase, con tu cuenta.'
+        : ''));
   }).then(function(){ $('btnEntrar').disabled=false; refrescarBotones(); });
 }
+/* El texto con el que nube.js (motivoDe) dice que el correo o la contraseña no
+   sirven. Se compara con ese y no con el error crudo de Supabase, que trae dos
+   formatos (invalid_grant e invalid_credentials) y ya los resuelve ese archivo. */
+var CLAVE_QUE_NO_COINCIDE = 'El correo o la contraseña no coinciden.';
 
 function salir(){
   Promise.resolve().then(function(){ return NUBE.salir(); }).catch(function(){})
     .then(function(){
+      quitarNotaDeArriba();
       pintarSesion(); estado(2,'','Sin conectar');
       pinta('msg2','info','Sesión cerrada.');
       refrescarBotones();
@@ -866,7 +1108,8 @@ function pintarSesion(){
   if(hay){
     estado(2,'listo','Conectado');
     despertar(3);
-    if(!$('msg2').innerHTML){
+    /* En la cara de siempre, la nota de la conexión ocupa este lugar. */
+    if(!$('msg2').innerHTML && !E.notaArriba){
       pinta('msg2','ok','Ya había una sesión abierta'+(s.correo?' como <b>'+esc(s.correo)+'</b>':'')+'.');
     }
   }
@@ -890,7 +1133,7 @@ function mirar(){
   }).catch(function(e){
     E.paquete=null; E.lectura=null;
     estado(3,'fallo','No pude mirar');
-    pinta('msg3','ambar','<b class="tit">No pude leer la nube</b>'+esc(motivo(e))+
+    pinta('msg3','ambar','<b class="tit">No pude leer la nube</b>'+esc(motivoConLaNube(e))+
       '<br>No se tocó nada de este aparato.');
     $('resumen3').innerHTML='';
   }).then(function(){ $('btnMirar').disabled=false; refrescarBotones(); });
@@ -921,11 +1164,57 @@ function medirPaquete(paq){
     if(a && a.actualizado_en && (!m.ultimoCambio || String(a.actualizado_en) > String(m.ultimoCambio))){
       m.ultimoCambio = a.actualizado_en; m.ultimoPor = a.actualizado_por || '';
     }
+    /* Se mide si el PIN viene, no se supone. De su valor no se guarda nada acá. */
+    if(a && a.clave === 'config'){
+      m.fechaConfig = a.actualizado_en || null;
+      m.pinViaja = !!(a.datos && a.datos.pin);
+    }
   });
   m.hayConfig = m.claves.indexOf('config') >= 0;
   m.hayPapelera = m.claves.indexOf('papelera') >= 0 || m.claves.indexOf('papeleraSocios') >= 0;
   return m;
 }
+
+/* 6-nov-2026 — EL PIN QUE VIAJA NO ES «EL DEL COMPUTADOR» DE HOY. Es el de la última
+   vez que se subieron los ajustes: el CRM no los sube solo (panel/nube-crm.js), solo
+   subir.html (panel/nube.js). Esta pantalla prometía «el mismo PIN del computador», y
+   a Joan, con un PIN cambiado después de esa subida, el CRM se lo iba a rechazar justo
+   después de decirle «Listo». La fecha sale de la fila config del paquete. */
+function fechaDelDia(iso){
+  var d=new Date(iso);
+  if(!iso || isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'});
+}
+function fraseDelPinQueViaja(m){
+  var f=fechaDelDia(m.fechaConfig);
+  return f
+    ? 'Con ellos viaja el <b>PIN que tenías cuando se subieron por última vez, el '+esc(f)+'</b>. '+
+      'Si lo cambiaste después, en este aparato sirve el de esa fecha.'
+    : 'Con ellos viaja el <b>PIN que tenías cuando se subieron por última vez</b>; la nube no dice cuándo fue. '+
+      'Si lo cambiaste después, en este aparato sirve el de esa vez.';
+}
+
+/* 6-nov-2026 — Y SI NO RECUERDA ESE PIN, TRAER LO DEJA EN UN CALLEJÓN PEOR QUE EL DE HOY: con
+   fichas, la puerta del CRM solo dice «PIN incorrecto.» y ya no ofrece traer; esta página
+   también pide ese PIN; y /panel/ deja de llevarlo al espejo. Después de traer no hay
+   vuelta, así que se avisa antes, con lo único que sí lo arregla: subir.html sube los
+   ajustes, y con ellos viaja el PIN de hoy.
+   PERO SOLO SI SE VUELVE A MIRAR. «Traer» escribe el paquete del último «Mirar» y sigue
+   prendido: con la página abierta en el teléfono, subir en el computador y volver a apretar
+   «Traer» deja el PIN viejo. traerYEscribir no le vuelve a preguntar a la nube porque eso
+   cambiaría lo que hace en el computador, así que se dice aquí.
+   «La de hoy» y no «tiene que cambiar»: la fecha va por días, y con dos subidas el mismo día
+   no cambia aunque la segunda sí haya entrado. Y «del PIN», no «la de arriba»: en este paso
+   también están a la vista «Último cambio allá» y «Hora del servidor», y esa siempre es hoy.
+   Y SI NO HAY NADA QUE SUBIR, LA FECHA NO SE MUEVE: sin cambios en los ajustes, ☁ Subir no los
+   manda y la fila conserva su fecha, justo cuando lo que viaja ya es lo de hoy. Sin decirlo, esta
+   frase pedía algo imposible. La casilla «Ajustes» de subir.html nombra lo que va a subir. */
+var AVISO_PIN_QUE_VIAJA = '<div class="aviso ambar"><b class="tit">Antes de traer: ¿recuerdas ese PIN?</b>'+
+  'Si no recuerdas ese PIN, no traigas todavía: en el computador abre ☁ Subir (Ajustes → Avanzado, o '+
+  '<span class="mono">subir.html</span>) y sube tus ajustes, así viaja el de hoy. '+
+  'Después vuelve aquí y aprieta otra vez «Mirar qué hay en la nube» (paso 3): la fecha del PIN tiene que ser la de hoy. '+
+  'Si en ☁ Subir la casilla «Ajustes» no nombra «config», tus ajustes no cambiaron y ya viaja el de hoy. '+
+  'Después de traer, este aparato solo abre con ese PIN.</div>';
 
 /* Las dos razones por las que esta pantalla se NIEGA a escribir. Devuelve el
    texto del motivo, o null si se puede. Se decide con lo MEDIDO, no con lo
@@ -985,13 +1274,16 @@ function pintarLoQueViene(){
     h += '<div class="aviso ambar"><b class="tit">Los ajustes no vienen</b>'+
          'El paquete no trae tu configuración. El CRM de este aparato va a arrancar con los valores de fábrica, '+
          'y eso incluye el <b>PIN '+esc(PIN_DE_FABRICA)+'</b>. Cámbialo desde el CRM apenas entres.</div>';
+  }else if(!m.pinViaja){
+    h += '<div class="aviso ambar"><b class="tit">Los ajustes sí vienen, pero sin PIN</b>'+
+         'El CRM de este aparato va a arrancar con el <b>PIN '+esc(PIN_DE_FABRICA)+'</b>. Cámbialo desde el CRM apenas entres.</div>';
   }else{
-    h += '<div class="aviso info"><b class="tit">Los ajustes sí vienen</b>'+
-         'Con ellos viaja el <b>PIN del Panel</b>: el CRM de este aparato te va a pedir el mismo PIN del '+
-         'computador.</div>';
+    h += '<div class="aviso info"><b class="tit">Los ajustes sí vienen</b>'+fraseDelPinQueViaja(m)+'</div>'+
+         '<div id="avisoPinPaso3">'+AVISO_PIN_QUE_VIAJA+'</div>';
   }
 
   var no = razonParaNoEscribir();
+  $('avisoPinAntesDeTraer').innerHTML = (m.pinViaja && !no) ? AVISO_PIN_QUE_VIAJA : '';
   if(no){
     estado(3,'fallo','No se puede traer');
     h += '<div class="peligro"><div class="et">No voy a escribir</div>'+
@@ -1199,6 +1491,20 @@ function traerYEscribir(){
   E.escrito = true;
   var quedaron = E.hay;
   var esperados = m.tablas.socios.quedan;
+  /* Ya se trajo: «no traigas todavía» ya no le sirve a nadie. El paso 6 dice de qué fecha es. */
+  $('avisoPinAntesDeTraer').innerHTML='';
+  if($('avisoPinPaso3')) $('avisoPinPaso3').innerHTML='';
+  /* 6-nov-2026 — los pasos 1 y 4 seguían diciendo lo de antes: «Vacío» con la llave ya
+     escrita, o «Se va a reemplazar» sobre lo que ya se reemplazó. No se llama a
+     pintarEsteAparato: sacaría ese bloque rojo encima de lo que se acaba de traer. Los
+     números son los que se acaban de releer, no los que se esperaban. */
+  estado(1,'listo','Traído');
+  $('cuerpo1').innerHTML='<div class="aviso ok"><b class="tit">Ya quedó traído</b>'+
+    'Este aparato ya tiene lo que bajó de la nube: '+plural(quedaron.socios,'socio','socios')+', '+
+    plural(quedaron.creditos,'crédito','créditos')+' y '+plural(quedaron.respaldados,'respaldado','respaldados')+'.</div>';
+  /* E.hay ya es lo de ahora, y de ahí saca el botón lo que baja. */
+  $('avisoRespaldo').innerHTML='<div class="aviso info"><b class="tit">Ese respaldo es de antes de traer</b>'+
+    'El archivo que ya bajaste guarda lo que había aquí antes de traer. Si lo bajas otra vez, sale lo que hay ahora.</div>';
 
   estado(5,'listo','Traído');
   $('resumen5').innerHTML =
@@ -1223,10 +1529,10 @@ function traerYEscribir(){
   despertar(6);
   estado(6,'listo','Puedes abrirlo');
   pinta('msg6','ok','<b class="tit">Ya puedes abrirlo</b>'+
-    (m.hayConfig
-      ? 'El CRM te va a pedir el <b>PIN del computador</b>, porque los ajustes vinieron en el paquete.'
-      : 'El CRM va a arrancar con el <b>PIN de fábrica ('+esc(PIN_DE_FABRICA)+')</b>: los ajustes no vinieron. '+
-        'Cámbialo apenas entres.')+
+    (m.hayConfig && m.pinViaja
+      ? 'El CRM te va a pedir un PIN, porque los ajustes vinieron en el paquete. '+fraseDelPinQueViaja(m)
+      : 'El CRM va a arrancar con el <b>PIN de fábrica ('+esc(PIN_DE_FABRICA)+')</b>: '+
+        (m.hayConfig ? 'los ajustes vinieron sin PIN' : 'los ajustes no vinieron')+'. Cámbialo apenas entres.')+
     '<br><br>Si tenías el CRM abierto en otra pestaña, <b>ciérrala y ábrelo de nuevo</b>: esa pestaña todavía '+
     'tiene en memoria la cartera vieja y, si guarda algo, te pisa lo que acabo de traer.');
   refrescarBotones();
@@ -1287,6 +1593,10 @@ document.addEventListener('DOMContentLoaded', function(){
   $('btnRecontar').addEventListener('click', recontar);
   $('btnEntrar').addEventListener('click', entrar);
   $('btnSalir').addEventListener('click', salir);
+  $('cabAvisos').addEventListener('click', noPlegarLaCaraDeSiempre);
+  $('cabPaso1').addEventListener('click', noPlegarLaCaraDeSiempre);
+  $('cabAvisos').addEventListener('focus', soltarElFocoEnLaCaraDeSiempre);
+  $('cabPaso1').addEventListener('focus', soltarElFocoEnLaCaraDeSiempre);
   $('btnMirar').addEventListener('click', mirar);
   $('btnRespaldo').addEventListener('click', bajarRespaldo);
   $('btnConfirmoRespaldo').addEventListener('click', confirmarRespaldo);
