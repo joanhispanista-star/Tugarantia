@@ -125,6 +125,29 @@ describe('6-bis · un abono del otro aparato baja la pérdida del cierre que no 
     assert.equal(P.perdidaDelCierre(f), 20000);
   });
 
+  /* 9-nov-2026 — la segunda ronda: un «Pagó todo» de antes de v142 no trae la llave
+     capitalPerdido, y fusionarFila le copiaba la del cierre con pérdida del otro lado. */
+  test('un «Pagó todo» de antes de v142 contra un cierre con pérdida: no duplica la ganancia ni revive el perdón', () => {
+    const p = quincenal();
+    const liq = P.liquidarCiclo(p, DIA);
+    const pagoV141 = Object.assign(copia(p), { pagado: true, fechaPagado: DIA, cicloPago: P.corteDelCredito(p), cobroRegistrado: true,
+      gananciaPago: liq.costo + liq.recargo_mora, recargoMora: liq.recargo_mora, costoCausado: liq.costo, moraCausada: liq.recargo_mora,
+      montoRecibido: liq.total_a_pagar });
+    assert.equal('capitalPerdido' in pagoV141, false, 'precondición: la fila de v141 no trae la llave');
+    const r = P.cierreConPerdon(cartera(p), p, DIA, 250000, SI);
+    const cierre = aplicar(p, r.registros);
+    const f = NUBE.fusionarFila(pagoV141, cierre, NUBE.LISTAS_QUE_SUMAN).fila;
+    assert.equal(f.capitalPerdido, 50000, 'precondición: la llave se copió del otro lado');
+    assert.equal(P.perdidaDelCierre(f), 0, 'el «Pagó todo» que ganó no perdió capital');
+    assert.equal(P.gananciaCobrada(f), 75000, 'duplicó la ganancia: ' + P.gananciaCobrada(f));
+    assert.equal(P.capitalRecuperadoDe(f) + P.gananciaCobrada(f), 375000, 'entraron 375.000');
+    assert.equal(P.cerroConPerdida(f), false);
+    assert.equal(P.descuentosDelSocio(cartera(f), SOCIO).veces, 0, 'revivió el perdón del cierre que perdió');
+    /* Al revés (gana el cierre), sigue siendo un cierre con pérdida. */
+    const g = NUBE.fusionarFila(cierre, pagoV141, NUBE.LISTAS_QUE_SUMAN).fila;
+    assert.equal(P.perdidaDelCierre(g), 50000);
+  });
+
   test('un crédito con cuotas no pasa por aquí: sus abonos viajan con su plan', () => {
     const p = aCuotas();
     const r = P.cierreConPerdon(cartera(p), p, '2026-10-20', 300000, SI);

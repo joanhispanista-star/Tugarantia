@@ -394,8 +394,23 @@
      sobre eso son abonos que el cierre no conocía. Solo el quincenal: con cuotas,
      los abonos viajan con su plan y esto no pasa. Si los abonos pasan de la pérdida,
      entró más que el capital: no hay pérdida, y lo de más es ganancia cobrada. */
+  /* 9-nov-2026 — Y SOLO SI LA FILA ES DE VERDAD UN CIERRE CON PÉRDIDA. La segunda
+     ronda de la revisión: un «Pagó todo» cobrado antes de v142 no trae la llave
+     capitalPerdido, y si en el otro aparato el mismo crédito se cerró con pérdida,
+     fusionarFila le copia callada esa llave (es «un campo de un solo lado»). Quedaba
+     una fila con «Pagó todo» por 375.000 y capitalPerdido 50.000, que esto leía como
+     abonos que el cierre no conoció: la ganancia pasaba de 75.000 a 150.000, los
+     ingresos de 375.000 a 450.000, y revivía el perdón del otro lado. Un cierre con
+     pérdida tiene una forma que no se puede confundir: en el quincenal toda la plata
+     fue a capital, así que no cobró ganancia (cierreConPerdon escribe gananciaPago
+     0); con cuotas, alguna cuota quedó cerrada con perdón. Una fila sin esa forma
+     no perdió capital al cerrar, traiga la llave que traiga. */
   function perdidaAnotada(p) {
-    return (p && p.pagado) ? Math.max(0, Math.round(num(p.capitalPerdido))) : 0;
+    if (!(p && p.pagado)) return 0;
+    var x = Math.max(0, Math.round(num(p.capitalPerdido)));
+    if (!x) return 0;
+    if (!tienePlan(p)) return num(p.gananciaPago) > 0 ? 0 : x;
+    return cuotasPlan(p).some(function (q) { return q && q.pagado && (q.conPerdon || num(q.capitalPerdido) > 0); }) ? x : 0;
   }
   function abonosQueElCierreNoConocio(p) {
     var anotada = perdidaAnotada(p);
