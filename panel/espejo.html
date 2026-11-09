@@ -4725,13 +4725,14 @@ function vistaCredito() {
         : '<div class="fila"><span class="k">Saldo de capital del crédito</span><span class="v">' + COP(capitalActual(p)) + '</span></div>')
     /* 22-oct-2026 — lo que te deja, la misma cuenta que en el computador. */
     + filaGananciaE(p)
-    /* 9-nov-2026 — LO QUE SOBRA DE UN CIERRE (decisión de Joan: «Que me pregunte cada
-       vez»). La decisión se toma en el computador, donde está la caja con las cifras;
-       aquí se dice que está por decidir y que mientras tanto no cuenta. */
+    /* 9-nov-2026 — LA PLATA QUE UN CIERRE NO CONOCIÓ (decisión de Joan: «Que me pregunte
+       cada vez»), con pérdida o sin ella. La decisión se toma en el computador, donde está
+       la caja con las cifras; aquí se dice que está por decidir y que mientras tanto no
+       cuenta en ninguna cifra, tampoco en las de este celular. */
     + ((P.sobrantePorDecidir && P.sobrantePorDecidir(p))
-        ? '<div class="aviso ambar"><b>Sobran ' + COP(P.sobrantePorDecidir(p)) + ' en este cierre, por decidir.</b> '
-          + 'Lo que anotó otro aparato pasa de lo que el cierre perdió. Mientras Joan no decida en el computador qué es, '
-          + 'no cuenta en la ganancia, la quincena, el fondo ni la garantía.</div>'
+        ? '<div class="aviso ambar"><b>' + COP(P.sobrantePorDecidir(p)) + ' que este cierre no conoció, por decidir.</b> '
+          + 'Otro aparato anotó abonos que el cierre no tuvo en cuenta. Mientras Joan no decida en el computador qué es esa plata, '
+          + 'no cuenta en ninguna cifra: ni en la ganancia, la quincena, el fondo, la garantía ni el cupo.</div>'
         : '')
     + '</div>';
 
@@ -5298,7 +5299,10 @@ var ETIQUETAS = {
      pacto del otro no conocía (NUBE.fusionarFila). */
   pagoAcordado: 'Pago acordado',
   /* 9-nov-2026 — un abono de cada lado, mismo día y monto, que cuenta como uno. */
-  mismoPago: '¿El mismo pago?'
+  mismoPago: '¿El mismo pago?',
+  /* 9-nov-2026 — lo que Joan decidió de la plata que un cierre no conoció (puente.
+     decisionDelSobrante): dos decisiones distintas son un choque (valorCorto las dice). */
+  sobranteDecidido: 'Lo que decidiste de la plata que el cierre no conoció'
 };
 /* 17-oct-2026, revisión — `abonosCapital` llega como pisable de DOS formas: en
    pesos (lo que fue a capital el día de una prórroga, 3-oct) o en texto, cuando
@@ -5311,7 +5315,18 @@ function etiquetaCampo(k, v) {
   if (k === 'abonosCapital' && typeof v === 'string') return 'Lo que entró por las cuotas';
   return ETIQUETAS[k] || k;
 }
+/* 9-nov-2026 — la decisión, dicha como en el computador (subir.html, textoDecisionDelCierre). */
+var DESTINOS_DEL_SOBRANTE = { cobrar: '«Es plata nueva: lo cobro»', aFavor: '«Queda a su favor»', misma: '«Era la misma plata»' };
+function textoDecisionDelCierre(v, fila) {
+  var porDecidir = (fila && P.sobrantePorDecidir) ? P.sobrantePorDecidir(fila) : 0;
+  if (v == null || typeof v !== 'object') return porDecidir ? 'sin decidir: el computador pregunta qué son ' + COP(porDecidir) : '(no estaba)';
+  var t = (DESTINOS_DEL_SOBRANTE[v.destino] || String(v.destino || '?')) + ' para ' + COP(v.monto) + (v.fecha ? ' (' + fmtFecha(v.fecha) + ')' : '');
+  var c = (fila && P.cuentaDelSobrante) ? P.cuentaDelSobrante(fila) : null;
+  if (fila && !(c && c.decision)) t += ' · no vale con este cierre: el computador vuelve a preguntar';
+  return t;
+}
 function valorCorto(campo, v, fila) {
+  if (campo === 'sobranteDecidido') return textoDecisionDelCierre(v, fila);
   if (v === undefined) return '(no estaba)';
   if (v === null) return '—';
   /* 9-nov-2026 — en la tarjeta del choque, justo donde Joan decide qué versión queda,

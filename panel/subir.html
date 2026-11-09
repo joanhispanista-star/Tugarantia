@@ -529,7 +529,11 @@ var CAMPOS_MIRABLES = {
      del capital contra uno sin pérdida se distinguen justo ahí. */
   creditos:    ['numero','capital','total','pagado','fechaPagado','fechaPago','cicloActual','costoPct',
                 'montoRecibido','gananciaPago','recargoMora','costoCausado','moraCausada','saldoAFavor',
-                'capitalPerdido','planPagos'],
+                'capitalPerdido','planPagos',
+                /* 9-nov-2026 — lo que Joan decidió de la plata que un cierre no conoció
+                   (puente.decisionDelSobrante): dos decisiones distintas son un choque, y la
+                   tarjeta dice cuál es cuál y si todavía vale (textoDecisionDelCierre). */
+                'sobranteDecidido'],
   respaldados: ['numero','capital','pagado','fechaPagado','plazo'],
   ajustes:     []
 };
@@ -2025,8 +2029,23 @@ function textoDelCambio(u){
   if(de.pct!==a.pct) partes.push(de.pct+'% → '+a.pct+'%');
   return 'cuota '+((u&&u.n)||'?')+' '+(partes.join(', ')||'sin cambios');
 }
+/* 9-nov-2026 — LO QUE JOAN DECIDIÓ DE LA PLATA QUE UN CIERRE NO CONOCIÓ, en la cara del choque:
+   qué escogió, para qué cifra y si todavía vale con el cierre de esa cara. Sin decidir, se dice
+   si hay plata por decidir, porque eso es lo que pasa si queda ese lado: el CRM la pregunta.
+   Una decisión que ya no vale (otra cifra u otro cierre) no se pierde callada: se dice que el
+   CRM vuelve a preguntar. Ninguna de las dos elecciones pierde plata. */
+var DESTINOS_DEL_SOBRANTE={cobrar:'«Es plata nueva: lo cobro»', aFavor:'«Queda a su favor»', misma:'«Era la misma plata»'};
+function textoDecisionDelCierre(v, fila){
+  var porDecidir=(fila && PUENTE && typeof PUENTE.sobrantePorDecidir==='function') ? PUENTE.sobrantePorDecidir(fila) : 0;
+  if(v==null || typeof v!=='object') return porDecidir ? 'sin decidir: el CRM pregunta qué son '+pesosCO(porDecidir) : '—';
+  var t=(DESTINOS_DEL_SOBRANTE[v.destino]||String(v.destino||'?'))+' para '+pesosCO(v.monto)+(v.fecha?' ('+fechaCorta(v.fecha)+')':'');
+  var c=(fila && PUENTE && typeof PUENTE.cuentaDelSobrante==='function') ? PUENTE.cuentaDelSobrante(fila) : null;
+  if(fila && !(c && c.decision)) t+=' · no vale con este cierre: el CRM vuelve a preguntar';
+  return t;
+}
 function muestra(v, campo, fila){
   if(campo==='planPagos' && v!=null) return resumenDelPlan(v);
+  if(campo==='sobranteDecidido') return textoDecisionDelCierre(v, fila);
   /* 9-nov-2026 — «pagado: sí» de un crédito cerrado con pérdida, en la cara del choque. */
   if(campo==='pagado' && v===true && fila && PUENTE && typeof PUENTE.cerroConPerdida==='function' && PUENTE.cerroConPerdida(fila)) return 'cerrado con pérdida';
   if(v===undefined) return '—';

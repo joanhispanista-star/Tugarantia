@@ -393,7 +393,9 @@
      lo que se debía de capital ese día es lo que entró más lo perdido, y lo que hoy
      sobre eso son abonos que el cierre no conocía. Solo el quincenal: con cuotas,
      los abonos viajan con su plan y esto no pasa. Si los abonos pasan de la pérdida,
-     entró más que el capital: no hay pérdida, y lo de más es ganancia cobrada. */
+     entró más que el capital: no hay pérdida, y lo de más es ganancia cobrada.
+     9-nov-2026 — YA NO LA BAJA SOLO: puede ser la misma plata que entró al cierre, y Joan
+     decidió que se le pregunte cada vez (ver «LO QUE EL CIERRE NO CONOCIÓ», más abajo). */
   /* 9-nov-2026 — Y SOLO SI LA FILA ES DE VERDAD UN CIERRE CON PÉRDIDA. La segunda
      ronda de la revisión: un «Pagó todo» cobrado antes de v142 no trae la llave
      capitalPerdido, y si en el otro aparato el mismo crédito se cerró con pérdida,
@@ -425,59 +427,140 @@
     }
     return cuotasPlan(p).some(function (q) { return q && q.pagado && (q.conPerdon || num(q.capitalPerdido) > 0); }) ? x : 0;
   }
+  /* 9-nov-2026 (tercera tanda de plata-e1) — LO QUE EL CIERRE NO CONOCIÓ, CON PÉRDIDA O SIN
+     ELLA. La regla de Joan para lo que llega del otro aparato después de un cierre es «Que me
+     pregunte cada vez», y la primera versión (15f61b3) solo preguntaba si el cierre había
+     perdido capital: esto devolvía 0 sin pérdida anotada. La revisión lo midió con el caso más
+     real: la clienta debe 375.000, le da 60.000 al cobrador (celular) y 315.000 a Joan, que
+     cierra en el computador con «Se lo perdoné» antes de traer lo del celular. Quedaban 15.000
+     de ganancia, 60.000 de «Descuentos dados» que no existieron y 300.000 recuperados: entraron
+     375.000 y solo 315.000 estaban en alguna cifra, sin que nada preguntara. Con «Pagó todo»
+     por 375.000 más los 60.000 del celular, 375.000 de 435.000.
+     Se sabe sin guardar nada más, en cualquier cierre:
+       · Quincenal: el cierre no escribe abonos. Lo que dio por saldado de capital es lo que
+         entró menos lo que cobró de costo y mora y menos lo que dejó a su favor
+         (montoRecibido − gananciaPago − saldoAFavor), más lo que perdió. Eso es lo que se
+         debía de capital ese día; lo que hoy se deba menos que eso son abonos que el cierre
+         no conoció. Sin montoRecibido (un cierre de antes del 7-sep) no se puede saber, y no
+         se inventa: 0.
+       · Con cuotas (a cuotas, pago acordado y plan del §8): el cierre escribe sus abonos y deja
+         el capital en lo que perdió. Lo que baje de ahí es un abono suelto que llegó después
+         (los abonos de una cuota viajan con su plan y no llegan hasta aquí: la tarjeta del
+         choque los pregunta antes; ver nube.js).
+     El capital que queda se cuenta sin el tope de cero de capitalActual: un abono que pasa
+     del capital es plata que entró, y también se pregunta. Nunca más que los abonos que hay. */
+  function sumaDeAbonos(p, soloSueltos) {
+    return lista(p && p.abonosCapital).reduce(function (t, a) {
+      if (!a || typeof a !== 'object') return t;
+      if (soloSueltos && a.cuotaPlan != null && a.cuotaPlan !== '') return t;
+      return t + Math.round(num(a.monto));
+    }, 0);
+  }
   function abonosQueElCierreNoConocio(p) {
-    var anotada = perdidaAnotada(p);
-    if (!anotada || tienePlan(p)) return 0;
-    return Math.max(0, anotada + Math.round(num(p.montoRecibido)) - Math.round(capitalActual(p)));
+    if (!(p && p.pagado)) return 0;
+    var perdida = perdidaAnotada(p), conCuotas = tienePlan(p), saldado;
+    if (conCuotas) saldado = 0;
+    else {
+      if (p.montoRecibido == null || p.montoRecibido === '') return 0;
+      saldado = Math.round(num(p.montoRecibido)) - Math.round(num(p.gananciaPago)) -
+                Math.max(0, Math.round(num(p.saldoAFavor)));
+    }
+    var queda = Math.round(num(p.capital)) - sumaDeAbonos(p) - Math.round(capitalPerdonadoDe(p));
+    var n = Math.max(0, saldado + perdida - queda);
+    return Math.min(n, Math.max(0, sumaDeAbonos(p, conCuotas)));
   }
-  function perdidaDelCierre(p) {
-    return Math.max(0, perdidaAnotada(p) - abonosQueElCierreNoConocio(p));
-  }
+  /* Lo que pasa de la pérdida anotada: solo informativo (la caja lo dice). */
   function sobranteDelCierre(p) {
     return Math.max(0, abonosQueElCierreNoConocio(p) - perdidaAnotada(p));
   }
-  /* 9-nov-2026 — LO QUE SOBRA SE PREGUNTA, CADA VEZ (decisión de Joan: «Que me pregunte
-     cada vez»). Si lo que el otro aparato anotó y el cierre no conocía pasa de lo que el
-     cierre perdió, entró más que el capital. Hasta hoy eso se contaba entero como ganancia
-     en el total, y en ningún otro sitio: ni en la quincena, ni en el Calendario, ni en el
-     celular, ni en el 80/20, y la suma daba 385.000 de una deuda de 375.000. El CRM no lo
-     reparte solo: se detiene en ese crédito, le enseña a Joan las cifras y él escoge.
-       · 'cobrar' — lo que sobra paga primero lo que se le perdonó al cerrar, mora y
-         después costo (el mismo orden de todo cobro): es ganancia en la quincena del
-         cierre y baja el descuento. Si pasa de ese perdón, el resto es saldo a su favor.
-       · 'aFavor' — todo lo que sobra es plata del cliente: saldo a su favor.
-     Hasta que escoja, ninguna cifra de ganancia, quincena, fondo ni garantía cuenta ese
-     sobrante: solo sale como «por decidir». La decisión vive en el crédito
-     (sobranteDecidido, un campo que viaja con su lado como pagado) y vale solo para esa
-     cifra: si otro abono la cambia, se vuelve a preguntar. */
+  /* 9-nov-2026 — Y SE PREGUNTA CADA VEZ (decisión de Joan: «Que me pregunte cada vez»). El CRM
+     no reparte solo esa plata: se detiene en ese crédito, le enseña a Joan las cifras y él
+     escoge una de tres respuestas.
+       · 'cobrar' — «Es plata nueva: lo cobro». Paga primero lo que el cierre perdió de capital
+         (vuelve a capital recuperado), después la mora y después el costo que se le perdonaron
+         (el orden de todo cobro): eso es ganancia de la quincena del cierre, baja el descuento,
+         entra al 80/20 y a la garantía. Lo que pase de ahí queda a su favor. Solo tiene sentido
+         si el cierre perdió o perdonó algo; si no, daría lo mismo que 'aFavor'.
+       · 'aFavor' — «Queda a su favor». Todo es saldo a favor del cliente; lo perdido y lo
+         perdonado quedan como se anotaron.
+       · 'misma' — «Era la misma plata». El abono del otro aparato ya estaba dentro de lo que se
+         anotó al cerrar (la clienta le dijo a Joan que ya le había dado esa plata al cobrador, y
+         él marcó «Pagó todo»). No suma nada en ninguna cifra: lo que entró es lo del cierre.
+     MIENTRAS NO ESCOJA, esa plata no cuenta en ninguna cifra (ganancia, quincena, Calendario,
+     celular, 80/20, garantía, cupo) y las del cierre quedan como se anotaron. Eso cambia lo que
+     hacía v142 (7e46074): un abono menor que la pérdida la bajaba solo. Puede ser la misma
+     plata, así que también se pregunta, y mientras tanto la pérdida queda como se anotó: no se
+     cuenta como recuperada una plata dudosa.
+     La decisión vive en el crédito (sobranteDecidido, un campo que viaja con su lado) con la
+     cifra y el cierre para los que se tomó: si otro abono cambia la cifra, o gana otro cierre
+     en un choque, se vuelve a preguntar. */
+  function huellaDelCierre(p) {
+    return { fecha: fechaFin(p && p.fechaPagado) || null,
+             monto: (p && p.montoRecibido != null && p.montoRecibido !== '') ? Math.round(num(p.montoRecibido)) : null };
+  }
   function decisionDelSobrante(p) {
-    var s = sobranteDelCierre(p);
+    var n = abonosQueElCierreNoConocio(p);
     var d = p && p.sobranteDecidido;
-    if (!s || !d || typeof d !== 'object') return null;
-    if (Math.round(num(d.monto)) !== s) return null;
-    return (d.destino === 'cobrar' || d.destino === 'aFavor') ? d : null;
+    if (!n || !d || typeof d !== 'object') return null;
+    if (Math.round(num(d.monto)) !== n) return null;
+    if (d.cierre && typeof d.cierre === 'object') {
+      var h = huellaDelCierre(p);
+      var m = (d.cierre.monto != null && d.cierre.monto !== '') ? Math.round(num(d.cierre.monto)) : null;
+      if ((fechaFin(d.cierre.fecha) || null) !== h.fecha || m !== h.monto) return null;
+    }
+    return (d.destino === 'cobrar' || d.destino === 'aFavor' || d.destino === 'misma') ? d : null;
   }
   function sobrantePorDecidir(p) {
-    var s = sobranteDelCierre(p);
-    return s > 0 && !decisionDelSobrante(p) ? s : 0;
+    var n = abonosQueElCierreNoConocio(p);
+    return n > 0 && !decisionDelSobrante(p) ? n : 0;
   }
-  function piezasDelSobrante(p) {
-    var r = { mora: 0, costo: 0, aFavor: 0 };
-    var d = decisionDelSobrante(p);
-    if (!d) return r;
-    var s = sobranteDelCierre(p);
-    if (d.destino === 'aFavor') { r.aFavor = s; return r; }
-    var c = condonacionDelCierre(p) || {};
-    r.mora = Math.min(s, Math.max(0, Math.round(num(c.mora))));
-    r.costo = Math.min(s - r.mora, Math.max(0, Math.round(num(c.costo))));
-    r.aFavor = s - r.mora - r.costo;
+  /* Lo que el cierre perdió (capital) y perdonó (mora y costo), según lo que anotó. */
+  function perdonadoAlCerrar(p) {
+    var c = condonacionDeEsteCierre(p) || {};
+    return { capital: perdidaAnotada(p), mora: Math.max(0, Math.round(num(c.mora))), costo: Math.max(0, Math.round(num(c.costo))) };
+  }
+  function repartoDeLoCobrado(n, x) {
+    var r = { capital: Math.min(n, x.capital), mora: 0, costo: 0, aFavor: 0 };
+    r.mora = Math.min(n - r.capital, x.mora);
+    r.costo = Math.min(n - r.capital - r.mora, x.costo);
+    r.aFavor = n - r.capital - r.mora - r.costo;
     return r;
   }
-  /* Lo que de verdad quedó perdonado de una condonación vigente: si es la del cierre y
-     Joan cobró lo que sobró, lo cobrado ya no es descuento. */
+  function piezasDelSobrante(p) {
+    var r = { capital: 0, mora: 0, costo: 0, aFavor: 0 };
+    var d = decisionDelSobrante(p);
+    if (!d || d.destino === 'misma') return r;
+    var n = abonosQueElCierreNoConocio(p);
+    if (d.destino === 'aFavor') { r.aFavor = n; return r; }
+    return repartoDeLoCobrado(n, perdonadoAlCerrar(p));
+  }
+  /* La pérdida es la que se anotó, menos lo que Joan decidió cobrar de la plata que el cierre
+     no conoció. */
+  function perdidaDelCierre(p) {
+    return Math.max(0, perdidaAnotada(p) - piezasDelSobrante(p).capital);
+  }
+  /* El perdón del cierre de este crédito, sea cual sea su forma: el de «Se lo perdoné» desde
+     v142 (sobre:'cierre', perdonDelCierreVigente) o el de pagarTotal y del celular, que no
+     lleva `sobre` (del día del cierre y con lo que la fila dice que se perdonó). */
+  function condonacionDeEsteCierre(p) {
+    var v = perdonDelCierreVigente(p);
+    if (v || !(p && p.pagado)) return v;
+    var f = fechaFin(p.fechaPagado), conds = lista(p.condonaciones);
+    var esperado = (p.costoCausado != null || p.moraCausada != null)
+      ? Math.max(0, Math.round(num(p.costoCausado) + num(p.moraCausada) - num(p.gananciaPago))) : null;
+    for (var i = 0; i < conds.length; i++) {
+      var c = conds[i];
+      if (!c || typeof c !== 'object' || (c.sobre != null && c.sobre !== '') || num(c.capital) > 0 ||
+          fechaFin(c.fecha) !== f) continue;
+      if (esperado == null || Math.round(num(c.costo) + num(c.mora)) === esperado) return c;
+    }
+    return null;
+  }
+  /* Lo que de verdad quedó perdonado de una condonación vigente: si es la del cierre y Joan
+     cobró la plata que el cierre no conoció, lo cobrado ya no es descuento. */
   function moraYCostoPerdonados(p, c) {
     var r = { mora: num(c && c.mora), costo: num(c && c.costo) };
-    if (c && c.sobre === 'cierre' && c === condonacionDelCierre(p)) {
+    if (c && c === condonacionDeEsteCierre(p)) {
       var x = piezasDelSobrante(p);
       r.mora = Math.max(0, r.mora - x.mora);
       r.costo = Math.max(0, r.costo - x.costo);
@@ -485,38 +568,45 @@
     return r;
   }
   /* La plata que el cliente tiene a su favor en este crédito: la que se anotó al cobrar
-     y la que Joan dejó a su favor de lo que sobró. */
+     y la que Joan dejó a su favor de lo que el cierre no conoció. */
   function saldoAFavorDe(p) {
     return Math.max(0, Math.round(num(p && p.saldoAFavor))) + piezasDelSobrante(p).aFavor;
   }
-  /* Las cifras que Joan lee antes de escoger: lo anotado en cada aparato, lo perdido y lo
-     que sobra; y lo que pasaría con cada elección. */
+  /* Las cifras que Joan lee antes de escoger: lo anotado al cerrar, lo perdido y perdonado,
+     lo que el cierre no conoció, lo que haría cada botón y cuáles tienen sentido. */
   function cuentaDelSobrante(p) {
-    var s = sobranteDelCierre(p);
-    if (!s) return null;
-    var c = condonacionDelCierre(p) || {};
-    var perdon = Math.max(0, Math.round(num(c.mora))) + Math.max(0, Math.round(num(c.costo)));
-    var aGanancia = Math.min(s, perdon);
+    var n = abonosQueElCierreNoConocio(p);
+    if (!n) return null;
+    var x = perdonadoAlCerrar(p);
+    var cobra = repartoDeLoCobrado(n, x);
     return {
-      enElCierre: Math.round(num(p.montoRecibido)),
-      delOtroAparato: abonosQueElCierreNoConocio(p),
-      perdidoAlCerrar: perdidaAnotada(p),
-      sobra: s,
-      perdonDeCostoYMora: perdon,
-      siCobra: { ganancia: aGanancia, aFavor: s - aGanancia },
-      siAFavor: { ganancia: 0, aFavor: s },
+      enElCierre: huellaDelCierre(p).monto,
+      fechaDelCierre: huellaDelCierre(p).fecha,
+      conCuotas: tienePlan(p),
+      delOtroAparato: n,
+      perdidoAlCerrar: x.capital,
+      perdonado: x,
+      sobra: Math.max(0, n - x.capital),
+      siCobra: { capital: cobra.capital, mora: cobra.mora, costo: cobra.costo, ganancia: cobra.mora + cobra.costo,
+                 aFavor: cobra.aFavor },
+      siAFavor: { ganancia: 0, aFavor: n },
+      botones: (x.capital + x.mora + x.costo > 0 ? ['cobrar'] : []).concat(['aFavor', 'misma']),
       decision: decisionDelSobrante(p),
       porDecidir: sobrantePorDecidir(p)
     };
   }
   function decidirSobrante(p, destino, fecha, quien) {
-    var s = sobranteDelCierre(p);
-    if (!s) return { ok: false, motivo: 'nada', detalle: 'En este crédito no sobra nada que decidir.' };
-    if (destino !== 'cobrar' && destino !== 'aFavor') return { ok: false, motivo: 'destino', detalle: 'Escoge qué hacer con lo que sobra.' };
-    return { ok: true, registros: { sobranteDecidido: { monto: s, destino: destino, fecha: fechaFin(fecha) || hoyISO(),
-      quien: String(quien || 'computador') } } };
+    var c = cuentaDelSobrante(p);
+    if (!c) return { ok: false, motivo: 'nada', detalle: 'En este crédito no hay plata que el cierre no conociera.' };
+    if (c.botones.indexOf(destino) < 0) {
+      return { ok: false, motivo: 'destino', detalle: destino === 'cobrar'
+        ? 'Este cierre no perdió ni perdonó nada: «Lo cobro» daría lo mismo que «Queda a su favor».'
+        : 'Escoge qué es esa plata.' };
+    }
+    return { ok: true, registros: { sobranteDecidido: { monto: c.delOtroAparato, destino: destino,
+      fecha: fechaFin(fecha) || hoyISO(), quien: String(quien || 'computador'), cierre: huellaDelCierre(p) } } };
   }
-  /* Lo cobrado de lo que sobró, en la quincena del cierre (la misma vara de gananciaPago). */
+  /* Lo cobrado de esa plata, en la quincena del cierre (la misma vara de gananciaPago). */
   function sobranteCobradoEnQuincena(p, q) {
     if (!(p && p.pagado) || !q || p.cicloPago !== q) return 0;
     var x = piezasDelSobrante(p);

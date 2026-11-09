@@ -67,8 +67,13 @@ function aCuotas() {
  * perdieron 50.000 de un capital de 300.000. Y con un abono mayor que la pérdida,
  * «Cerrado con pérdida» de un crédito por el que entró más que el capital.
  * ======================================================================== */
-describe('6-bis · un abono del otro aparato baja la pérdida del cierre que no lo conocía', () => {
+/* 9-nov-2026 (tercera tanda) — YA NO LA BAJA SOLO: la regla entera de Joan («Que me pregunte cada
+ * vez») vale también para un abono menor que la pérdida, porque puede ser la misma plata que entró
+ * al cierre. Mientras Joan no decida, la pérdida queda como se anotó y el abono está «por decidir»;
+ * con «Es plata nueva: lo cobro», baja la pérdida como antes. */
+describe('6-bis · un abono del otro aparato baja la pérdida del cierre que no lo conocía (cuando Joan dice que es plata nueva)', () => {
   const ABONO = monto => ({ fecha: '2026-10-18', monto, id: 'ab-celular' });
+  const cobrar = f => Object.assign(copia(f), P.decidirSobrante(f, 'cobrar', '2026-10-22').registros);
   function choque(monto) {
     const p = quincenal();
     const r = P.cierreConPerdon(cartera(p), p, DIA, 250000, SI);
@@ -79,9 +84,13 @@ describe('6-bis · un abono del otro aparato baja la pérdida del cierre que no 
     return NUBE.fusionarFila(cerrado, delCelular, NUBE.LISTAS_QUE_SUMAN).fila;   // «Mandar lo mío encima»
   }
 
-  test('abono de 30.000 y cierre con 250.000: se perdieron 20.000, no 50.000', () => {
-    const f = choque(30000);
-    assert.equal(f.abonosCapital.length, 1, 'el abono del celular no se juntó');
+  test('abono de 30.000 y cierre con 250.000: por decidir la pérdida queda en 50.000; con «lo cobro», 20.000', () => {
+    const g = choque(30000);
+    assert.equal(g.abonosCapital.length, 1, 'el abono del celular no se juntó');
+    assert.equal(P.sobrantePorDecidir(g), 30000, 'los 30.000 no salen por decidir');
+    assert.equal(P.perdidaDelCierre(g), 50000, 'bajó la pérdida sola con plata que puede ser la misma');
+    assert.equal(P.capitalRecuperadoDe(g), 250000);
+    const f = cobrar(g);
     assert.equal(P.perdidaDelCierre(f), 20000);
     assert.equal(P.capitalRecuperadoDe(f), 280000);
     assert.equal(P.perdidaDelCierre(f) + P.capitalRecuperadoDe(f), 300000, 'lo que volvió más lo perdido tiene que dar el capital');
@@ -95,17 +104,21 @@ describe('6-bis · un abono del otro aparato baja la pérdida del cierre que no 
     assert.equal(P.descuentosDelSocio(db, SOCIO).veces, 1);
   });
 
-  test('abono mayor que la pérdida: entró más que el capital, y no hay pérdida ni «Cerrado con pérdida»', () => {
-    const f = choque(60000);
+  test('abono mayor que la pérdida: con «lo cobro» entró más que el capital, y no hay pérdida ni «Cerrado con pérdida»', () => {
+    const g = choque(60000);
+    /* Por decidir: los 60.000 enteros, y la pérdida como se anotó. */
+    assert.equal(P.sobrantePorDecidir(g), 60000, 'los 60.000 entraron de verdad: tienen que salir por decidir');
+    assert.equal(P.perdidaDelCierre(g), 50000);
+    assert.equal(P.cerroConPerdida(g), true);
+    assert.equal(P.gananciaCobrada(g), 0);
+    const f = cobrar(g);
     assert.equal(P.perdidaDelCierre(f), 0);
     assert.equal(P.cerroConPerdida(f), false);
     assert.equal(P.capitalRecuperadoDe(f), 300000);
-    /* 9-nov-2026 — decisión de Joan: lo que sobra se pregunta, y por decidir no cuenta
-       (ver «lo que sobra se pregunta», abajo). Antes contaba 10.000 de ganancia en el total
-       y en ningún otro sitio. */
-    assert.equal(P.sobrantePorDecidir(f), 10000, 'los 10.000 de más entraron de verdad: tienen que salir por decidir');
-    assert.equal(P.gananciaCobrada(f), 0);
-    assert.equal(P.gananciaDelCredito(f).ganancia, 0);
+    /* 9-nov-2026 — los 10.000 que pasan de la pérdida pagan la mora que se le perdonó. */
+    assert.equal(P.sobrantePorDecidir(f), 0);
+    assert.equal(P.gananciaCobrada(f), 10000);
+    assert.equal(P.gananciaDelCredito(f).ganancia, 10000);
   });
 
   test('sin choque, con el abono conocido al cerrar, la cuenta es la misma y no se descuenta dos veces', () => {
@@ -202,7 +215,7 @@ describe('6-bis · un abono del otro aparato baja la pérdida del cierre que no 
   });
 
   test('lo que Joan lee en el CRM: lo que volvió, lo perdido y el Tablero cuadran', () => {
-    const f = choque(30000);
+    const f = cobrar(choque(30000));
     const CRM = abrirPanel({ ahora: '2026-10-21T10:30:00' });
     CRM.cargarCartera({ socios: [copia(SOCIO)], prestamos: [f], config: { negocio: 'Tu Garantía' } });
     CRM.ev("verCredito('p1')");
@@ -214,7 +227,7 @@ describe('6-bis · un abono del otro aparato baja la pérdida del cierre que no 
        y este «$20.000». Ahora los dos dicen lo que de verdad no volvió. */
     assert.match(t, /Entró de verdad \$250\.000 con \$95\.000 perdonados al cerrar \(\$75\.000 de mora y costo \+ \$20\.000 de capital ?\)/, t);
     assert.doesNotMatch(t, /\+ \$50\.000 de capital ?\)/, 'el mismo cuadro decía dos pérdidas');
-    assert.match(t, /al cerrar se anotaron \$50\.000 de capital perdido; un abono del otro aparato que el cierre no conocía la bajó a \$20\.000/);
+    assert.match(t, /al cerrar se anotaron \$50\.000 de capital perdido; con la plata del otro aparato que el cierre no conoció y decidiste cobrar, bajó a \$20\.000/);
   });
 
   test('sin abonos de otro aparato, el renglón dice lo de siempre', () => {
@@ -352,7 +365,11 @@ describe('lo que sobra se pregunta, y cada peso cuadra', () => {
   test('por decidir: no cuenta en la ganancia, la quincena, el descuento, el fondo ni la garantía, y se dice', () => {
     const f = choque(60000);
     const c = cuadre(f);
-    assert.equal(c.porDecidir, 10000);
+    /* 9-nov-2026 (tercera tanda) — por decidir están los 60.000 enteros, y la pérdida queda
+       como se anotó: puede ser la misma plata que entró al cierre. */
+    assert.equal(c.porDecidir, 60000);
+    assert.equal(c.perdida, 50000);
+    assert.equal(c.recuperado + c.ganancia + c.aFavor + c.porDecidir, 310000, 'entraron 310.000');
     assert.deepEqual([c.ganancia, c.quincena, c.fondo, c.aFavor], [0, 0, 0, 0]);
     assert.equal(c.descuentos, 75000);
     assert.equal(deuda(c), 375000, 'la cuenta de la deuda no cuadra');
@@ -368,7 +385,8 @@ describe('lo que sobra se pregunta, y cada peso cuadra', () => {
     assert.deepEqual([c.ganancia, c.quincena, c.descuentos, c.aFavor], [10000, 10000, 65000, 0]);
     assert.equal(deuda(c), 375000);
     assert.equal(c.fondo, 10000, 'lo cobrado no entró al 80/20');
-    assert.deepEqual(P.piezasDelSobrante(f), { mora: 10000, costo: 0, aFavor: 0 }, 'no fue primero a la mora');
+    /* Primero el capital perdido, después la mora. */
+    assert.deepEqual(P.piezasDelSobrante(f), { capital: 50000, mora: 10000, costo: 0, aFavor: 0 }, 'no fue primero al capital y a la mora');
   });
 
   test('«Lo cobro» con un abono grande: el perdón entero vuelve y el resto es saldo a su favor', () => {
@@ -381,17 +399,17 @@ describe('lo que sobra se pregunta, y cada peso cuadra', () => {
     assert.equal(P.descuentosDelSocio(cartera(f), SOCIO).monto, 0, 'la ficha sigue diciendo un descuento que se cobró');
   });
 
-  test('«Queda a su favor»: no es ganancia, el descuento se queda y el cliente tiene su saldo', () => {
+  test('«Queda a su favor»: no es ganancia, el descuento y la pérdida se quedan y el cliente tiene su saldo', () => {
     const f = decidir(choque(60000), 'aFavor');
     const c = cuadre(f);
-    assert.deepEqual([c.ganancia, c.quincena, c.descuentos, c.aFavor, c.fondo], [0, 0, 75000, 10000, 0]);
+    assert.deepEqual([c.ganancia, c.quincena, c.descuentos, c.aFavor, c.fondo, c.perdida], [0, 0, 75000, 60000, 0, 50000]);
     assert.equal(deuda(c), 375000);
   });
 
   test('si otro abono cambia lo que sobra, se vuelve a preguntar', () => {
     const f = decidir(choque(60000), 'cobrar');
     f.abonosCapital = f.abonosCapital.concat([{ fecha: '2026-10-19', monto: 5000, id: 'otro' }]);
-    assert.equal(P.sobrantePorDecidir(f), 15000);
+    assert.equal(P.sobrantePorDecidir(f), 65000);
     assert.equal(P.gananciaCobrada(f), 0, 'contó una decisión que era de otra cifra');
   });
 
@@ -409,14 +427,16 @@ describe('lo que sobra se pregunta, y cada peso cuadra', () => {
     const CRM = abrirPanel({ ahora: '2026-10-21T10:30:00' });
     CRM.cargarCartera({ socios: [copia(SOCIO)], prestamos: [f], config: { negocio: 'Tu Garantía' } });
     const aviso = String(CRM.ev('avisoSobrantesPorDecidir()')).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-    assert.match(aviso, /Sobra plata en un cierre: decide qué es\./);
-    assert.match(aviso, /sobran \$10\.000/);
+    assert.match(aviso, /Llegó plata que un cierre no conoció: decide qué es\./);
+    assert.match(aviso, /\$60\.000 por decidir/);
     CRM.ev("verCredito('p1')");
     const t = String(CRM.elems.mBody.innerHTML).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-    assert.match(t, /Al cerrar en este computador entraron \$250\.000 y se anotaron \$50\.000 de capital perdido\. Otro aparato había anotado \$60\.000 que este cierre no conocía: con eso no se perdió capital y sobran \$10\.000 ?\./, t);
-    assert.match(t, /no cuentan en la ganancia, la quincena, el fondo ni la garantía/);
+    assert.match(t, /Al cerrar el .+ se anotó que entraron \$250\.000 ?, con \$50\.000 de capital perdido ?, \$15\.000 de mora perdonada y \$60\.000 de costo perdonado\. Otro aparato había anotado \$60\.000 en abonos que ese cierre no tuvo en cuenta\./, t);
+    assert.match(t, /no cuentan en ninguna cifra \(ni en la ganancia, la quincena, el Calendario, el fondo, la garantía ni el cupo\)/);
+    assert.match(t, /la pérdida sigue en \$50\.000/);
     assert.match(String(CRM.elems.mBody.innerHTML), /decidirSobrante\('p1','cobrar'\)/);
     assert.match(String(CRM.elems.mBody.innerHTML), /decidirSobrante\('p1','aFavor'\)/);
+    assert.match(String(CRM.elems.mBody.innerHTML), /decidirSobrante\('p1','misma'\)/);
     assert.equal(CRM.ev('gananciaDeQuincena(DB.prestamos[0].cicloPago)'), 0);
   });
 
@@ -427,12 +447,12 @@ describe('lo que sobra se pregunta, y cada peso cuadra', () => {
     CRM.ev("decidirSobrante('p1','cobrar')");
     const enDisco = JSON.parse(CRM.almacen.joan_socios_v1).prestamos[0];
     assert.equal(enDisco.sobranteDecidido.destino, 'cobrar');
-    assert.equal(enDisco.sobranteDecidido.monto, 10000);
+    assert.equal(enDisco.sobranteDecidido.monto, 60000);
     assert.equal(CRM.ev('gananciaDeQuincena(DB.prestamos[0].cicloPago)'), 10000);
     assert.equal(CRM.ev('avisoSobrantesPorDecidir()'), '');
     CRM.ev("verCredito('p1')");
     const t = String(CRM.elems.mBody.innerHTML).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-    assert.match(t, /Lo que sobró al cerrar \$10\.000 · lo cobraste: \$10\.000 de lo que le habías perdonado/);
+    assert.match(t, /Lo que el cierre no conoció \$60\.000 · era plata nueva y la cobraste: \$50\.000 volvieron a capital y \$10\.000 de lo que le habías perdonado son ganancia/);
     assert.match(t, /Entró de verdad \$250\.000 con \$65\.000 perdonados al cerrar/, 'el renglón sigue diciendo el perdón entero');
   });
 

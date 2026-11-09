@@ -1484,6 +1484,18 @@
         return;
       }
       if (k === 'planPagos' && pactoSPendiente) return;  // el pago acordado de allá: ver abajo
+      /* 9-nov-2026 — LO QUE JOAN DECIDIÓ DE LA PLATA QUE UN CIERRE NO CONOCIÓ
+         (puente.decisionDelSobrante). Una decisión de un lado contra nada del otro no es un
+         choque: el otro todavía no la sabe, y preguntarle a Joan «¿la decisión o nada?» le
+         pedía escoger otra vez lo que ya escogió, y con «Dejar lo de la nube» la perdía (y la
+         caja le volvía a preguntar). Se queda la decisión, con los dos botones. Es seguro:
+         una decisión solo vale para la cifra y el cierre para los que se tomó, y si no son los
+         de esta fila, el CRM vuelve a preguntar. Dos decisiones distintas sí son un choque, y
+         la tarjeta dice cada una (subir.html y espejo.html). */
+      if (k === 'sobranteDecidido' && (m[k] == null || s[k] == null)) {
+        if (m[k] == null) fila[k] = clonar(s[k]);
+        return;
+      }
       if (!tiene(m, k)) { fila[k] = clonar(s[k]); return; }  // solo está allá: no pisa nada
       pisables.push({ campo: k, mio: clonar(m[k]), suyo: clonar(s[k]) });
     });

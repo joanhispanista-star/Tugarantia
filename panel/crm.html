@@ -5725,11 +5725,11 @@ function verDia(iso){
     if(ev.cuo.length){ h+=`<div class="sub-h">📅 Cuotas pactadas (a cuotas o plan de pagos)</div>`+ev.cuo.map(c=>
       `<div class="info-row"><span class="k">${escHTML(c.p.socioNombre)}<div class="muted">cuota ${c.n} de ${c.de}, ya pactada</div></span><span class="vv"><b>${COP(c.monto)}</b> · <a target="_blank" href="${gcalUrl('Cobro '+c.p.socioNombre+' '+COP(c.monto),c.fecha,detalleCobro(c.p,c))}">+Google</a></span></div>`).join(''); }
     if(ev.des.length){ h+=`<div class="sub-h">💵 Desembolsos</div>`+ev.des.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv"><b>${COP(p.capital)}</b> · <a target="_blank" href="${gcalUrl('Desembolso '+p.socioNombre+' '+COP(p.capital),iso,'')}">+Google</a></span></div>`).join(''); }
-    if(ev.pag.length){ h+=`<div class="sub-h">✓ Pagos recibidos</div>`+ev.pag.map(p=>{ /* 9-nov-2026 — con lo que Joan cobró de lo que sobró del cierre, y lo que sobra por decidir dicho aparte (cajaDelSobrante) */ const sob=PUENTE.piezasDelSobrante(p), pend=PUENTE.sobrantePorDecidir(p); return `<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv gano">${COP(p.capital)} + ganancia ${COP((p.gananciaPago||0)+sob.mora+sob.costo)}${pend?` <span class="muted">· sobran ${COP(pend)} por decidir</span>`:''}</span></div>`; }).join(''); }
+    if(ev.pag.length){ h+=`<div class="sub-h">✓ Pagos recibidos</div>`+ev.pag.map(p=>{ /* 9-nov-2026 — con lo que Joan cobró de lo que sobró del cierre, y lo que sobra por decidir dicho aparte (cajaDelSobrante) */ const sob=PUENTE.piezasDelSobrante(p), pend=PUENTE.sobrantePorDecidir(p); return `<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv gano">${COP(p.capital)} + ganancia ${COP((p.gananciaPago||0)+sob.mora+sob.costo)}${pend?` <span class="muted">· ${COP(pend)} que el cierre no conoció, por decidir</span>`:''}</span></div>`; }).join(''); }
     /* 4-nov-2026 — «volvieron» y no «entraron»: capitalRecuperadoDe es lo que volvió
        de ese crédito en total, con los abonos de otros días. Lo de ese día lo dice el
        detalle («Entró de verdad»), y esta lista no suma nada. */
-    if(ev.cer.length){ h+=`<div class="sub-h">✕ Cerrados con pérdida</div>`+ev.cer.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv">volvieron ${COP(PUENTE.capitalRecuperadoDe(p))} de ${COP(p.capital)} · cerrado perdiendo <b class="pierde">${COP(PUENTE.perdidaDelCierre(p))}</b></span></div>`).join(''); }
+    if(ev.cer.length){ h+=`<div class="sub-h">✕ Cerrados con pérdida</div>`+ev.cer.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv">volvieron ${COP(PUENTE.capitalRecuperadoDe(p))} de ${COP(p.capital)} · cerrado perdiendo <b class="pierde">${COP(PUENTE.perdidaDelCierre(p))}</b>${PUENTE.sobrantePorDecidir(p)?` <span class="muted">· ${COP(PUENTE.sobrantePorDecidir(p))} que el cierre no conoció, por decidir</span>`:''}</span></div>`).join(''); }
     /* A qué corte pasó DE VERDAD ese día está guardado en el movimiento
        (`nuevoCiclo`): `p.cicloActual` es el corte de hoy, y con dos prórrogas
        encadenadas las dos filas decían la misma fecha, la última. */
@@ -6996,38 +6996,70 @@ function guardarRapidoACuotas(){
 }
 
 /* ===== VER CRÉDITO + comprobantes ===== */
-/* 9-nov-2026 — LO QUE SOBRA DE UN CIERRE SE PREGUNTA, CADA VEZ (decisión de Joan: «Que me
-   pregunte cada vez»; las cuentas, en el puente: decisionDelSobrante). Cuando lo que el
-   celular anotó y el cierre no conocía pasa de lo que el cierre perdió, el CRM se detiene
-   aquí: enseña lo anotado en cada aparato, lo perdido y lo que sobra, y Joan escoge.
-   Mientras no escoja, ese sobrante no cuenta en ninguna cifra: lo dice la caja, y el
-   Tablero avisa (avisoSobrantesPorDecidir). Con la decisión tomada, queda escrita aquí. */
+/* 9-nov-2026 — LA PLATA QUE UN CIERRE NO CONOCIÓ SE PREGUNTA, CADA VEZ (decisión de Joan:
+   «Que me pregunte cada vez»; las cuentas, en el puente: abonosQueElCierreNoConocio y
+   decisionDelSobrante). Cuando otro aparato anotó abonos que el cierre no tuvo en cuenta, el
+   CRM se detiene aquí: enseña lo que se anotó al cerrar, lo perdido y perdonado, y lo que el
+   cierre no conoció, y Joan escoge. Mientras no escoja, esa plata no cuenta en ninguna cifra:
+   lo dice la caja, y el Tablero avisa (avisoSobrantesPorDecidir).
+   La primera versión (15f61b3) solo salía si el cierre había perdido capital: un «Se lo
+   perdoné» sin pérdida o un «Pagó todo» dejaban la plata del celular fuera de toda cifra y
+   nadie preguntaba (tercera tanda de la revisión). Ahora sale con cualquier cierre, y solo con
+   los botones que tienen sentido: sin nada perdido ni perdonado, «Lo cobro» sería lo mismo que
+   «Queda a su favor» y no sale. Con la decisión tomada, queda escrita aquí. */
+function enFrase(partes){ return partes.length<2?(partes[0]||''):partes.slice(0,-1).join(', ')+' y '+partes[partes.length-1]; }
 function cajaDelSobrante(p){
   const c=PUENTE.cuentaDelSobrante?PUENTE.cuentaDelSobrante(p):null;
   if(!c) return '';
-  const cifras=`Al cerrar en este computador entraron <b>${COP(c.enElCierre)}</b> y se anotaron <b>${COP(c.perdidoAlCerrar)}</b> de capital perdido. `
-    +`Otro aparato había anotado <b>${COP(c.delOtroAparato)}</b> que este cierre no conocía: con eso no se perdió capital y <b>sobran ${COP(c.sobra)}</b>.`;
+  const id=idDeBoton(p.id);
+  const pe=c.perdonado||{capital:0,mora:0,costo:0};
+  const perdon=[];
+  if(pe.capital) perdon.push(`<span class="pierde">${COP(pe.capital)} de capital perdido</span>`);
+  if(pe.mora) perdon.push(`${COP(pe.mora)} de mora perdonada`);
+  if(pe.costo) perdon.push(`${COP(pe.costo)} de costo perdonado`);
+  const cierre=(c.enElCierre!=null
+      ?`Al cerrar el ${fmtFecha(c.fechaDelCierre)} se anotó que entraron <b>${COP(c.enElCierre)}</b>`
+      :`Las cuotas se cerraron el ${fmtFecha(c.fechaDelCierre)}`)
+    +(perdon.length?`, con ${enFrase(perdon)}`:', sin perder ni perdonar nada')+'. '
+    +`Otro aparato había anotado <b>${COP(c.delOtroAparato)}</b> en abonos que ese cierre no tuvo en cuenta.`;
   if(c.decision){
-    const x=PUENTE.piezasDelSobrante(p);
-    const dijo=c.decision.destino==='cobrar'
-      ?`lo cobraste: ${COP(x.mora+x.costo)} de lo que le habías perdonado${x.aFavor?` y ${COP(x.aFavor)} a su favor`:''}`
-      :`queda a su favor: ${COP(x.aFavor)}`;
-    return `<div class="info-row fila-larga"><span class="k">Lo que sobró al cerrar</span><span class="vv"><b>${COP(c.sobra)}</b> <span class="muted">· ${dijo} (lo decidiste el ${fmtFecha(c.decision.fecha)})</span></span></div>`;
+    const x=PUENTE.piezasDelSobrante(p), d=c.decision.destino;
+    const partes=[];
+    if(x.capital) partes.push(`${COP(x.capital)} volvieron a capital`);
+    if(x.mora+x.costo) partes.push(`${COP(x.mora+x.costo)} de lo que le habías perdonado son ganancia`);
+    if(x.aFavor) partes.push(`${COP(x.aFavor)} quedan a su favor`);
+    const dijo=d==='cobrar'?`era plata nueva y la cobraste: ${enFrase(partes)}`
+      :d==='aFavor'?`queda a su favor: ${COP(x.aFavor)}`
+      :'era la misma plata que entró al cierre: no suma nada';
+    return `<div class="info-row fila-larga"><span class="k">Lo que el cierre no conoció</span><span class="vv"><b>${COP(c.delOtroAparato)}</b> <span class="muted">· ${dijo} (lo decidiste el ${fmtFecha(c.decision.fecha)})</span></span></div>`;
   }
-  return `<div class="alerta warn" id="sobrante_${escHTML(p.id)}"><b>Sobra plata en este cierre: decide qué es.</b><br>${cifras}<br>`
-    +`Mientras no decidas, esos ${COP(c.sobra)} no cuentan en la ganancia, la quincena, el fondo ni la garantía.`
-    +`<div class="two" style="margin-top:10px">`
-    +`<button class="btn btn-rojo btn-sm" onclick="decidirSobrante('${escHTML(p.id)}','cobrar')">Lo cobro: paga lo que le perdoné</button>`
-    +`<button class="btn btn-ghost btn-sm" onclick="decidirSobrante('${escHTML(p.id)}','aFavor')">Queda a su favor</button></div>`
-    +`<div class="muted" style="margin-top:6px;font-size:12px">«Lo cobro»: ${COP(c.siCobra.ganancia)} son ganancia de la quincena del cierre y bajan el descuento${c.siCobra.aFavor?`, y ${COP(c.siCobra.aFavor)} quedan a su favor`:''}. `
-    +`«Queda a su favor»: los ${COP(c.siAFavor.aFavor)} son del cliente.</div></div>`;
+  const hay=b=>c.botones.indexOf(b)>=0;
+  const cobra=c.siCobra, va=[];
+  if(cobra.capital) va.push(`${COP(cobra.capital)} vuelven a capital recuperado`);
+  if(cobra.ganancia) va.push(`${COP(cobra.ganancia)} de mora y costo perdonados pasan a ganancia de la quincena del cierre y bajan el descuento`);
+  if(cobra.aFavor) va.push(`${COP(cobra.aFavor)} quedan a su favor`);
+  return `<div class="alerta warn" id="sobrante_${id}"><b>Llegó plata que este cierre no conoció: decide qué es.</b><br>${cierre}<br>`
+    +`Mientras no decidas, esos ${COP(c.delOtroAparato)} no cuentan en ninguna cifra (ni en la ganancia, la quincena, el Calendario, el fondo, la garantía ni el cupo), y las del cierre quedan como se anotaron${pe.capital?`: la pérdida sigue en ${COP(pe.capital)}`:''}.`
+    +(id?`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">`
+      +(hay('cobrar')?`<button class="btn btn-rojo btn-sm" onclick="decidirSobrante('${id}','cobrar')">Es plata nueva: lo cobro</button>`:'')
+      +(hay('aFavor')?`<button class="btn btn-ghost btn-sm" onclick="decidirSobrante('${id}','aFavor')">Queda a su favor</button>`:'')
+      +(hay('misma')?`<button class="btn btn-ghost btn-sm" onclick="decidirSobrante('${id}','misma')">Era la misma plata</button>`:'')
+      +`</div>`:'')
+    +`<div class="muted" style="margin-top:6px;font-size:12px">`
+    +(hay('cobrar')?`«Es plata nueva»: ${enFrase(va)}. `:'')
+    +`«Queda a su favor»: los ${COP(c.delOtroAparato)} son del cliente; lo ${hay('cobrar')?'perdido y perdonado':'del cierre'} queda como se anotó. `
+    +`«Era la misma plata»: esos ${COP(c.delOtroAparato)} ya estaban dentro de lo que se anotó al cerrar (por ejemplo, te dijo que ya se los había dado al cobrador): no suman nada y las cifras quedan como el cierre las anotó.</div></div>`;
 }
 function decidirSobrante(id,destino){
   const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
   const c=PUENTE.cuentaDelSobrante(p); if(!c) return;
-  const txt=destino==='cobrar'
-    ?'Cobrar lo que sobró: '+COP(c.siCobra.ganancia)+' entran como ganancia de la quincena del cierre'+(c.siCobra.aFavor?' y '+COP(c.siCobra.aFavor)+' quedan a su favor':'')+'.'
-    :'Dejar a su favor los '+COP(c.sobra)+' que sobraron.';
+  const x=c.siCobra, partes=[];
+  if(x.capital) partes.push(COP(x.capital)+' vuelven a capital recuperado');
+  if(x.ganancia) partes.push(COP(x.ganancia)+' entran como ganancia de la quincena del cierre');
+  if(x.aFavor) partes.push(COP(x.aFavor)+' quedan a su favor');
+  const txt=destino==='cobrar'?'Es plata nueva, la cobras: '+enFrase(partes)+'.'
+    :destino==='aFavor'?'Dejar a su favor los '+COP(c.delOtroAparato)+' que el cierre no conoció.'
+    :'Los '+COP(c.delOtroAparato)+' eran la misma plata que entró al cierre: no suman nada y las cifras quedan como el cierre las anotó.';
   if(!confirm(txt+'\n\n¿Lo anoto?')) return;
   const r=PUENTE.decidirSobrante(p,destino,hoyISO(),'computador');
   if(!r.ok) return alert(r.detalle);
@@ -7035,13 +7067,14 @@ function decidirSobrante(id,destino){
   if(!quedoEnDisco()){ render(); return; }
   verCredito(id); render();
 }
-/* Los créditos donde sobra plata por decidir: el Tablero los nombra, uno por uno. */
+/* Los créditos con plata que su cierre no conoció, por decidir: el Tablero los nombra, uno por uno. */
 function avisoSobrantesPorDecidir(){
   const ps=(DB.prestamos||[]).filter(p=>PUENTE.sobrantePorDecidir&&PUENTE.sobrantePorDecidir(p)>0);
   if(!ps.length) return '';
-  return `<div class="alerta warn"><b>Sobra plata en ${ps.length===1?'un cierre':ps.length+' cierres'}: decide qué es.</b> `
+  return `<div class="alerta warn"><b>Llegó plata que ${ps.length===1?'un cierre no conoció':ps.length+' cierres no conocieron'}: decide qué es.</b> `
     +`Hasta que decidas, no cuenta en ninguna cifra. `
-    +ps.map(p=>`<a href="#" onclick="verCredito('${escHTML(p.id)}');return false">${escHTML(codCredito(p))} · ${escHTML(p.socioNombre||'')} · sobran ${COP(PUENTE.sobrantePorDecidir(p))}</a>`).join(' · ')
+    +ps.map(p=>{ const id=idDeBoton(p.id), t=`${escHTML(codCredito(p))} · ${escHTML(p.socioNombre||'')} · ${COP(PUENTE.sobrantePorDecidir(p))} por decidir`;
+      return id?`<a href="#" onclick="verCredito('${id}');return false">${t}</a>`:t; }).join(' · ')
     +`</div>`;
 }
 function verCredito(id){
@@ -7183,7 +7216,7 @@ function verCredito(id){
          perdido al cerrar» de abajo. Con un abono del otro aparato que el cierre no conocía, este renglón decía «+ $50.000
          de capital» y el de abajo «$20.000» (segunda ronda de la revisión): lo anotado al cerrar se dice aparte. */
       const cap=capAnotado&&PUENTE.perdidaDelCierre?PUENTE.perdidaDelCierre(p):capAnotado;
-      const abono=capAnotado>cap?` · al cerrar se anotaron ${COP(capAnotado)} de capital perdido; un abono del otro aparato que el cierre no conocía ${cap?`la bajó a ${COP(cap)}`:'cubrió ese capital'}`:'';
+      const abono=capAnotado>cap?` · al cerrar se anotaron ${COP(capAnotado)} de capital perdido; con la plata del otro aparato que el cierre no conoció y decidiste cobrar, ${cap?`bajó a ${COP(cap)}`:'volvió entero'}`:'';
       return p.pagado&&p.montoRecibido!=null&&cc.length?`<div class="info-row fila-larga"><span class="k">Entró de verdad</span><span class="vv"><b>${COP(p.montoRecibido)}</b> <span class="muted">con ${COP(mc+cap)} perdonados al cerrar${cap?` (${COP(mc)} de mora y costo + <span class="pierde">${COP(cap)} de capital</span>)`:''}: ${escHTML(cc.map(c=>c.motivo).filter(Boolean).join(' · '))}${abono}</span></span></div>`:''; })()}
     ${PUENTE.perdidaDelCierre&&PUENTE.perdidaDelCierre(p)?`<div class="info-row"><span class="k">Capital perdido al cerrar</span><span class="vv"><b class="pierde">${COP(PUENTE.perdidaDelCierre(p))}</b> <span class="muted">· plata tuya que no vuelve: de los ${COP(p.capital)} prestados volvieron ${COP(PUENTE.capitalRecuperadoDe(p))}</span></span></div>`:''}
     ${cajaDelSobrante(p)}
