@@ -12605,6 +12605,23 @@ function pintarFotosRegistro(celular,cajaId,r){
     const lista=[['Cédula (frente)',f.cedula_frente,'frente'],['Cédula (reverso)',f.cedula_reverso,'reverso'],['Rostro',f.selfie,'selfie']].filter(x=>x[1]);
     /* 3-nov-2026 — lo que se sabe de la cédula que falta, y el botón para pedirla
        (ver QUÉ SE SABE DE LA CÉDULA QUE NO ESTÁ). */
+    /* 9-nov-2026 — PLATACHAT NO CAMBIA, TAMPOCO AQUÍ (decisión de Joan). La fila ya
+       salía como antes, pero esta tarjeta le daba a Joan una instrucción nueva
+       («Pídeselas antes de desembolsar») y un botón que le escribe al cliente: tres
+       revisiones lo vieron. De un registro de PlataChat se pinta lo mismo que en main
+       (04e6ac2), palabra por palabra: sin el botón, «No subió fotos (o no autorizó).»
+       sin ninguna, y con un solo lado el aviso de siempre. Las dos llaves siguen
+       viajando, pero aquí no deciden nada. */
+    if(String((r&&r.app)||'')==='platachat'){
+      if(!lista.length){ caja.innerHTML=avisoRaras||'<span class="muted">No subió fotos (o no autorizó).</span>'; return; }
+      caja.innerHTML=avisoRaras+avisoLadoQueFalta(!!crudas.cedula_frente,!!crudas.cedula_reverso,
+        'No llegó a la nube: el teléfono no la subió o nunca la tomó. Pídesela antes de desembolsar.')
+        +avisoSelfieQueFalta(crudas,a.huella,'Pídesela antes de desembolsar.')
+        +galeriaDelRegistro(lista,f,celular);
+      _girosFicha=null;
+      lista.forEach(x=>mostrarConGiro(document.getElementById('regFoto_'+x[2]),x[1]));
+      return;
+    }
     const pedir=botonPedirFotos(r,ladosQueFaltan(crudas,r));
     if(!lista.length){
       caja.innerHTML=(avisoRaras||(fotosTomadasDe(r&&r.datos)
@@ -12618,17 +12635,31 @@ function pintarFotosRegistro(celular,cajaId,r){
     const avisoLado=avisoLadoQueFalta(!!crudas.cedula_frente,!!crudas.cedula_reverso,porQueFaltaLaCedula(crudas,r,a.huella),!!crudas.selfie,esPasaporte(r&&r.datos))
       +pedir
       +avisoSelfieQueFalta(crudas,a.huella,'Pídesela antes de desembolsar.');
-    /* 8-oct-2026 — cada foto con su «↻ Girar» (ver ↻ GIRAR UNA FOTO). */
-    caja.innerHTML=avisoRaras+avisoLado+`<div class="gal">${lista.map(x=>`<div class="gal-it"><a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>${botonGirar("girarFotoRegistro('"+x[2]+"')")}</div>`).join('')}</div>`
-      +(f.selfie&&f.cedula_frente?`<div id="regParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('regFoto_selfie','regFoto_frente','regParecido')">🔍 Comparar el rostro con la cédula</button></div>`:'')
-      /* 22-sep-2026 — el cotejo contra la foto. Solo aparece si hay foto del
-         REVERSO: el código de barras vive ahí y en ninguna otra parte. */
-      +(f.cedula_reverso?`<div id="regCotejo" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="cotejarConLaFoto('regFoto_reverso','${escHTML(String(celular).replace(/\D/g,''))}','regCotejo')">🔢 Leer el código de barras de la foto</button></div>`:'');
+    caja.innerHTML=avisoRaras+avisoLado+galeriaDelRegistro(lista,f,celular);
     /* 8-oct-2026 — las que Joan ya dejó giradas en este navegador, giradas.
        Fotos de un REGISTRO: el giro de una ficha abierta no cuenta aquí. */
     _girosFicha=null;
     lista.forEach(x=>mostrarConGiro(document.getElementById('regFoto_'+x[2]),x[1]));
   });
+}
+function galeriaDelRegistro(lista,f,celular){
+  /* 8-oct-2026 — cada foto con su «↻ Girar» (ver ↻ GIRAR UNA FOTO). */
+  return `<div class="gal">${lista.map(x=>`<div class="gal-it"><a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>${botonGirar("girarFotoRegistro('"+x[2]+"')")}</div>`).join('')}</div>`
+    +(f.selfie&&f.cedula_frente?`<div id="regParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('regFoto_selfie','regFoto_frente','regParecido')">🔍 Comparar el rostro con la cédula</button></div>`:'')
+    /* 22-sep-2026 — el cotejo contra la foto. Solo aparece si hay foto del
+       REVERSO: el código de barras vive ahí y en ninguna otra parte. */
+    +(f.cedula_reverso?`<div id="regCotejo" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="cotejarConLaFoto('regFoto_reverso','${escHTML(String(celular).replace(/\D/g,''))}','regCotejo')">🔢 Leer el código de barras de la foto</button></div>`:'');
+}
+/* 9-nov-2026 — LA FICHA DE UN REGISTRO DE PLATACHAT NACE COMO EN MAIN. La ficha no
+   sabe de qué app vino (s.vinculacion son los datos, sin la columna app), y con las
+   dos llaves del teléfono le pedía a Joan las fotos «antes de desembolsar» y le
+   ponía el botón. Se quitan al copiar los datos: sin ellas la ficha es la de
+   siempre. Las tres puertas por donde un registro se vuelve ficha pasan por aquí. */
+function datosDelRegistroParaLaFicha(datos,app){
+  const d=(datos&&typeof datos==='object')?datos:{};
+  if(String(app||'')!=='platachat') return d;
+  const c=Object.assign({},d); delete c.fotos_tomadas; delete c.cedula_leida_con;
+  return c;
 }
 /* EL PARECIDO ROSTRO–CÉDULA, en el computador de Joan (el modelo pesa 4 MB y
    no tiene por qué bajarlo cada teléfono). Es una AYUDA, no un veredicto: la
@@ -12714,7 +12745,7 @@ function fichaDesdeRegistro(id){
      campos morían en la bandeja — Joan los volvía a preguntar por WhatsApp.
      Lo que no tiene campo propio en la ficha viaja entero en s.vinculacion
      (lo engancha guardarCliente vía _vinculacionPendiente). */
-  const d=(r.datos&&typeof r.datos==='object')?r.datos:{};
+  const d=datosDelRegistroParaLaFicha(r.datos,r.app);
   /* 9-sep-2026 — UN SOLO MAPEO, y vive en el puente. Acá había una copia con
      `tipo_vivienda || 'casa'`: el que contestó «Arriendo» quedaba de dueño de
      casa, sin un error en pantalla y con la garantía —o sea el cupo— más alta.
@@ -21629,7 +21660,7 @@ function aplicarCruce(idReg,idSocio,op){
 
   /* Lo que declaró y no tiene campo propio no se pierde: se guarda entero, como
      ya hacía la ficha nacida del registro. */
-  if(r.datos&&typeof r.datos==='object'&&Object.keys(r.datos).length) s.vinculacion=r.datos;
+  if(r.datos&&typeof r.datos==='object'&&Object.keys(r.datos).length) s.vinculacion=datosDelRegistroParaLaFicha(r.datos,r.app);
 
   /* Las fotos, la ubicación y la huella del registro se llevan a la ficha —es
      media razón por la que Joan quería el cruce— sin pisar lo que ya tuviera. */
@@ -22801,7 +22832,7 @@ function crearDesdeSolicitud(id){
    los datos en la bandeja («👁») y lo que quiere es desembolsar. Lo que no tiene
    campo propio viaja entero en s.vinculacion. */
 function socioDesdeDatos(s,a,ident){
-  const d=(s.datos&&typeof s.datos==='object')?s.datos:{};
+  const d=datosDelRegistroParaLaFicha(s.datos,s.app);
   const f=(a&&a.fotos)||{}, h=(a&&a.huella&&typeof a.huella==='object')?a.huella:null;
   /* Mismo mapeo que fichaDesdeRegistro y que la mesa de cruce: el del puente.
      OJO CON EL CAMPO `cedula` DE UNA SOLICITUD: no es la cédula, es EL

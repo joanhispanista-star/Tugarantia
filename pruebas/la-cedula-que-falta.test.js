@@ -546,14 +546,66 @@ describe('4-ter · 4-nov-2026: PlataChat no cambia, tampoco en la fila de Regist
     assert.doesNotMatch(h, /pedirFotosPorElChat/);
   });
 
-  test('«Ver datos» dice lo que se sabe, sin afirmar un aviso que PlataChat no da', async () => {
-    const P = crm({ selfie: CARA });
-    P.ctx.__r = [Object.assign(registro({ fotos_tomadas: 'selfie' }), { app: 'platachat' })]; P.ev('_registros=__r');
+  /* 9-nov-2026 — la segunda ronda de la revisión (tres revisores por separado): la
+     fila ya salía como antes, pero «Ver datos» y la ficha le daban a Joan una
+     instrucción nueva y un botón que le escribe al cliente. De un registro de
+     PlataChat se pinta lo de main (04e6ac2). */
+  async function verPlataChat(fotos, datos) {
+    const P = crm(fotos);
+    P.ctx.__r = [Object.assign(registro(datos), { app: 'platachat' })]; P.ev('_registros=__r');
     P.ev('verDatosRegistro(17)');
     await asentar();
-    const t = plano(P.elems.regFotos.innerHTML);
-    assert.match(t, /Al registrarse, su teléfono no tenía las fotos de la cédula/);
-    assert.doesNotMatch(t, /le avisó/);
+    return P.elems.regFotos.innerHTML;
+  }
+
+  test('«Ver datos» de PlataChat, solo con el rostro: la galería, sin instrucción ni botón (como en main)', async () => {
+    const h = await verPlataChat({ selfie: CARA }, { fotos_tomadas: 'selfie' });
+    assert.doesNotMatch(plano(h), /Pídeselas|antes de desembolsar|Falta la cédula/, 'PlataChat no cambia');
+    assert.doesNotMatch(h, /pedirFotosPorElChat/, 'el botón le escribe al cliente: en PlataChat no estaba');
+    assert.match(h, /id="regFoto_selfie"/, 'la foto que sí llegó se tiene que ver');
+  });
+
+  test('«Ver datos» de PlataChat sin ninguna foto dice lo de siempre, también sin el permiso', async () => {
+    for (const datos of [{ fotos_tomadas: 'sin_permiso' }, { fotos_tomadas: 'ninguna' }, {}]) {
+      const h = await verPlataChat({}, datos);
+      assert.equal(plano(h).trim(), 'No subió fotos (o no autorizó).', JSON.stringify(datos));
+    }
+  });
+
+  test('«Ver datos» de PlataChat con un solo lado: el aviso de main, sin el botón', async () => {
+    const h = await verPlataChat({ cedula_reverso: RESPALDO, selfie: CARA }, { fotos_tomadas: 'cedula_reverso,selfie' });
+    assert.match(plano(h), /Falta la foto del frente de la cédula: solo está la del respaldo\. No llegó a la nube: el teléfono no la subió o nunca la tomó\./);
+    assert.doesNotMatch(h, /pedirFotosPorElChat/);
+    assert.match(h, /cotejarConLaFoto\('regFoto_reverso'/, 'el botón de leer el código sigue');
+  });
+
+  test('un registro de Tu Garantía sigue con su tarjeta y su botón', async () => {
+    const P = crm({ selfie: CARA });
+    P.ctx.__r = [registro({ fotos_tomadas: 'selfie' })]; P.ev('_registros=__r');
+    P.ev('verDatosRegistro(17)');
+    await asentar();
+    assert.match(plano(P.elems.regFotos.innerHTML), /Al registrarse, su teléfono no tenía las fotos de la cédula/);
+    assert.match(P.elems.regFotos.innerHTML, /pedirFotosPorElChat/);
+  });
+
+  test('la ficha que nace de un registro de PlataChat no trae las dos llaves: nace como en main', () => {
+    const P = crm({});
+    const d = { nombres: 'Luis', fotos_tomadas: 'selfie', cedula_leida_con: 'codigo' };
+    P.ctx.__d = d;
+    const pc = P.ev("datosDelRegistroParaLaFicha(__d,'platachat')");
+    assert.equal(pc.fotos_tomadas, undefined);
+    assert.equal(pc.cedula_leida_con, undefined);
+    assert.equal(pc.nombres, 'Luis', 'lo que declaró no se pierde');
+    assert.equal(d.fotos_tomadas, 'selfie', 'no toca el registro, solo la copia');
+    assert.equal(P.ev("datosDelRegistroParaLaFicha(__d,'tugarantia')").fotos_tomadas, 'selfie');
+    P.ctx.__r = [Object.assign(registro({ fotos_tomadas: 'selfie', cedula_leida_con: 'codigo' }), { app: 'platachat' })]; P.ev('_registros=__r');
+    P.ev('fichaDesdeRegistro(17)');
+    const v = P.ev('_vinculacionPendiente');
+    assert.ok(v && v.nombres === 'Luis');
+    assert.equal(v.fotos_tomadas, undefined, 'la ficha le pediría las fotos «antes de desembolsar»');
+    const crmHtml = fs.readFileSync(path.join(B.RAIZ, 'panel', 'crm.html'), 'utf8');
+    assert.match(crmHtml, /s\.vinculacion=datosDelRegistroParaLaFicha\(r\.datos,r\.app\)/, 'la mesa de cruce');
+    assert.match(crmHtml, /const d=datosDelRegistroParaLaFicha\(s\.datos,s\.app\);/, 'el desembolso directo desde una solicitud');
   });
 });
 
