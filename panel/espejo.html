@@ -4720,8 +4720,14 @@ function vistaCredito() {
     + '<div class="fila"><span class="k">Vence</span><span class="v">' + fmtFecha(P.corteDelCredito(p)) + '</span></div>'
     /* 30-oct-2026 — cerrado con pérdida, el capital que no volvió no es un
        «saldo» que se deba: es la pérdida, y se nombra así. */
+    /* 9-nov-2026 — y cerrado sin pérdida tampoco hay saldo: se dice lo prestado, como el
+       computador. Con un abono del otro aparato que el cierre no conoció, «Saldo de capital
+       $240.000» era lo prestado menos ese abono: ni lo prestado ni lo que se debe (no se debe
+       nada), y seguía igual después de «Lo cobro» (revisión de plata-e1, cuarta tanda). */
     + ((P.perdidaDelCierre && P.perdidaDelCierre(p))
         ? '<div class="fila"><span class="k">Capital perdido al cerrar</span><span class="v ambar">' + COP(P.perdidaDelCierre(p)) + '</span></div>'
+        : p.pagado
+        ? '<div class="fila"><span class="k">Capital prestado</span><span class="v">' + COP(p.capital) + '</span></div>'
         : '<div class="fila"><span class="k">Saldo de capital del crédito</span><span class="v">' + COP(capitalActual(p)) + '</span></div>')
     /* 22-oct-2026 — lo que te deja, la misma cuenta que en el computador. */
     + filaGananciaE(p)

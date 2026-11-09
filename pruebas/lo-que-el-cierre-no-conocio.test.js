@@ -475,3 +475,35 @@ describe('el detalle de un crédito cerrado dice lo prestado', () => {
     assert.match(capital(abierto), /Capital \$240\.000/);
   });
 });
+
+/* 9-nov-2026 — revisión de plata-e1, cuarta tanda: en el CELULAR (vistaCredito) el detalle de un
+   crédito cerrado sin pérdida decía «Saldo de capital del crédito $240.000» cuando traía un abono
+   del otro aparato que el cierre no conoció, también después de «Lo cobro»: lo prestado menos ese
+   abono. La leve f se había arreglado solo en el computador. */
+describe('el detalle del celular, con un crédito cerrado, dice lo prestado', () => {
+  const detalle = f => {
+    const E = abrirEspejo({ cartera: cartera(copia(f)), ahora: '2026-10-21T10:30:00' });
+    E.ev("SEL.creditoId='p1'");
+    return plano(E.ev('vistaCredito()'));
+  };
+
+  test('con el abono del otro aparato, por decidir o decidido, y sin él', () => {
+    const pagoTodo = CAMINOS['CRM · Pagó todo']().cerrado;
+    const conPerdida = CAMINOS['Se lo perdoné con pérdida (250.000)']().cerrado;
+    const sinPerdida = CAMINOS['CRM · Se lo perdoné sin pérdida (315.000)']().cerrado;
+    [pagoTodo, conAbonoDelOtro(q0, pagoTodo, 60000), decidir(conAbonoDelOtro(q0, pagoTodo, 60000), 'aFavor'),
+     decidir(conAbonoDelOtro(q0, conPerdida, 60000), 'cobrar'), decidir(conAbonoDelOtro(q0, sinPerdida, 60000), 'cobrar')]
+      .forEach((f, i) => {
+        const t = detalle(f);
+        assert.match(t, /Capital prestado \$300\.000/, 'caso ' + i + ': ' + t.slice(0, 400));
+        assert.doesNotMatch(t, /Saldo de capital del crédito/, 'caso ' + i + ': un crédito cerrado no tiene saldo');
+      });
+  });
+
+  test('CONTROL: con pérdida dice la pérdida, y abierto sigue diciendo el saldo', () => {
+    const conPerdida = CAMINOS['Se lo perdoné con pérdida (250.000)']().cerrado;
+    assert.match(detalle(conAbonoDelOtro(q0, conPerdida, 60000)), /Capital perdido al cerrar \$50\.000/);
+    const abierto = Object.assign(copia(q0), { abonosCapital: [ABONO(60000)] });
+    assert.match(detalle(abierto), /Saldo de capital del crédito \$240\.000/);
+  });
+});
