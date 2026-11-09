@@ -1391,10 +1391,39 @@ describe('F6b. Sin PIN en el paquete, este aparato conserva el suyo y su fecha d
     assert.match(paso3, /menos el PIN: este aparato conserva el que ya tenía/);
   });
 
-  test('si el paquete trae un PIN (uno de antes de v143), manda ese, como dice la pantalla; la fecha del respaldo sigue siendo de aquí', async () => {
-    const { config } = await traer(paquete([CON_PIN]), conCartera());
+  /* 9-nov-2026 — revisión de plata-e1 (leve e): esta prueba decía «si el paquete trae un PIN,
+     manda ese», que era lo de main. Choca con la regla de E1 (lo que baja no le quita al aparato
+     su PIN): el PIN de siempre dejaba de abrir, y si el de la nube era 1234 el aparato quedaba
+     abriendo con 1234. Ahora, con cartera y PIN propio, se queda el propio; con el de fábrica o
+     sin PIN, el de la nube. La pantalla dice cuál va a pedir el CRM, sin pintarlo nunca. */
+  test('con cartera y PIN propio, un PIN de antes de v143 en el paquete tampoco se lo quita, y la pantalla lo dice', async () => {
+    const { T, paso3, config } = await traer(paquete([CON_PIN]), conCartera());
+    assert.equal(T.texto('e5'), 'Traído', 'precondición: trajo');
+    assert.equal(config.pin, '777111', 'el PIN de la nube le quitó al aparato el suyo');
+    assert.equal(config.ultimoRespaldo, '2026-10-20');
+    assert.match(paso3, /Los ajustes sí vienen, y este aparato conserva su PIN/);
+    assert.match(paso3, /El CRM te va a pedir el PIN que ya tenía este aparato/);
+    assert.doesNotMatch(paso3, /Antes de traer: ¿recuerdas ese PIN\?/, 'pide recordar un PIN que no se va a usar');
+    assert.equal(T.texto('avisoPinAntesDeTraer'), '');
+    assert.match(T.texto('msg6'), /El CRM te va a pedir el PIN que ya tenía este aparato ?: este aparato ya tenía tu cartera y un PIN suyo, y lo que baja no se lo quita/);
+    for (const t of [paso3, T.texto('msg6')]) assert.ok(!t.includes('777111') && !t.includes('4321'), 'la pantalla pintó un PIN');
+  });
+
+  test('CONTROL · con cartera y el PIN de fábrica, manda el de la nube, y la pantalla dice de qué fecha es', async () => {
+    const A = { [LLAVE]: JSON.stringify({ socios: [SOCIO], prestamos: [], config: { pin: '1234', ultimoRespaldo: '2026-10-20', negocio: 'Tu Garantía' } }) };
+    const { T, paso3, config } = await traer(paquete([CON_PIN]), A);
     assert.equal(config.pin, '4321');
     assert.equal(config.ultimoRespaldo, '2026-10-20');
+    assert.match(paso3, /Con ellos viaja el PIN que tenías cuando se subieron por última vez/);
+    assert.match(T.texto('msg6'), /El CRM te va a pedir un PIN, porque los ajustes vinieron en el paquete/);
+    for (const t of [paso3, T.texto('msg6')]) assert.ok(!t.includes('4321'), 'la pantalla pintó el PIN');
+  });
+
+  test('CONTROL · sin cartera, aunque el aparato tenga un PIN suyo, manda el de la nube', async () => {
+    const A = { [LLAVE]: JSON.stringify({ socios: [], prestamos: [], config: { pin: '555000', negocio: 'Tu Garantía' } }) };
+    const { T, config } = await traer(paquete([CON_PIN]), A);
+    assert.equal(config.pin, '4321');
+    assert.match(T.texto('msg6'), /El CRM te va a pedir un PIN, porque los ajustes vinieron en el paquete/);
   });
 
   test('CONTROL: un aparato sin cartera y un paquete sin PIN arranca con el de fábrica, y lo dice', async () => {

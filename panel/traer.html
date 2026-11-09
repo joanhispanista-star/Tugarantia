@@ -1225,6 +1225,26 @@ var AVISO_PIN_QUE_VIAJA = '<div class="aviso ambar"><b class="tit">Antes de trae
   'Desde la versión v143 tu PIN ya no sube a la nube, así que subir tus ajustes desde el computador no lo cambia por el de hoy. '+
   'Mientras tanto, el <b>Panel en el bolsillo</b> (<span class="mono">espejo.html</span>) no te pide este PIN.</div>';
 
+/* 9-nov-2026 — QUÉ PIN VA A PEDIR EL CRM DESPUÉS DE TRAER (revisión de plata-e1). La regla de E1
+   es que lo que baja no le quita al aparato su PIN, y «Traer» se la saltaba cuando la nube todavía
+   tenía un PIN de antes de v143: se lo ponía a un aparato que ya tenía cartera y PIN propio, y el
+   PIN de siempre dejaba de abrir (si el de la nube era 1234, el aparato quedaba abriendo con 1234).
+     · 'propio' — el aparato tiene cartera y un PIN suyo distinto del de fábrica: lo conserva,
+       traiga la nube el que traiga. Sin cartera no hay nada que ese PIN proteja todavía.
+     · 'nube'   — si no, y el paquete trae un PIN (uno de antes de v143), queda ese.
+     · 'propio' — si el paquete no trae PIN y el aparato tiene uno suyo, se queda el suyo.
+     · 'fabrica'— si no hay ninguno, el CRM arranca con el de fábrica.
+   La MISMA regla decide lo que se escribe (traerYEscribir, leyendo el cajón en ese momento) y lo
+   que dicen los pasos 3 y 6. El valor del PIN no se pinta nunca: solo de dónde sale. */
+function quePinQueda(tieneCartera, pinPropio, pinViaja){
+  if(tieneCartera && pinPropio) return 'propio';
+  if(pinViaja) return 'nube';
+  return pinPropio ? 'propio' : 'fabrica';
+}
+function quePinQuedaraAqui(m){
+  return quePinQueda(hayFichas(E.hay), !!(E.hay && E.hay.pinPropio), !!(m && m.pinViaja));
+}
+
 /* Las dos razones por las que esta pantalla se NIEGA a escribir. Devuelve el
    texto del motivo, o null si se puede. Se decide con lo MEDIDO, no con lo
    supuesto. */
@@ -1279,8 +1299,10 @@ function pintarLoQueViene(){
          'en el computador.</div>';
   }
 
-  /* 9-nov-2026 — sin PIN en el paquete, este aparato conserva el suyo (ver traerYEscribir). */
-  var conservaPin = !m.pinViaja && !!(E.hay && E.hay.pinPropio);
+  /* 9-nov-2026 — el PIN que va a pedir el CRM sale de quePinQuedaraAqui, la misma regla que
+     escribe traerYEscribir. */
+  var pinQueda = quePinQuedaraAqui(m);
+  var conservaPin = pinQueda === 'propio';
   if(!m.hayConfig){
     h += '<div class="aviso ambar"><b class="tit">Los ajustes no vienen</b>'+
          'El paquete no trae tu configuración. El CRM de este aparato va a arrancar con los valores de fábrica'+
@@ -1293,13 +1315,18 @@ function pintarLoQueViene(){
          (conservaPin
            ? '<b>Este aparato conserva el PIN que ya tenía.</b></div>'
            : 'El CRM de este aparato va a arrancar con el <b>PIN '+esc(PIN_DE_FABRICA)+'</b>. Cámbialo desde el CRM apenas entres.</div>');
+  }else if(pinQueda === 'propio'){
+    /* El paquete trae un PIN de antes de v143, pero este aparato ya tiene cartera y PIN suyo. */
+    h += '<div class="aviso info"><b class="tit">Los ajustes sí vienen, y este aparato conserva su PIN</b>'+
+         'Traen un PIN de antes de la versión v143, pero este aparato ya tiene tu cartera y un PIN suyo, '+
+         'y lo que baja no se lo quita. <b>El CRM te va a pedir el PIN que ya tenía este aparato.</b></div>';
   }else{
     h += '<div class="aviso info"><b class="tit">Los ajustes sí vienen</b>'+fraseDelPinQueViaja(m)+'</div>'+
          '<div id="avisoPinPaso3">'+AVISO_PIN_QUE_VIAJA+'</div>';
   }
 
   var no = razonParaNoEscribir();
-  $('avisoPinAntesDeTraer').innerHTML = (m.pinViaja && !no) ? AVISO_PIN_QUE_VIAJA : '';
+  $('avisoPinAntesDeTraer').innerHTML = (pinQueda === 'nube' && !no) ? AVISO_PIN_QUE_VIAJA : '';
   if(no){
     estado(3,'fallo','No se puede traer');
     h += '<div class="peligro"><div class="et">No voy a escribir</div>'+
@@ -1447,17 +1474,24 @@ function traerYEscribir(){
      aparato» que conservar, así que en un aparato que YA tenía cartera, con la nube sin
      PIN (basta la primera ☁ Subir de v143 con los ajustes cambiados), «Traer» le quitaba
      su PIN y su fecha del último respaldo: el PIN de siempre ya no abría y el 1234 abría
-     la cartera completa. Si el paquete trae un PIN (uno de antes de v143), manda ese, como
-     dice esta pantalla desde main; si no trae, se queda el de este aparato. La fecha del
-     respaldo es siempre de aquí: el respaldo está en este aparato. Se lee del cajón
-     justo ahora y no se guarda en E: de su valor no se guarda nada acá. */
+     la cartera completa. Qué PIN queda lo decide quePinQueda, la misma regla que dicen los
+     pasos 3 y 6: con cartera y PIN propio, el de este aparato aunque el paquete traiga uno de
+     antes de v143 (9-nov-2026; antes mandaba el del paquete, y el PIN de siempre dejaba de
+     abrir); si no, el del paquete; si no trae, el de este aparato. La fecha del respaldo es
+     siempre de aquí: el respaldo está en este aparato. Se lee del cajón justo ahora y no se
+     guarda en E: de su valor no se guarda nada acá. */
+  var pinQueQuedo = quePinQueda(false, false, !!(nueva && nueva.config && nueva.config.pin));
   try{
     var crudoPropio = localStorage.getItem(KEY), propio = null;
     try{ propio = crudoPropio ? JSON.parse(crudoPropio) : null; }catch(e){ propio = null; }
     var cfgPropia = (propio && propio.config && typeof propio.config === 'object') ? propio.config : null;
     if(nueva && cfgPropia){
       if(!nueva.config || typeof nueva.config !== 'object') nueva.config = {};
-      if(!nueva.config.pin && cfgPropia.pin) nueva.config.pin = cfgPropia.pin;
+      var conCartera = ['socios','clientes','prestamos','respaldados','papelera','papeleraSocios','invitaciones']
+        .some(function(k){ return Array.isArray(propio[k]) && propio[k].length > 0; });
+      var pinSuyo = !!cfgPropia.pin && String(cfgPropia.pin) !== PIN_DE_FABRICA;
+      pinQueQuedo = quePinQueda(conCartera, pinSuyo, !!nueva.config.pin);
+      if(pinQueQuedo === 'propio') nueva.config.pin = cfgPropia.pin;
       if(cfgPropia.ultimoRespaldo) nueva.config.ultimoRespaldo = cfgPropia.ultimoRespaldo;
     }
   }catch(e){ /* sin cajón legible no hay nada propio que conservar */ }
@@ -1565,11 +1599,12 @@ function traerYEscribir(){
   despertar(6);
   estado(6,'listo','Puedes abrirlo');
   pinta('msg6','ok','<b class="tit">Ya puedes abrirlo</b>'+
-    (m.hayConfig && m.pinViaja
+    (pinQueQuedo === 'nube'
       ? 'El CRM te va a pedir un PIN, porque los ajustes vinieron en el paquete. '+fraseDelPinQueViaja(m)
-      : (E.hay && E.hay.pinPropio)
+      : pinQueQuedo === 'propio'
       ? 'El CRM te va a pedir el <b>PIN que ya tenía este aparato</b>: '+
-        (m.hayConfig ? 'los ajustes vinieron sin PIN' : 'los ajustes no vinieron')+', y ese no se cambia al traer.'
+        (m.pinViaja ? 'este aparato ya tenía tu cartera y un PIN suyo, y lo que baja no se lo quita'
+          : m.hayConfig ? 'los ajustes vinieron sin PIN' : 'los ajustes no vinieron')+', y ese no se cambia al traer.'
       : 'El CRM va a arrancar con el <b>PIN de fábrica ('+esc(PIN_DE_FABRICA)+')</b>: '+
         (m.hayConfig ? 'los ajustes vinieron sin PIN' : 'los ajustes no vinieron')+'. Cámbialo apenas entres.')+
     '<br><br>Si tenías el CRM abierto en otra pestaña, <b>ciérrala y ábrelo de nuevo</b>: esa pestaña todavía '+
