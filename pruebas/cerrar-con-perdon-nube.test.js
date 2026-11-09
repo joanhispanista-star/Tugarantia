@@ -25,6 +25,7 @@ const RAIZ = path.join(__dirname, '..');
 const P = require(path.join(RAIZ, 'app', 'puente.js'));
 const M = require(path.join(RAIZ, 'app', 'motor.js'));
 const NUBE = require(path.join(RAIZ, 'panel', 'nube.js'));
+const { abrirPanel } = require('./banco-panel.js');
 
 const copia = x => JSON.parse(JSON.stringify(x));
 const SOCIO = { id: 's1', numero: 1, nombre: 'Marta Gómez' };
@@ -58,6 +59,171 @@ function aCuotas() {
     fechaDesembolso: '2026-10-16', cicloActual: '2026-10-30', prorrogas: [], abonosCapital: [], comprobantes: [],
     pagado: false, planPagos: P.planPagosDeAlta(plan) };
 }
+
+/* ==========================================================================
+ * 4-NOV-2026 — UN ABONO QUE EL CIERRE NO CONOCÍA: el celular anotó un abono, el
+ * computador cerró sin haberlo traído, y «Mandar lo mío encima» lo junta (es una
+ * lista que suma). La pérdida se quedaba como estaba: entraron 280.000 y se
+ * perdieron 50.000 de un capital de 300.000. Y con un abono mayor que la pérdida,
+ * «Cerrado con pérdida» de un crédito por el que entró más que el capital.
+ * ======================================================================== */
+describe('6-bis · un abono del otro aparato baja la pérdida del cierre que no lo conocía', () => {
+  const ABONO = monto => ({ fecha: '2026-10-18', monto, id: 'ab-celular' });
+  function choque(monto) {
+    const p = quincenal();
+    const r = P.cierreConPerdon(cartera(p), p, DIA, 250000, SI);
+    assert.equal(r.ok, true, r.detalle);
+    const cerrado = aplicar(p, r.registros);
+    const delCelular = copia(p);
+    delCelular.abonosCapital = [ABONO(monto)];
+    return NUBE.fusionarFila(cerrado, delCelular, NUBE.LISTAS_QUE_SUMAN).fila;   // «Mandar lo mío encima»
+  }
+
+  test('abono de 30.000 y cierre con 250.000: se perdieron 20.000, no 50.000', () => {
+    const f = choque(30000);
+    assert.equal(f.abonosCapital.length, 1, 'el abono del celular no se juntó');
+    assert.equal(P.perdidaDelCierre(f), 20000);
+    assert.equal(P.capitalRecuperadoDe(f), 280000);
+    assert.equal(P.perdidaDelCierre(f) + P.capitalRecuperadoDe(f), 300000, 'lo que volvió más lo perdido tiene que dar el capital');
+    assert.equal(P.gananciaDelCredito(f).ganancia, -20000);
+    assert.equal(P.cerroConPerdida(f), true);
+    const db = cartera(f);
+    assert.equal(P.capitalPerdidoDelSocio(db, SOCIO).capital, 20000);
+    /* El renglón con el motivo sigue siendo el de ese cierre: la quincena no pierde su descuento. */
+    assert.equal(P.perdidasDeCapital(f)[0].motivo, SI.motivo);
+    assert.ok(P.condonacionDelCierre(f), 'el perdón del cierre se quedó huérfano');
+    assert.equal(P.descuentosDelSocio(db, SOCIO).veces, 1);
+  });
+
+  test('abono mayor que la pérdida: entró más que el capital, y no hay pérdida ni «Cerrado con pérdida»', () => {
+    const f = choque(60000);
+    assert.equal(P.perdidaDelCierre(f), 0);
+    assert.equal(P.cerroConPerdida(f), false);
+    assert.equal(P.capitalRecuperadoDe(f), 300000);
+    assert.equal(P.gananciaCobrada(f), 10000, 'los 10.000 de más entraron de verdad');
+    assert.equal(P.gananciaDelCredito(f).ganancia, 10000);
+  });
+
+  test('sin choque, con el abono conocido al cerrar, la cuenta es la misma y no se descuenta dos veces', () => {
+    const p = quincenal();
+    p.abonosCapital = [ABONO(30000)];
+    const r = P.cierreConPerdon(cartera(p), p, DIA, 250000, SI);
+    assert.equal(r.ok, true, r.detalle);
+    const c = aplicar(p, r.registros);
+    assert.equal(c.capitalPerdido, 20000);
+    assert.equal(P.perdidaDelCierre(c), 20000, 'descontó dos veces el abono que el cierre ya conocía');
+    assert.equal(P.capitalRecuperadoDe(c), 280000);
+    assert.equal(P.gananciaCobrada(c), 0);
+  });
+
+  test('el mismo abono en los dos lados no es un abono de más', () => {
+    const p = quincenal();
+    p.abonosCapital = [ABONO(30000)];
+    const r = P.cierreConPerdon(cartera(p), p, DIA, 250000, SI);
+    const f = NUBE.fusionarFila(aplicar(p, r.registros), copia(p), NUBE.LISTAS_QUE_SUMAN).fila;
+    assert.equal(f.abonosCapital.length, 1);
+    assert.equal(P.perdidaDelCierre(f), 20000);
+  });
+
+  /* 9-nov-2026 — la segunda ronda: un «Pagó todo» de antes de v142 no trae la llave
+     capitalPerdido, y fusionarFila le copiaba la del cierre con pérdida del otro lado. */
+  test('un «Pagó todo» de antes de v142 contra un cierre con pérdida: no duplica la ganancia ni revive el perdón', () => {
+    const p = quincenal();
+    const liq = P.liquidarCiclo(p, DIA);
+    const pagoV141 = Object.assign(copia(p), { pagado: true, fechaPagado: DIA, cicloPago: P.corteDelCredito(p), cobroRegistrado: true,
+      gananciaPago: liq.costo + liq.recargo_mora, recargoMora: liq.recargo_mora, costoCausado: liq.costo, moraCausada: liq.recargo_mora,
+      montoRecibido: liq.total_a_pagar });
+    assert.equal('capitalPerdido' in pagoV141, false, 'precondición: la fila de v141 no trae la llave');
+    const r = P.cierreConPerdon(cartera(p), p, DIA, 250000, SI);
+    const cierre = aplicar(p, r.registros);
+    const f = NUBE.fusionarFila(pagoV141, cierre, NUBE.LISTAS_QUE_SUMAN).fila;
+    assert.equal(f.capitalPerdido, 50000, 'precondición: la llave se copió del otro lado');
+    assert.equal(P.perdidaDelCierre(f), 0, 'el «Pagó todo» que ganó no perdió capital');
+    assert.equal(P.gananciaCobrada(f), 75000, 'duplicó la ganancia: ' + P.gananciaCobrada(f));
+    assert.equal(P.capitalRecuperadoDe(f) + P.gananciaCobrada(f), 375000, 'entraron 375.000');
+    assert.equal(P.cerroConPerdida(f), false);
+    assert.equal(P.descuentosDelSocio(cartera(f), SOCIO).veces, 0, 'revivió el perdón del cierre que perdió');
+    /* Al revés (gana el cierre), sigue siendo un cierre con pérdida. */
+    const g = NUBE.fusionarFila(cierre, pagoV141, NUBE.LISTAS_QUE_SUMAN).fila;
+    assert.equal(P.perdidaDelCierre(g), 50000);
+  });
+
+  /* 9-nov-2026 — la segunda ronda: «Descuentos dados» contaba dos veces el perdón de
+     un solo cierre, sin ningún choque. */
+  test('el mismo crédito a cuotas cerrado igual en dos computadores: un solo perdón', () => {
+    const p = aCuotas();
+    const r1 = P.cierreConPerdon(cartera(p), p, '2026-10-20', 700000, SI);
+    const r2 = P.cierreConPerdon(cartera(p), p, '2026-10-20', 700000, SI);
+    assert.equal(r1.ok && r2.ok, true);
+    const a = aplicar(p, r1.registros), b = aplicar(p, r2.registros);
+    assert.equal(P.perdidaDelCierre(a), 0, 'precondición: sin pérdida');
+    const f = NUBE.fusionarFila(a, b, NUBE.LISTAS_QUE_SUMAN).fila;
+    assert.equal(f.condonaciones.length, 2, 'precondición: la nube conserva las dos (cada una con su id)');
+    const solo = P.descuentosDelSocio(cartera(a), SOCIO);
+    const junto = P.descuentosDelSocio(cartera(f), SOCIO);
+    assert.equal(junto.monto, solo.monto, 'contó dos veces el perdón de un solo cierre');
+    assert.equal(junto.veces, 1);
+    const q = P.quincenaDeCondonacion(f, f.condonaciones[0]);
+    assert.equal(P.descuentosDeQuincena(cartera(f), q).total, P.descuentosDeQuincena(cartera(a), q).total);
+  });
+
+  test('gana un cierre con pérdida contra uno que cerró con descuento: el perdón del que perdió no cuenta', () => {
+    const p = quincenal();
+    const conPerdida = aplicar(p, P.cierreConPerdon(cartera(p), p, DIA, 250000, SI).registros);
+    const conDescuento = aplicar(p, P.cierreConPerdon(cartera(p), p, DIA, 330000, SI).registros);
+    assert.equal(P.perdidaDelCierre(conDescuento), 0, 'precondición: el otro cerró sin pérdida');
+    const f = NUBE.fusionarFila(conPerdida, conDescuento, NUBE.LISTAS_QUE_SUMAN).fila;
+    assert.equal(f.condonaciones.length, 2);
+    const d = P.descuentosDelSocio(cartera(f), SOCIO);
+    assert.equal(d.costo + d.mora, 75000, 'sumó el perdón del cierre que perdió: ' + JSON.stringify(d));
+    assert.equal(d.monto, 125000, 'el perdón de este cierre: 75.000 de mora y costo + 50.000 de capital');
+    const q = P.quincenaDeCondonacion(f, P.condonacionDelCierre(f));
+    assert.equal(P.descuentosDeQuincena(cartera(f), q).total, 75000);
+  });
+
+  test('lo de antes no cambia: un perdón de prórroga o de «Pagó todo» con descuento sigue contando', () => {
+    const p = quincenal();
+    p.condonaciones = [{ fecha: '2026-10-15', costo: 10000, mora: 0, motivo: 'x', sobre: 'prorroga' },
+      { fecha: '2026-10-20', costo: 5000, mora: 2000, motivo: 'y', quien: 'computador' }];
+    assert.equal(P.descuentosDelSocio(cartera(p), SOCIO).veces, 2);
+    assert.equal(P.condonacionVigente(p, p.condonaciones[1]), true);
+  });
+
+  test('un crédito con cuotas no pasa por aquí: sus abonos viajan con su plan', () => {
+    const p = aCuotas();
+    const r = P.cierreConPerdon(cartera(p), p, '2026-10-20', 300000, SI);
+    assert.equal(r.ok, true, r.detalle);
+    const c = aplicar(p, r.registros);
+    assert.equal(P.perdidaDelCierre(c), c.capitalPerdido);
+  });
+
+  test('lo que Joan lee en el CRM: lo que volvió, lo perdido y el Tablero cuadran', () => {
+    const f = choque(30000);
+    const CRM = abrirPanel({ ahora: '2026-10-21T10:30:00' });
+    CRM.cargarCartera({ socios: [copia(SOCIO)], prestamos: [f], config: { negocio: 'Tu Garantía' } });
+    CRM.ev("verCredito('p1')");
+    const t = String(CRM.elems.mBody.innerHTML).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    assert.match(t, /Capital perdido al cerrar \$20\.000/, 'dijo otra cosa: ' + t);
+    assert.match(t, /de los \$300\.000 prestados volvieron \$280\.000/);
+    assert.equal(CRM.ev('capitalRecuperadoTotal()'), 280000);
+    /* 9-nov-2026 — la segunda ronda: el renglón de arriba decía «+ $50.000 de capital»
+       y este «$20.000». Ahora los dos dicen lo que de verdad no volvió. */
+    assert.match(t, /Entró de verdad \$250\.000 con \$95\.000 perdonados al cerrar \(\$75\.000 de mora y costo \+ \$20\.000 de capital ?\)/, t);
+    assert.doesNotMatch(t, /\+ \$50\.000 de capital ?\)/, 'el mismo cuadro decía dos pérdidas');
+    assert.match(t, /al cerrar se anotaron \$50\.000 de capital perdido; un abono del otro aparato que el cierre no conocía la bajó a \$20\.000/);
+  });
+
+  test('sin abonos de otro aparato, el renglón dice lo de siempre', () => {
+    const p = quincenal();
+    const c = aplicar(p, P.cierreConPerdon(cartera(p), p, DIA, 250000, SI).registros);
+    const CRM = abrirPanel({ ahora: '2026-10-21T10:30:00' });
+    CRM.cargarCartera({ socios: [copia(SOCIO)], prestamos: [c], config: { negocio: 'Tu Garantía' } });
+    CRM.ev("verCredito('p1')");
+    const t = String(CRM.elems.mBody.innerHTML).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    assert.match(t, /con \$125\.000 perdonados al cerrar \(\$75\.000 de mora y costo \+ \$50\.000 de capital ?\): se quedó sin trabajo/);
+    assert.doesNotMatch(t, /se anotaron/);
+  });
+});
 
 /* ==========================================================================
  * LA NUBE: LA PARTE DE CAPITAL SE CONSERVA, Y UN CIERRE QUE PERDIÓ NO PESA

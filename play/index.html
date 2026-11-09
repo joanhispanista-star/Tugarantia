@@ -695,7 +695,11 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
 /* 3-nov-2026 — el aviso de la cédula que falta (también de los dos lados y al
    dejar «Tu rostro») y qué fotos tomó, que viaja a la bandeja de Joan. Si alguien
    dice que no le avisaron, esta fecha dice si tenía la versión que avisa. */
-var VERSION_PLAY = '2026-11-03';
+/* 9-nov-2026 — tras «Tomar las fotos» desde «Tu rostro», si la pestaña se relanza
+   antes de la primera foto ya no se pierden la selfie, la ubicación ni el permiso.
+   Si alguien dice que se le borró todo al volver de la cámara, esta fecha dice si
+   tenía la versión que lo arregla. */
+var VERSION_PLAY = '2026-11-09';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
@@ -1216,7 +1220,16 @@ var LLAVE_PASO = 'play_registro_paso';
    lo guardaba la versión anterior; quien manda al leer es el nombre. */
 function guardarPaso(n) {
   var p = PASOS[n];
-  try { localStorage.setItem(LLAVE_PASO, JSON.stringify({ paso: n, id: p ? p.id : '', t: Date.now() })); } catch (e) {}
+  var c = { paso: n, id: p ? p.id : '', t: Date.now() };
+  /* 9-nov-2026 — Y DE DÓNDE VENÍA, si llegó a la cédula de un brinco («Tomar las
+     fotos», ver tomarLadoQueFalta). Es el único dato que permite, tras relanzarse
+     la pestaña, saber que el primer paso no es «abrió el formulario y no hizo nada»:
+     detrás hay una selfie, una ubicación y un permiso (ver hayPasoGuardado). */
+  var v = VOLVER_TRAS_LAS_FOTOS;
+  if (p && p.id === 'documento' && v && v.paso && v.intento && v.intento === String(REGISTRO.intento || '')) {
+    c.desde = v.paso; c.intento = v.intento;
+  }
+  try { localStorage.setItem(LLAVE_PASO, JSON.stringify(c)); } catch (e) {}
   anotarToque();
 }
 function leerCheckpoint() {
@@ -1311,6 +1324,14 @@ function hayPasoGuardado() {
      misma pregunta que pinta el ✓). Sin foto sigue siendo «abrió el formulario
      y no hizo nada», y el enlace vuelve a la portada como el 22-sep. */
   if (indiceDelCheckpoint(c) > 0) return true;
+  /* 9-nov-2026 — salvo que haya llegado de un brinco desde un paso de más adelante
+     (guardarPaso, c.desde). La segunda ronda de la revisión: quien estaba en «Tu
+     rostro» con la selfie y el permiso tocaba «Tomar las fotos», la cámara del
+     sistema tumbaba la pestaña antes de la primera foto, y como el primer paso sin
+     foto «no cuenta», el arranque soltaba la selfie, la ubicación y el permiso sin
+     una palabra; su fila decía «sin permiso» de quien sí lo dio. Ese registro sí
+     va a mitad. */
+  if (c.desde && indiceDe(c.desde) > 0) return true;
   return hayFotoLista('cedula_reverso') || hayFotoLista('cedula_frente');
 }
 function olvidarPaso() { try { localStorage.removeItem(LLAVE_PASO); } catch (e) {} }
@@ -2304,6 +2325,16 @@ function pintarRegistro(paso) {
   if (viajando()) return;
   VISTA = 'registro';
   PASO = Math.max(0, Math.min(paso, PASOS.length - 1));
+  /* 9-nov-2026 — tras relanzarse la pestaña en el paso de la cédula, «Volver» vuelve a
+     donde estaba si el paso guardado lo dice (guardarPaso), y no a la portada, que
+     suelta lo sensible. Se lee ANTES de guardar el paso, que lo pisa. Solo para el
+     mismo registro (el intento). */
+  if (!VOLVER_TRAS_LAS_FOTOS && PASOS[PASO] && PASOS[PASO].id === 'documento') {
+    var cv = leerCheckpoint();
+    if (cv && cv.id === 'documento' && cv.desde && cv.intento && cv.intento === String(REGISTRO.intento || '') && indiceDe(cv.desde) > 0) {
+      VOLVER_TRAS_LAS_FOTOS = { paso: cv.desde, intento: cv.intento };
+    }
+  }
   guardarPaso(PASO);   // por si el teléfono recarga al volver de la cámara
   /* 17-sep-2026 — Y LA DIRECCIÓN TAMBIÉN, que es lo que faltaba desde el 9-sep.
      El paso se guardaba bien, pero el arranque solo lo leía si la dirección
@@ -2318,6 +2349,11 @@ function pintarRegistro(paso) {
   asegurarIntento();
   var p = PASOS[PASO];
   $('titulo').textContent = 'Abrir mi cuenta';
+  /* 4-nov-2026 — vale solo mientras siga en el paso de la cédula, y solo para este
+     registro (ver tomarLadoQueFalta). */
+  var vinoPorLasFotos = !!(p.id === 'documento' && VOLVER_TRAS_LAS_FOTOS &&
+    VOLVER_TRAS_LAS_FOTOS.intento === String(REGISTRO.intento || ''));
+  if (!vinoPorLasFotos) VOLVER_TRAS_LAS_FOTOS = null;
 
   var barra = '<div class="pasos">' + PASOS.map(function (_, i) {
     return '<i class="' + (i < PASO ? 'hecho' : (i === PASO ? 'aqui' : '')) + '"></i>';
@@ -2385,7 +2421,7 @@ function pintarRegistro(paso) {
               (p.id === 'rostro' && faltaLaSelfie() ? 'Seguir sin la foto' : 'Continuar'))) + '</button>'
         : '') +
       '<button class="btn sec sm" id="btnVolver" style="margin-top:var(--e3)" onclick="' +
-        (PASO === 0 ? (MARCA === 'platachat' ? 'volverAPlataChat()' : 'pintarEntrar()') : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
+        (PASO === 0 ? (vinoPorLasFotos ? 'volverTrasLasFotos()' : (MARCA === 'platachat' ? 'volverAPlataChat()' : 'pintarEntrar()')) : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
     '</div>' + pie();
   window.scrollTo(0, 0);
   /* Cada vez que cambia de paso se publica (después del paso del celular: ver
@@ -4692,17 +4728,37 @@ function quitarIdentidadLeida(l, ed, conservarLoTecleado) {
    condicionar ninguna actividad a un dato sensible, que la SIC multó a Mercado
    Libre con $214 millones por condicionar sus cuentas a datos biométricos, ni que
    legal/privacidad.html promete «Es opcional de verdad». Dicho eso el 3-nov,
-   escogió avisar sin bloquear. En PlataChat nada cambia: Joan no habló de ella,
-   y allí la cédula no decide ningún crédito. */
+   escogió avisar sin bloquear. En PlataChat esto no avisa: Joan decidió que
+   PlataChat no cambia. Lo que el cliente de PlataChat sí ve distinto es una sola
+   frase: la del final si las fotos no suben ya no dice «sin la foto no podemos
+   revisar tu registro», por el mismo decreto (queHacerSinLasFotos).
+   4-nov-2026 — A QUIEN ESCRIBIÓ PASAPORTE NO SE LE HABLA DE UNA CÉDULA. El primer
+   paso le dice que escriba sus datos «si tienes cédula de extranjería o pasaporte»,
+   y al dejar «Tu rostro» leía «Te faltan las fotos de tu cédula (los dos lados)».
+   Se le avisa de lo suyo, sin «Tomar las fotos»: ese botón abre un escáner que le
+   pide la cédula de pie y le lee un código que su documento no tiene. La foto va por
+   el chat, y con una ya está: un pasaporte no tiene respaldo. La cédula de
+   extranjería sigue con el aviso de la cédula: tiene dos lados. */
 var AVISO_UN_LADO = '';   // el lado del que ya se avisó: el segundo «Continuar» pasa
 function ladoQueFalta() {
   if (!autorizoEsteIntento()) return '';
   var frente = hayFotoLista('cedula_frente'), reverso = hayFotoLista('cedula_reverso');
   if (frente && reverso) return '';
+  if (MARCA !== 'platachat' && REGISTRO.tipo_doc === 'Pasaporte') return (frente || reverso) ? '' : 'pasaporte';
   if (!frente && !reverso) return MARCA === 'platachat' ? '' : 'los_dos';
   return frente ? 'reverso' : 'frente';
 }
 function avisarUnLado(err, falta) {
+  if (falta === 'pasaporte') {
+    err.innerHTML = '<b>Te falta la foto de tu pasaporte</b> (la página con tu foto). Con ella confirmamos que eres tú. ' +
+      'Puedes seguir sin ella: tu cuenta se abre igual, y confirmarlo toma más tiempo: te escribimos por el chat.' +
+      '<div style="display:flex;gap:var(--e2);flex-wrap:wrap;margin-top:var(--e2)">' +
+        '<button class="btn sec sm" type="button" onclick="siguientePaso()">Seguir</button>' +
+      '</div>';
+    err.classList.add('ambar');
+    err.classList.remove('oculto');
+    return;
+  }
   if (falta === 'los_dos') {
     err.innerHTML = '<b>Te faltan las fotos de tu cédula</b> (los dos lados). Con ellas confirmamos que eres tú. ' +
       'Puedes seguir sin ellas: tu cuenta se abre igual, y confirmarlo toma más tiempo: te escribimos por el chat.' +
@@ -4727,12 +4783,28 @@ function avisarUnLado(err, falta) {
   err.classList.add('ambar');
   err.classList.remove('oculto');
 }
+var VOLVER_TRAS_LAS_FOTOS = null;
+function volverTrasLasFotos() {
+  var a = VOLVER_TRAS_LAS_FOTOS;
+  VOLVER_TRAS_LAS_FOTOS = null;
+  pintarRegistro(a ? indiceDe(a.paso) : PASO);
+}
 function tomarLadoQueFalta(lado) {
   AVISO_UN_LADO = '';   // si esta vez tampoco sale, se vuelve a avisar
   var err = $('errReg'); if (err) err.classList.add('oculto');
   /* 3-nov-2026 — el aviso también sale al dejar «Tu rostro» (siguientePaso), y
-     la cámara de la cédula vive en su propio paso: se vuelve a él. */
-  if (PASOS[PASO] && PASOS[PASO].id !== 'documento') pintarRegistro(indiceDe('documento'));
+     la cámara de la cédula vive en su propio paso: se vuelve a él.
+     4-nov-2026 — Y «VOLVER» REGRESA A DONDE ESTABA. Ese paso es el primero, y su
+     «Volver» es la portada, que suelta lo sensible a propósito: es la salida
+     deliberada del 20-oct. Quien llegó aquí de un brinco no está saliendo: a dos
+     toques perdía la selfie, la ubicación, el permiso y el lado ya tomado, sin una
+     palabra, y su fila decía «sin permiso» de quien sí lo dio. Solo en memoria, y
+     solo mientras siga en este paso (pintarRegistro): tras relanzarse la pestaña no
+     se sabe de dónde venía. */
+  if (PASOS[PASO] && PASOS[PASO].id !== 'documento') {
+    VOLVER_TRAS_LAS_FOTOS = { paso: PASOS[PASO].id, intento: String(REGISTRO.intento || '') };
+    pintarRegistro(indiceDe('documento'));
+  }
   if (hayCamaraEnVivo()) return iniciarEscanerDoc(lado);
   var f = $('docFijo'); if (f) f.classList.remove('oculto');
   var caja = $('fot_cedula_' + lado);
@@ -4846,9 +4918,15 @@ function anotarCamaraSelfie() {
    al otro le espera. Va como texto plano porque registrar_abierto solo guarda
    pares de texto (base/20260909_una_sola_puerta.sql), y sin imágenes: tres
    nombres. Lo declara el teléfono: el CRM lo lee como lo que dijo, y lo que llegó
-   de verdad a la base manda sobre esto. */
+   de verdad a la base manda sobre esto.
+   4-nov-2026 — 'sin_permiso' salía también de quien SÍ lo dio y escaneó una cédula
+   que no era la del documento escrito (o dijo «No es mía»): el teléfono le quita el
+   permiso con las fotos (PERMISO_SOLTADO), y Joan leía «es su derecho» del registro
+   que más le conviene mirar. Es lo que esta página vio pasar; tras relanzarse no lo
+   sabe, y entonces es 'sin_permiso', que dice solo lo que es cierto: al abrir la
+   cuenta no estaba el permiso. */
 function fotosTomadasAlAbrir(sensibles) {
-  if (!sensibles) return 'sin_permiso';
+  if (!sensibles) return PERMISO_SOLTADO ? 'cedula_soltada' : 'sin_permiso';
   var tomadas = ['cedula_reverso', 'cedula_frente', 'selfie'].filter(function (k) { return hayFotoLista(k); });
   return tomadas.length ? tomadas.join(',') : 'ninguna';
 }
@@ -6672,9 +6750,10 @@ function pasoDocumento() {
       /* 3-nov-2026 — y lo que pasa después, para que escoger sea escoger: sin
          fotos, Joan tiene que confirmar la identidad de otra forma, por el chat
          (CRM: «Pedirle las fotos por el chat»). No es una condición: la cuenta se
-         abre igual. */
+         abre igual. 4-nov-2026 — en PlataChat, como estaba: Joan decidió que no cambia. */
       '<div class="ayuda">Escribe tus datos si tienes cédula de extranjería o pasaporte, o si tu cédula no se deja leer. ' +
-        'Sin fotos: ni de la cédula ni de tu cara, y confirmar que eres tú toma más tiempo: te escribimos por el chat. ' +
+        (MARCA === 'platachat' ? 'Sin fotos: ni de la cédula ni de tu cara. '
+          : 'Sin fotos: ni de la cédula ni de tu cara, y confirmar que eres tú toma más tiempo: te escribimos por el chat. ') +
         'Si cambias de opinión, las puedes dar después, en el paso «Tu rostro».</div>';
   }
   /* 21-oct-2026 — LAS DOS CARAS ACOSTADAS, Y «SOLA» SOLO CUANDO ES VERDAD.
@@ -10604,6 +10683,9 @@ function encolarLasFotosDelRegistro(cel) {
     return null;
   }
   lote.sensibles = true;
+  /* 4-nov-2026 — para que su cuenta no le diga «no tomaste la foto de tu cédula»
+     (textoDeLoQueFalto): cuando suba, este registro ya no está en memoria. */
+  if (REGISTRO.tipo_doc === 'Pasaporte') lote.pasaporte = true;
   lote.de = { celular: String(cel), intento: (lote.de && lote.de.intento) || '', t: Date.now(), documento: doc };
   delete lote.sensibles_intento; delete lote.leida_anterior; delete lote.gps_error;
   guardarCola(cel, lote);
@@ -10761,13 +10843,22 @@ function subirArchivosRegistro() {
     var noTomadas = ['cedula_frente', 'cedula_reverso', 'selfie'].filter(function (k) {
       return lote.subidas.indexOf(k) < 0 && pedidas.indexOf(k) < 0 && descartados.indexOf(k) < 0;
     });
+    /* 4-nov-2026 — un pasaporte no tiene respaldo: con una foto de su documento ya está. */
+    if (lote.pasaporte) {
+      extra.pasaporte = true;
+      if (lote.subidas.indexOf('cedula_frente') >= 0 || lote.subidas.indexOf('cedula_reverso') >= 0) {
+        noTomadas = noTomadas.filter(function (k) { return k === 'selfie'; });
+      }
+    }
     if (noTomadas.length) extra.no_tomadas = noTomadas;
     anotarSubida(faltan.length ? 'parcial' : 'ok', pedidas, ok, cel, Object.keys(extra).length ? extra : null);
     /* Y si terminó sin alguna, su cuenta lo recuerda hasta que lo lea
        («Entendido»): no basta con decirlo una vez en una pantalla que se
        cierra. Sin ninguna foto: solo cuáles faltan. */
     if (!faltan.length && (rechazadas.length || noTomadas.length) && lote.sensibles === true) {
-      guardarAvisoDeFotos(cel, { estado: 'incompleta', t: Date.now(), rechazadas: rechazadas, no_tomadas: noTomadas });
+      var incompleta = { estado: 'incompleta', t: Date.now(), rechazadas: rechazadas, no_tomadas: noTomadas };
+      if (lote.pasaporte) incompleta.pasaporte = true;
+      guardarAvisoDeFotos(cel, incompleta);
     }
     if (faltan.length) { guardarCola(cel, lote); return; }
     /* Todas entraron: recién ahí se suelta la copia del teléfono. */
@@ -10962,7 +11053,7 @@ function avisoDeFotos(donde, momento) {
 function porqueSeBorraron(aviso) {
   var e = aviso && aviso.estado;
   /* 22-oct-2026 — no se borró nada: llegó todo lo que se tomó, y faltó algo. */
-  if (e === 'incompleta') return textoDeLoQueFalto(aviso.no_tomadas, aviso.rechazadas, true) || 'A tu registro le falta una foto: mándanosla por el chat de Servicio.';
+  if (e === 'incompleta') return textoDeLoQueFalto(aviso.no_tomadas, aviso.rechazadas, true, aviso.pasaporte) || 'A tu registro le falta una foto: mándanosla por el chat de Servicio.';
   if (e === 'caducada') return 'Las fotos de tu registro no alcanzaron a subir y, como pasó un día, las borramos de este teléfono.';
   if (e === 'otro_documento') return 'La cédula de las fotos de tu registro no es la del documento que escribiste en él, así que no las subimos y las borramos de este teléfono.';
   if (e === 'no_confirmada') return 'No pudimos confirmar de quién es la cédula de las fotos de tu registro, así que no las subimos y las borramos de este teléfono.';
@@ -10991,26 +11082,27 @@ function queHacerSinLasFotos(aviso) {
    aceptó), que es de esta cuenta y de esta vez. */
 function loQueNoLlego(nota, cel) {
   if (!nota || String(nota.celular || '') !== String(cel || '') || nota.estado !== 'ok') return '';
-  return textoDeLoQueFalto(nota.no_tomadas, nota.rechazadas, false);
+  return textoDeLoQueFalto(nota.no_tomadas, nota.rechazadas, false, nota.pasaporte);
 }
-function textoDeLoQueFalto(noTomadas, rechazadas, conCuenta) {
+function textoDeLoQueFalto(noTomadas, rechazadas, conCuenta, pasaporte) {
   var nt = Array.isArray(noTomadas) ? noTomadas : [], re = Array.isArray(rechazadas) ? rechazadas : [];
-  var nombre = { cedula_frente: 'la foto del frente de tu cédula', cedula_reverso: 'la del respaldo de tu cédula', selfie: 'la foto de tu cara' };
+  var nombre = { cedula_frente: pasaporte ? 'la foto de tu pasaporte' : 'la foto del frente de tu cédula',
+                 cedula_reverso: pasaporte ? 'la foto de tu pasaporte' : 'la del respaldo de tu cédula', selfie: 'la foto de tu cara' };
   var cedulaEntera = nt.indexOf('cedula_frente') >= 0 && nt.indexOf('cedula_reverso') >= 0;
   var partes = [];
-  if (cedulaEntera) partes.push('no tomaste la foto de tu cédula');
+  if (cedulaEntera) partes.push(pasaporte ? 'no tomaste la foto de tu pasaporte' : 'no tomaste la foto de tu cédula');
   else ['cedula_frente', 'cedula_reverso'].forEach(function (k) { if (nt.indexOf(k) >= 0) partes.push('no se tomó ' + nombre[k]); });
   if (nt.indexOf('selfie') >= 0) partes.push('no se tomó la foto de tu cara');
   re.forEach(function (k) { if (nombre[k]) partes.push(nombre[k] + ' no la pudimos guardar'); });
   if (!partes.length) return '';
   var llego = (nt.indexOf('selfie') >= 0 || re.indexOf('selfie') >= 0) && !cedulaEntera && re.indexOf('cedula_frente') < 0 && re.indexOf('cedula_reverso') < 0
-    ? '<b>Tu cédula llegó, pero ' : '<b>' + (conCuenta ? 'A tu registro le falta algo: ' : 'Tu cuenta quedó abierta, pero ');
+    ? '<b>' + (pasaporte ? 'Tu pasaporte' : 'Tu cédula') + ' llegó, pero ' : '<b>' + (conCuenta ? 'A tu registro le falta algo: ' : 'Tu cuenta quedó abierta, pero ');
   var lista = partes.length > 1 ? partes.slice(0, -1).join(', ') + ' y ' + partes[partes.length - 1] : partes[0];
   var sinCedula = cedulaEntera || re.indexOf('cedula_frente') >= 0 || re.indexOf('cedula_reverso') >= 0;
   return llego + lista + '.</b> ' +
     /* 3-nov-2026 — ver queHacerSinLasFotos: no es una condición. */
     (sinCedula ? 'Para revisar tu registro tenemos que confirmar que eres tú: mándanosla por el chat de Servicio, o dinos por ahí si prefieres otra forma.'
-               : 'Con ella revisamos que la cédula sea tuya: mándanosla por el chat de Servicio.');
+               : (pasaporte ? 'Con ella revisamos que el pasaporte sea tuyo' : 'Con ella revisamos que la cédula sea tuya') + ': mándanosla por el chat de Servicio.');
 }
 /* 20-oct-2026, buena fe (A8) — la última subida de esta cuenta entró, pero la
    base dejó las fotos de cédula que ya tenía, leídas con su código (no las

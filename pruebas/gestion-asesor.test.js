@@ -182,13 +182,31 @@ describe('las plantillas, que antes eran una sola (15-sep-2026)', () => {
   });
 
   test('a cada etapa se le propone una que tiene sentido', () => {
-    const esperado = { PC: 'presentacion', CR: 'invitar_app', PAGADO: 'confirmar_pago',
+    const esperado = { PC: 'presentacion', CR: 'invitar_app', PAGADO: 'credito_cerrado',
                        D0: 'vence_hoy', 'D-1': 'recordar', CA: 'seguimiento',
                        M1A: 'acuerdo', M2: 'acuerdo' };
     for (const [etapa, clave] of Object.entries(esperado)) {
       assert.equal(G.plantillaSugerida(etapa), clave, 'para la etapa ' + etapa);
       assert.equal(G.plantillasPara(etapa)[0], clave,
         'la sugerida no sale de primera en ' + etapa);
+    }
+  });
+
+  test('a quien cerró su crédito no se le dice que pagó: el equipo no sabe si entregó algo', () => {
+    /* 4-nov-2026 — desde que «Se lo perdoné» cierra con cualquier monto, la etapa
+       PAGADO también es de quien entregó $0, y el dato de cuánto entró no viaja al
+       equipo (decisión de Joan: sin marca). La plantilla decía «ya quedó registrado
+       tu pago. Gracias por cumplir» y venía marcada. Lo que sí es cierto de todos
+       los de esa etapa: su crédito quedó cerrado. */
+    const datos = { nombre: 'María', asesor: 'Pedro', enlace: 'https://tugarantia.net/play/' };
+    const t = G.armar(G.plantillaSugerida('PAGADO'), datos);
+    assert.match(t, /tu crédito quedó cerrado/);
+    assert.match(t, /María/);
+    assert.match(t, /Pedro/, 'un mensaje de un número desconocido sin decir quién escribe parece una estafa');
+    for (const clave of G.ORDEN) {
+      assert.doesNotMatch(G.armar(clave, datos), /registrado tu pago|Gracias por cumplir/,
+        'la plantilla ' + clave + ' sigue afirmando un pago y un cumplimiento');
+      assert.doesNotMatch(G.PLANTILLAS[clave].et, /que pagó/, 'la plantilla ' + clave + ' se ofrece como confirmar un pago');
     }
   });
 

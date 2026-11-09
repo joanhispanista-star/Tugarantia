@@ -341,6 +341,49 @@ describe('3 · el pago acordado y el plan del §8', () => {
     Q.ev("modoCobro('p1','error')");
     assert.match(boton(Q), /✓ Pagó la cuota 1/);
   });
+
+  /* 4-nov-2026 — la cifra que un cliente del §8 conoce y trae es la cuota. Con otra
+     cifra aparecía «Se lo perdoné»; con la cuota exacta, no, aunque la pista dice
+     «Escribe lo que trajo». Y el camino obvio, cobrar la cuota y cerrar con $0, da
+     otra cuenta: esa plata va a mora y costo, no primero al capital. */
+  test('plan del §8: la cuota exacta ESCRITA también ofrece el perdón, y primero al capital', () => {
+    const P = crmCon('2026-11-03T10:30:00', planDel8());
+    abrirCobro(P, '2026-11-03');
+    assert.doesNotMatch(dif(P), /Se lo perdoné/, 'con el campo sin tocar es el cobro de siempre');
+    const cuota = Number(P.elems.pgMonto.value);
+    assert.ok(cuota > 0 && cuota < 300000, 'la prueba necesita una cuota menor que el capital: ' + cuota);
+    const enPesos = '$' + cuota.toLocaleString('es-CO');
+    escribir(P, cuota);
+    assert.match(boton(P), /✓ Pagó la cuota 1/, 'cobrar la cuota sigue siendo la salida de siempre');
+    assert.ok(dif(P).includes('Se lo perdoné: cerrar el crédito con ' + enPesos),
+      'con la cuota escrita no ofrece el perdón, y la pista lo promete: ' + dif(P));
+    P.ev("modoCobro('p1','perdon')");
+    motivo(P, 'no puede más');
+    casilla(P, 300000 - cuota);
+    assert.equal(boton(P), 'Cerrar el crédito: recibió ' + enPesos);
+    P.ev("registrarCobro('p1')");
+    const p = cred(P);
+    assert.equal(p.pagado, true);
+    assert.equal(p.montoRecibido, cuota);
+    assert.equal(p.capitalPerdido, 300000 - cuota, 'la plata no fue primero al capital');
+  });
+
+  test('plan del §8: con la cuota exacta, cobrarla sigue cobrándola; y en la última no hay nada que perdonar', () => {
+    const P = crmCon('2026-11-03T10:30:00', planDel8());
+    abrirCobro(P, '2026-11-03');
+    const cuota = Number(P.elems.pgMonto.value);
+    escribir(P, cuota);
+    P.ev("registrarCobro('p1')");
+    assert.equal(cred(P).pagado, false, 'cobrar la cuota cerró el crédito');
+    assert.equal(cred(P).planPagos.cuotas[0].pagado, true, 'no cobró la cuota');
+    /* La última: la cuota es toda la deuda. */
+    const u = planDel8();
+    u.planPagos.cuotas.slice(0, -1).forEach(c => { c.pagado = true; c.fechaPagado = '2026-10-25'; });
+    const Q = crmCon('2026-10-26T10:30:00', u);
+    abrirCobro(Q, '2026-10-26');
+    escribir(Q, Number(Q.elems.pgMonto.value));
+    assert.doesNotMatch(dif(Q), /Se lo perdoné/, 'ofrece perdonar con la plata que paga todo');
+  });
 });
 
 /* ==========================================================================
@@ -404,5 +447,67 @@ describe('4 · los informes dicen la pérdida aparte de la ganancia', () => {
     assert.match(v, /Capital perdido al cerrar \$50\.000 · plata tuya que no vuelve: de los \$300\.000 prestados volvieron \$250\.000/);
     assert.match(v, /Este crédito te dejó .*-\$50\.000 · -16,7%/);
     assert.match(P.elems.mBody.innerHTML, /class="pierde">-\$50\.000/);
+  });
+});
+
+/* 9-nov-2026 — la segunda ronda, en un iPhone (390 px): el chip «Cerrada con perdón
+   04 de nov de 2026» se salía del cuadro y «Entró de verdad» se partía «verda / d».
+   Lo que se ve se midió en Chrome sin ventana (antes: chip hasta 417 px con el cuadro
+   en 370, barra de lado, etiqueta de 39 px; después: nada fuera). Aquí se cuida que
+   las piezas sigan puestas. */
+describe('el detalle de un cierre con perdón cabe en un iPhone', () => {
+  test('«Entró de verdad» es un renglón largo y el chip parte si no cabe (solo en pantalla chica)', () => {
+    const hoja = require('node:fs').readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
+    assert.match(hoja, /<div class="info-row fila-larga"><span class="k">Entró de verdad<\/span>/);
+    const chica = hoja.slice(hoja.indexOf('@media (max-width:560px){\r\n    .info-row.con-botones .vv{text-align:left}') >= 0
+      ? hoja.indexOf('@media (max-width:560px){\r\n    .info-row.con-botones .vv{text-align:left}')
+      : hoja.indexOf('@media (max-width:560px){\n    .info-row.con-botones .vv{text-align:left}'));
+    const bloque = chica.slice(0, chica.indexOf('\n  }'));
+    assert.match(bloque, /#mBody \.info-row \.vv \.chip\{white-space:normal\}/);
+    assert.match(bloque, /#mBody \.info-row\.fila-larga\{flex-wrap:wrap\}/);
+    assert.match(bloque, /#mBody \.info-row\.fila-larga \.vv\{flex:1 1 100%;min-width:0;text-align:left\}/);
+  });
+});
+
+/* 9-nov-2026 — la segunda ronda: al marcar «Entiendo que pierdo $X» no pasaba nada a
+   la vista; el botón rojo quedaba arriba, detrás de la cabecera, y la casilla era lo
+   último del cuadro. La maqueta que aprobó Joan ponía el botón DESPUÉS de la casilla.
+   Que se vea se midió en Chrome sin ventana (1280 y 390 px, quincenal y a cuotas). */
+describe('el botón para cerrar queda también después de la casilla', () => {
+  const abajoDe = P => { const h = String(P.elems.pgDif.innerHTML); const i = h.indexOf('id="pgEntiende"'), j = h.indexOf('id="pgBtnCierre"'); return { h, i, j }; };
+
+  for (const [nombre, credito, fecha, monto] of [['quincenal', quincenal, '2026-10-20', 250000], ['a cuotas', aCuotas, '2026-11-05', 500000]]) {
+    test(nombre + ': está después de la casilla, dice lo mismo que el de arriba y se apaga con él', () => {
+      const P = crmCon(fecha + 'T10:30:00', credito());
+      abrirCobro(P, fecha); escribir(P, monto);
+      P.ev("modoCobro('p1','perdon')");
+      motivo(P, 'se quedó sin trabajo');
+      const { h, i, j } = abajoDe(P);
+      assert.ok(i >= 0, 'precondición: la casilla');
+      assert.ok(j > i, 'el botón no está después de la casilla: ' + texto(h).slice(-300));
+      casilla(P, P.ev('perdonDeLaHoja(DB.prestamos[0],gv("pgFecha"),estadoDelCobro(DB.prestamos[0],liqCredito(DB.prestamos[0],gv("pgFecha")))).perdona.capital'));
+      assert.equal(P.elems.pgBtnCierre.textContent, P.elems.pgBtn.textContent);
+      assert.match(P.elems.pgBtnCierre.textContent, /Cerrar el crédito/);
+      assert.equal(P.elems.pgBtnCierre.disabled, false);
+      casilla(P, 0);
+      assert.equal(P.elems.pgBtnCierre.disabled, true, 'sin la casilla, el de abajo también se apaga');
+      assert.equal(P.elems.pgBtn.disabled, true);
+    });
+  }
+
+  test('el de abajo cierra igual que el de arriba: llama a lo mismo', () => {
+    const P = crmCon('2026-10-20T10:30:00', quincenal());
+    abrirCobro(P, '2026-10-20'); escribir(P, 250000);
+    P.ev("modoCobro('p1','perdon')");
+    const h = String(P.elems.pgDif.innerHTML);
+    assert.match(h, /id="pgBtnCierre"[^>]*onclick="registrarCobro\('p1'\)"/);
+  });
+
+  test('fuera del perdón no aparece: el cobro de siempre se ve como siempre', () => {
+    const P = crmCon('2026-10-20T10:30:00', quincenal());
+    abrirCobro(P, '2026-10-20');
+    assert.doesNotMatch(String(P.elems.pgDif.innerHTML) + String(P.elems.pgAccion.innerHTML), /pgBtnCierre/);
+    escribir(P, 250000);
+    assert.doesNotMatch(String(P.elems.pgDif.innerHTML), /pgBtnCierre/, 'antes de elegir «Se lo perdoné»');
   });
 });

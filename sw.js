@@ -2020,13 +2020,39 @@
    play/index.html y panel/crm.html, ya en v142, y ningún .js publicado: nada
    sube de versión. No hay base nueva: registrar_abierto guarda esos pares de
    texto como cualquier otro.
+   4-nov-2026, la revisión del mismo lote: EL TERCER CAMINO DE «GRACIAS POR CUMPLIR».
+   El 📲 de asesor y gerente abría con «ya quedó registrado tu pago» para todo el
+   que cerró su crédito, hasta con $0. Cambian dos .js más ya publicados, y los dos
+   estrenan la firma de llegada y se precargan con ?v=142: app/gestion-asesor.js (la
+   plantilla) y app/etapas.js (la etapa se lee «Cerró su crédito»; la llave sigue
+   siendo PAGADO). Los dos los pide solo panel/crm.html. Y un abono del otro aparato
+   que el cierre no conocía baja la pérdida (app/puente.js, ya en v142). «Pagado» se
+   va del detalle, del Calendario y de los diálogos de borrar, y del celular; en el
+   §8 la cuota exacta escrita también ofrece «Se lo perdoné» (panel/crm.html y
+   panel/espejo.html, ya en v142). Y el CRM no
+   afirma de la cédula que falta lo que no se sabe, «Volver» tras «Tomar las fotos»
+   regresa a «Tu rostro», y un pasaporte se llama pasaporte: dos páginas, play/index.html
+   y panel/crm.html, ya en v142, y ningún .js publicado.
+   9-nov-2026, la segunda ronda de la revisión, y main (04e6ac2) junto en la rama: la
+   salida de la puerta del PIN, traer.html y el chat del equipo vienen de main, que
+   está en v141, así que publicar esto es publicar v142 encima de lo que ya hay.
+   Cambian páginas, todas ya en v142: panel/crm.html (PlataChat como en main, la fila
+   «Cédula leída», la ficha con lo que dijo la base, la marca de la fila, «Revisar la
+   cartera», la galería, el WhatsApp del cierre con cuál crédito, el detalle a 390 px,
+   el botón después de la casilla, el capital perdido en total), panel/espejo.html (la
+   tarjeta del choque, «volvieron», el total, {credito}), panel/subir.html (la tarjeta
+   del choque) y play/index.html (la vuelta de la cámara tras «Tomar las fotos»; su
+   VERSION_PLAY sube al 9-nov). Y un .js ya en v142 y sin publicar: app/puente.js (un
+   solo perdón del cierre cuenta, un «Pagó todo» de v141 no se lee como cierre con
+   pérdida, y exporta condonacionVigente). Nada más sube de versión. No hay base nueva.
    4-nov-2026, v143 — LOS DEFECTOS DE PLATA YA VIVOS (E1 del plan del CRM en la nube). Una
    pestaña vieja ya no pisa un cobro: guardar() se niega y lo dice. Dos abonos iguales son
    dos, porque el abono suelto nace con id. El cupo sale igual en todos los aparatos: el
    puntero de la foto viaja, y una foto de verdad pasa a una marca; ninguna foto sube. El
    PIN y la fecha del último respaldo son de cada aparato: lo que baja no los quita y lo
-   que sube no los lleva. Y crm.html, en un aparato sin cartera, dice dónde está en vez de
-   ofrecer el PIN de fábrica.
+   que sube no los lleva. En un aparato sin cartera, la puerta de crm.html es la de main (su
+   salida «Traer mi cartera», que ganó al juntar el 9-nov); de esta rama queda que una sesión
+   guardada no abre ahí un CRM en $0.
    Cambian dos .js ya publicados, y los dos ya firmaban al llegar: panel/nube.js, que piden
    panel/crm.html, panel/espejo.html, panel/subir.html y panel/traer.html, y
    panel/nube-crm.js, que pide solo panel/crm.html (cambió una nota; la regla mira el
@@ -2081,7 +2107,7 @@ const ARCHIVOS = [
   /* 10-sep-2026 — la app del equipo (gerente y asesor). Se usa en la calle y
      con mala senal, igual que el espejo. */
   'panel/equipo.html',
-  'app/etapas.js',
+  'app/etapas.js?v=142',   // 4-nov-2026 — ?v=142: la etapa PAGADO ya no se lee «Pagó» (ver la nota de v142)
   'app/comisiones.js?v=142',   // 31-oct-2026 — ?v=142: un cierre con pérdida no le paga comisión al asesor (ver la nota de v142)
   'app/bases.js',
   'panel/espejo.webmanifest',
@@ -2174,7 +2200,7 @@ const ARCHIVOS = [
      nada y Joan se entera con los clientes esperando. */
   'app/cobranza-envio.js',
   /* 15-sep-2026 — las reglas de la gestion del asesor y los textos que lee. */
-  'app/gestion-asesor.js',
+  'app/gestion-asesor.js?v=142',   // 4-nov-2026 — ?v=142: la plantilla de quien cerró su crédito (ver la nota de v142)
   'app/asesor-textos.js',
   /* Y tanda.js, que hasta hoy solo cargaba el Panel del bolsillo. Ahora el CRM
      del computador tambien lo necesita: es quien aplica los topes de la Ley

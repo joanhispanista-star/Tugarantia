@@ -630,9 +630,35 @@ describe('7 · después de cerrar con pérdida no se le agradece un pago que no 
     assert.doesNotMatch(pregunta, /recibo/, 'le ofreció «el recibo» de un pago que no hubo');
     assert.equal(r.titulo, 'Gestionar · Rosa Inventada');
     assert.equal(r.elegida, 'cierre');
-    assert.match(r.mensaje, /tu crédito quedó cerrado: de ese crédito ya no nos debes nada/);
+    assert.match(r.mensaje, /tu crédito de \$200\.000 que recibiste el 01 de oct de 2026 quedó cerrado: de ese crédito ya no nos debes nada/,
+      'la segunda ronda: con varios créditos, «tu crédito quedó cerrado» sin decir cuál se lee como que ya no debe nada');
     assert.doesNotMatch(r.mensaje, /pago|cumplimiento|Recibido/i,
       'le ofreció mandarle «Tu pago quedó registrado… gracias por tu cumplimiento» a quien entregó $0: ' + r.mensaje);
+  });
+
+  test('dos cierres de la misma clienta no proponen el mismo texto, y no queda ninguna llave suelta', () => {
+    const a = cerrarEnLaHoja(deRosa(), '2026-10-31', 0, 200000);
+    const b = cerrarEnLaHoja(deRosa({ id: 'r9', numero: 9, capital: 350000, fechaDesembolso: '2026-10-05' }), '2026-10-31', 0, 350000);
+    assert.notEqual(a.mensaje, b.mensaje);
+    assert.match(b.mensaje, /tu crédito de \$350\.000 que recibiste el 05 de oct de 2026 quedó cerrado/);
+    assert.doesNotMatch(a.mensaje + b.mensaje, /\{[a-z_]+\}/, 'quedó una llave sin contestar');
+    const CRM = crmCon('2026-10-31T10:30:00', [ROSA], []);
+    assert.deepEqual(JSON.parse(CRM.ev("JSON.stringify(tokensSueltos(PLANTILLAS_DEF.cierre.m,'cierre'))")), []);
+    /* La de fábrica que ya quedó guardada en un disco se pone al día; una escrita por Joan, no. */
+    const V = abrirPanel({ ahora: '2026-10-31T10:30:00' });
+    V.cargarCartera({ socios: [], prestamos: [], plantillas: { cierre: V.ev('CIERRE_SIN_CREDITO') } });
+    assert.match(V.ev('DB.plantillas.cierre'), /\{credito\}/);
+    const W = abrirPanel({ ahora: '2026-10-31T10:30:00' });
+    W.cargarCartera({ socios: [], prestamos: [], plantillas: { cierre: 'Hola {nombre}, lo mío' } });
+    assert.equal(W.ev('DB.plantillas.cierre'), 'Hola {nombre}, lo mío');
+  });
+
+  test('el celular contesta {credito} igual que el computador', () => {
+    const c = cerrar({ socios: [ROSA], prestamos: [deRosa()] }, deRosa(), '2026-10-31', 0);
+    const E = abrirEspejo({ ahora: '2026-10-31T10:30:00', cartera: { socios: [copia(ROSA)], prestamos: [c], respaldados: [],
+      config: { negocio: 'Tu Garantía' }, contadores: { cliente: 7, credito: 1, respaldado: 0 }, plantillas: {} } });
+    assert.equal(E.ev("aplicarVars('tu crédito {credito} quedó cerrado', creditoPorId('r1'), {nombre:'Rosa'})"),
+      'tu crédito de $200.000 que recibiste el 01 de oct de 2026 quedó cerrado');
   });
 
   test('a cuotas cerrado con 500.000 de 650.000: tampoco es un pago, y el mensaje es el mismo', () => {
@@ -679,6 +705,48 @@ describe('7 · después de cerrar con pérdida no se le agradece un pago que no 
 });
 
 /* ==========================================================================
+ * 6-bis. 4-NOV-2026 — EL TERCER CAMINO: EL EQUIPO. La pregunta de después de
+ * cerrar (CRM) y la tanda del celular ya no dicen «gracias por tu cumplimiento»
+ * (sección de la segunda revisión). Pero el 📲 de asesor y gerente abría con
+ * «Confirmarle que pagó» marcada para todo el que cerró, hasta con $0.
+ * ======================================================================== */
+describe('6-bis · Lo que el equipo le propone decirle a quien cerró su crédito', () => {
+  function crmDelEquipo() {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], []);
+    CRM.ev("CARTERA_EQUIPO = { yo: { nombre: 'Ana Inventada', rol: 'asesor' }, gente: [] }");
+    return CRM;
+  }
+
+  test('el 📲 no dice que pagó ni que cumplió, y el chip tampoco', () => {
+    const CRM = crmDelEquipo();
+    CRM.ev("pantallaMensajeEq({ id: 's1', etapa: 'PAGADO', nombre: 'Marta Inventada', celular: '3000000001' })");
+    const t = texto(CRM.elems.mBody.innerHTML);
+    assert.doesNotMatch(t, /registrado tu pago|Gracias por cumplir/, 'el asesor tiene listo para enviar un pago que no existió: ' + t);
+    assert.doesNotMatch(t, /Confirmarle que pagó/);
+    assert.doesNotMatch(t, /PAGADO/, 'el chip le dice PAGADO a quien entregó $0');
+    assert.match(t, /Marta/);
+    assert.match(t, /tu crédito quedó cerrado/);
+    assert.match(t, /Ofrécele el siguiente/, 'sin marca en el cliente: se le sigue ofreciendo el siguiente');
+  });
+
+  test('«Toda tu base» los llama por lo que se sabe, y el servidor sigue recibiendo la misma llave', () => {
+    const E = require(path.join(RAIZ, 'app', 'etapas.js'));
+    assert.doesNotMatch(E.ETAPAS.PAGADO.nombre, /Pag/, 'cuenta como «Pagó» a quien cerró con $0');
+    const db = { prestamos: [cerrar({ socios: [SOCIO], prestamos: [] }, quincenal({ id: 'p9', socioId: 's1', capital: 200000,
+      fechaDesembolso: '2026-10-01', cicloActual: '2026-10-15' }), '2026-10-31', 0)] };
+    /* La llave no cambia: base/20260922q la compara, y una etapa desconocida
+       caería del lado del cobro. */
+    assert.equal(E.etapaDe({ tipo: 'socio', id: 's1' }, db, '2026-10-31'), 'PAGADO');
+  });
+
+  test('el ✉️ no le recuerda «tu pago de $0» a quien ya no debe nada', () => {
+    const CRM = crmDelEquipo();
+    assert.equal(CRM.ev("plantillaSMSDe('PAGADO')"), 'invitacion');
+    assert.equal(CRM.ev("plantillaSMSDe('D-1')"), 'recordatorio1', 'a quien sí debe se le sigue recordando');
+  });
+});
+
+/* ==========================================================================
  * 7. 3-NOV-2026 — LO QUE JOAN LEE DE UN CIERRE CON PÉRDIDA: tres frases que
  * quedaron de la revisión del 31-oct, y las tres afirmaban algo falso.
  * ======================================================================== */
@@ -710,10 +778,185 @@ describe('7 · Lo que Joan lee de un cierre con pérdida', () => {
     assert.equal(OTRO.ev('textoEstado(DB.prestamos[0])'), 'Pagado');
   });
 
+  /* 4-nov-2026 — ee7c3cc cambió la columna y el Estado; quedaban estos. Hasta con $0
+     entregados se leía «Pagado el» justo encima de «Entró de verdad $0». */
+  test('el detalle: «Cerrado el», no «Pagado el»; y el de un pago de verdad sigue igual', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(0)]);
+    CRM.ev("verCredito('p7')");
+    const t = texto(CRM.elems.mBody.innerHTML);
+    assert.match(t, /Cerrado el 31 de oct de 2026/, 'dijo otra cosa: ' + t);
+    assert.doesNotMatch(t, /Pagado el/);
+    const OTRO = crmCon('2026-10-31T10:30:00', [SOCIO], [pagarTodo(credito(), '2026-10-31')]);
+    OTRO.ev("verCredito('p7')");
+    assert.match(texto(OTRO.elems.mBody.innerHTML), /Pagado el 31 de oct de 2026/);
+  });
+
+  function loQuePregunta(CRM, llamada) {
+    const dicho = [];
+    CRM.ctx.confirm = m => { dicho.push(String(m)); return false; };
+    CRM.ev(llamada);
+    assert.equal(dicho.length, 1, 'no preguntó: ' + JSON.stringify(CRM.ctx._avisos || []));
+    return dicho[0];
+  }
+
+  test('borrar el crédito: no pregunta por un crédito «Pagado» que se cerró con $0', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(0)]);
+    assert.match(loQuePregunta(CRM, "borrarCredito('p7')"), /Estado: Cerrado con pérdida/);
+    const OTRO = crmCon('2026-10-31T10:30:00', [SOCIO], [pagarTodo(credito(), '2026-10-31')]);
+    assert.match(loQuePregunta(OTRO, "borrarCredito('p7')"), /Estado: Pagado/);
+  });
+
+  test('borrar la ficha: «todos pagados» era falso, y el capital perdido también sale de los informes', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(0)]);
+    const m = loQuePregunta(CRM, "borrarCliente('s1')");
+    assert.doesNotMatch(m, /todos pagados/);
+    assert.match(m, /Créditos en su historial \(todos cerrados\): 1/);
+    assert.match(m, /Capital perdido que deja de contar en tus totales: \$300\.000/);
+    const OTRO = crmCon('2026-10-31T10:30:00', [SOCIO], [pagarTodo(credito(), '2026-10-31')]);
+    const n = loQuePregunta(OTRO, "borrarCliente('s1')");
+    assert.match(n, /todos pagados/);
+    assert.doesNotMatch(n, /Capital perdido/);
+  });
+
+  test('el Calendario: el cierre con pérdida no va en «✓ Pagos recibidos» ni con la marca de pagado', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(0)]);
+    CRM.ev('renderCalendario()');
+    const celda = texto(CRM.elems.calGrid.innerHTML);
+    assert.doesNotMatch(celda, /✓ Marta/, 'la celda del día marca como pagado a quien entregó $0');
+    assert.match(celda, /✕ Marta/);
+    CRM.ev("verDia('2026-10-31')");
+    const t = texto(CRM.elems.mBody.innerHTML);
+    assert.doesNotMatch(t, /Pagos recibidos/, 'lo listó como un pago recibido');
+    assert.match(t, /✕ Cerrados con pérdida/);
+    assert.match(t, /volvieron \$0 de \$300\.000 · cerrado perdiendo \$300\.000/);
+    assert.doesNotMatch(t, /\+ ganancia/, 'un cierre con pérdida no dejó ganancia ese día');
+    const hoja = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
+    assert.match(hoja, /class="cal-ev cer"[^>]*>●<\/span> cerrado con pérdida/, 'la leyenda no dice qué es la marca nueva');
+  });
+
+  test('el Calendario: lo que volvió antes por un abono se dice como lo que volvió en total, no como lo de ese día', () => {
+    const p = credito();
+    p.abonosCapital = [{ fecha: '2026-10-25', monto: 100000 }];
+    const c = cerrar({ socios: [SOCIO], prestamos: [p] }, p, '2026-10-31', 0);
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [c]);
+    CRM.ev("verDia('2026-10-31')");
+    assert.match(texto(CRM.elems.mBody.innerHTML), /volvieron \$100\.000 de \$300\.000 · cerrado perdiendo \$200\.000/);
+  });
+
+  test('un pago de verdad sigue con su marca y bajo «✓ Pagos recibidos»', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [pagarTodo(credito(), '2026-10-31')]);
+    CRM.ev('renderCalendario()');
+    assert.match(texto(CRM.elems.calGrid.innerHTML), /✓ Marta/);
+    CRM.ev("verDia('2026-10-31')");
+    const t = texto(CRM.elems.mBody.innerHTML);
+    assert.match(t, /✓ Pagos recibidos/);
+    assert.doesNotMatch(t, /Cerrados con pérdida/);
+  });
+
   test('la tarjeta «Capital perdido» dice de qué corte es: no «ninguno» a secas el día que se perdió de otro corte', () => {
     const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(250000)]);
     CRM.ev('render()');
     const k = texto(CRM.elems.kpis.innerHTML);
     assert.match(k, /Capital perdido \$0 ninguno en créditos con corte del 31 oct/, 'la tarjeta dijo otra cosa: ' + k);
+  });
+
+  /* 9-nov-2026 — la segunda ronda: con la tarjeta por corte, el cierre del día casi
+     nunca sale, y el total no estaba en ninguna parte. */
+  test('el Tablero y los Indicadores dicen el capital perdido en total, aunque sea de otro corte', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(150000)]);
+    CRM.ev('render()');
+    assert.match(texto(CRM.elems.kpis.innerHTML), /Capital perdido \$0 ninguno en créditos con corte del 31 oct · en total \$150\.000/);
+    assert.match(texto(CRM.elems.kpis2.innerHTML), /Capital perdido \(total\) \$150\.000 histórico · 1 crédito/);
+    const OTRO = crmCon('2026-10-31T10:30:00', [SOCIO], [pagarTodo(credito(), '2026-10-31')]);
+    OTRO.ev('render()');
+    assert.doesNotMatch(texto(OTRO.elems.kpis.innerHTML) + texto(OTRO.elems.kpis2.innerHTML), /· en total \$|Capital perdido \(total\)/, 'sin pérdida no se pinta');
+    /* La misma cifra que la columna de Ciclos, sumada. */
+    assert.equal(CRM.ev('capitalPerdidoTotal().capital'), P.capitalPerdidoDe(cerrado(150000)));
+  });
+
+  test('el celular también dice el total', () => {
+    const E = abrirEspejo({ ahora: '2026-10-31T10:30:00', cartera: { socios: [copia(SOCIO)], prestamos: [cerrado(150000)], respaldados: [],
+      config: { negocio: 'Tu Garantía' }, contadores: { cliente: 1, credito: 7, respaldado: 0 }, plantillas: {} } });
+    assert.match(texto(E.ev('vistaQuincena()')), /Capital perdido en total \$150\.000/);
+  });
+});
+/* ==========================================================================
+ * 8. 9-nov-2026 — LA SEGUNDA RONDA: LO QUE QUEDABA DICIENDO «PAGADO»
+ *    «🔍 Revisar la cartera» (donde Joan decide qué registro doble borrar), la
+ *    galería de comprobantes y la tarjeta del choque, en el celular y en
+ *    panel/subir.html.
+ * ======================================================================== */
+describe('8 · lo que quedaba diciendo «pagado» de un cierre con pérdida', () => {
+  const credito = (id, numero, capital) => quincenal({ id, numero, socioId: 's1', socioNombre: SOCIO.nombre, capital: capital || 300000,
+    fechaDesembolso: '2026-10-01', cicloActual: '2026-10-15' });
+  const cerradoCon = (p, monto) => cerrar({ socios: [SOCIO], prestamos: [p] }, p, '2026-10-31', monto);
+
+  test('«Revisar la cartera» dice «cerrado con pérdida», no «pagado»; un pago de verdad sigue diciendo «pagado»', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerradoCon(credito('a', 1), 0), pagarTodo(credito('b', 2, 200000), '2026-10-31'),
+      cerradoCon(credito('c', 3, 300500), 0)]);
+    CRM.ev('revisarCartera()');
+    const v = texto(CRM.elems.mBody.innerHTML);
+    assert.match(v, /CR-0001 \$300\.000 cerrado con pérdida/, 'el doble registro: ' + v);
+    assert.match(v, /CR-0002 \$200\.000 pagado/);
+    assert.doesNotMatch(v, /CR-0001 \$300\.000 pagado/);
+    assert.match(v, /CR-0003 · Marta Gómez · \$300\.500 · 01 de oct de 2026 · cerrado con pérdida/, 'el monto no redondo: ' + v);
+  });
+
+  test('la galería: el comprobante de un «Se lo perdoné» no dice «Pago $0»', () => {
+    const c = cerradoCon(credito('p7', 7), 0);
+    c.comprobantes = [{ fecha: '2026-10-31', tipo: 'pago', monto: 0, foto: 'data:image/jpeg;base64,QQ==', id: c.condonaciones[0].id }];
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [c]);
+    CRM.ev("verCredito('p7')");
+    const v = texto(CRM.elems.mBody.innerHTML);
+    assert.doesNotMatch(v, /Pago \$0/);
+    assert.match(v, /Cierre con perdón \$0/);
+    const pago = pagarTodo(credito('p7', 7), '2026-10-31');
+    pago.comprobantes = [{ fecha: '2026-10-31', tipo: 'pago', monto: 360000, foto: 'data:image/jpeg;base64,QQ==' }];
+    const OTRO = crmCon('2026-10-31T10:30:00', [SOCIO], [pago]);
+    OTRO.ev("verCredito('p7')");
+    assert.match(texto(OTRO.elems.mBody.innerHTML), /Pago \$360\.000/, 'un pago de verdad sigue siendo «Pago»');
+  });
+
+  /* El crédito a cuotas de la maqueta (650.000 en dos cuotas) cerrado con 300.000. */
+  function cuotasCerrado() {
+    const p = aCuotas({ id: 'q1', numero: 1, socioId: 's1', socioNombre: SOCIO.nombre });
+    return cerrar({ socios: [SOCIO], prestamos: [p] }, p, '2026-10-31', 300000);
+  }
+
+  test('la tarjeta del choque en el celular: ni «¿Pagado? sí» ni «2 de 2 cuotas pagadas» de un cierre con pérdida', () => {
+    const c = cuotasCerrado();
+    assert.ok(P.cerroConPerdida(c), 'precondición: se cerró con pérdida');
+    const e = abrirEspejo({ cartera: { socios: [copia(SOCIO)], prestamos: [copia(c)] }, ahora: '2026-10-31T15:00:00' });
+    e.ctx.__c = copia(c);
+    assert.equal(e.ev("valorCorto('pagado', true, __c)"), 'cerrado con pérdida');
+    const plan = e.ev('resumenDelPlan(__c.planPagos)');
+    assert.doesNotMatch(plan, /2 de 2 cuotas pagadas/, plan);
+    assert.match(plan, /cerrada con perdón/);
+    assert.doesNotMatch(plan, /cuota \d pagada/, 'una cuota cerrada con perdón no se pagó: ' + plan);
+    /* Control: un crédito pagado de verdad sigue diciendo «sí». */
+    e.ctx.__p = pagarTodo(credito('x', 9), '2026-10-31');
+    assert.equal(e.ev("valorCorto('pagado', true, __p)"), 'sí');
+    const hoja = fs.readFileSync(path.join(RAIZ, 'panel', 'espejo.html'), 'utf8');
+    assert.match(hoja, /valorCorto\(p\.campo, p\.mio, c\.mio\)/);
+    assert.match(hoja, /valorCorto\(p\.campo, p\.suyo, c\.suyo\)/);
+  });
+
+  test('la tarjeta del choque en panel/subir.html dice lo mismo', () => {
+    const hoja = fs.readFileSync(path.join(RAIZ, 'panel', 'subir.html'), 'utf8').split(String.fromCharCode(13)).join('');
+    const trozo = (desde, hasta) => { const i = hoja.indexOf(desde), j = hoja.indexOf(hasta, i); assert.ok(i >= 0 && j > i, 'no encontré ' + desde); return hoja.slice(i, j); };
+    const codigo = trozo('function resumenDelPlan(pp){', '\nfunction textoDelCambio') + trozo('function textoDelCambio(u){', '\n}\n') + '\n}\n'
+      + trozo('function muestra(v, campo, fila){', '\nfunction decidir');
+    const caja = { PUENTE: P, fechaCorta: x => String(x), pesosCO: n => '$' + Number(n).toLocaleString('es-CO') };
+    vm.createContext(caja);
+    vm.runInContext(codigo.replace(/\r/g, ''), caja);
+    const c = cuotasCerrado();
+    caja.__c = c;
+    assert.equal(vm.runInContext("muestra(true, 'pagado', __c)", caja), 'cerrado con pérdida');
+    const plan = vm.runInContext('resumenDelPlan(__c.planPagos)', caja);
+    assert.doesNotMatch(plan, /2 de 2 pagadas/, plan);
+    assert.match(plan, /cerrada con perdón/);
+    caja.__p = pagarTodo(credito('x', 9), '2026-10-31');
+    assert.equal(vm.runInContext("muestra(true, 'pagado', __p)", caja), 'sí');
+    assert.match(hoja, /esc\(muestra\(v, c, obj\)\)/);
   });
 });

@@ -171,14 +171,17 @@ describe('traer.html no promete que el PIN viaja', () => {
     return T.elems.resumen3.innerHTML;
   };
 
+  /* 9-nov-2026, al juntar main: la frase es la de main, que dice de qué subida es ese PIN
+     (y no «el mismo del computador», que desde v143 tampoco sería cierto). */
   test('si config trae el PIN, lo dice: hasta el SQL de E2 todavía puede venir', () => {
-    assert.match(avisos(conAjustes({ pin: PIN, negocio: 'X' })), /mismo PIN del computador/);
+    assert.match(avisos(conAjustes({ pin: PIN, negocio: 'X' })), /Con ellos viaja el <b>PIN que tenías cuando se subieron por última vez/);
   });
 
   test('si config NO trae el PIN, dice que este aparato arranca con el de fábrica', () => {
     const h = avisos(conAjustes({ negocio: 'X' }));
     assert.doesNotMatch(h, /mismo PIN del computador/, 'prometió un PIN que no viene');
     assert.match(h, /PIN 1234/);
+    assert.match(h, /Desde la versión v143 tu PIN no viaja por la nube/);
     assert.match(h, /Cámbialo/);
   });
 

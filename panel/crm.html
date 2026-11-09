@@ -164,13 +164,19 @@
   .oculto{display:none!important}
   input[type=file].oculto{display:block!important;position:absolute!important;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
   .gate-err.aviso b{color:var(--laca)}
-  /* 4-nov-2026 — la puerta en un aparato sin cartera (ver pintarPuertaSegunCartera):
-     se lee como un aviso, no como un error, y el enlace al Panel es el botón principal. */
-  .gate-nota{font-size:14px;line-height:1.5;color:var(--tinta-2);text-align:left;margin:0 0 10px}
-  .gate-nota b{color:var(--laca)}
-  .gate-nota.chica{font-size:12.5px;color:var(--gris)}
-  .gate-card a.gate-ir{display:block;margin-top:14px;background:var(--rojo);padding:13px;border-radius:10px;
-    font-weight:700;font-size:15px;color:var(--papel);text-decoration:none;text-align:center}
+  /* 6-nov-2026 — LA SALIDA DE LA PUERTA DEL PIN (ver pintarSalidaDeLaPuerta). Azul
+     y con borde, no rojo: el rojo es «Entrar», el gesto de avanzar de esta tarjeta,
+     y al gerente que la ve en su celular no se le puede disputar ese botón. */
+  .gate-salida{margin-top:14px;padding-top:12px;border-top:1px solid var(--linea);
+    font-size:12.5px;line-height:1.45;color:var(--tinta-2);text-align:left}
+  .gate-salida a{display:block;margin-top:10px;padding:12px;border:1.5px solid var(--azul);border-radius:10px;
+    color:var(--azul);font-size:14px;font-weight:700;text-align:center;text-decoration:none}
+  /* Con su salida, la tarjeta mide unos 500 px: en un teléfono bajito, o en uno grande
+     acostado, lo de abajo queda cortado. Solo con la salida a la vista: con fichas la puerta
+     sigue sin barra, como siempre. Arriba y con margin:auto, y no centrada: una tarjeta
+     centrada más alta que la pantalla pierde su parte de arriba, y a esa no se llega bajando. */
+  .gate.con-salida{place-items:start center;overflow-y:auto;overflow-x:hidden}
+  .gate.con-salida .gate-card{margin:auto}
 
   /* 10-sep-2026 — EL OJO. Joan lo pidió por su nombre: una contraseña dictada
      por WhatsApp y tecleada a ciegas en un celular se escribe mal y no hay cómo
@@ -489,6 +495,16 @@
        piso «Cupo quincenal» salía «$25.00» y el «0» debajo. */
     #mBody .info-row .k{flex-shrink:1;min-width:0;overflow-wrap:anywhere}
     #mBody .info-row:not(.con-botones) .vv{min-width:35%}
+    /* 9-nov-2026 — EL CIERRE CON PERDÓN A 390 PX (segunda ronda de la revisión, en un
+       iPhone): el chip «Cerrada con perdón 04 de nov de 2026» no parte (.chip lleva
+       nowrap), se salía del cuadro y perdía el año; y la etiqueta «Entró de verdad»,
+       al lado de una explicación larga, se encogía a 37 px y se partía «verda / d».
+       El chip parte solo si no cabe (el que cabe se ve igual), y el renglón largo pone
+       la explicación DEBAJO de su etiqueta, entera. */
+    #mBody .info-row .vv .chip{white-space:normal}
+    #mBody .info-row.fila-larga{flex-wrap:wrap}
+    #mBody .info-row.fila-larga .k{flex:1 1 100%;overflow-wrap:normal}
+    #mBody .info-row.fila-larga .vv{flex:1 1 100%;min-width:0;text-align:left}
   }
   .alerta{border-radius:9px;padding:10px 13px;font-size:13px;margin-bottom:14px;line-height:1.45}
   .alerta.warn{background:var(--ambar-tinte);color:var(--ambar);border:1px solid var(--ambar-medio)}
@@ -565,6 +581,7 @@
   .cal-ev.des{background:var(--neutro-2);color:var(--laca-3)}
   .cal-ev.ven{background:var(--ambar);color:var(--papel)}
   .cal-ev.pag{background:var(--neutro-1);color:var(--tinta-2)}
+  .cal-ev.cer{background:var(--ambar-tinte);color:var(--ambar)}
   .cal-ev.pro{background:var(--laca-3);color:var(--blanco-laca)}
   .cal-more{font-size:10px;color:var(--gris)}
 
@@ -593,6 +610,16 @@
     .card>div{overflow-x:auto;-webkit-overflow-scrolling:touch}
     table{min-width:560px}
   }
+  /* 6-nov-2026 — SOLO EN PANTALLA, porque el bloque de arriba también aplica al imprimir
+     (A4 y carta miden menos de 880) y esto sacaba una hoja en blanco de más desde el PC.
+     min-height: el toque del menú lleva el contenido a la vista (ver alTocarElMenu), y una
+     vista corta no deja bajar hasta arriba: quedaría a media pantalla con el final del menú
+     encima, distinta cada vez. #txtJefe a 16 px: por debajo, Safari en iOS hace zoom al
+     enfocar y no lo deshace, y ahora que «Enviar» funciona el gerente va a tocar ahí. */
+  @media screen and (max-width:880px){
+    .main{min-height:100vh}
+    #txtJefe{font-size:16px}
+  }
   /* 4-nov-2026 — EL CALENDARIO NO PUEDE PONER UN NÚMERO BAJO EL DÍA EQUIVOCADO (Bloque
      1 de RECETA-CRM-MOVIL.md). #calDow y #calGrid son dos rejillas independientes, y
      repeat(7,1fr) es minmax(auto,1fr): una columna nunca queda más angosta que su celda
@@ -615,24 +642,16 @@
 
 <div class="gate" id="gate">
   <div class="gate-card"><div class="mk"><span class="sello">G</span>Tu Garantía</div><div class="tag">Panel</div>
-    <!-- 4-nov-2026 — EN UN APARATO SIN CARTERA, LA PUERTA LO DICE (ver
-         pintarPuertaSegunCartera). Arranca escondida: si el guion no corre, queda la
-         puerta de siempre, y nunca «no tienes cartera» en el computador que sí la tiene. -->
-    <div id="gateSinCartera" hidden>
-      <p class="gate-nota"><b>Este aparato no tiene tu cartera.</b> Tu cartera completa está en tu computador. Desde aquí trabajas con el Panel en el bolsillo, que usa lo que está en la nube.</p>
-      <p class="gate-nota chica">Si este es tu computador, cada navegador guarda lo suyo: ábrelo en el navegador y la dirección de siempre.</p>
-      <a class="gate-ir" href="espejo.html">Abrir el Panel en el bolsillo</a>
-      <button type="button" class="gate-link" onclick="tengoUnRespaldo()">Tengo un respaldo para subir aquí</button>
-    </div>
-    <div id="gateConPin">
-    <p class="gate-nota" id="gateNotaRespaldo" hidden>Entra con el PIN de fábrica (<b>1234</b>) y, en <b>Ajustes</b>, toca <b>⬆ Importar respaldo</b>. Desde ahí vale el PIN que traiga tu respaldo.</p>
     <div class="con-ojo" style="margin-top:0"><input type="password" id="pinInput" inputmode="numeric" maxlength="6" placeholder="••••" aria-label="PIN de acceso">
       <!-- 22-sep-2026 — el mismo ojo que el de la app: 20 px de trazo con 44 de
            zona tocable, gris en reposo y tinta cuando muestra, sin fondo ni
            borde. Joan: «que cambie el diseño ya que se ve muy feo». -->
       <button type="button" class="ojo" title="Ver lo que escribiste" aria-label="Ver el PIN" onclick="alternarOjo('pinInput',this)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path class="ojo-abierto" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle class="ojo-abierto" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path class="ojo-raya" d="M4 4l16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0"/></svg></button></div>
     <button id="pinBtn">Entrar</button><div class="gate-err" id="pinErr"></div>
-    </div>
+    <!-- 6-nov-2026 — nace escondida: con fichas en este navegador nunca sale y la
+         tarjeta se ve como siempre. Lo decide pintarSalidaDeLaPuerta. -->
+    <div class="gate-salida" id="salidaPuerta" style="display:none"><span id="salidaPuertaTexto"></span>
+      <a href="traer.html">Traer mi cartera</a></div>
     <!-- 23-oct-2026 — soyDelEquipo y no pintarPuertaEquipo: si en este
          navegador hay una sesión del equipo guardada (un gerente que entró en
          el computador de Joan), la retoma sin pedir la contraseña. -->
@@ -962,6 +981,7 @@
           <span><span class="cal-ev des" style="display:inline-block">●</span> desembolso</span>
           <span><span class="cal-ev ven" style="display:inline-block">●</span> vence/cobro</span>
           <span><span class="cal-ev pag" style="display:inline-block">●</span> pagado</span>
+          <span><span class="cal-ev cer" style="display:inline-block">●</span> cerrado con pérdida</span>
           <span><span class="cal-ev pro" style="display:inline-block">●</span> prórroga</span>
           <span>🔴 quincena</span>
         </div>
@@ -1255,8 +1275,9 @@
 <script src="../app/cobranza-envio.js"></script>
 <!-- 15-sep-2026 — las reglas de la gestion del asesor: el freno de la Ley 2300
      (que el modo equipo NO tenia) y las plantillas por situacion. Modulo puro,
-     probado con node. -->
-<script src="../app/gestion-asesor.js"></script>
+     probado con node. 4-nov-2026 — ?v=142: a quien cerró su crédito ya no se le
+     propone «ya quedó registrado tu pago» (ver la nota de v142 en sw.js). -->
+<script src="../app/gestion-asesor.js?v=142"></script>
 <!-- Las reglas de comisión de los asesores. Funciones puras: el CRM las
      llama, no las reimplementa. 31-oct-2026 — ?v=142: un crédito cerrado con
      «Se lo perdoné» perdiendo capital ya no le paga comisión al asesor (ver la
@@ -1289,8 +1310,9 @@
 <!-- Las etapas del cliente (PC, CR, CA, D-3…, M1A, M1B, M1-2). La MISMA
      tabla que usa la app del equipo: si cada pantalla la calculara por su
      cuenta, Joan y su asesor verían carteras distintas para el mismo
-     cliente y la conversación se vuelve sobre quién tiene razón. -->
-<script src="../app/etapas.js"></script>
+     cliente y la conversación se vuelve sobre quién tiene razón. 4-nov-2026 —
+     ?v=142: la etapa PAGADO ya no se lee «Pagó» (ver la nota de v142 en sw.js). -->
+<script src="../app/etapas.js?v=142"></script>
 <!-- 16-sep-2026 — la tabla certificada del techo de usura (con fecha) y la TIR.
      Es la MISMA que usa la puerta pública: el precio que Joan manda desde acá y
      el que el cliente ve allá se miden contra el mismo techo. -->
@@ -1500,8 +1522,13 @@ const PLANTILLAS_DEF={
      casos —el crédito quedó cerrado y de él no debe nada— sin hablar de pago
      ni de cumplimiento, y sin cifras: con $0 no hay qué «recibimos», y lo
      perdonado es asunto de Joan. Es confirmación de una operación (art. 8 de
-     la Ley 2300), como el recibo: no es cobranza. */
-  cierre:{t:'Crédito cerrado con descuento',x:'Tras «Se lo perdoné» cuando no devolvió todo el capital',m:'Hola {nombre} 🙂 Te confirmamos que tu crédito quedó cerrado: de ese crédito ya no nos debes nada. Gracias por la confianza; cualquier cosa nos cuentas.'},
+     la Ley 2300), como el recibo: no es cobranza.
+     9-nov-2026 — Y DICE CUÁL CRÉDITO ({credito}: lo prestado y el día que lo
+     recibió). La segunda ronda de la revisión: es el caso exacto de Joan, una
+     cliente con varios créditos, y «tu crédito quedó cerrado… ya no nos debes
+     nada» sin decir cuál se lee como que ya no debe nada, con otros abiertos y en
+     mora. Lo prestado identifica el crédito; no es lo que entró ni lo perdonado. */
+  cierre:{t:'Crédito cerrado con descuento',x:'Tras «Se lo perdoné» cuando no devolvió todo el capital',m:'Hola {nombre} 🙂 Te confirmamos que tu crédito {credito} quedó cerrado: de ese crédito ya no nos debes nada. Gracias por la confianza; cualquier cosa nos cuentas.'},
   historial:{t:'Su historial de socio',x:'Le manda a su celular todo lo que ha construido contigo',m:'Hola {nombre} 🙂 Te compartimos tu historial de socio, para que lo veas cuando quieras desde tu celular. Ahí sale todo lo que has pagado, la garantía que llevas acumulada, hasta cuánto puedes pedir y con qué tasa. Y algo que queremos que tengas claro: aunque alguna vez te atrases, sigues siendo socio y aquí te seguimos prestando.\n\n{enlace}'},
   prorroga:{t:'Prórroga registrada',x:'Tras dejar la prórroga',m:'Listo {nombre}, ya registramos tu prórroga de {prorroga}, no te preocupes por nada. Tu pago de {saldo} pasa tranquilo para la quincena del {fecha_pago}. Gracias por avisarnos; cualquier cosa nos cuentas.'},
   /* 3-oct-2026 — el recibo del «💵 Abonó y el resto pasa a la próxima
@@ -1546,6 +1573,7 @@ const PLANTILLAS_DEF={
 };
 /* La invitación de fábrica de antes del 7-oct, letra por letra: cargar() la
    reconoce en el disco y la cambia por la de hoy. */
+const CIERRE_SIN_CREDITO='Hola {nombre} 🙂 Te confirmamos que tu crédito quedó cerrado: de ese crédito ya no nos debes nada. Gracias por la confianza; cualquier cosa nos cuentas.';
 const INVITACION_CON_CODIGO='Hola {nombre}, te escribimos para pasarte tu código de entrada: {codigo}\nEntras acá: {enlace}\nEl código sirve para una sola persona, así que no lo reenvíes.';
 
 /* ===========================================================================
@@ -1727,6 +1755,8 @@ function cargar(){
      la que sale al gestionar: se cambia SOLO si es idéntica a la de fábrica (si
      Joan la escribió a su manera, se queda y el aviso de plantillas se lo dice). */
   if(d.plantillas.invitacion===INVITACION_CON_CODIGO) d.plantillas.invitacion=PLANTILLAS_DEF.invitacion.m;
+  /* 9-nov-2026 — el cierre de fábrica sin {credito}: el mismo bisturí. */
+  if(d.plantillas.cierre===CIERRE_SIN_CREDITO) d.plantillas.cierre=PLANTILLAS_DEF.cierre.m;
   d.config=Object.assign({costoBasePct:20,tasaUsuraEA:0,pin:'1234',negocio:'Tu Garantía',whatsapp:''},d.config||{});
   /* 28-ago-2026 — LA DIRECCIÓN GUARDADA QUE SE QUEDÓ VIEJA.
      Mismo bisturí que las tres migraciones de plantillas de aquí arriba, y por
@@ -2260,6 +2290,12 @@ const PCT=n=>(isFinite(n)?n:0).toLocaleString('es-CO',{maximumFractionDigits:1})
 /* ===== Indicadores globales del negocio (histórico, todos los créditos) ===== */
 function montoTotalInvertido(){ return DB.prestamos.reduce((s,p)=>s+p.capital,0); }
 function gananciaTotalHistorica(){ return DB.prestamos.reduce((s,p)=>s+gananciaCobrada(p),0); }
+/* 9-nov-2026 — todo el capital perdido, de todos los cortes (ver renderKpis). */
+function capitalPerdidoTotal(){
+  const f=PUENTE.capitalPerdidoDe; let capital=0, creditos=0;
+  if(typeof f==='function') DB.prestamos.forEach(p=>{ const x=f(p)||0; if(x>0){ capital+=x; creditos++; } });
+  return {capital,creditos};
+}
 function capitalRecuperadoTotal(){ return DB.prestamos.reduce((s,p)=>s+capitalRecuperadoDe(p),0); }
 function ingresosTotales(){ return capitalRecuperadoTotal()+gananciaTotalHistorica(); }
 function gananciaPorProrrogas(){ return DB.prestamos.reduce((s,p)=>s+(p.prorrogas||[]).reduce((t,pr)=>t+pr.monto,0),0); }
@@ -2370,13 +2406,22 @@ function renderKpis(){
      typeof: con el app/puente.js viejo de la caché la tarjeta no aparece, en
      vez de tumbar el tablero. */
   const capCiclo=(typeof PUENTE.capitalPerdidoDeQuincena==='function')?PUENTE.capitalPerdidoDeQuincena(DB,cg):null;
+  /* 9-nov-2026 — Y EL TOTAL, A LA VISTA. La segunda ronda de la revisión: Joan cierra
+     con $0 un crédito que vencía el 15-oct, pierde 150.000, va al Tablero y lee
+     «Capital perdido $0 — ninguno en créditos con corte del 17 nov». Es cierto (la
+     tarjeta va por corte, como se definió), pero los clientes en dificultad casi
+     siempre vienen de un corte viejo, así que casi nunca muestra el cierre del día, y
+     el total no estaba en ninguna parte: había que sumar la columna de Ciclos. Choca
+     con «la pérdida de capital nunca se esconde». La misma cuenta que Ciclos
+     (perdidasDeCapital, cada pérdida en su quincena), sumada entera. */
+  const capTotal=capitalPerdidoTotal();
   const moraA=DB.prestamos.filter(p=>estadoPrestamo(p)==='mora');
   document.getElementById('kpis').innerHTML=`
     <div class="kpi"><div class="et">💼 Capital en la calle</div><div class="nm">${COP(capCalle)}</div><div class="x">${act.length} créditos activos</div></div>
     <div class="kpi gan"><div class="et">💰 Ganancia cobrada (total)</div><div class="nm">${COP(ganTotal)}</div><div class="x">costos + prórrogas</div></div>
     <div class="kpi gan"><div class="et">📈 Ganancia ciclo actual</div><div class="nm">${COP(ganCiclo)}</div><div class="x">quincena ${fmtCorto(cg)}</div></div>
     <div class="kpi"><div class="et">🎁 Descuentos dados</div><div class="nm">${COP(descCiclo.total)}</div><div class="x">${descCiclo.total?`${descCiclo.clientes} cliente${descCiclo.clientes===1?'':'s'} · ya restados de la ganancia`:`ninguno en ${fmtCorto(cg)}`}</div></div>
-    ${capCiclo?`<div class="kpi ${capCiclo.capital?'alert':''}"><div class="et">💸 Capital perdido</div><div class="nm">${COP(capCiclo.capital)}</div><div class="x">${capCiclo.capital?`${capCiclo.clientes} cliente${capCiclo.clientes===1?'':'s'} · créditos con corte del ${fmtCorto(cg)} · plata tuya que no vuelve: no se resta de la ganancia`:`ninguno en créditos con corte del ${fmtCorto(cg)}`}</div></div>`:''}
+    ${capCiclo?`<div class="kpi ${capCiclo.capital?'alert':''}"><div class="et">💸 Capital perdido</div><div class="nm">${COP(capCiclo.capital)}</div><div class="x">${capCiclo.capital?`${capCiclo.clientes} cliente${capCiclo.clientes===1?'':'s'} · créditos con corte del ${fmtCorto(cg)} · plata tuya que no vuelve: no se resta de la ganancia`:`ninguno en créditos con corte del ${fmtCorto(cg)}`}${capTotal.capital?` · <b>en total ${COP(capTotal.capital)}</b>`:''}</div></div>`:''}
     <div class="kpi dark"><div class="et">🏦 Invertido en el ciclo</div><div class="nm">${COP(invCiclo)}</div><div class="x">capital activo en ${fmtCorto(cg)}</div></div>
     <div class="kpi alert"><div class="et">⚠️ En mora</div><div class="nm">${COP(moraA.reduce((s,p)=>s+vencidoHoy(p),0))}</div><div class="x">${moraA.length} vencidos</div></div>`;
 
@@ -2384,6 +2429,7 @@ function renderKpis(){
   document.getElementById('kpis2').innerHTML=`
     <div class="kpi dark"><div class="et">🏦 Monto total invertido</div><div class="nm">${COP(invTotal)}</div><div class="x">histórico · todos los créditos</div></div>
     <div class="kpi verde"><div class="et">📥 Ingresos totales</div><div class="nm">${COP(ingTotal)}</div><div class="x">capital recuperado + ganancia</div></div>
+    ${capTotal.capital?`<div class="kpi alert"><div class="et">💸 Capital perdido (total)</div><div class="nm">${COP(capTotal.capital)}</div><div class="x">histórico · ${capTotal.creditos} crédito${capTotal.creditos===1?'':'s'} · plata tuya que no vuelve: no se resta de la ganancia</div></div>`:''}
     <div class="kpi"><div class="et">🧑‍🤝‍🧑 Clientes registrados</div><div class="nm">${DB.socios.length}</div><div class="x">total en la ficha</div></div>
     <div class="kpi"><div class="et">📂 Créditos activos</div><div class="nm">${act.length}</div><div class="x">de ${DB.prestamos.length} en total</div></div>
     <div class="kpi gan"><div class="et">↻ Ganancia por prórrogas</div><div class="nm">${COP(ganProrr)}</div><div class="x">la ganancia de cada prórroga</div></div>
@@ -2490,6 +2536,7 @@ function sinFraseProrroga(txt){
 }
 /* `extra` trae lo que no sale de un préstamo quincenal: el código de invitación
    y los datos de una cuota del préstamo con garantía. */
+function textoDelCredito(p){ return 'de '+COP(Number(p.capital)||0)+' que recibiste el '+fmtFecha(p.fechaDesembolso); }
 function aplicarVars(txt,p,s,enlace,extra){ const e=extra||{}; s=s||{};
   /* {prorroga} es lo que el socio va a pagar HOY por prorrogar: el costo del
      ciclo más el recargo de mora ya causado. Si acá dijera solo K(p), el
@@ -2504,6 +2551,9 @@ function aplicarVars(txt,p,s,enlace,extra){ const e=extra||{}; s=s||{};
      recibo del abono + prórroga es «lo que paga el día del corte si paga a
      tiempo», leído del crédito guardado. Sin `extra.saldo` es lo de siempre. */
   .replaceAll('{monto}',COP(p?capitalActual(p):0)).replaceAll('{saldo}',e.saldo||COP(p?totalCiclo(p):0))
+  /* 9-nov-2026 — {credito}: cuál, en las palabras del cliente (ver la plantilla
+     'cierre'). Sin crédito delante se deja con sus llaves, y se avisa. */
+  .replaceAll('{credito}',p?textoDelCredito(p):'{credito}')
   .replaceAll('{prorroga}',of==null?'—':of)
   /* 3-oct-2026 — {abono}: lo que entregó en el abono + prórroga. Solo lo
      contesta ese recibo (varsDePlantilla).
@@ -5056,6 +5106,13 @@ function papeleraHTML(){
    REVISA, NO CORRIGE. Cada hallazgo dice dónde mirar; la decisión de tocar
    plata es de Joan, crédito por crédito. Un botón que "arregla solo" la
    cartera es exactamente la clase de magia que metió el $29.961. */
+/* 9-nov-2026 — «🔍 Revisar la cartera» leía p.pagado a mano y decía «pagado» de un
+   cierre con pérdida, hasta de uno con $0 entregados, justo en la pantalla donde Joan
+   decide cuál registro doble borrar (segunda ronda de la revisión). */
+function estadoEnLaRevision(p){
+  if(!p.pagado) return 'abierto';
+  return (PUENTE.cerroConPerdida&&PUENTE.cerroConPerdida(p))?'cerrado con pérdida':'pagado';
+}
 function revisarCartera(){
   const hoy=hoyISO();
   const grupos=[];
@@ -5066,7 +5123,7 @@ function revisarCartera(){
   if(noRedondos.length) grupos.push({t:'💵 Montos que no son cifras redondas',
     x:'La plata que se entrega va en billetes: esto suele ser un número calculado que se coló, no una decisión.',
     filas:noRedondos.map(p=>codCredito(p)+' · '+escHTML(p.socioNombre)+' · '+COP(p.capital)
-      +' · '+fmtFecha(p.fechaDesembolso)+(p.pagado?' · pagado':' · ABIERTO'))});
+      +' · '+fmtFecha(p.fechaDesembolso)+(p.pagado?' · '+estadoEnLaRevision(p):' · ABIERTO'))});
 
   /* 2. Mismo cliente, misma fecha de desembolso: huele a doble registro,
      sobre todo si además es el mismo monto y se crearon en días distintos. */
@@ -5076,7 +5133,7 @@ function revisarCartera(){
   if(dobles.length) grupos.push({t:'👯 Mismo cliente, mismo día de desembolso',
     x:'Puede ser legítimo (dos préstamos el mismo día) o un doble registro. El doble registro infla la ganancia y la garantía de ese cliente. Compara los montos y borra el que sobre (va a la papelera, no se pierde).',
     filas:dobles.map(a=>escHTML(a[0].socioNombre)+' ('+fmtFecha(a[0].fechaDesembolso)+'): '
-      +a.map(p=>codCredito(p)+' '+COP(p.capital)+(p.pagado?' pagado':' abierto')).join('  +  '))});
+      +a.map(p=>codCredito(p)+' '+COP(p.capital)+' '+estadoEnLaRevision(p)).join('  +  '))});
 
   /* 3. Contradicciones de fechas y estados: no ambiguas, siempre son error. */
   const contradic=[];
@@ -5119,7 +5176,7 @@ function borrarCredito(id){
   if(!confirm('¿Borrar el crédito '+codCredito(p)+'?\n\n'
     +'• Cliente: '+p.socioNombre+'\n'
     +'• Capital: '+COP(p.capital)+'\n'
-    +'• Estado: '+ESTADO_TXT[estadoPrestamo(p)]+'\n'
+    +'• Estado: '+textoEstado(p)+'\n'
     +(npr?'• Prórrogas registradas: '+npr+'\n':'')
     +(com?'• Comprobantes adjuntos: '+com+'\n':'')
     +'\nSale de todos los totales y del calendario, pero queda en la papelera por si lo necesitas de vuelta.'))return;
@@ -5190,11 +5247,17 @@ function borrarCliente(id){
     return;
   }
   const gan=ps.reduce((t,p)=>t+gananciaCobrada(p),0), tieneHist=ps.length||rs.length;
+  /* 4-nov-2026 — «todos pagados» de quien entregó $0 era falso, y se decía la
+     ganancia que deja de contar pero no el capital perdido, que también sale de
+     los informes (y vuelve con la ficha, desde la papelera). */
+  const conPerdida=ps.some(p=>PUENTE.cerroConPerdida&&PUENTE.cerroConPerdida(p));
+  const perdido=PUENTE.capitalPerdidoDelSocio?PUENTE.capitalPerdidoDelSocio(DB,s).capital:0;
   if(!confirm('¿Borrar la ficha de '+codCliente(s)+' · '+(s.nombre||'sin nombre')+'?\n\n'
     +(s.cedula?'• Cédula: '+s.cedula+'\n':'')
-    +(ps.length?'• Créditos en su historial (todos pagados): '+ps.length+'\n':'')
+    +(ps.length?'• Créditos en su historial ('+(conPerdida?'todos cerrados':'todos pagados')+'): '+ps.length+'\n':'')
     +(rs.length?'• Préstamos con garantía terminados: '+rs.length+'\n':'')
     +(gan>0?'• Ganancia que deja de contar en tus totales: '+COP(gan)+'\n':'')
+    +(perdido>0?'• Capital perdido que deja de contar en tus totales: '+COP(perdido)+'\n':'')
     +(tieneHist?'\nSu historial se va CON la ficha: sale de los totales, de los ciclos y del calendario.':'')
     +'\nQueda en la papelera de clientes por si lo necesitas de vuelta.'))return;
   DB.papeleraSocios=DB.papeleraSocios||[];
@@ -5479,8 +5542,11 @@ let calY,calM;
    cobran ni se escribe por WhatsApp por ellas todavía—. Solo un plan tiene cobros
    más allá del vigente, y por eso se le pregunta solo a esos: la lista la sigue
    armando cobrosDelCredito, acá no se decide ninguna fecha. */
-function eventosDia(iso){ const ev={des:[],ven:[],pag:[],pro:[],cuo:[]};
-  DB.prestamos.forEach(p=>{ if(p.fechaDesembolso===iso)ev.des.push(p); if(!p.pagado&&PUENTE.corteVigenteEn(p,iso)===iso)ev.ven.push(p); if(p.pagado&&p.fechaPagado===iso)ev.pag.push(p); (p.prorrogas||[]).forEach(pr=>{if(pr.fecha===iso)ev.pro.push({p,pr});});
+/* 4-nov-2026 — UN CIERRE CON PÉRDIDA NO ES UN «PAGO RECIBIDO» (`cer`, aparte de
+   `pag`). La celda decía «✓ Elena» con la marca de pagado, y el día la listaba
+   bajo «✓ Pagos recibidos», hasta con $0 entregados. */
+function eventosDia(iso){ const ev={des:[],ven:[],pag:[],cer:[],pro:[],cuo:[]};
+  DB.prestamos.forEach(p=>{ if(p.fechaDesembolso===iso)ev.des.push(p); if(!p.pagado&&PUENTE.corteVigenteEn(p,iso)===iso)ev.ven.push(p); if(p.pagado&&p.fechaPagado===iso)((PUENTE.cerroConPerdida&&PUENTE.cerroConPerdida(p))?ev.cer:ev.pag).push(p); (p.prorrogas||[]).forEach(pr=>{if(pr.fecha===iso)ev.pro.push({p,pr});});
     if(!p.pagado&&tienePlan(p))cobrosDelCredito(p).forEach(c=>{ if(!c.vigente&&c.fecha===iso)ev.cuo.push(c); }); }); return ev; }
 function renderCalendario(){
   if(calY===undefined){ const d=new Date(); calY=d.getFullYear(); calM=d.getMonth(); }
@@ -5489,15 +5555,16 @@ function renderCalendario(){
   const primero=new Date(calY,calM,1),inicio=(primero.getDay()+6)%7,dias=new Date(calY,calM+1,0).getDate();
   let html=''; for(let i=0;i<inicio;i++)html+=`<div class="cal-day empty"></div>`;
   for(let d=1;d<=dias;d++){ const iso=isoLocal(new Date(calY,calM,d)),ev=eventosDia(iso),q=esQuincena(iso),esHoy=iso===hoyISO();
-    const total=ev.des.length+ev.ven.length+ev.pag.length+ev.pro.length+ev.cuo.length; let evs='';
+    const total=ev.des.length+ev.ven.length+ev.pag.length+ev.cer.length+ev.pro.length+ev.cuo.length; let evs='';
     /* 17-oct-2026, segunda revisión — la cifra al lado del día es la de ESE día (montoEnSuFecha). */
     ev.ven.slice(0,2).forEach(p=>evs+=`<div class="cal-ev ven">⏰ ${escHTML(p.socioNombre.split(' ')[0])} ${COP(montoEnSuFecha(p))}</div>`);
     // Una cuota del plan es un cobro con fecha: se pinta igual que un vencimiento.
     ev.cuo.slice(0,2).forEach(c=>evs+=`<div class="cal-ev ven">⏰ ${escHTML(c.p.socioNombre.split(' ')[0])} ${COP(c.monto)} <span class="muted">c${c.n}/${c.de}</span></div>`);
     ev.des.slice(0,1).forEach(p=>evs+=`<div class="cal-ev des">💵 ${escHTML(p.socioNombre.split(' ')[0])}</div>`);
     ev.pag.slice(0,1).forEach(p=>evs+=`<div class="cal-ev pag">✓ ${escHTML(p.socioNombre.split(' ')[0])}</div>`);
+    ev.cer.slice(0,1).forEach(p=>evs+=`<div class="cal-ev cer">✕ ${escHTML(p.socioNombre.split(' ')[0])}</div>`);
     ev.pro.slice(0,1).forEach(o=>evs+=`<div class="cal-ev pro">↻ ${escHTML(o.p.socioNombre.split(' ')[0])}</div>`);
-    const dots=`${ev.des.length?'<span class="dot" style="background:var(--gris)"></span>':''}${(ev.ven.length||ev.cuo.length)?'<span class="dot" style="background:var(--ambar)"></span>':''}${ev.pag.length?'<span class="dot" style="background:var(--amarillo-tinta)"></span>':''}${ev.pro.length?'<span class="dot" style="background:var(--laca-3)"></span>':''}`;
+    const dots=`${ev.des.length?'<span class="dot" style="background:var(--gris)"></span>':''}${(ev.ven.length||ev.cuo.length)?'<span class="dot" style="background:var(--ambar)"></span>':''}${ev.pag.length?'<span class="dot" style="background:var(--amarillo-tinta)"></span>':''}${ev.cer.length?'<span class="dot" style="background:var(--rojo)"></span>':''}${ev.pro.length?'<span class="dot" style="background:var(--laca-3)"></span>':''}`;
     html+=`<div class="cal-day ${q?'quincena':''} ${esHoy?'hoy':''}" onclick="verDia('${iso}')"><div class="dn">${d}${q?'<small>quincena</small>':''}</div>${evs}${total>4?`<div class="cal-more">+${total-4} más</div>`:''}<div>${dots}</div></div>`;
   }
   document.getElementById('calGrid').innerHTML=html;
@@ -5581,7 +5648,7 @@ function cobrosDelCredito(p){
                   corte:c.fecha, fecha:c.fecha, monto:Number(c.total)||0, n:c.n, de:cs.length }));
   return cobros; }
 function verDia(iso){
-  const ev=eventosDia(iso),total=ev.des.length+ev.ven.length+ev.pag.length+ev.pro.length+ev.cuo.length; let h='';
+  const ev=eventosDia(iso),total=ev.des.length+ev.ven.length+ev.pag.length+ev.cer.length+ev.pro.length+ev.cuo.length; let h='';
   if(!total){ h=`<div class="empty"><div class="ic">🗓️</div><p>Sin movimientos este día.</p></div>`; }
   else{
     /* 6-ago-2026 — EL WHATSAPP DEL CALENDARIO MANDABA SIEMPRE "VENCE HOY".
@@ -5606,7 +5673,11 @@ function verDia(iso){
     if(ev.cuo.length){ h+=`<div class="sub-h">📅 Cuotas pactadas (a cuotas o plan de pagos)</div>`+ev.cuo.map(c=>
       `<div class="info-row"><span class="k">${escHTML(c.p.socioNombre)}<div class="muted">cuota ${c.n} de ${c.de}, ya pactada</div></span><span class="vv"><b>${COP(c.monto)}</b> · <a target="_blank" href="${gcalUrl('Cobro '+c.p.socioNombre+' '+COP(c.monto),c.fecha,detalleCobro(c.p,c))}">+Google</a></span></div>`).join(''); }
     if(ev.des.length){ h+=`<div class="sub-h">💵 Desembolsos</div>`+ev.des.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv"><b>${COP(p.capital)}</b> · <a target="_blank" href="${gcalUrl('Desembolso '+p.socioNombre+' '+COP(p.capital),iso,'')}">+Google</a></span></div>`).join(''); }
-    if(ev.pag.length){ h+=`<div class="sub-h">✓ Pagos recibidos</div>`+ev.pag.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv gano">${PUENTE.cerroConPerdida&&PUENTE.cerroConPerdida(p)?`${COP(PUENTE.capitalRecuperadoDe(p))} de ${COP(p.capital)} · cerrado perdiendo ${COP(PUENTE.perdidaDelCierre(p))}`:COP(p.capital)} + ganancia ${COP(p.gananciaPago||0)}</span></div>`).join(''); }
+    if(ev.pag.length){ h+=`<div class="sub-h">✓ Pagos recibidos</div>`+ev.pag.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv gano">${COP(p.capital)} + ganancia ${COP(p.gananciaPago||0)}</span></div>`).join(''); }
+    /* 4-nov-2026 — «volvieron» y no «entraron»: capitalRecuperadoDe es lo que volvió
+       de ese crédito en total, con los abonos de otros días. Lo de ese día lo dice el
+       detalle («Entró de verdad»), y esta lista no suma nada. */
+    if(ev.cer.length){ h+=`<div class="sub-h">✕ Cerrados con pérdida</div>`+ev.cer.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv">volvieron ${COP(PUENTE.capitalRecuperadoDe(p))} de ${COP(p.capital)} · cerrado perdiendo <b class="pierde">${COP(PUENTE.perdidaDelCierre(p))}</b></span></div>`).join(''); }
     /* A qué corte pasó DE VERDAD ese día está guardado en el movimiento
        (`nuevoCiclo`): `p.cicloActual` es el corte de hoy, y con dos prórrogas
        encadenadas las dos filas decían la misma fecha, la última. */
@@ -5653,7 +5724,7 @@ const TOKENS_POR_PLANTILLA={
   venceHoy:TOKENS_QUINCENAL, moraTemprana:TOKENS_QUINCENAL, mora:TOKENS_QUINCENAL,
   recibo:TOKENS_QUINCENAL.concat(['nivel']), prorroga:TOKENS_QUINCENAL,
   /* 31-oct-2026: el cierre con pérdida no dice cifras (ver la plantilla). */
-  cierre:['nombre','negocio'],
+  cierre:['nombre','negocio','credito'],
   /* 3-oct-2026: {abono} solo lo contesta este recibo (varsDePlantilla). */
   abonoProrroga:TOKENS_QUINCENAL.concat(['abono']),
   /* Estas cuatro van sin crédito delante (p=null): {monto} y {saldo} saldrían
@@ -5989,14 +6060,23 @@ function verCliente(id){
      ↻ GIRAR UNA FOTO): la que se ve al revés se endereza una vez y para siempre. */
   /* 19-oct-2026 — con un solo lado de la cédula, se dice cuál falta (ver
      avisoLadoQueFalta). */
+  /* 4-nov-2026 — LA FICHA SABE LO QUE EL REGISTRO SABE. Al abrirle la ficha, el
+     registro sale de la bandeja y lo que queda es esto: con cero fotos no decía nada,
+     y con el rostro decía que faltaba sin decir por qué. Solo de una ficha que nació
+     de un registro con la llave: una hecha a mano no tiene por qué tener fotos. */
   /* 4-nov-2026 — UNA MARCA NO ES UNA IMAGEN POR CARGAR. Puesta por el resolvedor salía una
      casilla en blanco, con la explicación en un alt que el navegador no pinta y un title
      que en el teléfono no existe; y debajo, «↻ Girar» y «todavía no han llegado de la
      nube», que de esta foto es falso. Lo vio la captura, no una prueba. */
-  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div>${avisoLadoQueFalta(!!s.cedulaFrenteFoto,!!s.cedulaReversoFoto,'',!!s.selfieFoto)}<div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Su cara'].indexOf(f[0])];
+  const declaro=fotosTomadasDe(s.vinculacion)?{datos:s.vinculacion}:null;
+  const enLaFicha={cedula_frente:!!s.cedulaFrenteFoto,cedula_reverso:!!s.cedulaReversoFoto,selfie:!!s.selfieFoto};
+  const colaFicha=declaro?porQueFaltaLaCedula(enLaFicha,declaro,s.huellaRegistro):'';
+  const pedirFicha=declaro?botonPedirFotosFicha(s,ladosQueFaltan(enLaFicha,declaro)):'';
+  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div>${avisoLadoQueFalta(!!s.cedulaFrenteFoto,!!s.cedulaReversoFoto,colaFicha,!!s.selfieFoto,esPasaporte(s.vinculacion))}${pedirFicha}<div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Su cara'].indexOf(f[0])];
       if(esMarcaFoto(f[1])) return `<div class="gal-it"><div class="gal-marca"><div class="txt">${escHTML(MARCAS_FOTO[f[1]])}</div><div class="cap">${f[0]}</div></div></div>`;
       return `<div class="gal-it"><a data-foto="${f[1]}" target="_blank"><img data-foto="${f[1]}" id="fichaFoto_${cual}"><div class="cap">${f[0]}</div></a>${botonGirar("girarFotoFicha('"+escHTML(s.id)+"','"+cual+"')")}</div>`; }).join('')}</div>`
-    +(!fotoQueFalta(s.selfieFoto)&&!fotoQueFalta(s.cedulaFrenteFoto)?`<div id="fichaParecido" style="margin-top:8px"></div>`:''):'';
+    +(!fotoQueFalta(s.selfieFoto)&&!fotoQueFalta(s.cedulaFrenteFoto)?`<div id="fichaParecido" style="margin-top:8px"></div>`:'')
+    :(colaFicha?`<div class="sub-h">Fotos de verificación</div><div class="muted" style="margin-bottom:8px">${escHTML(colaFicha)}</div>${pedirFicha}`:'');
   /* 8-sep-2026 — desde dónde se registró (huella), si vino del registro abierto. */
   const huellaHTML=s.huellaRegistro?bloqueHuella(Object.assign({},s.huellaRegistro,{gps:s.ubicacion||null}),{socio:s}):'';
   const fondo=fondoCuponDe(s);
@@ -6877,7 +6957,12 @@ function verCredito(id){
   const comps=(p.comprobantes||[]);
   /* 1-oct-2026: la foto del comprobante pasa por fotoSegura, igual que las del
      registro. Si no es una imagen, queda la tarjeta con su monto y fecha. */
-  const gal=comps.length?`<div class="gal">${comps.map(c=>{const ft=fotoSegura(c.foto);return `${ft?`<a href="${ft}" target="_blank"><img src="${ft}">`:'<a><span class="muted" style="display:block;padding:18px 6px;font-size:12px">sin imagen válida</span>'}<div class="cap">${({pago:'Pago',prorroga:'Prórroga',abonoProrroga:'Abono + prórroga',abono:'Abono',abonoCuota:'Abono a cuota',plan:'Plan de pagos'}[c.tipo]||'Comprob.')} ${COP(c.monto)}<br>${fmtFecha(c.fecha)}</div></a>`;}).join('')}</div>`:'<p class="muted">Sin comprobantes aún.</p>';
+  /* 9-nov-2026 — el comprobante de un «Se lo perdoné» lleva el id de su condonación
+     (cerrarConPerdon): bajo «Comprobantes de pago» decía «Pago $0». La foto y su
+     identidad en la nube no cambian; cambia el rótulo. */
+  const idsCierre=new Set((p.condonaciones||[]).map(x=>x&&x.id!=null?String(x.id):'').filter(Boolean));
+  const tipoComp=c=>(c.tipo==='pago'&&c.id!=null&&idsCierre.has(String(c.id)))?'cierre':c.tipo;
+  const gal=comps.length?`<div class="gal">${comps.map(c=>{const ft=fotoSegura(c.foto);return `${ft?`<a href="${ft}" target="_blank"><img src="${ft}">`:'<a><span class="muted" style="display:block;padding:18px 6px;font-size:12px">sin imagen válida</span>'}<div class="cap">${({cierre:'Cierre con perdón',pago:'Pago',prorroga:'Prórroga',abonoProrroga:'Abono + prórroga',abono:'Abono',abonoCuota:'Abono a cuota',plan:'Plan de pagos'}[tipoComp(c)]||'Comprob.')} ${COP(c.monto)}<br>${fmtFecha(c.fecha)}</div></a>`;}).join('')}</div>`:'<p class="muted">Sin comprobantes aún.</p>';
   /* El plan de pagos, cuota por cuota. Es el historial de la salida del §8: qué
      se cobró al pactarlo y en qué va.
      16-oct-2026 — y del crédito que NACIÓ a cuotas, que tiene otro título
@@ -6987,8 +7072,14 @@ function verCredito(id){
     ${filasSaldo}
     ${filaGanancia}
     <div class="info-row"><span class="k">Desembolso</span><b>${fmtFecha(p.fechaDesembolso)}</b></div>
-    <div class="info-row"><span class="k">${p.pagado?'Pagado el':(pactoV?'Paga (fecha acordada)':cP?`Vence la cuota ${cP.n}`:'Vence (quincena)')}</span><b>${p.pagado?fmtFecha(p.fechaPagado):fmtFecha(PUENTE.corteDelCredito(p))}</b></div>
-    ${(()=>{ /* solo los perdones del CIERRE: los de prórroga van en su renglón */ const vig=PUENTE.condonacionDelCierre?PUENTE.condonacionDelCierre(p):null; const cc=(p.condonaciones||[]).filter(c=>c&&c.sobre!=='prorroga'&&c.sobre!=='pacto'&&(c.sobre!=='cierre'||!(Number(c.capital)>0)||c===vig)); /* 22-oct-2026: ni el capital perdonado al pactar, que no es un perdón del cierre. 30-oct-2026: y del cierre con «Se lo perdoné», solo el vigente (el de un cierre que perdió el choque de la nube no ocurrió), con su capital dicho aparte */ const mc=cc.reduce((t,c)=>t+(Number(c.costo)||0)+(Number(c.mora)||0),0), cap=cc.reduce((t,c)=>t+(Number(c.capital)||0),0); return p.pagado&&p.montoRecibido!=null&&cc.length?`<div class="info-row"><span class="k">Entró de verdad</span><span class="vv"><b>${COP(p.montoRecibido)}</b> <span class="muted">con ${COP(mc+cap)} perdonados al cerrar${cap?` (${COP(mc)} de mora y costo + <span class="pierde">${COP(cap)} de capital</span>)`:''}: ${escHTML(cc.map(c=>c.motivo).filter(Boolean).join(' · '))}</span></span></div>`:''; })()}
+    <div class="info-row"><span class="k">${p.pagado?((PUENTE.cerroConPerdida&&PUENTE.cerroConPerdida(p))?'Cerrado el':'Pagado el'):(pactoV?'Paga (fecha acordada)':cP?`Vence la cuota ${cP.n}`:'Vence (quincena)')}</span><b>${p.pagado?fmtFecha(p.fechaPagado):fmtFecha(PUENTE.corteDelCredito(p))}</b></div>
+    ${(()=>{ /* solo los perdones del CIERRE: los de prórroga van en su renglón */ const vig=PUENTE.condonacionDelCierre?PUENTE.condonacionDelCierre(p):null; const cc=(p.condonaciones||[]).filter(c=>c&&c.sobre!=='prorroga'&&c.sobre!=='pacto'&&(PUENTE.condonacionVigente?PUENTE.condonacionVigente(p,c):(c.sobre!=='cierre'||!(Number(c.capital)>0)||c===vig))); /* 9-nov-2026: la regla de cuál perdón del cierre cuenta vive en el puente (condonacionVigente); aquí estaba copiada con la de antes */ /* 22-oct-2026: ni el capital perdonado al pactar, que no es un perdón del cierre. 30-oct-2026: y del cierre con «Se lo perdoné», solo el vigente (el de un cierre que perdió el choque de la nube no ocurrió), con su capital dicho aparte */ const mc=cc.reduce((t,c)=>t+(Number(c.costo)||0)+(Number(c.mora)||0),0), capAnotado=cc.reduce((t,c)=>t+(Number(c.capital)||0),0);
+      /* 9-nov-2026 — el capital perdonado es el que de verdad no volvió (perdidaDelCierre), el mismo del renglón «Capital
+         perdido al cerrar» de abajo. Con un abono del otro aparato que el cierre no conocía, este renglón decía «+ $50.000
+         de capital» y el de abajo «$20.000» (segunda ronda de la revisión): lo anotado al cerrar se dice aparte. */
+      const cap=capAnotado&&PUENTE.perdidaDelCierre?PUENTE.perdidaDelCierre(p):capAnotado;
+      const abono=capAnotado>cap?` · al cerrar se anotaron ${COP(capAnotado)} de capital perdido; un abono del otro aparato que el cierre no conocía ${cap?`la bajó a ${COP(cap)}`:'cubrió ese capital'}`:'';
+      return p.pagado&&p.montoRecibido!=null&&cc.length?`<div class="info-row fila-larga"><span class="k">Entró de verdad</span><span class="vv"><b>${COP(p.montoRecibido)}</b> <span class="muted">con ${COP(mc+cap)} perdonados al cerrar${cap?` (${COP(mc)} de mora y costo + <span class="pierde">${COP(cap)} de capital</span>)`:''}: ${escHTML(cc.map(c=>c.motivo).filter(Boolean).join(' · '))}${abono}</span></span></div>`:''; })()}
     ${PUENTE.perdidaDelCierre&&PUENTE.perdidaDelCierre(p)?`<div class="info-row"><span class="k">Capital perdido al cerrar</span><span class="vv"><b class="pierde">${COP(PUENTE.perdidaDelCierre(p))}</b> <span class="muted">· plata tuya que no vuelve: de los ${COP(p.capital)} prestados volvieron ${COP(PUENTE.capitalRecuperadoDe(p))}</span></span></div>`:''}
     ${p.saldoAFavor>0?`<div class="info-row"><span class="k">Pagó de más</span><span class="vv"><b>${COP(p.saldoAFavor)}</b> <span class="muted">a su favor · anotado acá, NO se aplica solo al crédito siguiente</span></span></div>`:''}
     ${pr?`<div class="sub-h">Prórrogas</div>${pr}`:''}
@@ -7403,7 +7494,18 @@ function calcPago(id){
       dif.innerHTML=`<div class="alerta warn"><b>${e.falta>0?`Faltan ${COP(e.falta)} para la cuota ${c.n}.`:`Es más que la cuota ${c.n} (${COP(liq.total_a_pagar)}).`}</b> En el plan del §8 se cobra cuota por cuota: no hay abonos sueltos.</div>`
         +(e.monto>=0&&e.monto<debe?ofertaDelPerdon(p,e.monto,debe):`<div class="alerta warn">Con ${COP(e.monto)} paga todo lo que debe el crédito (${COP(debe)}) o más: cóbrale la cuota ${c.n} y después las otras, una por una.</div>`)
         +`<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px" onclick="modoCobro('${p.id}','error')">Me equivoqué: volver a ${COP(liq.total_a_pagar)}</button>`;
-    } else dif.innerHTML='';
+    } else {
+      /* 4-nov-2026 — Y CON LA CUOTA EXACTA ESCRITA, TAMBIÉN. Es la cifra que un cliente
+         del §8 conoce y trae, y aquí no salía «Se lo perdoné», aunque la pista de arriba
+         dice «Escribe lo que trajo». El a cuotas ya lo resolvía así (`tecleado`): sin
+         tocar el campo es el cobro de siempre; escrita, cobrarla sigue siendo el botón
+         de arriba y el perdón es una salida que Joan elige. Cerrar directo no es lo
+         mismo que cobrar la cuota y cerrar con $0: esa plata iría a mora y costo, no
+         primero al capital. En la última cuota no hay nada que perdonar. */
+      const tecleado=_cobro.id===p.id&&_cobro.monto!=null;
+      const debe=tecleado?PUENTE.cierreConPerdon(DB,p,f||hoyISO(),e.monto,{}).debia.total:0;
+      dif.innerHTML=(tecleado&&e.monto<debe)?ofertaDelPerdon(p,e.monto,debe):'';
+    }
     return;
   }
   if(acc) acc.innerHTML=`<div class="two"><button class="btn btn-rojo" id="pgBtn" onclick="registrarCobro('${p.id}')">${`✓ Pagó todo (${COP(total)})`}</button>${btnProrroga}</div>${btnAbono}${btnPactar}${btnAjustar}`;
@@ -7590,7 +7692,23 @@ function preguntasDelPerdon(p,r,e){
   return `${dsc.veces?`<div class="alerta warn">Ya lleva <b>${dsc.veces} descuento${dsc.veces!==1?'s':''}</b> por ${COP(dsc.monto)}.</div>`:''}
     <div class="field"><label>¿Por qué se lo perdonas?</label>
       <input id="pgMotivo" type="text" maxlength="120" value="${escHTML(e.motivo)}" placeholder="se quedó sin trabajo, cliente viejo…" oninput="_cobro.motivo=this.value;pintarBoton('${p.id}')"></div>
-    ${x>0?`<label class="casilla-perdida"><input type="checkbox" id="pgEntiende" ${Number(e.entiende)===x?'checked':''} onchange="_cobro.id='${p.id}';_cobro.entiende=this.checked?${x}:0;pintarBoton('${p.id}')"><span>Entiendo que pierdo <b>${COP(x)}</b> de capital</span></label>`:''}`;
+    ${x>0?`<label class="casilla-perdida"><input type="checkbox" id="pgEntiende" ${Number(e.entiende)===x?'checked':''} onchange="_cobro.id='${p.id}';_cobro.entiende=this.checked?${x}:0;pintarBoton('${p.id}')"><span>Entiendo que pierdo <b>${COP(x)}</b> de capital</span></label>`:''}
+    ${botonDeAbajoDelPerdon(p,e)}`;
+}
+/* 9-nov-2026 — EL BOTÓN PARA CERRAR, TAMBIÉN DESPUÉS DE LA CASILLA. La segunda ronda
+   de la revisión: Joan escribe el motivo, marca «Entiendo que pierdo $X» y no pasa
+   nada a la vista. La casilla es lo último del cuadro, y el botón rojo quedó arriba,
+   detrás de la cabecera: a 1280 px había que subir unos 700 px pasando Prórroga,
+   Abonó, Pactar y Ajustar; en un iPhone, también en a cuotas y en pago acordado. La
+   maqueta que aprobó Joan ponía el botón después de la casilla.
+   Es el MISMO botón, no otra decisión: llama a registrarCobro como el de arriba,
+   nace con la decisión de la hoja (decisionDeLaHoja) y pintarBoton los repinta
+   juntos. El de arriba se queda donde estaba: quien ya lo usa lo sigue encontrando. */
+function botonDeAbajoDelPerdon(p,e){
+  let dc=null;
+  try{ dc=decisionDeLaHoja(p,liqCredito(p,gv('pgFecha')||hoyISO()),e); }catch(err){ dc=null; }
+  if(!dc) return '';
+  return `<button type="button" class="btn ${dc.listo?'btn-rojo':'btn-ghost'}" id="pgBtnCierre" ${dc.listo?'':'disabled'} style="width:100%;margin-top:8px" onclick="registrarCobro('${p.id}')">${escHTML(dc.txt)}</button>`;
 }
 /* La hoja del perdón en un crédito con cuotas: el recuadro, lo que cuesta, las
    preguntas y la vuelta atrás. Si el puente no puede ni hacer la cuenta, lo
@@ -7762,6 +7880,9 @@ function pintarBoton(id){
      repinta con lo que vale para ESE crédito, no con la cuenta del quincenal. */
   const liq=liqCredito(p,gv('pgFecha')||hoyISO()), e=estadoDelCobro(p,liq), dc=decisionDeLaHoja(p,liq,e);
   btn.disabled=!dc.listo; btn.className=dc.listo?'btn btn-rojo':'btn btn-ghost'; btn.textContent=dc.txt;
+  /* 9-nov-2026 — y el de abajo de la hoja del perdón, igual (botonDeAbajoDelPerdon). */
+  const abajo=document.getElementById('pgBtnCierre');
+  if(abajo){ abajo.disabled=btn.disabled; abajo.className=btn.className; abajo.textContent=btn.textContent; }
 }
 /* La pregunta de abajo. Los números del descuento (garantía, lo que te cuesta)
    ya están arriba, en el mismo bloque de siempre: acá solo se pregunta. */
@@ -10333,7 +10454,7 @@ function escribirlePorLaApp(desde,id,borrador){
     const s=DB.socios.find(x=>x.id===id); if(!s) return;
     const llave=PUENTE.llaveEnLaNube(s);
     if(!llave) return alert('Esta ficha no tiene cédula ni celular: no hay hilo donde escribirle.');
-    return abrirConversacion(llave,{nombre:s.nombre||'',
+    return abrirConversacion(llave,{nombre:s.nombre||'',borrador,
       nota:(s.cuentaJunta?'':'Esto queda en el hilo de su ficha: lo lee cuando su cuenta de la app esté junta con ella. ')+AVISO_SIN_PUSH});
   }
   const r=registroPorId(id); if(!r) return;   // 3-nov-2026 — también los que trajo el chat (ver pedirFotosPorElChat)
@@ -11829,7 +11950,10 @@ function bloqueHuella(h,donde){
          fotos son de otro registro, no se llama sin sesión de Supabase —le pasó
          a la primera clienta real— y no manda nada si no hay ni fotos ni
          lectura). Ausencia de huella no es prueba de que tecleara. */
-      +escHTML(lecturaQueNoLlego(donde&&donde.registro))+'</span></div>')
+      /* 4-nov-2026 — desde la ficha, con lo que el registro le dejó (s.vinculacion):
+         el mismo cliente decía «se leyó por sus letras» en el registro y, al abrirle
+         la ficha, «desde aquí no se distinguen». */
+      +escHTML(lecturaQueNoLlego(donde&&(donde.registro||(donde.socio&&{datos:donde.socio.vinculacion})),!(donde&&donde.registro),h))+'</span></div>')
     /* 20-oct-2026, revisión — h.momento es cuándo se leyeron la IP y la
        conexión (al subir las fotos), no cuándo se creó el registro: si la
        persona volvió a subir fotos otro día, son fechas distintas y decir
@@ -11892,6 +12016,19 @@ function aparatoDeHuellaCRM(h){
 function huellaParaFicha(h){
   const r={ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''};
   if(h.aparato_telefono&&typeof h.aparato_telefono==='object') r.aparato_telefono=h.aparato_telefono;
+  /* 9-nov-2026 — LO QUE LA BASE DIJO DE LA CÉDULA TAMBIÉN VIAJA. Sin esto, la ficha
+     de quien mandó la cédula de OTRA persona decía «Su teléfono la leyó por el código
+     de barras» y «aquí no están, pídeselas»: la señal más importante del registro
+     desaparecía al abrirle la ficha. Y la de quien sí le llegó la lectura después de
+     un primer toque sin permiso decía «No llegó lectura» al lado de sus tres fotos.
+     Viaja lo mínimo: SI llegó la lectura (no lo leído: nombre, número y nacimiento
+     ya están en el registro y la ficha no los necesita otra vez), el motivo del
+     rechazo y qué foto de la cédula no se aceptó. */
+  if(h.cedula_leida&&typeof h.cedula_leida==='object') r.lectura_llego=true;
+  if(h.cedula_rechazada&&typeof h.cedula_rechazada==='object') r.cedula_rechazada={motivo:String(h.cedula_rechazada.motivo||'')};
+  const rech=((h.fotos_rechazadas&&Array.isArray(h.fotos_rechazadas.fotos))?h.fotos_rechazadas.fotos:[])
+    .filter(x=>x&&(x.tipo==='cedula_frente'||x.tipo==='cedula_reverso')).map(x=>({tipo:x.tipo,motivo:String(x.motivo||'')}));
+  if(rech.length) r.fotos_rechazadas={fotos:rech};
   return r;
 }
 /* El celular (diez dígitos) de quien se mira: el del registro o el de la ficha. */
@@ -12461,7 +12598,12 @@ function ponerHueco(el,motivo){
    SI ESTÁ EL ROSTRO. Joan, el 31-oct: «no veo las fotos de la cédula» de un registro
    con solo el rostro. Las tres vistas pintaban la galería con el rostro y
    no decían nada de la cédula. `hayRostro` es ese caso. */
-function avisoLadoQueFalta(hayFrente,hayReverso,cola,hayRostro){
+function avisoLadoQueFalta(hayFrente,hayReverso,cola,hayRostro,pasaporte){
+  /* 4-nov-2026 — un pasaporte no tiene frente y respaldo: con una foto ya está. */
+  if(pasaporte){
+    if(hayFrente||hayReverso||!hayRostro) return '';
+    return `<div class="alerta warn" style="margin-bottom:8px"><b>Falta la foto del pasaporte: solo está el rostro.</b>${cola?`<div class="muted" style="margin-top:4px">${escHTML(cola)}</div>`:''}</div>`;
+  }
   if(!hayFrente&&!hayReverso){
     if(!hayRostro) return '';
     return `<div class="alerta warn" style="margin-bottom:8px"><b>Falta la cédula: no está ni el frente ni el respaldo, solo el rostro.</b>${cola?`<div class="muted" style="margin-top:4px">${escHTML(cola)}</div>`:''}</div>`;
@@ -12476,37 +12618,77 @@ function avisoLadoQueFalta(hayFrente,hayReverso,cola,hayRostro){
    veían igual, y lo que Joan hace en cada caso es distinto. Desde v142 el teléfono
    anota en los datos del registro qué fotos había al abrir la cuenta
    (fotos_tomadas, play/index.html). Es lo que DIJO el teléfono de quien se
-   registra: solo se compara contra tres nombres y nunca se pinta tal cual, y lo
+   registra: solo se compara contra unos nombres y nunca se pinta tal cual, y lo
    que llegó de verdad a la base manda sobre esto. Sin la llave, el registro es de
-   antes y se dice que no se sabe. */
+   antes y se dice que no se sabe.
+   4-nov-2026 — Y ES LO QUE DIJO LA PRIMERA VEZ. registrar_abierto no pisa una fila
+   'nuevo': si el signup se cae y la persona vuelve a tocar «Abrir mi cuenta», aquí
+   sigue lo del primer toque, aunque después haya quitado la casilla o escaneado
+   (lo probó esta revisión con la función de verdad). Por eso porQueFaltaLaCedula y
+   lecturaQueNoLlego dicen lo que dijo el teléfono y no afirman más: ni que le avisó
+   (el dato no lo dice: sale igual de quien vio el aviso, de quien marcó la casilla
+   en el último paso y de quien se registró por PlataChat), ni que las fotos «siguen
+   en su teléfono» (pudo soltarlas). 'cedula_soltada': dio el permiso y el teléfono
+   se lo quitó con una cédula que no coincidió (fotosTomadasAlAbrir). */
+function esPasaporte(datos){ return String((datos&&datos.tipo_doc)||'')==='Pasaporte'; }
 function fotosTomadasDe(datos){
   const v=datos&&datos.fotos_tomadas;
   if(typeof v!=='string'||!v) return null;
   if(v==='sin_permiso') return {permiso:false,cedula_frente:false,cedula_reverso:false,selfie:false};
+  if(v==='cedula_soltada') return {permiso:false,cedula_soltada:true,cedula_frente:false,cedula_reverso:false,selfie:false};
   const l=v.split(',');
   return {permiso:true,cedula_frente:l.indexOf('cedula_frente')>=0,cedula_reverso:l.indexOf('cedula_reverso')>=0,selfie:l.indexOf('selfie')>=0};
 }
 /* Las fotos que no suben se borran del teléfono al día siguiente de tomarlas
    (EC.fotosPertenecen, «caducada» en play/index.html), así que «suben cuando
    entre» solo se puede decir ese primer día. */
-function porQueFaltaLaCedula(llegaron,r){
-  const faltan=['cedula_frente','cedula_reverso'].filter(k=>!(llegaron&&llegaron[k]));
+function porQueFaltaLaCedula(llegaron,r,huella){
+  const pasaporte=esPasaporte(r&&r.datos);
+  const faltan=pasaporte
+    ?((llegaron&&(llegaron.cedula_frente||llegaron.cedula_reverso))?[]:['cedula_frente'])
+    :['cedula_frente','cedula_reverso'].filter(k=>!(llegaron&&llegaron[k]));
   if(!faltan.length) return '';
-  const dos=faltan.length>1, tom=fotosTomadasDe(r&&r.datos);
+  const dos=faltan.length>1, tom=fotosTomadasDe(r&&r.datos), pide=dos?'Pídeselas':'Pídesela';
+  /* 4-nov-2026 — LO QUE DIJO LA BASE MANDA SOBRE LO QUE DIJO EL TELÉFONO. Con la
+     cédula rechazada (otro documento, en duda) o la foto sin aceptar (muy grande),
+     el teléfono ya soltó la cola, y aquí se le decía a Joan que esperara unas fotos
+     que no existen: «a uno le pregunta, al otro le espera». Otras veces no queda
+     rastro (eligió seguir a PlataChat sin ellas, quitó el permiso en el reintento):
+     por eso abajo dice «si siguen allá». */
+  const h=(huella&&typeof huella==='object')?huella:{};
+  if(h.cedula_rechazada) return 'La nube no guardó la cédula de sus fotos: '
+    +(h.cedula_rechazada.motivo==='otro_documento'?'no es la del documento de su registro':'no se pudo confirmar de quién es')
+    +', y el teléfono las borró. '+pide+' antes de desembolsar.';
+  const rech=((h.fotos_rechazadas&&Array.isArray(h.fotos_rechazadas.fotos))?h.fotos_rechazadas.fotos:[]).filter(x=>x&&faltan.indexOf(x.tipo)>=0);
+  if(rech.length){
+    const una=rech.length===1, grandes=rech.every(x=>x.motivo==='muy_grande');
+    return 'La nube no aceptó '+(una?'esa foto':'las fotos de la cédula')+' ('
+      +(grandes?(una?'demasiado grande':'demasiado grandes'):(una?'no era una imagen':'no eran imágenes'))
+      +'), y el teléfono ya no '+(una?'la':'las')+' tiene. '+pide+' antes de desembolsar.';
+  }
   if(!tom) return dos
     ?'No llegaron a la nube: el teléfono no las subió o nunca las tomó, y este registro es de antes de que se anotara cuál de las dos. Pídeselas antes de desembolsar.'
     :'No llegó a la nube: el teléfono no la subió o nunca la tomó. Pídesela antes de desembolsar.';
-  if(!tom.permiso) return 'No dio el permiso de las fotos: es su derecho (Ley 1581), y por eso su cuenta se abre igual. Antes de desembolsar, confirma quién es: pregúntale por el chat si las manda o prefiere otra forma.';
-  const pide=dos?'Pídeselas':'Pídesela', tomadas=faltan.filter(k=>tom[k]);
-  if(!tomadas.length) return (dos?'No las tomó: el teléfono le avisó que faltaban y siguió sin ellas. ':'No la tomó: el teléfono le avisó que faltaba y siguió sin ella. ')+pide+' antes de desembolsar.';
+  if(!tom.permiso){
+    /* Su rostro no sube sin permiso (la base lo rechaza): si algo llegó, lo de «sin
+       permiso» es del primer toque, y lo dio después. */
+    if(llegaron&&(llegaron.selfie||llegaron.cedula_frente||llegaron.cedula_reverso))
+      return 'Al registrarse su teléfono anotó que no tenía el permiso de las fotos, pero algo suyo sí llegó: el permiso lo dio después. '+pide+' antes de desembolsar.';
+    if(tom.cedula_soltada) return 'Dio el permiso y la cédula que tomó no coincidió con el documento escrito (o dijo que no era suya): el teléfono borró las fotos y le quitó el permiso, y siguió sin ellas. Antes de desembolsar, confirma quién es: pregúntale por el chat si las manda o prefiere otra forma.';
+    return 'Se registró sin el permiso de las fotos: es su derecho (Ley 1581), y por eso su cuenta se abre igual. Antes de desembolsar, confirma quién es: pregúntale por el chat si las manda o prefiere otra forma.';
+  }
+  const tomadas=faltan.filter(k=>pasaporte?(tom.cedula_frente||tom.cedula_reverso):tom[k]);
+  if(!tomadas.length) return 'Al registrarse, su teléfono no tenía '+(pasaporte?'la foto de su pasaporte':(dos?'las fotos de la cédula':'esa foto'))+'. '+pide+' antes de desembolsar.';
   if(tomadas.length<faltan.length){
     const nombre={cedula_frente:'el frente',cedula_reverso:'el respaldo'};
-    return 'Tomó '+nombre[tomadas[0]]+' y no ha llegado; '+nombre[faltan.find(k=>!tom[k])]+' no lo tomó. Pídeselas antes de desembolsar.';
+    return 'Su teléfono dijo que tomó '+nombre[tomadas[0]]+', y no ha llegado; '+nombre[faltan.find(k=>!tom[k])]+' no lo tenía. Pídeselas antes de desembolsar.';
   }
+  /* Sin fecha (una ficha) no se sabe si pasó el día: «todavía» sería para siempre. */
   const horas=(Date.now()-new Date(r&&r.creado_en).getTime())/3600e3;
-  if(horas>=24) return (dos?'Las tomó, pero no llegaron':'La tomó, pero no llegó')+' y ya pasó más de un día: el teléfono '+(dos?'las':'la')+' borra. '+pide+' antes de desembolsar.';
-  return dos?'Las tomó y todavía no llegan: siguen en su teléfono y suben cuando entre a su cuenta. Si no entra en un día, se borran.'
-            :'La tomó y todavía no llega: sigue en su teléfono y sube cuando entre a su cuenta. Si no entra en un día, se borra.';
+  if(!isFinite(horas)) return 'Su teléfono dijo que '+(dos?'las tomó, y aquí no están':'la tomó, y aquí no está')+'. '+pide+' antes de desembolsar.';
+  if(horas>=24) return 'Su teléfono dijo que '+(dos?'las tomó, pero no llegaron':'la tomó, pero no llegó')+' y ya pasó más de un día: el teléfono '+(dos?'las':'la')+' borra. '+pide+' antes de desembolsar.';
+  return dos?'Su teléfono dijo que las tomó, y todavía no llegan. Si siguen allá, suben cuando entre a su cuenta, y en un día se borran. Si hoy no llegan, pídeselas antes de desembolsar.'
+            :'Su teléfono dijo que la tomó, y todavía no llega. Si sigue allá, sube cuando entre a su cuenta, y en un día se borra. Si hoy no llega, pídesela antes de desembolsar.';
 }
 /* «💬 Pedirle las fotos por el chat» abre su chat con el mensaje ESCRITO, y lo
    manda Joan: lo que viaja a un cliente lo lee él primero. Dice que hay otra
@@ -12517,45 +12699,124 @@ function porQueFaltaLaCedula(llegaron,r){
 const PEDIR_FOTOS={
   los_dos:'Hola, nos faltan las fotos de tu cédula por los dos lados. Mándalas por aquí, por favor. Si prefieres no mandarlas, dinos y vemos otra forma de confirmar que eres tú.',
   frente:'Hola, nos falta la foto del frente de tu cédula. Mándala por aquí, por favor. Si prefieres no mandarla, dinos y vemos otra forma de confirmar que eres tú.',
-  reverso:'Hola, nos falta la foto del respaldo de tu cédula (el lado del código de barras). Mándala por aquí, por favor. Si prefieres no mandarla, dinos y vemos otra forma de confirmar que eres tú.'
+  reverso:'Hola, nos falta la foto del respaldo de tu cédula (el lado del código de barras). Mándala por aquí, por favor. Si prefieres no mandarla, dinos y vemos otra forma de confirmar que eres tú.',
+  pasaporte:'Hola, nos falta la foto de tu pasaporte (la página con tu foto). Mándala por aquí, por favor. Si prefieres no mandarla, dinos y vemos otra forma de confirmar que eres tú.'
 };
-function ladosQueFaltan(llegaron){
+function ladosQueFaltan(llegaron,r){
   const fr=!!(llegaron&&llegaron.cedula_frente), re=!!(llegaron&&llegaron.cedula_reverso);
+  if(esPasaporte(r&&r.datos)) return fr||re?'':'pasaporte';
   return fr&&re?'':(!fr&&!re?'los_dos':(fr?'reverso':'frente'));
 }
 function botonPedirFotos(r,falta){
   if(!falta||!r||!r.telefono) return '';
   return `<div style="margin:0 0 8px"><button class="btn btn-ghost btn-sm" onclick="pedirFotosPorElChat('${escHTML(String(r.id))}','${falta}')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
 }
+/* 4-nov-2026 — y desde la ficha, que es lo que queda después de abrírsela: el registro
+   sale de la bandeja. Lo que falta ya lo sabe la ficha, sin preguntarle a la nube. */
+function botonPedirFotosFicha(s,falta){
+  if(!falta) return '';
+  return `<div style="margin:0 0 8px"><button class="btn btn-ghost btn-sm" onclick="pedirFotosDeLaFicha('${escHTML(String(s.id))}','${falta}')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
+}
+function pedirFotosDeLaFicha(id,falta){
+  return escribirlePorLaApp('ficha',id,PEDIR_FOTOS[falta]||PEDIR_FOTOS.los_dos);
+}
 function pedirFotosPorElChat(id,falta){
   if(falta) return escribirlePorLaApp('registro',id,PEDIR_FOTOS[falta]||PEDIR_FOTOS.los_dos);
   const r=registroPorId(id); if(!r) return;
   archivosDe(r.telefono||r.cedula).then(a=>{
     if(a.fallo) return alert('No pude preguntarle a la nube qué fotos tiene: '+a.fallo+'\n\nNo te abro el chat a ciegas: podría pedirle lo que ya mandó.');
-    const que=ladosQueFaltan(a.fotos);
-    if(!que) return alert('Ya llegaron las dos fotos de su cédula. Míralas en «👁 Ver datos».');
+    const que=ladosQueFaltan(a.fotos,r);
+    if(!que) return alert((esPasaporte(r.datos)?'Ya llegó la foto de su pasaporte.':'Ya llegaron las dos fotos de su cédula.')+' Míralas en «👁 Ver datos».');
     escribirlePorLaApp('registro',id,PEDIR_FOTOS[que]);
   });
 }
 /* En 📥 Registrados, de un vistazo, sin pedirle nada a la nube: lo que su teléfono
    dijo al registrarse. Por eso dice «se registró», que sigue siendo cierto si las
-   mandó después. */
+   mandó después.
+   4-nov-2026 — si la lectura del código ya llegó, la cédula llegó: la marca sería del
+   primer toque de un signup que se cayó. Y PlataChat no cambia (decisión de Joan): la
+   llave viaja porque «Ver datos» la necesita para no decir «este registro es de
+   antes», pero su fila se ve como se veía. */
+/* 9-nov-2026 — LA FILA TAMBIÉN DICE LO QUE DIJO LA BASE, Y NO SE CALLA CON UN LADO.
+   La segunda ronda de la revisión encontró dos huecos:
+   · La cédula de OTRA persona (huella.cedula_rechazada), la foto que la base no
+     aceptó (huella.fotos_rechazadas) y la cédula que a los días no ha llegado salían
+     con la fila limpia: la marca solo leía lo que dijo el teléfono, aunque r.huella
+     ya estaba en la mano. Son los registros que más conviene mirar, y «＋ Abrirle la
+     ficha» está a un toque.
+   · «Si la lectura del código ya llegó, la cédula llegó» es falso con un solo lado:
+     la lectura sale del respaldo, que es el que se toma primero, y el que falta casi
+     siempre es el frente. La regla vale solo para quien se registró sin ninguno (el
+     primer toque de un signup que se cayó).
+   Las llaves de la base no las escribe el teléfono: las escribe
+   registro_archivos_guardar. «Más de un día» es el día en que el teléfono las borra
+   (EC.fotosPertenecen), y huella.momento lo escribe esa misma función al subirlas. */
 function chipCedulaRegistro(r){
-  const tom=fotosTomadasDe(r&&r.datos);
-  if(!tom||(tom.cedula_frente&&tom.cedula_reverso)) return '';
+  if(String((r&&r.app)||'')==='platachat') return '';
+  const h=(r&&r.huella&&typeof r.huella==='object')?r.huella:{};
+  const tom=fotosTomadasDe(r&&r.datos), pasaporte=esPasaporte(r&&r.datos);
+  const chip=texto=>`<div style="margin-top:4px"><span class="chip riesgo-medio">🪪 ${texto}</span> <button class="btn btn-ghost btn-sm" onclick="pedirFotosPorElChat('${escHTML(String(r.id))}','')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
+  if(h.cedula_rechazada) return chip(h.cedula_rechazada.motivo==='otro_documento'
+    ?'La nube rechazó su cédula: no es la del documento de su registro'
+    :'La nube rechazó su cédula: no se pudo confirmar de quién es');
+  const rech=((h.fotos_rechazadas&&Array.isArray(h.fotos_rechazadas.fotos))?h.fotos_rechazadas.fotos:[]).some(x=>x&&(x.tipo==='cedula_frente'||x.tipo==='cedula_reverso'));
+  if(rech) return chip('La nube no aceptó la foto de su cédula');
+  if(!tom) return '';
+  if(tom.cedula_frente&&tom.cedula_reverso){
+    const horas=(Date.now()-new Date(r.creado_en).getTime())/3600e3;
+    return (!h.momento&&!h.cedula_leida&&horas>=24)?chip('Su cédula no llegó, y ya pasó más de un día'):'';
+  }
   const uno=tom.cedula_frente||tom.cedula_reverso;
-  return `<div style="margin-top:4px"><span class="chip riesgo-medio">🪪 ${uno?'Se registró con un solo lado de la cédula':'Se registró sin la cédula'}</span> <button class="btn btn-ghost btn-sm" onclick="pedirFotosPorElChat('${escHTML(String(r.id))}','')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
+  if(h.cedula_leida&&!uno) return '';
+  if(pasaporte&&uno) return '';
+  return chip(pasaporte?'Se registró sin la foto de su pasaporte':(uno?'Se registró con un solo lado de la cédula':'Se registró sin la cédula'));
 }
-/* Y la fila «Cédula leída» de bloqueHuella, cuando no hay lectura del código. */
-function lecturaQueNoLlego(r){
-  const d=r&&r.datos, tom=fotosTomadasDe(d);
+/* Y la fila «Cédula leída» de bloqueHuella, cuando no hay lectura del código.
+   4-nov-2026 — «No llegó lectura», no «No se leyó»: esto es lo que dijo el teléfono
+   la primera vez (ver fotosTomadasDe), y salió encima de tres fotos que sí llegaron.
+   `enLaFicha`: la ficha no guarda la lectura (huellaParaFicha), así que de quien se
+   le leyó bien no se puede decir que todavía no llega. */
+/* 9-nov-2026 — Y AQUÍ TAMBIÉN MANDA LO QUE DIJO LA BASE, Y LA EDAD. La segunda ronda
+   de la revisión: el arreglo de «suben cuando entre» llegó a porQueFaltaLaCedula y
+   no a esta fila, y en el mismo «Ver datos» se leía arriba «esa lectura todavía no
+   llega: viaja con sus fotos» y abajo «el teléfono las borró». Ahora la fila mira lo
+   mismo que la tarjeta: la cédula rechazada, las fotos sin aceptar, si las fotos ya
+   subieron (huella.momento lo escribe registro_archivos_guardar al subirlas: si
+   subieron sin lectura, no viene en camino) y si pasó el día en que el teléfono las
+   borra. Y lo que solo DIJO el teléfono se dice así: cedula_leida_con viaja por la
+   puerta sin sesión y lo puede escribir cualquiera, así que no se pinta como hecho. */
+const LEER_DE_NUEVO=' Si el respaldo está aquí abajo, «🔢 Leer el código de barras de la foto» lo intenta otra vez.';
+function lecturaQueNoLlego(r,enLaFicha,huella){
+  const d=r&&r.datos, tom=fotosTomadasDe(d), h=(huella&&typeof huella==='object')?huella:{};
+  if(h.cedula_rechazada) return 'No llegó lectura: la nube no guardó la cédula de sus fotos ('
+    +(h.cedula_rechazada.motivo==='otro_documento'?'no es la del documento de su registro':'no se pudo confirmar de quién es')+').';
+  const rech=((h.fotos_rechazadas&&Array.isArray(h.fotos_rechazadas.fotos))?h.fotos_rechazadas.fotos:[]).some(x=>x&&(x.tipo==='cedula_frente'||x.tipo==='cedula_reverso'));
+  if(rech) return 'No llegó lectura: la nube no aceptó las fotos de su cédula, y el teléfono ya no las tiene.';
+  /* La ficha no guarda lo leído, solo que llegó (huellaParaFicha). Va antes de lo que
+     dijo el teléfono: un primer toque sin permiso no gana contra lo que llegó. */
+  if(h.lectura_llego) return 'Llegó a la nube la lectura del código de barras de su cédula, con sus fotos. Lo leído está en su registro.';
   /* v139 también lee las letras impresas, y eso no es un error: la huella no lo
      trae (registro_archivos_guardar no guarda cedula_vista), así que viaja con
      los datos del registro, igual que fotos_tomadas. */
-  if(d&&d.cedula_leida_con==='letras') return 'Se leyó por sus letras, no por el código de barras: el teléfono llenó lo que pudo leer y la persona lo revisó.';
-  if(tom&&!tom.permiso) return 'No se leyó: no dio el permiso de las fotos.';
-  if(tom&&!tom.cedula_frente&&!tom.cedula_reverso) return 'No se leyó: no tomó las fotos de su cédula.';
-  if(tom) return 'Tomó su cédula, pero no llegó lectura del código de barras: no se pudo leer, o sus fotos todavía no suben. Si el respaldo está aquí abajo, «🔢 Leer el código» lo intenta otra vez.';
+  if(d&&d.cedula_leida_con==='letras') return 'Su teléfono dijo que la leyó por sus letras, no por el código de barras: llena lo que puede leer y la persona lo revisa. Esa lectura no viaja a la nube.';
+  const subieron=!enLaFicha&&!!h.momento;   // la ficha no guarda la lectura: no se puede saber
+  const horas=enLaFicha?NaN:(Date.now()-new Date(r&&r.creado_en).getTime())/3600e3;
+  if(d&&d.cedula_leida_con==='codigo'){
+    if(enLaFicha) return 'Su teléfono dijo que la leyó por el código de barras al registrarse; esa lectura no está en esta ficha.';
+    if(subieron) return 'Su teléfono dijo que la leyó por el código de barras, pero sus fotos llegaron sin esa lectura.'+LEER_DE_NUEVO;
+    if(horas>=24) return 'Su teléfono dijo que la leyó por el código de barras, y esa lectura no llegó: viajaba con sus fotos, que no subieron, y pasado un día el teléfono las borra.';
+    return 'Su teléfono dijo que la leyó por el código de barras, y esa lectura todavía no llega: viaja con sus fotos.';
+  }
+  if(esPasaporte(d)) return 'Su documento es un pasaporte: no trae el código de barras de la cédula.';
+  if(tom&&tom.cedula_soltada) return 'No llegó lectura: la cédula que tomó no coincidió con el documento escrito (o dijo que no era suya), y el teléfono la borró.';
+  if(tom&&!tom.permiso) return 'No llegó lectura: cuando se anotó su registro no tenía el permiso de las fotos.';
+  if(tom&&!tom.cedula_frente&&!tom.cedula_reverso) return 'No llegó lectura: cuando se anotó su registro, su teléfono no tenía las fotos de su cédula.';
+  if(tom){
+    if(subieron) return 'Su teléfono dijo que tomó su cédula, y sus fotos llegaron sin lectura del código de barras: no se pudo leer.'+LEER_DE_NUEVO;
+    if(enLaFicha) return 'Su teléfono dijo que tomó su cédula, y no llegó lectura del código de barras.';
+    if(horas>=24) return 'Su teléfono dijo que tomó su cédula, y no llegó lectura del código de barras: no se pudo leer, o sus fotos no subieron y pasado un día el teléfono las borra.';
+    return 'Su teléfono dijo que tomó su cédula, y no llegó lectura del código de barras: no se pudo leer, o sus fotos todavía no suben.'+LEER_DE_NUEVO;
+  }
   return 'No llegó la lectura del código de barras. Puede ser que no lo escaneara, '
     +'o que la subida de sus fotos no llegara: son cosas distintas y desde aquí '
     +'no se distinguen.';
@@ -12607,30 +12868,61 @@ function pintarFotosRegistro(celular,cajaId,r){
     const lista=[['Cédula (frente)',f.cedula_frente,'frente'],['Cédula (reverso)',f.cedula_reverso,'reverso'],['Rostro',f.selfie,'selfie']].filter(x=>x[1]);
     /* 3-nov-2026 — lo que se sabe de la cédula que falta, y el botón para pedirla
        (ver QUÉ SE SABE DE LA CÉDULA QUE NO ESTÁ). */
-    const pedir=botonPedirFotos(r,ladosQueFaltan(crudas));
+    /* 9-nov-2026 — PLATACHAT NO CAMBIA, TAMPOCO AQUÍ (decisión de Joan). La fila ya
+       salía como antes, pero esta tarjeta le daba a Joan una instrucción nueva
+       («Pídeselas antes de desembolsar») y un botón que le escribe al cliente: tres
+       revisiones lo vieron. De un registro de PlataChat se pinta lo mismo que en main
+       (04e6ac2), palabra por palabra: sin el botón, «No subió fotos (o no autorizó).»
+       sin ninguna, y con un solo lado el aviso de siempre. Las dos llaves siguen
+       viajando, pero aquí no deciden nada. */
+    if(String((r&&r.app)||'')==='platachat'){
+      if(!lista.length){ caja.innerHTML=avisoRaras||'<span class="muted">No subió fotos (o no autorizó).</span>'; return; }
+      caja.innerHTML=avisoRaras+avisoLadoQueFalta(!!crudas.cedula_frente,!!crudas.cedula_reverso,
+        'No llegó a la nube: el teléfono no la subió o nunca la tomó. Pídesela antes de desembolsar.')
+        +avisoSelfieQueFalta(crudas,a.huella,'Pídesela antes de desembolsar.')
+        +galeriaDelRegistro(lista,f,celular);
+      _girosFicha=null;
+      lista.forEach(x=>mostrarConGiro(document.getElementById('regFoto_'+x[2]),x[1]));
+      return;
+    }
+    const pedir=botonPedirFotos(r,ladosQueFaltan(crudas,r));
     if(!lista.length){
       caja.innerHTML=(avisoRaras||(fotosTomadasDe(r&&r.datos)
-        ?`<div class="muted" style="margin-bottom:8px">${escHTML(porQueFaltaLaCedula(crudas,r))}</div>`
+        ?`<div class="muted" style="margin-bottom:8px">${escHTML(porQueFaltaLaCedula(crudas,r,a.huella))}</div>`
         :'<div class="muted" style="margin-bottom:8px">No subió fotos (o no autorizó).</div>'))+pedir;
       return;
     }
     /* 19-oct-2026 — con un solo lado se dice cuál falta. Se mira lo que LLEGÓ
        (crudas), no lo que se muestra: un archivo raro ya tiene su aviso arriba
        y sí llegó. */
-    const avisoLado=avisoLadoQueFalta(!!crudas.cedula_frente,!!crudas.cedula_reverso,porQueFaltaLaCedula(crudas,r),!!crudas.selfie)
+    const avisoLado=avisoLadoQueFalta(!!crudas.cedula_frente,!!crudas.cedula_reverso,porQueFaltaLaCedula(crudas,r,a.huella),!!crudas.selfie,esPasaporte(r&&r.datos))
       +pedir
       +avisoSelfieQueFalta(crudas,a.huella,'Pídesela antes de desembolsar.');
-    /* 8-oct-2026 — cada foto con su «↻ Girar» (ver ↻ GIRAR UNA FOTO). */
-    caja.innerHTML=avisoRaras+avisoLado+`<div class="gal">${lista.map(x=>`<div class="gal-it"><a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>${botonGirar("girarFotoRegistro('"+x[2]+"')")}</div>`).join('')}</div>`
-      +(f.selfie&&f.cedula_frente?`<div id="regParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('regFoto_selfie','regFoto_frente','regParecido')">🔍 Comparar el rostro con la cédula</button></div>`:'')
-      /* 22-sep-2026 — el cotejo contra la foto. Solo aparece si hay foto del
-         REVERSO: el código de barras vive ahí y en ninguna otra parte. */
-      +(f.cedula_reverso?`<div id="regCotejo" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="cotejarConLaFoto('regFoto_reverso','${escHTML(String(celular).replace(/\D/g,''))}','regCotejo')">🔢 Leer el código de barras de la foto</button></div>`:'');
+    caja.innerHTML=avisoRaras+avisoLado+galeriaDelRegistro(lista,f,celular);
     /* 8-oct-2026 — las que Joan ya dejó giradas en este navegador, giradas.
        Fotos de un REGISTRO: el giro de una ficha abierta no cuenta aquí. */
     _girosFicha=null;
     lista.forEach(x=>mostrarConGiro(document.getElementById('regFoto_'+x[2]),x[1]));
   });
+}
+function galeriaDelRegistro(lista,f,celular){
+  /* 8-oct-2026 — cada foto con su «↻ Girar» (ver ↻ GIRAR UNA FOTO). */
+  return `<div class="gal">${lista.map(x=>`<div class="gal-it"><a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>${botonGirar("girarFotoRegistro('"+x[2]+"')")}</div>`).join('')}</div>`
+    +(f.selfie&&f.cedula_frente?`<div id="regParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('regFoto_selfie','regFoto_frente','regParecido')">🔍 Comparar el rostro con la cédula</button></div>`:'')
+    /* 22-sep-2026 — el cotejo contra la foto. Solo aparece si hay foto del
+       REVERSO: el código de barras vive ahí y en ninguna otra parte. */
+    +(f.cedula_reverso?`<div id="regCotejo" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="cotejarConLaFoto('regFoto_reverso','${escHTML(String(celular).replace(/\D/g,''))}','regCotejo')">🔢 Leer el código de barras de la foto</button></div>`:'');
+}
+/* 9-nov-2026 — LA FICHA DE UN REGISTRO DE PLATACHAT NACE COMO EN MAIN. La ficha no
+   sabe de qué app vino (s.vinculacion son los datos, sin la columna app), y con las
+   dos llaves del teléfono le pedía a Joan las fotos «antes de desembolsar» y le
+   ponía el botón. Se quitan al copiar los datos: sin ellas la ficha es la de
+   siempre. Las tres puertas por donde un registro se vuelve ficha pasan por aquí. */
+function datosDelRegistroParaLaFicha(datos,app){
+  const d=(datos&&typeof datos==='object')?datos:{};
+  if(String(app||'')!=='platachat') return d;
+  const c=Object.assign({},d); delete c.fotos_tomadas; delete c.cedula_leida_con;
+  return c;
 }
 /* EL PARECIDO ROSTRO–CÉDULA, en el computador de Joan (el modelo pesa 4 MB y
    no tiene por qué bajarlo cada teléfono). Es una AYUDA, no un veredicto: la
@@ -12716,7 +13008,7 @@ function fichaDesdeRegistro(id){
      campos morían en la bandeja — Joan los volvía a preguntar por WhatsApp.
      Lo que no tiene campo propio en la ficha viaja entero en s.vinculacion
      (lo engancha guardarCliente vía _vinculacionPendiente). */
-  const d=(r.datos&&typeof r.datos==='object')?r.datos:{};
+  const d=datosDelRegistroParaLaFicha(r.datos,r.app);
   /* 9-sep-2026 — UN SOLO MAPEO, y vive en el puente. Acá había una copia con
      `tipo_vivienda || 'casa'`: el que contestó «Arriendo» quedaba de dueño de
      casa, sin un error en pantalla y con la garantía —o sea el cupo— más alta.
@@ -13157,7 +13449,7 @@ function retomarSesionAlAbrir() {
   const eq = leerSesionGuardada('equipo');
   const du = leerSesionGuardada('dueno');
   /* 4-nov-2026 — sin cartera aquí, una sesión guardada no abre un CRM en $0: se queda la
-     puerta, que dice dónde está (ver pintarPuertaSegunCartera). */
+     puerta, que dice dónde está con su salida (ver carteraVaciaAqui). */
   if (!porEquipo && du && !carteraVaciaAqui()) {
     _sesion = Object.assign({}, du, { guardada: true });
     _retomandoDueno = true;
@@ -13202,6 +13494,70 @@ function soyDelEquipo() {
   }
   pintarPuertaEquipo();
 }
+/* 6-nov-2026 — LA SALIDA DE LA PUERTA DEL PIN. Joan, en su iPhone: «Me dice que
+   el PIN está mal». El PIN no es de la persona: es del cajón de cada navegador
+   (DB.config.pin, que cargar() deja en 1234 si ahí no hay cartera). En un aparato
+   que nunca trajo la cartera, el PIN de su computador no existe, y esta puerta solo
+   sabía decir «PIN incorrecto.» para siempre: ni una pista, y el único enlace a
+   traer.html está en Ajustes, detrás de este mismo PIN.
+   Con fichas no sale, también con el candado encima de un CRM con datos: en el PC
+   de Joan la puerta no cambia en un píxel. El gerente en su celular sí la ve (ahí
+   tampoco hay fichas): por eso empieza por «¿Eres Joan?», y su enlace sigue igual.
+   Se mira DB, que a esta hora es lo que cargar() leyó de este navegador. */
+function fichasEnEsteNavegador() {
+  try {
+    return (DB.socios || []).length > 0 || (DB.prestamos || []).length > 0 || (DB.respaldados || []).length > 0;
+  } catch (e) { return false; }
+}
+/* Lo que se puede afirmar sin mentir. Sin fichas hay tres casos, porque «tu PIN
+   aquí no sirve» solo es cierto en uno: si este navegador tiene un PIN propio, ese
+   sí abre; y si lo guardado está dañado, cargar() lo leyó como vacío sin avisar, y
+   no es que no haya nada (traer.html lo respalda tal cual antes de reemplazarlo). */
+function textoSalidaDeLaPuerta() {
+  if (CARTERA_EQUIPO || fichasEnEsteNavegador()) return '';
+  let crudo = null;
+  try { crudo = localStorage.getItem(KEY); } catch (e) {}
+  if (crudo) {
+    let d = null;
+    try { d = JSON.parse(crudo); } catch (e) {}
+    if (!d || typeof d !== 'object') return '¿Eres Joan? Lo guardado en este aparato está dañado y no lo puedo leer, y tu PIN estaba ahí.';
+  }
+  /* Con el candado encima tampoco: la misma tarjeta acaba de pedir «escribe tu PIN», y ahí sí
+     sirve el que se acaba de usar. */
+  if (_candado || String(DB.config.pin) !== '1234') return '¿Eres Joan? Este aparato todavía no tiene tu cartera.';
+  return '¿Eres Joan? Este aparato todavía no tiene tu cartera. Tu PIN vive en tu computador, por eso aquí no sirve.';
+}
+/* Al arrancar, al reponer la tarjeta («← Soy Joan») y cuando la puerta vuelve encima
+   del CRM: lo que se decidió al abrir puede no valer ya (la primera ficha se creó
+   mientras tanto). Por style.display: la clase .oculto no llega a una tarjeta que se
+   repone con innerHTML, y lo que trae _tarjetaPin es la que nació escondida. */
+var _cajonDeLaPuerta = null;
+function pintarSalidaDeLaPuerta() {
+  const caja = document.getElementById('salidaPuerta');
+  if (!caja) return;
+  const t = textoSalidaDeLaPuerta();
+  caja.style.display = t ? '' : 'none';
+  const puerta = document.getElementById('gate');
+  if (puerta && puerta.classList) puerta.classList.toggle('con-salida', !!t);
+  if (!t) return;
+  const txt = document.getElementById('salidaPuertaTexto');
+  if (txt) txt.textContent = t;
+  try { _cajonDeLaPuerta = localStorage.getItem(KEY); } catch (e) {}
+}
+/* La vuelta con «Atrás» desde traer.html: el navegador puede devolver esta página
+   congelada, con la DB de antes de traer, y el PIN que ya viajó se rechazaría
+   diciendo que aquí no hay cartera. Si el cajón cambió, se recarga. Solo con la
+   salida a la vista, o sea nunca en un navegador con fichas. */
+if (typeof window.addEventListener === 'function') {
+  window.addEventListener('pageshow', ev => {
+    if (!ev || !ev.persisted || _crmAbierto || CARTERA_EQUIPO) return;
+    const caja = document.getElementById('salidaPuerta');
+    if (!caja || caja.style.display === 'none') return;
+    let ahora = null;
+    try { ahora = localStorage.getItem(KEY); } catch (e) { return; }
+    if (ahora !== _cajonDeLaPuerta) { try { location.reload(); } catch (e) {} }
+  });
+}
 /* «← SOY JOAN» — 23-oct-2026 (segunda vuelta). Era location.reload(), y la
    recarga volvía a retomar la sesión del equipo guardada: el botón prometía
    algo que no hacía. Ahora vuelve a la tarjeta del PIN tal como llegó, sin
@@ -13221,6 +13577,7 @@ function volverAPuertaDeJoan() {
   if (_sesion && _sesion.tipo === 'equipo') _sesion = null;
   c.innerHTML = _tarjetaPin;
   conectarPuertaDeJoan();
+  try { pintarSalidaDeLaPuerta(); } catch (e) {}
   if (_candado && _tipoCandado === 'dueno') {
     const err = document.getElementById('pinErr');
     if (err) { err.className = 'gate-err aviso'; err.textContent = _textoCandado; }
@@ -13234,21 +13591,15 @@ function conectarPuertaDeJoan() {
   const b = document.getElementById('pinBtn'), p = document.getElementById('pinInput');
   if (b) b.addEventListener('click', entrar);
   if (p) p.addEventListener('keydown', e => { if (e.key === 'Enter') entrar(); });
-  try { pintarPuertaSegunCartera(); } catch (e) {}
 }
-/* 4-nov-2026 — LA PUERTA EN UN APARATO SIN CARTERA. El PIN es de CADA navegador: en un
-   aparato nuevo, Joan escribía su PIN de verdad y leía «PIN incorrecto», y con el de
-   fábrica entraba a un CRM en $0 que no se distingue de un negocio sin clientes. Las dos
-   pantallas mienten sobre lo mismo: aquí no está su cartera.
-   Ahora lo dice y manda al Panel en el bolsillo. «Tengo un respaldo para subir aquí» es lo
-   único para lo que sirve el 1234, y ahí sí se enseña. La puerta del equipo no cambia: en
-   el celular de un gerente no hay cartera de Joan, y por ese botón entra.
+/* 4-nov-2026 — UNA SESIÓN GUARDADA NO ABRE UN CRM EN $0 (ver retomarSesionAlAbrir). En un
+   aparato sin cartera, la sesión de un 1234 de hace días abría sola un CRM vacío que no se
+   distingue de un negocio sin clientes. Así se queda la puerta, y la puerta lo dice con su
+   salida (pintarSalidaDeLaPuerta, que vino de main el 6-nov y ganó contra la puerta que
+   tenía esta rama: la misma pregunta, contestada una vez).
    Mira cualquier lista con algo, no solo socios y créditos, y un PIN que no sea el de
-   fábrica también cuenta: más vale pedirle el PIN a un aparato vacío que decirle a Joan que
-   no tiene cartera en el computador que la tiene. Por lo mismo, un disco que no se puede
-   leer no es «no hay nada». Con el CRM ya abierto debajo (el candado de la sesión), siempre
-   el PIN. */
-var _quiereSubirRespaldo = false;
+   fábrica también cuenta: más vale pedirle el PIN a un aparato vacío que dejar en la puerta
+   a quien sí tiene cartera. Por lo mismo, un disco que no se puede leer no es «no hay nada». */
 function carteraVaciaAqui() {
   if (hayCarteraDeJoan()) return false;
   let t;
@@ -13260,20 +13611,6 @@ function carteraVaciaAqui() {
     return !['socios', 'clientes', 'prestamos', 'respaldados', 'prospectos', 'bases', 'papelera', 'papeleraSocios', 'asignaciones', 'equipo']
       .some(k => Array.isArray(d[k]) && d[k].length);
   } catch (e) { return false; }
-}
-function pintarPuertaSegunCartera() {
-  const sin = document.getElementById('gateSinCartera'), con = document.getElementById('gateConPin'), nota = document.getElementById('gateNotaRespaldo');
-  if (!sin || !con) return;
-  const vacia = carteraVaciaAqui();
-  const sinPin = vacia && !_quiereSubirRespaldo && !_crmAbierto && !_candado;
-  sin.hidden = !sinPin;
-  con.hidden = sinPin;
-  if (nota) nota.hidden = !(vacia && _quiereSubirRespaldo);
-}
-function tengoUnRespaldo() {
-  _quiereSubirRespaldo = true;
-  pintarPuertaSegunCartera();
-  const p = document.getElementById('pinInput'); if (p) { try { p.focus(); } catch (e) {} }
 }
 function celularBonito(t) { const s = String(t || ''); return s.length === 10 ? s.slice(0, 3) + ' ' + s.slice(3, 6) + ' ' + s.slice(6) : s; }
 function decirEnPuertaEquipo(html, tono) {
@@ -13402,6 +13739,7 @@ function pedirEntrarOtraVez(motivo, que) {
     const pin = document.getElementById('pinInput'); if (pin) pin.value = '';
     const err = document.getElementById('pinErr');
     if (err) { err.className = 'gate-err aviso'; err.textContent = texto; }
+    try { pintarSalidaDeLaPuerta(); } catch (e) {}
     if (pin) { try { pin.focus(); } catch (e) {} }
   }
   /* 23-oct-2026 (segunda vuelta) — LAS 24 H CIERRAN TAMBIÉN EN SUPABASE. Antes
@@ -14234,7 +14572,14 @@ function irEquipo(v) {
      cualquier momento, y una lista vieja haría que el gerente le escriba tarde
      justo al que acaba de pedir. */
   if (v === 'registros' && REG_EQ.estado !== 'cargando') traerRegistrosEq();
-  window.scrollTo(0, 0);
+  /* La vista nueva empieza arriba: esto es a propósito, y a más de 880 px sigue igual.
+     6-nov-2026 — a 880 o menos, arriba está el menú, y subir hasta allá escondía lo que
+     acababa de cambiar: tocar un asesor en «Mi equipo», «↻ Mirar» o guardar una cita
+     dejaba a la persona mirando el menú. Si estaba leyendo el contenido, vuelve al
+     principio del contenido; si estaba en el menú, ahí se queda, que es donde cae al
+     entrar. El toque del menú lo resuelve alTocarElMenu. */
+  if (!pantallaDeCelular()) window.scrollTo(0, 0);
+  else if (main.getBoundingClientRect().top <= 1) llevarAlContenido();
 }
 
 function genteEquipo() { return (CARTERA_EQUIPO && CARTERA_EQUIPO.gente) || []; }
@@ -14752,7 +15097,7 @@ function fichaHTML(j) {
     </div>` +
     (hayFotos
       ? `<div class="sub-h">Lo que subió</div>
-         ${avisoLadoQueFalta(!!f.cedula_frente, !!f.cedula_reverso, 'Pídesela antes de desembolsar.', !!f.selfie)}
+         ${avisoLadoQueFalta(!!f.cedula_frente, !!f.cedula_reverso, 'Pídesela antes de desembolsar.', !!f.selfie, esPasaporte(d))}
          ${avisoSelfieQueFalta(f, h, 'Pídesela antes de desembolsar.')}
          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px">
            ${FOTOS.filter(x => f[x[0]]).map(x => `<figure style="margin:0">
@@ -15548,6 +15893,9 @@ function plantillaSMSDe(etapa) {
      cobro le salia «te recordamos tu pago de $0 el .». */
   if (etapa === 'PC') return 'presentacion';
   if (etapa === 'CR') return 'invitacion';
+  /* 4-nov-2026 — y quien cerró su crédito tampoco debe nada: le salía «te recordamos
+     tu pago de $0 el .», hasta a quien acababa de pagar todo. */
+  if (etapa === 'PAGADO') return 'invitacion';
   if (etapa === 'D0') return 'venceHoy';
   if (etapa === 'M1A') return 'moraTemprana';
   if (etapa === 'M1B' || etapa === 'M1-2' || etapa === 'M2') return 'mora';
@@ -15751,7 +16099,10 @@ function subirFotoJefe(grande, chica, err) {
   err.textContent = 'Mandando la foto…';
   err.classList.remove('ambar');
   var pie = String((document.getElementById('txtJefe') || {}).value || '').trim();
-  if (pie.length > CH.LARGO_MAX) {
+  /* Ver enviarAJefe, abajo. Sin esta reja se quedaba para siempre en «Mandando
+     la foto…»: el error salía en un onload, donde nadie lo atrapa. */
+  if (!CHAT) return falloJefe(err, 'No cargó app/chat.js. Recarga la página con señal: esta foto no salió.');
+  if (pie.length > CHAT.LARGO_MAX) {
     return falloJefe(err, 'El texto que acompaña la foto es muy largo.');
   }
   rpcEquipo('equipo_foto_escribir', {
@@ -15759,6 +16110,7 @@ function subirFotoJefe(grande, chica, err) {
   }).then(function (res) {
     var j = res && res.j;
     if (!res.ok || !j || j.ok !== true) {
+      if (esFinDeSesion(null, res)) { falloJefe(err, 'Se cerró tu sesión: esta foto no salió.'); return avisarFinDeSesion('Tu foto NO salió. '); }
       var m = j && j.motivo;
       return falloJefe(err,
         res.status === 404 ? 'Tu nube todavía no recibe fotos del equipo. Avísale a Joan.'
@@ -15773,7 +16125,8 @@ function subirFotoJefe(grande, chica, err) {
     var t = document.getElementById('txtJefe'); if (t) t.value = '';
     err.classList.add('oculto');
     if (_jefeVivo) _jefeVivo.latir(); else traerJefeEq(true);
-  }).catch(function () {
+  }).catch(function (e) {
+    if (esFinDeSesion(e)) { falloJefe(err, 'Se cerró tu sesión: esta foto no salió.'); return avisarFinDeSesion('Tu foto NO salió. '); }
     falloJefe(err, 'No pude mandar la foto. Revisa tu internet.');
   });
 }
@@ -15830,7 +16183,20 @@ function enviarAJefe() {
   var el = document.getElementById('txtJefe');
   var err = document.getElementById('errJefe');
   if (!el || !err) return;
-  var v = CH.revisar(el.value);
+  /* 6-nov-2026 — EL CHAT DEL EQUIPO NO MANDABA, DESDE EL 22-SEP. Aquí y en
+     subirFotoJefe decía «CH», que es el nombre del módulo en play/index.html;
+     en esta página se llama CHAT (arriba, junto a COMIS y ETAPAS). «Enviar» y la
+     foto reventaban con un ReferenceError que nadie ve: el gerente tocaba, el
+     texto se quedaba ahí y la pantalla no decía nada. Y ninguna prueba tocó el
+     botón nunca (pruebas/el-chat-del-equipo-manda.test.js ya lo toca).
+     Si app/chat.js no llegó (el <script> va sin versión, así que la guardia de
+     arriba no lo ataja), se dice, en vez de otro reventón callado. */
+  if (!CHAT) {
+    err.textContent = 'No cargó app/chat.js. Recarga la página con señal: este mensaje no salió.';
+    err.classList.remove('oculto');
+    return;
+  }
+  var v = CHAT.revisar(el.value);
   if (!v.ok) { err.textContent = v.motivo; err.classList.remove('oculto'); return; }
   err.classList.add('oculto');
   var b = document.getElementById('btnJefe');
@@ -15840,6 +16206,7 @@ function enviarAJefe() {
     if (b) { b.disabled = false; b.textContent = 'Enviar'; }
     var j = res && res.j;
     if (!res.ok || !j || j.ok !== true) {
+      if (esFinDeSesion(null, res)) return avisarFinDeSesion('Tu mensaje NO salió: sigue escrito en el cuadro. ');
       var m = j && j.motivo;
       err.textContent =
         res.status === 404 ? 'Tu nube todavía no tiene los mensajes del equipo. Avísale a Joan.'
@@ -15852,8 +16219,9 @@ function enviarAJefe() {
     }
     el.value = '';
     if (_jefeVivo) _jefeVivo.latir(); else traerJefeEq(true);
-  }).catch(function () {
+  }).catch(function (e) {
     if (b) { b.disabled = false; b.textContent = 'Enviar'; }
+    if (esFinDeSesion(e)) return avisarFinDeSesion('Tu mensaje NO salió: sigue escrito en el cuadro. ');
     err.textContent = 'No pude conectarme. Revisa la señal.';
     err.classList.remove('oculto');
   });
@@ -17857,7 +18225,14 @@ var _ventas = { paso: 'nuevo' };
 function renderVentas() {
   var caja = document.getElementById('tblVentas'); if (!caja) return;
   recalcularEmbudo();
-  guardar();
+  /* 6-nov-2026 — MIRAR NO CREA UNA CARTERA. Guarda porque recalcularEmbudo mueve
+     estados, pero en un navegador sin nada no hay qué mover, y este guardar() era el
+     único camino del menú que escribía: con solo tocar «Ventas» en un CRM vacío nacía
+     la llave, y desde ahí panel/index.html afirmaba «Tu cartera completa está en este
+     aparato» y lo mandaba aquí en vez de al espejo. Peor con una cartera dañada, que
+     cargar() lee como vacía: la pisaba con una vacía, sin avisar, y lo que traer.html
+     habría respaldado ya no existía. Con datos, como siempre. */
+  if ((DB.socios || []).length || (DB.prestamos || []).length || (DB.respaldados || []).length || prospectos().length) guardar();
 
   var c = conteoEmbudo();
   var total = prospectos().length;
@@ -20278,13 +20653,18 @@ function editarPersona(id) {
      sin esa línea, o la que Joan acaba de crear cerrando «Falta un paso» antes
      de pegarla. Verde solo con claveEquipoLista (la anotan claveListaEnSupabase
      y cambiarClave al comprobarlo); si no, lo que se sabe y la salida. */
+  /* 6-nov-2026 — «QUÉ ES», APAGADO EN QUIEN YA EXISTE. guardarPersona no cambia el rol a
+     propósito (allá dice por qué), y este cuadro dejaba escoger «Gerente», cerraba sin
+     decir nada y la persona seguía de asesor, con Joan creyendo que ya era gerente. Peor:
+     a un asesor con jefe, escoger «Gerente» le borraba el jefe al guardar. */
   openModal(p ? 'Editar a ' + p.nombre : 'Crear una persona del equipo', `
     <div class="field"><label>Nombre completo</label><input id="eqNombre" value="${p ? escHTML(p.nombre) : ''}"></div>
     <div class="field"><label>Celular</label><input id="eqTel" inputmode="numeric" value="${p ? escHTML(p.celular || '') : ''}"></div>
     <div class="field"><label>Qué es</label>
-      <select id="eqRol">${Object.keys(ROLES).map(k =>
+      <select id="eqRol"${p ? ' disabled' : ''}>${Object.keys(ROLES).map(k =>
         `<option value="${k}"${p && p.rol === k ? ' selected' : ''}>${ROLES[k].ic} ${ROLES[k].nombre}</option>`).join('')}</select>
-      <div class="help" id="eqAyudaRol"></div></div>
+      <div class="help" id="eqAyudaRol"></div>
+      ${p ? '<div class="help" id="eqRolFijo">El puesto de alguien que ya existe no se cambia desde aquí.</div>' : ''}</div>
     <div class="field"><label>Reporta a <span class="opc">(solo asesores)</span></label>
       <select id="eqJefe"><option value="">Nadie — reporta a ti</option>${
         opcionesJefe.map(x => `<option value="${escHTML(x.celular || '')}"${celJefe && celJefe === celDe(x) ? ' selected' : ''}>${escHTML(x.nombre)}</option>`).join('')}${jefeFuera}</select>
@@ -21572,7 +21952,7 @@ function aplicarCruce(idReg,idSocio,op){
 
   /* Lo que declaró y no tiene campo propio no se pierde: se guarda entero, como
      ya hacía la ficha nacida del registro. */
-  if(r.datos&&typeof r.datos==='object'&&Object.keys(r.datos).length) s.vinculacion=r.datos;
+  if(r.datos&&typeof r.datos==='object'&&Object.keys(r.datos).length) s.vinculacion=datosDelRegistroParaLaFicha(r.datos,r.app);
 
   /* Las fotos, la ubicación y la huella del registro se llevan a la ficha —es
      media razón por la que Joan quería el cruce— sin pisar lo que ya tuviera. */
@@ -22744,7 +23124,7 @@ function crearDesdeSolicitud(id){
    los datos en la bandeja («👁») y lo que quiere es desembolsar. Lo que no tiene
    campo propio viaja entero en s.vinculacion. */
 function socioDesdeDatos(s,a,ident){
-  const d=(s.datos&&typeof s.datos==='object')?s.datos:{};
+  const d=datosDelRegistroParaLaFicha(s.datos,s.app);
   const f=(a&&a.fotos)||{}, h=(a&&a.huella&&typeof a.huella==='object')?a.huella:null;
   /* Mismo mapeo que fichaDesdeRegistro y que la mesa de cruce: el del puente.
      OJO CON EL CAMPO `cedula` DE UNA SOLICITUD: no es la cédula, es EL
@@ -23579,6 +23959,33 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
   if(v==='mensajes'){ renderMensajes(); traerConversaciones(); traerChatEquipo(true); }
   if(v==='resp')renderRespaldados(); }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>irA(b.dataset.v)));
+/* 6-nov-2026 — EN EL CELULAR EL TOQUE SE NOTA. A 880 px o menos el menú no va al lado
+   del contenido sino encima (la media query de la hoja): mide 1.301 px en el CRM de
+   Joan y 804 en el del gerente, y en una pantalla de 844 lo único que cambiaba al tocar
+   era el resaltado. Parecía que el botón no hacía nada.
+   Va en un oyente de .side y al TOCAR, no dentro de irA ni de irEquipo: el código llama
+   a irA para cambiar de vista por muchas razones, y arrastrar la pantalla ahí no le toca.
+   Y .side porque sobrevive al modo equipo, que le reemplaza el contenido. El oyente de
+   cada botón ya corrió cuando el toque sube hasta aquí, así que la vista ya está pintada.
+   La misma condición de la hoja, con la misma cifra: a más de 880 no se mueve nada. */
+function pantallaDeCelular() {
+  try { return typeof window.matchMedia === 'function' && window.matchMedia('(max-width:880px)').matches; }
+  catch (e) { return false; }
+}
+function llevarAlContenido() {
+  const main = document.querySelector('.main');
+  if (!main || !pantallaDeCelular()) return;
+  window.scrollTo(0, main.getBoundingClientRect().top + (window.pageYOffset || 0));
+}
+function alTocarElMenu(ev) {
+  const b = ev && ev.target && typeof ev.target.closest === 'function' ? ev.target.closest('.navbtn') : null;
+  if (!b) return;
+  /* «Agregar prospectos» y «Mi WhatsApp» abren un cuadro encima: no hay contenido nuevo
+     que mostrar, y al cerrar el cuadro la persona tiene que seguir donde estaba. */
+  if (!b.dataset.v && !/irEquipo\(/.test(b.getAttribute('onclick') || '')) return;
+  llevarAlContenido();
+}
+(function () { const lado = document.querySelector('.side'); if (lado) lado.addEventListener('click', alTocarElMenu); })();
 function entrar(){ const retomada=_retomandoDueno===true, campoPin=document.getElementById('pinInput');
   if(!retomada) document.getElementById('pinErr').className='gate-err';
   if(retomada||campoPin.value===DB.config.pin){
@@ -23879,6 +24286,7 @@ function alPintarNube(){
 /* 23-oct-2026 — en una función porque «← Soy Joan» repone la tarjeta del PIN
    sin recargar (volverAPuertaDeJoan) y tiene que volver a conectarla. */
 conectarPuertaDeJoan();
+try { pintarSalidaDeLaPuerta(); } catch (e) {}
 document.getElementById('pinInput').focus();
 /* 26-sep-2026 — `#equipo` ABRE DIRECTO LA PUERTA DEL EQUIPO. Es adonde manda la
    puerta única del panel (panel/index.html) cuando alguien toca «Soy del

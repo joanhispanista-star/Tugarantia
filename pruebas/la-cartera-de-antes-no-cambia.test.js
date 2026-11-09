@@ -67,7 +67,8 @@ describe('abrirla con el código nuevo no le cambia nada', () => {
   const enLaPagina = () => JSON.parse(C.ev('JSON.stringify(DB)'));
 
   test('la puerta es la del PIN, y entra con el suyo', () => {
-    assert.equal(C.elems.gateSinCartera.hidden, true, 'le dijo a Joan que no tiene cartera');
+    /* 9-nov-2026: la puerta es la de main desde que se juntó; con fichas, su salida no sale. */
+    assert.equal(C.elems.salidaPuerta.style.display, 'none', 'le dijo a Joan que no tiene cartera');
     C.ev("document.getElementById('pinInput').value = '482915'; entrar()");
     assert.equal(C.ev('_crmAbierto'), true);
     assert.equal(C.ev('_otraPestana'), null);

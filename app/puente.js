@@ -379,12 +379,53 @@
      esconde nunca, ni aunque se haya perdido el renglón del motivo. La
      condonación cuenta solo si es la de ESE cierre (misma fecha, mismo capital):
      la de un cierre que perdió el choque es un perdón que no ocurrió, y si se
-     contara, la quincena diría un descuento y un cliente que no existieron. */
+     contara, la quincena diría un descuento y un cliente que no existieron.
+
+     4-nov-2026 — Y UN ABONO QUE EL CIERRE NO CONOCÍA BAJA LA PÉRDIDA. El celular
+     anota 30.000, el computador cierra con 250.000 sin haberlo traído, y «Mandar
+     lo mío encima» los junta: los abonos son una lista que suma, y `capitalPerdido`
+     se quedaba en 50.000. Entraron 280.000 y se perdieron 50.000 de un capital de
+     300.000, y los 30.000 no salían en «Ingresos totales». El campo es lo que Joan
+     confirmó al cerrar con lo que ese aparato sabía; la pérdida es lo que de verdad
+     no volvió, y eso se lee con los abonos de hoy, sin reescribir el campo (fusionar
+     no resuelve plata sola: ver fusionarFila). Se puede saber cuáles no conoció sin
+     guardar nada más: en un cierre con pérdida toda la plata fue a capital, así que
+     lo que se debía de capital ese día es lo que entró más lo perdido, y lo que hoy
+     sobre eso son abonos que el cierre no conocía. Solo el quincenal: con cuotas,
+     los abonos viajan con su plan y esto no pasa. Si los abonos pasan de la pérdida,
+     entró más que el capital: no hay pérdida, y lo de más es ganancia cobrada. */
+  /* 9-nov-2026 — Y SOLO SI LA FILA ES DE VERDAD UN CIERRE CON PÉRDIDA. La segunda
+     ronda de la revisión: un «Pagó todo» cobrado antes de v142 no trae la llave
+     capitalPerdido, y si en el otro aparato el mismo crédito se cerró con pérdida,
+     fusionarFila le copia callada esa llave (es «un campo de un solo lado»). Quedaba
+     una fila con «Pagó todo» por 375.000 y capitalPerdido 50.000, que esto leía como
+     abonos que el cierre no conoció: la ganancia pasaba de 75.000 a 150.000, los
+     ingresos de 375.000 a 450.000, y revivía el perdón del otro lado. Un cierre con
+     pérdida tiene una forma que no se puede confundir: en el quincenal toda la plata
+     fue a capital, así que no cobró ganancia (cierreConPerdon escribe gananciaPago
+     0); con cuotas, alguna cuota quedó cerrada con perdón. Una fila sin esa forma
+     no perdió capital al cerrar, traiga la llave que traiga. */
+  function perdidaAnotada(p) {
+    if (!(p && p.pagado)) return 0;
+    var x = Math.max(0, Math.round(num(p.capitalPerdido)));
+    if (!x) return 0;
+    if (!tienePlan(p)) return num(p.gananciaPago) > 0 ? 0 : x;
+    return cuotasPlan(p).some(function (q) { return q && q.pagado && (q.conPerdon || num(q.capitalPerdido) > 0); }) ? x : 0;
+  }
+  function abonosQueElCierreNoConocio(p) {
+    var anotada = perdidaAnotada(p);
+    if (!anotada || tienePlan(p)) return 0;
+    return Math.max(0, anotada + Math.round(num(p.montoRecibido)) - Math.round(capitalActual(p)));
+  }
   function perdidaDelCierre(p) {
-    return (p && p.pagado) ? Math.max(0, Math.round(num(p.capitalPerdido))) : 0;
+    return Math.max(0, perdidaAnotada(p) - abonosQueElCierreNoConocio(p));
+  }
+  function sobranteDelCierre(p) {
+    return Math.max(0, abonosQueElCierreNoConocio(p) - perdidaAnotada(p));
   }
   function condonacionDelCierre(p) {
-    var cap = perdidaDelCierre(p);
+    /* La anotada: el renglón del motivo se escribió con esa cifra. */
+    var cap = perdidaAnotada(p);
     if (!cap) return null;
     var f = fechaFin(p.fechaPagado);
     var conds = lista(p.condonaciones);
@@ -399,10 +440,34 @@
      de un cierre que perdonó capital, solo si es la del cierre vigente. */
   function condonacionVigente(p, c) {
     /* Un renglón sucio se sigue contando como hasta hoy: este filtro es SOLO
-       para los cierres con pérdida, y no le cambia nada a lo de antes. */
+       para los cierres con «Se lo perdoné» (sobre:'cierre', que nace en v142), y
+       no le cambia nada a lo de antes. */
     if (!c || typeof c !== 'object') return true;
-    if (c.sobre !== 'cierre' || !(num(c.capital) > 0)) return true;
-    return condonacionDelCierre(p) === c;
+    if (c.sobre !== 'cierre') return true;
+    return perdonDelCierreVigente(p) === c;
+  }
+  /* 9-nov-2026 — UN CRÉDITO SE CIERRA UNA VEZ: CUENTA UN SOLO PERDÓN DEL CIERRE. La
+     segunda ronda de la revisión encontró «Descuentos dados» contando dos veces el
+     perdón de un solo cierre, sin ningún choque: (1) el mismo crédito a cuotas cerrado
+     sin pérdida y con el mismo monto en dos computadores (cada condonación lleva su
+     id, y la nube conserva las dos); (2) gana un cierre con pérdida contra otro que
+     cerró con descuento, y el del que perdió seguía contando porque no tenía capital.
+     Un cierre con pérdida tiene el suyo (condonacionDelCierre: su fecha y su
+     capital). Uno sin pérdida, el de su fecha que cuadra con lo que la fila dice que
+     se perdonó (lo causado menos lo que entró por costo y mora); si la fila no lo
+     guarda (con cuotas), el primero de su fecha. Una fila abierta no cerró: ninguno. */
+  function perdonDelCierreVigente(p) {
+    if (!(p && p.pagado)) return null;
+    if (perdidaAnotada(p) > 0) return condonacionDelCierre(p);
+    var f = fechaFin(p.fechaPagado), conds = lista(p.condonaciones);
+    var esperado = (p.costoCausado != null || p.moraCausada != null)
+      ? Math.max(0, Math.round(num(p.costoCausado) + num(p.moraCausada) - num(p.gananciaPago))) : null;
+    for (var i = 0; i < conds.length; i++) {
+      var c = conds[i];
+      if (!c || typeof c !== 'object' || c.sobre !== 'cierre' || num(c.capital) > 0 || fechaFin(c.fecha) !== f) continue;
+      if (esperado == null || Math.round(num(c.costo) + num(c.mora)) === esperado) return c;
+    }
+    return null;
   }
   /* Todo el capital que este crédito no va a devolver, uno por hecho: cada
      perdón de un pacto vigente (perdonesDeCapital) y la pérdida del cierre.
@@ -2071,7 +2136,8 @@
   function gananciaCobrada(p) {
     return lista(p.prorrogas).reduce(function (s, pr) { return s + num(pr.monto); }, 0) +
            costoCobradoPlan(p) +
-           (p.pagado ? num(p.gananciaPago) : 0);
+           (p.pagado ? num(p.gananciaPago) : 0) +
+           sobranteDelCierre(p);   // 4-nov-2026 — ver perdidaDelCierre
   }
   /* 22-oct-2026 — lo perdonado NO es capital recuperado: no volvió. Sin la
      resta, «Ingresos totales» del tablero y lo que la app le dice al cliente
@@ -4878,6 +4944,7 @@
     perdidasDeCapital: perdidasDeCapital,
     perdidaDelCierre: perdidaDelCierre,
     condonacionDelCierre: condonacionDelCierre,
+    condonacionVigente: condonacionVigente,
     /* Un cierre con pérdida no es un pago (31-oct-2026): para las comisiones
        (app/comisiones.js), «Tu gente» (app/gente.js) y los recibos del CRM y
        del celular. */

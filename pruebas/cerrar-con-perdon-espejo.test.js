@@ -70,7 +70,7 @@ describe('1 · el celular lee el cierre con pérdida sin romperse y sin contar d
     const c = copia(p); c.condonaciones = [r.registros.condonacion]; Object.assign(c, r.registros.credito);
     const e = abrirEspejo({ cartera: cartera([c]), ahora: '2026-10-30T15:00:00' });
     const q = plano(e.ev('vistaQuincena()'));
-    assert.match(q, /\$200\.000 de capital devuelto · \$100\.000 de capital perdido/);
+    assert.match(q, /volvieron \$200\.000 de \$300\.000 · \$100\.000 de capital perdido/);
     assert.doesNotMatch(q, /\$300\.000 de capital devuelto/, 'contó como devuelto capital que no entró');
     assert.match(q, /Capital perdido en el ciclo \$100\.000/);
     assert.equal(e.json("P.capitalPerdidoDeQuincena(DB,'2026-10-31').capital"), 100000);
@@ -81,9 +81,73 @@ describe('1 · el celular lee el cierre con pérdida sin romperse y sin contar d
     const e = abrirEspejo({ cartera: db, ahora: '2026-10-21T10:00:00' });
     e.ev("SEL.socioId='s1'");
     const f = plano(e.ev('vistaFicha()'));
-    assert.match(f, /pagado el .* · se perdieron \$50\.000 de capital/);
+    assert.match(f, /cerrado el .* · se perdieron \$50\.000 de capital/);
+    assert.doesNotMatch(f, /pagado el/, 'la tarjeta dice «Cerrado con pérdida» y debajo «pagado el»');
     assert.match(f, /Capital perdido con él: \$50\.000 en 1 crédito/);
     assert.deepEqual(e.json("descuentosDelSocio(socioPorId('s1'))"), P.descuentosDelSocio(db, db.socios[0]));
+  });
+});
+
+describe('1-bis · 4-nov-2026: el celular no le dice «Pagado» a un crédito cerrado con pérdida', () => {
+  const pildora = v => (/<span class="pill [^"]*">([^<]*)<\/span>/.exec(v) || [])[1];
+
+  test('la píldora del detalle dice lo mismo que la tarjeta de la ficha, hasta con $0', () => {
+    const p = quincenal();
+    const r = P.cierreConPerdon(cartera([p]), p, '2026-10-20', 0, { motivo: 'x', entiende: true });
+    const c = copia(p); c.condonaciones = [r.registros.condonacion]; Object.assign(c, r.registros.credito);
+    const e = abrirEspejo({ cartera: cartera([c]), ahora: '2026-10-21T10:00:00' });
+    e.ev("SEL.creditoId='c1'");
+    assert.equal(pildora(e.ev('vistaCredito()')), 'Cerrado con pérdida', 'la píldora dice «Pagado» encima de «entraron $0»');
+    e.ev("SEL.socioId='s1'");
+    assert.match(plano(e.ev('vistaFicha()')), /Cerrado con pérdida/);
+  });
+
+  test('de un pago de verdad sigue diciendo «Pagado» y «pagado el»', () => {
+    const p = quincenal();
+    const liq = P.liquidarCiclo(p, '2026-10-20');
+    const c = Object.assign(copia(p), { pagado: true, fechaPagado: '2026-10-20', cicloPago: '2026-10-15', cobroRegistrado: true,
+      gananciaPago: liq.costo + liq.recargo_mora, recargoMora: liq.recargo_mora, costoCausado: liq.costo,
+      moraCausada: liq.recargo_mora, montoRecibido: liq.total_a_pagar, saldoAFavor: 0, capitalPerdido: 0 });
+    const e = abrirEspejo({ cartera: cartera([c]), ahora: '2026-10-20T15:00:00' });
+    e.ev("SEL.creditoId='c1'");
+    assert.equal(pildora(e.ev('vistaCredito()')), 'Pagado');
+    e.ev("SEL.socioId='s1'");
+    assert.match(plano(e.ev('vistaFicha()')), /pagado el /);
+    assert.match(plano(e.ev('vistaQuincena()')), /Pago · Marta/);
+  });
+
+  test('«Lo que registraste hoy» no llama «Pago» a un cierre con $0', () => {
+    const p = quincenal({ fechaDesembolso: '2026-10-16', cicloActual: '2026-10-31' });
+    const r = P.cierreConPerdon(cartera([p]), p, '2026-10-30', 0, { motivo: 'x', entiende: true });
+    const c = copia(p); c.condonaciones = [r.registros.condonacion]; Object.assign(c, r.registros.credito);
+    const e = abrirEspejo({ cartera: cartera([c]), ahora: '2026-10-30T15:00:00' });
+    const q = plano(e.ev('vistaQuincena()'));
+    assert.doesNotMatch(q, /Pago · Marta/);
+    assert.match(q, /Cierre con pérdida · Marta/);
+    assert.match(q, /volvieron \$0 de \$300\.000 · \$300\.000 de capital perdido/);
+  });
+
+  /* 9-nov-2026 — la segunda ronda: bajo «Lo que registraste hoy» decía «$100.000 de
+     capital devuelto» de un crédito cerrado hoy con $0, y los 100.000 eran un abono
+     del 25-oct. El CRM ya decía «volvieron» por esto mismo. */
+  test('«Lo que registraste hoy» no cuenta como devuelto hoy un abono de otro día', () => {
+    const p = quincenal({ fechaDesembolso: '2026-10-16', cicloActual: '2026-10-31', abonosCapital: [{ fecha: '2026-10-25', monto: 100000 }] });
+    const r = P.cierreConPerdon(cartera([p]), p, '2026-10-30', 0, { motivo: 'x', entiende: true });
+    assert.equal(r.ok, true, r.detalle);
+    const c = copia(p); c.condonaciones = [r.registros.condonacion]; Object.assign(c, r.registros.credito);
+    const e = abrirEspejo({ cartera: cartera([c]), ahora: '2026-10-30T15:00:00' });
+    const q = plano(e.ev('vistaQuincena()'));
+    assert.doesNotMatch(q, /\$100\.000 de capital devuelto/, 'contó como devuelto hoy un abono del 25-oct');
+    assert.match(q, /volvieron \$100\.000 de \$300\.000 · \$200\.000 de capital perdido/);
+  });
+
+  test('un pago de verdad sigue diciendo «capital devuelto»', () => {
+    const p = quincenal({ fechaDesembolso: '2026-10-16', cicloActual: '2026-10-31' });
+    const liq = P.liquidarCiclo(p, '2026-10-30');
+    const c = Object.assign(copia(p), { pagado: true, fechaPagado: '2026-10-30', cicloPago: '2026-10-31', cobroRegistrado: true,
+      gananciaPago: liq.costo + liq.recargo_mora, recargoMora: liq.recargo_mora, montoRecibido: liq.total_a_pagar, capitalPerdido: 0 });
+    const e = abrirEspejo({ cartera: cartera([c]), ahora: '2026-10-30T15:00:00' });
+    assert.match(plano(e.ev('vistaQuincena()')), /Pago · Marta.*\$300\.000 de capital devuelto/);
   });
 });
 
@@ -125,5 +189,47 @@ describe('2 · lo que el celular no hace, lo dice', () => {
     assert.equal(p.pagado, true);
     assert.equal(p.capitalPerdido, 0);
     assert.equal(p.montoRecibido, 375000);
+  });
+});
+
+/* 9-nov-2026 — la segunda ronda: el celular anota 100.000 a la cuota 1 y el computador
+   cierra con 300.000 sin traerlo. La tarjeta del choque prometía «se vuelve a anotar
+   después como abono a la cuota, desde el computador», y a un crédito cerrado no se le
+   puede anotar nada (abonoACuota contesta que ya está pagado). */
+describe('la tarjeta del choque no promete anotar un abono en un crédito cerrado', () => {
+  const NUBE = require(path.join(__dirname, '..', 'panel', 'nube.js'));
+  function cuotas() {
+    const plan = M.construirPlanACuotas(650000, [{ fecha: '2026-10-30', pct: 20 }, { fecha: '2026-11-15', pct: 20 }], { fechaDesembolso: '2026-10-16' });
+    return { id: 'c1', numero: 1, socioId: 's1', socioNombre: 'Marta Gómez', capital: 650000, costoPct: 20, fechaDesembolso: '2026-10-16',
+      cicloActual: '2026-10-30', prorrogas: [], abonosCapital: [], comprobantes: [], pagado: false, planPagos: P.planPagosDeAlta(plan) };
+  }
+  test('con un lado cerrado dice la salida que sí existe; sin lado cerrado, lo de siempre', () => {
+    const p = cuotas();
+    const r = P.cierreConPerdon(cartera([p]), p, '2026-11-02', 300000, { motivo: 'x', entiende: true });
+    assert.equal(r.ok, true, r.detalle);
+    const cerrado = copia(p); (r.registros.cuotas || []).forEach(x => Object.assign(cerrado.planPagos.cuotas.find(q => q.n === x.n), x));
+    cerrado.abonosCapital = cerrado.abonosCapital.concat(r.registros.abonos || []); cerrado.condonaciones = [r.registros.condonacion];
+    Object.assign(cerrado, r.registros.credito);
+    const cel = copia(p);
+    const ab = P.abonoACuota(cel, '2026-10-25', 100000);
+    assert.equal(ab.ok, true, ab.detalle);
+    cel.abonosCapital.push(ab.registros.abono);
+    assert.equal(P.abonoACuota(cerrado, '2026-11-03', 100000).ok, false, 'precondición: al cerrado no se le puede anotar');
+    const e = abrirEspejo({ cartera: cartera([copia(cel)]), ahora: '2026-11-04T10:30:00' });
+    e.ctx.__c = { tabla: 'creditos', id: 'c1', mio: cel, suyo: cerrado };
+    const h = plano(e.ev('avisoPagosDeCuotas(__c)'));
+    assert.match(h, /Los pagos de las cuotas no se juntan/, 'precondición: es la tarjeta de las cuotas');
+    assert.match(h, /un crédito cerrado ya no recibe abonos/);
+    assert.match(h, /quédate con el lado abierto y vuelve a cerrar el crédito desde el computador/);
+    /* Sin ningún lado cerrado, el texto de siempre. */
+    const otro = copia(p); const ab2 = P.abonoACuota(otro, '2026-10-26', 50000); otro.abonosCapital.push(ab2.registros.abono);
+    e.ctx.__d = { tabla: 'creditos', id: 'c1', mio: cel, suyo: otro };
+    const d = plano(e.ev('avisoPagosDeCuotas(__d)'));
+    if (/Los pagos de las cuotas no se juntan/.test(d)) {
+      assert.doesNotMatch(d, /ya no recibe abonos/);
+      assert.match(d, /se vuelve a anotar después como abono a la cuota, desde el computador/);
+    }
+    const hoja = require('node:fs').readFileSync(path.join(__dirname, '..', 'panel', 'subir.html'), 'utf8');
+    assert.match(hoja, /a un crédito cerrado no se le anotan abonos/, 'panel/subir.html prometía lo mismo');
   });
 });
