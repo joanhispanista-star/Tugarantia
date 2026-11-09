@@ -882,10 +882,20 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
     });
 
     /* 9-nov-2026 — el control avisó, como debía: con plata-e1, subir.html ya no sube el PIN. Ahora
-       vigila lo contrario: si el PIN volviera a subir, el aviso de arriba volvería a mentir. */
+       vigila lo contrario: si el PIN volviera a subir, el aviso de arriba volvería a mentir.
+       Y las dos cosas que el aviso afirma, cada una con lo que la hace cierta (revisión de
+       plata-e1: al juntar, la segunda había quedado como «espejo.html tiene <title>», que no
+       vigilaba nada): «tu PIN ya no sube a la nube» es nube.js, que no lo deja viajar, y «el
+       Panel en el bolsillo no te pide este PIN» es espejo.html, que entra con el correo y no
+       lee el PIN del CRM en ninguna parte. */
     test('control: subir.html dice que el PIN no sube, y el aviso lo cuenta así', () => {
       assert.match(LEER('panel/subir.html'), /Sube tu configuración del negocio, sin tu <b>PIN del Panel<\/b>/);
-      assert.match(LEER('panel/espejo.html'), /<title>/);
+      const NUBE = require(path.join(RAIZ, 'panel', 'nube.js'));
+      assert.equal('pin' in NUBE.configQueViaja({ pin: '482915', negocio: 'Tu Garantía' }), false, 'el PIN sube a la nube');
+      const espejo = LEER('panel/espejo.html');
+      assert.match(espejo, /<input id="cnCorreo" type="email"/, 'el Panel en el bolsillo ya no entra con el correo');
+      const sinComentarios = espejo.replace(/\/\*[\s\S]*?\*\//g, '');
+      assert.doesNotMatch(sinComentarios, /config\s*\.\s*pin|\[['"]pin['"]\]/, 'el Panel en el bolsillo lee el PIN del CRM');
     });
 
     test('al traer se va: ya no le sirve a nadie, y el paso 6 sigue diciendo de qué fecha es', async () => {
@@ -981,7 +991,11 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
         for (const donde of ['resumen3', 'avisoPinAntesDeTraer']) {
           assert.match(T.texto(donde), /subir tus ajustes desde el computador no lo cambia por el de hoy/, donde);
           assert.doesNotMatch(T.texto(donde), /así viaja el de hoy|la fecha del PIN tiene que ser la de hoy/, donde);
+          assert.doesNotMatch(T.texto(donde), /la fecha de arriba/, donde);
         }
+        /* «Hora del servidor» siempre dice hoy y está a la vista en este mismo paso: un aviso que
+           mandara a mirar «la fecha» se leería con esa (main lo vigilaba así; volvió al juntar). */
+        assert.match(T.texto('resumen3'), /Hora del servidor/);
       });
 
       test('control: el botón que nombra existe con ese texto, y es el del paso 3', () => {
