@@ -1327,3 +1327,66 @@ describe('F10. Lo que traer.html dice de la conexión es cierto, y no se borra',
     assert.equal(T.texto('notaConexion'), '');
   });
 });
+
+/* 9-nov-2026 — LO QUE ES DE ESTE APARATO NO SE VA CON LA CARTERA (revisión de plata-e1,
+   riesgo 11 del plan por otra puerta). Con la nube ya sin PIN —basta la primera ☁ Subir de
+   v143 con los ajustes cambiados—, «Traer» en un aparato que ya tenía cartera le quitaba su
+   PIN y la fecha de su último respaldo: el PIN de siempre ya no abría y el 1234 abría todo. */
+describe('F6b. Sin PIN en el paquete, este aparato conserva el suyo y su fecha del respaldo', () => {
+  const FILA = (id, datos) => ({ id, datos, borrado: false, actualizado_en: '2026-11-05T15:00:00Z', actualizado_por: 'crm' });
+  const paquete = ajustes => ({ completo: true, servidor_ahora: '2026-11-06T15:00:00Z', contadores: { cliente: 1, credito: 1, respaldado: 0 },
+    socios: [FILA('C1', SOCIO)], creditos: [FILA('P1', CREDITO)], respaldados: [], ajustes });
+  const SIN_PIN = { clave: 'config', datos: { negocio: 'Tu Garantía' }, actualizado_en: '2026-11-08T20:15:00Z', actualizado_por: 'subir' };
+  const CON_PIN = { clave: 'config', datos: { pin: '4321', negocio: 'Tu Garantía' }, actualizado_en: '2026-08-18T20:15:00Z', actualizado_por: 'subir' };
+  const nube = paq => url => /grant_type=password/.test(url)
+    ? { status: 200, cuerpo: { access_token: 'acceso-de-prueba', refresh_token: 'renovar-de-prueba', expires_in: 3600, user: { id: 'u1', email: 'duena@prueba.test' } } }
+    : /rpc\/panel_traer/.test(url) ? { status: 200, cuerpo: paq } : { status: 404, cuerpo: {} };
+  const conCartera = () => ({ [LLAVE]: JSON.stringify({ socios: [SOCIO], prestamos: [], config: { pin: '777111', ultimoRespaldo: '2026-10-20', negocio: 'Tu Garantía' } }) });
+  const traer = async (paq, almacen) => {
+    const T = abrirTraer({ red: nube(paq), almacen });
+    if (almacen && almacen[LLAVE]) { T.elems.pin.value = JSON.parse(almacen[LLAVE]).config.pin; T.tocar('btnPuerta'); }
+    T.elems.sbCorreo.value = 'duena@prueba.test'; T.elems.sbClave.value = 'una-clave-inventada';
+    T.tocar('btnEntrar');
+    await asentar();
+    T.tocar('btnMirar');
+    await asentar();
+    const paso3 = T.texto('resumen3');
+    T.tocar('btnRespaldo');
+    /* Con cartera, el respaldo baja un archivo de verdad (Blob y un <a>), que aquí no hay:
+       lo que se prueba es lo que pasa DESPUÉS del respaldo. */
+    T.ev('E.respaldoHecho = true; refrescarBotones()');
+    T.tocar('btnTraer');
+    await asentar();
+    return { T, paso3, config: JSON.parse(T.almacen[LLAVE]).config };
+  };
+
+  test('con cartera y PIN propio, la nube sin PIN no se lo quita, ni la fecha del respaldo', async () => {
+    const { T, paso3, config } = await traer(paquete([SIN_PIN]), conCartera());
+    assert.equal(T.texto('e5'), 'Traído', 'precondición: trajo');
+    assert.equal(config.pin, '777111', 'traer le quitó al aparato su PIN');
+    assert.equal(config.ultimoRespaldo, '2026-10-20');
+    assert.match(paso3, /Este aparato conserva el PIN que ya tenía/);
+    assert.doesNotMatch(paso3, /PIN 1234/);
+    assert.match(T.texto('msg6'), /El CRM te va a pedir el PIN que ya tenía este aparato/);
+    assert.ok(!T.texto('msg6').includes('777111') && !paso3.includes('777111'), 'la pantalla pintó el PIN');
+  });
+
+  test('sin ajustes en el paquete, también lo conserva', async () => {
+    const { paso3, config } = await traer(paquete([]), conCartera());
+    assert.equal(config.pin, '777111');
+    assert.match(paso3, /menos el PIN: este aparato conserva el que ya tenía/);
+  });
+
+  test('si el paquete trae un PIN (uno de antes de v143), manda ese, como dice la pantalla; la fecha del respaldo sigue siendo de aquí', async () => {
+    const { config } = await traer(paquete([CON_PIN]), conCartera());
+    assert.equal(config.pin, '4321');
+    assert.equal(config.ultimoRespaldo, '2026-10-20');
+  });
+
+  test('CONTROL: un aparato sin cartera y un paquete sin PIN arranca con el de fábrica, y lo dice', async () => {
+    const { T, paso3, config } = await traer(paquete([SIN_PIN]), {});
+    assert.ok(!config.pin, 'le inventó un PIN');
+    assert.match(paso3, /PIN 1234/);
+    assert.match(T.texto('msg6'), /PIN de fábrica \(1234\)/);
+  });
+});
