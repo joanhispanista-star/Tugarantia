@@ -206,6 +206,22 @@ describe('6-bis · un abono del otro aparato baja la pérdida del cierre que no 
     assert.match(t, /Capital perdido al cerrar \$20\.000/, 'dijo otra cosa: ' + t);
     assert.match(t, /de los \$300\.000 prestados volvieron \$280\.000/);
     assert.equal(CRM.ev('capitalRecuperadoTotal()'), 280000);
+    /* 9-nov-2026 — la segunda ronda: el renglón de arriba decía «+ $50.000 de capital»
+       y este «$20.000». Ahora los dos dicen lo que de verdad no volvió. */
+    assert.match(t, /Entró de verdad \$250\.000 con \$95\.000 perdonados al cerrar \(\$75\.000 de mora y costo \+ \$20\.000 de capital ?\)/, t);
+    assert.doesNotMatch(t, /\+ \$50\.000 de capital ?\)/, 'el mismo cuadro decía dos pérdidas');
+    assert.match(t, /al cerrar se anotaron \$50\.000 de capital perdido; un abono del otro aparato que el cierre no conocía la bajó a \$20\.000/);
+  });
+
+  test('sin abonos de otro aparato, el renglón dice lo de siempre', () => {
+    const p = quincenal();
+    const c = aplicar(p, P.cierreConPerdon(cartera(p), p, DIA, 250000, SI).registros);
+    const CRM = abrirPanel({ ahora: '2026-10-21T10:30:00' });
+    CRM.cargarCartera({ socios: [copia(SOCIO)], prestamos: [c], config: { negocio: 'Tu Garantía' } });
+    CRM.ev("verCredito('p1')");
+    const t = String(CRM.elems.mBody.innerHTML).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    assert.match(t, /con \$125\.000 perdonados al cerrar \(\$75\.000 de mora y costo \+ \$50\.000 de capital ?\): se quedó sin trabajo/);
+    assert.doesNotMatch(t, /se anotaron/);
   });
 });
 
