@@ -405,11 +405,24 @@
      fue a capital, así que no cobró ganancia (cierreConPerdon escribe gananciaPago
      0); con cuotas, alguna cuota quedó cerrada con perdón. Una fila sin esa forma
      no perdió capital al cerrar, traiga la llave que traiga. */
+  /* 9-nov-2026 — Y CON gananciaPago EN 0 TAMPOCO BASTA (revisión final de v142). Un «Se lo
+     perdoné» de v141 que perdonó todo el costo y la mora deja gananciaPago en 0 (la clienta
+     devolvió solo el capital), y si el mismo día el computador v142 cerró con pérdida, la
+     llave se copiaba igual: «Descuentos dados» contaba el perdón dos veces (150.000 por
+     75.000) y el detalle decía que un abono del otro aparato había cubierto un capital que
+     ningún abono cubrió. La forma que sí no se confunde: en un cierre con pérdida, lo que
+     el cierre no conoció (lo perdido + lo que entró − lo que hoy se debe) son abonos, así
+     que no puede pasar de lo que de verdad suman los abonos. Si pasa, esa fila devolvió
+     el capital: no perdió nada al cerrar. */
   function perdidaAnotada(p) {
     if (!(p && p.pagado)) return 0;
     var x = Math.max(0, Math.round(num(p.capitalPerdido)));
     if (!x) return 0;
-    if (!tienePlan(p)) return num(p.gananciaPago) > 0 ? 0 : x;
+    if (!tienePlan(p)) {
+      if (num(p.gananciaPago) > 0) return 0;
+      var abonado = lista(p.abonosCapital).reduce(function (t, a) { return t + Math.max(0, Math.round(num(a && a.monto))); }, 0);
+      return x + Math.round(num(p.montoRecibido)) - Math.round(capitalActual(p)) > abonado ? 0 : x;
+    }
     return cuotasPlan(p).some(function (q) { return q && q.pagado && (q.conPerdon || num(q.capitalPerdido) > 0); }) ? x : 0;
   }
   function abonosQueElCierreNoConocio(p) {

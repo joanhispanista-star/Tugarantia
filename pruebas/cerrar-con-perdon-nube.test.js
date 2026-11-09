@@ -313,3 +313,24 @@ describe('6 · la nube conserva la parte de capital, y un cierre que perdió el 
       NUBE.LISTAS_QUE_SUMAN.condonaciones).length, 1);
   });
 });
+
+/* 9-nov-2026 — la revisión final de v142 (caso a medias del «Se lo perdoné» de v141). */
+describe('un cierre de v141 contra uno con pérdida del mismo día', () => {
+  /* La revisión final de v142: un «Se lo perdoné» de v141 que perdonó todo el costo y la
+     mora (gananciaPago 0) contra un cierre con pérdida del mismo día. */
+  test('un «Se lo perdoné» de v141 con gananciaPago 0 no se lee como cierre con pérdida', () => {
+    const p = quincenal();
+    const liq = P.liquidarCiclo(p, DIA);
+    const v141 = Object.assign(copia(p), { pagado: true, fechaPagado: DIA, cicloPago: P.corteDelCredito(p), cobroRegistrado: true,
+      gananciaPago: 0, recargoMora: 0, costoCausado: liq.costo, moraCausada: liq.recargo_mora, montoRecibido: 300000,
+      condonaciones: [{ fecha: DIA, costo: liq.costo, mora: liq.recargo_mora, motivo: 'v141', quien: 'computador' }] });
+    const r = P.cierreConPerdon(cartera(p), p, DIA, 250000, SI);
+    const f = NUBE.fusionarFila(v141, aplicar(p, r.registros), NUBE.LISTAS_QUE_SUMAN).fila;
+    assert.equal(f.capitalPerdido, 50000, 'precondición: la llave se copió del otro lado');
+    assert.equal(P.perdidaDelCierre(f), 0);
+    assert.equal(P.gananciaCobrada(f), 0, 'inventó un abono que no hubo');
+    const db = cartera(f);
+    assert.equal(P.descuentosDeQuincena(db, f.cicloPago).total, 75000, 'contó dos veces el perdón');
+    assert.equal(P.capitalRecuperadoDe(f) + P.gananciaCobrada(f) + P.descuentosDeQuincena(db, f.cicloPago).total, 375000);
+  });
+});
