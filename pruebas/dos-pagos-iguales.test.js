@@ -317,3 +317,38 @@ describe('el abono suelto nace con id: el Panel en el bolsillo de verdad', () =>
     assert.equal(capital(N.fusionarFila(fila, base()).fila), 400000);
   });
 });
+
+/* 9-nov-2026 — LAS REGLAS QUE DECIDEN POR IDENTIDAD TAMBIÉN CUENTAN (revisión de plata-e1).
+   Desde que dos abonos iguales son dos, «conocer» un abono de 50.000 no es conocer dos. El
+   pacto y la prórroga anotada distinta miraban un sí o no, y «lo mío» se llevaba plata que
+   ese lado no tenía. */
+describe('el pago acordado y la prórroga cuentan los abonos repetidos', () => {
+  const pacto = () => ({ cuotas: [{ n: 1, fecha: '2026-11-20', capital: 450000, costo: 50000, total: 500000 }],
+    pacto: { fecha: '2026-11-06', cambios: [{ total: 500000 }] } });
+  const suma = f => (f.abonosCapital || []).reduce((t, x) => t + x.monto, 0);
+
+  test('un pacto que conocía UN abono de 50.000 no se queda con el segundo que hizo el otro aparato, y lo dice', () => {
+    const mia = Object.assign(conAbonos(abono(50000)), { planPagos: pacto() });
+    const suya = conAbonos(abono(50000), abono(50000));
+    const r = N.fusionarFila(mia, suya, N.LISTAS_QUE_SUMAN);
+    assert.equal(suma(r.fila), 50000, '«lo mío» se llevó un abono que el pacto no conocía');
+    assert.ok(r.pisables.some(p => p.campo === 'pagoAcordado'), 'la tarjeta no dice que hay plata fuera del pacto');
+  });
+
+  test('el pacto que sí conocía los dos se queda con los dos, sin choque de pago acordado', () => {
+    const mia = Object.assign(conAbonos(abono(50000), abono(50000)), { planPagos: pacto() });
+    const r = N.fusionarFila(mia, conAbonos(abono(50000), abono(50000)), N.LISTAS_QUE_SUMAN);
+    assert.equal(suma(r.fila), 100000);
+    assert.ok(!r.pisables.some(p => p.campo === 'pagoAcordado'));
+  });
+
+  test('la prórroga anotada distinta: «lo mío» deja a capital lo que la tarjeta dice de mi lado', () => {
+    const pr = monto => ({ fecha: HOY, ciclo: '2026-11-15', monto });
+    const mia = Object.assign(conAbonos(abono(50000)), { prorrogas: [pr(84000)] });
+    const suya = Object.assign(conAbonos(abono(50000), abono(50000)), { prorrogas: [pr(88000)] });
+    const r = N.fusionarFila(mia, suya, N.LISTAS_QUE_SUMAN);
+    const dice = r.pisables.find(p => p.campo === 'abonosCapital');
+    assert.deepEqual([dice.mio, dice.suyo], [50000, 100000]);
+    assert.equal(suma(r.fila), dice.mio, 'la tarjeta dice 50.000 de mi lado y «lo mío» deja otra cifra');
+  });
+});

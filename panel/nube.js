@@ -1246,11 +1246,17 @@
         pisables.push({ campo: 'prorrogas', mio: num(a.monto), suyo: num(b.monto) });
         var abM = suma(m.abonosCapital), abS = suma(s.abonosCapital);
         if (abM !== abS) pisables.push({ campo: 'abonosCapital', mio: abM, suyo: abS });
+        /* 9-nov-2026 — los míos CONTADOS: con dos abonos iguales del otro lado y uno
+           aquí, conSusRepetidos ya había metido los dos, y «lo mío» dejaba 100.000 a
+           capital con la tarjeta diciendo 50.000 de mi lado. */
         var mias = {};
-        lista(m.abonosCapital).forEach(function (x) { mias[identidad(x, idAb)] = true; });
+        lista(m.abonosCapital).forEach(function (x) { var q = identidad(x, idAb); mias[q] = (mias[q] || 0) + 1; });
         if (Array.isArray(fila.abonosCapital)) {
           fila.abonosCapital = fila.abonosCapital.filter(function (x) {
-            return !deEsa(x) || mias[identidad(x, idAb)];
+            if (!deEsa(x)) return true;
+            var q = identidad(x, idAb);
+            if (mias[q] > 0) { mias[q]--; return true; }
+            return false;
           });
         }
       });
@@ -1483,10 +1489,18 @@
     var r = { abonos: [], deCuota: [], prorrogas: [], perdones: [], acompanan: [], total: 0 };
     if (!conoce) return r;
     var mp = objeto(mapa);
+    /* 9-nov-2026 — «lo conoce» CUENTA (revisión de plata-e1). Desde que dos abonos
+       iguales son dos (conSusRepetidos), conocer uno de 50.000 no es conocer dos: con
+       un sí o no, el segundo, hecho después del pacto, entraba callado a la fila del
+       pacto y la tarjeta no decía nada. Cada uno que conoce tapa a UNO del otro lado. */
     var ya = function (l, campos) {
       var k = {};
-      lista(l).forEach(function (x) { k[identidad(x, campos)] = true; });
-      return function (x) { return !!k[identidad(x, campos)]; };
+      lista(l).forEach(function (x) { var q = identidad(x, campos); k[q] = (k[q] || 0) + 1; });
+      return function (x) {
+        var q = identidad(x, campos);
+        if (k[q] > 0) { k[q]--; return true; }
+        return false;
+      };
     };
     var conoceAb = ya(conoce.abonosCapital, mp.abonosCapital);
     var conocePr = ya(conoce.prorrogas, mp.prorrogas);
@@ -1604,12 +1618,18 @@
       return false;
     });
   }
-  /* Saca de una lista de `fila` los elementos de `quitar`, por su identidad. */
+  /* Saca de una lista de `fila` los elementos de `quitar`, por su identidad: tantos como
+     traiga `quitar` (9-nov-2026). Antes sacaba todos los de esa identidad, y con dos
+     abonos iguales, uno conocido por el pacto y otro no, se habría llevado los dos. */
   function quitarDeFila(fila, nombre, quitar, mapa) {
     if (!Array.isArray(fila[nombre]) || !lista(quitar).length) return;
     var campos = objeto(mapa)[nombre], fuera = {};
-    quitar.forEach(function (x) { fuera[identidad(x, campos)] = true; });
-    fila[nombre] = fila[nombre].filter(function (x) { return !fuera[identidad(x, campos)]; });
+    quitar.forEach(function (x) { var q = identidad(x, campos); fuera[q] = (fuera[q] || 0) + 1; });
+    fila[nombre] = fila[nombre].filter(function (x) {
+      var q = identidad(x, campos);
+      if (fuera[q] > 0) { fuera[q]--; return false; }
+      return true;
+    });
   }
   /* Un lado del choque del pago acordado, en una línea con fechas ISO y pesos
      sin puntos (las pantallas los ponen como los lee Joan):
