@@ -664,3 +664,27 @@ describe('con «Lo cobro», lo que deja de ser descuento y lo que pasa a gananci
     });
   });
 });
+
+/* 9-nov-2026 — revisión de plata-e1, cuarta tanda (pantalla): en el Tablero, los enlaces de la
+   franja ámbar salían en el azul subrayado del navegador y a 390 px el código del crédito se partía
+   en «CR-» / «0001». Aquí se mira lo que la hoja manda; lo de verdad se ve en las capturas. */
+describe('los enlaces del aviso del Tablero van en el color de la alerta, con el código entero', () => {
+  const hoja = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8').split(String.fromCharCode(13)).join('');
+  const css = hoja.slice(0, hoja.indexOf('</style>'));
+
+  test('cada crédito es un enlace de la alerta y su código va en una pieza', () => {
+    const C = abrirPanel({ ahora: '2026-10-21T10:30:00' });
+    const f = conAbonoDelOtro(q0, CAMINOS['CRM · Pagó todo']().cerrado, 60000);
+    C.cargarCartera({ socios: [copia(SOCIO)], prestamos: [copia(f)], config: { negocio: 'Tu Garantía' } });
+    const h = String(C.ev('avisoSobrantesPorDecidir()'));
+    assert.match(h, /<a href="#" class="enlace-alerta" onclick="verCredito\('p1'\);return false"><span class="cod-entero">CR-0001<\/span> · Marta Inventada · \$60\.000 por decidir<\/a>/, h);
+  });
+
+  test('la hoja les da el color del texto de la alerta y no deja partir el código', () => {
+    const regla = sel => { const i = css.indexOf(sel + '{'); assert.ok(i >= 0, 'falta la regla ' + sel); return css.slice(i, css.indexOf('}', i)); };
+    assert.match(regla('.alerta a.enlace-alerta'), /color:inherit/);
+    assert.match(regla('.alerta a.enlace-alerta .cod-entero'), /white-space:nowrap/);
+    /* Nada de colores a mano: solo tokens o inherit. */
+    assert.doesNotMatch(regla('.alerta a.enlace-alerta'), /#[0-9a-f]{3,6}\b|rgb\(/i);
+  });
+});

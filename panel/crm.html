@@ -508,6 +508,11 @@
   }
   .alerta{border-radius:9px;padding:10px 13px;font-size:13px;margin-bottom:14px;line-height:1.45}
   .alerta.warn{background:var(--ambar-tinte);color:var(--ambar);border:1px solid var(--ambar-medio)}
+  /* 9-nov-2026 — los créditos que nombra una alerta (avisoSobrantesPorDecidir): salían en el azul
+     subrayado del navegador sobre el ámbar, y a 390 px el código se partía en «CR-» / «0001».
+     Van en el color de la alerta, en negrita, con el código entero en una línea. */
+  .alerta a.enlace-alerta{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+  .alerta a.enlace-alerta .cod-entero{white-space:nowrap}
   /* Lo que SALIO BIEN es verde. Se agrego el 15-sep-2026 con el envio de
      mensajes: «enviado» no es una alarma ni una explicacion, y pintarlo del
      mismo color que un error hace que Joan no distinga el que fallo. */
@@ -7078,8 +7083,8 @@ function avisoSobrantesPorDecidir(){
   if(!ps.length) return '';
   return `<div class="alerta warn"><b>Llegó plata que ${ps.length===1?'un cierre no conoció':ps.length+' cierres no conocieron'}: decide qué es.</b> `
     +`Hasta que decidas, no cuenta en ninguna cifra. `
-    +ps.map(p=>{ const id=idDeBoton(p.id), t=`${escHTML(codCredito(p))} · ${escHTML(p.socioNombre||'')} · ${COP(PUENTE.sobrantePorDecidir(p))} por decidir`;
-      return id?`<a href="#" onclick="verCredito('${id}');return false">${t}</a>`:t; }).join(' · ')
+    +ps.map(p=>{ const id=idDeBoton(p.id), t=`<span class="cod-entero">${escHTML(codCredito(p))}</span> · ${escHTML(p.socioNombre||'')} · ${COP(PUENTE.sobrantePorDecidir(p))} por decidir`;
+      return id?`<a href="#" class="enlace-alerta" onclick="verCredito('${id}');return false">${t}</a>`:t; }).join(' · ')
     +`</div>`;
 }
 function verCredito(id){
