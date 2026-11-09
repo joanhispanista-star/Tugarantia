@@ -1564,14 +1564,28 @@
     var conId = function (x) { return x.id != null && x.id !== ''; };
     var llave = function (x) { return identidad(x, campos); };
     var dia = function (x) { return JSON.stringify([x.fecha === undefined ? null : x.fecha, x.monto === undefined ? null : x.monto]); };
-    var enLista = function (l) {
+    /* 9-nov-2026 — CUÁNTAS VECES, NO SI ESTÁ (revisión de plata-e1). Antes era un sí o
+       no: con dos abonos sin id del mismo día y monto, bastaba uno en común para que el
+       otro nunca fuera candidato. [a] contra [-,-] daba [a,-], bien; pero juntar otra vez
+       ese resultado con el mismo [-,-] daba tres abonos, y [-,-] contra [-,n] también:
+       350.000 de capital por dos pagos de 50.000. Ahora «solo de un lado» es lo que ese
+       lado trae DE MÁS de cada identidad, igual que cuenta conSusRepetidos. */
+    var cuenta = function (l) {
       var k = {};
-      lista(l).forEach(function (x) { k[llave(x)] = true; });
+      lista(l).forEach(function (x) { var q = llave(x); k[q] = (k[q] || 0) + 1; });
       return k;
     };
-    var enMias = enLista(mias), enSuyas = enLista(suyas);
-    var soloMias = lista(mias).filter(function (x) { return suelto(x) && !enSuyas[llave(x)]; });
-    var soloSuyas = lista(suyas).filter(function (x) { return suelto(x) && !enMias[llave(x)]; });
+    var deMas = function (l, otra) {
+      var vistos = {};
+      return lista(l).filter(function (x) {
+        if (!suelto(x)) return false;
+        var q = llave(x);
+        vistos[q] = (vistos[q] || 0) + 1;
+        return vistos[q] > (otra[q] || 0);
+      });
+    };
+    var soloMias = deMas(mias, cuenta(suyas));
+    var soloSuyas = deMas(suyas, cuenta(mias));
     var usadas = {}, sobran = {};
     soloSuyas.forEach(function (x) {
       for (var i = 0; i < soloMias.length; i++) {

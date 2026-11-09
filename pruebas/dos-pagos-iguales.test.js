@@ -211,6 +211,42 @@ describe('con dos versiones de la app a la vez: un abono con id en un aparato y 
     const conId = conAbonos(abono(50000, 'a')), sinId = conAbonos(abono(50000));
     assert.equal(capital(N.fusionarFila(conId, sinId, N.LISTAS_QUE_SUMAN).fila), capital(N.fusionarFila(sinId, conId, N.LISTAS_QUE_SUMAN).fila));
   });
+
+  /* 9-nov-2026 — la revisión de plata-e1 lo encontró con un barrido de todas las listas de
+     hasta tres abonos: la regla miraba SI una identidad estaba del otro lado, no CUÁNTAS
+     veces. Dos pagos reales de 50.000 quedaban en tres abonos y 350.000. */
+  test('juntar otra vez con DOS de antes del otro lado no crece: [a] y [-,-] siguen siendo dos pagos', () => {
+    const dosDeAntes = conAbonos(abono(50000), abono(50000));
+    const una = juntar(conAbonos(abono(50000, 'a')), dosDeAntes).fila;
+    assert.equal(capital(una), 400000);
+    const otra = juntar(una, dosDeAntes).fila;
+    assert.equal(otra.abonosCapital.length, 2, 'la vuelta repetida metió un abono que nadie anotó');
+    assert.equal(capital(otra), 400000);
+  });
+
+  test('el mismo segundo pago sin id de un lado y con id del otro, con uno de antes en los dos: 400.000', () => {
+    const aqui = conAbonos(abono(50000), abono(50000)), alla = conAbonos(abono(50000), abono(50000, 'n'));
+    assert.equal(capital(juntar(aqui, alla).fila), 400000);
+    assert.equal(capital(juntar(alla, aqui).fila), 400000);
+  });
+
+  test('todas las listas de hasta tres abonos: juntar dos veces da lo mismo que una, y nunca menos que el lado mayor', () => {
+    const atomos = ['', 'a', 'b'];
+    const listas = [[]];
+    atomos.forEach(x => listas.push([x]));
+    atomos.forEach(x => atomos.forEach(y => { if (!(x && x === y)) listas.push([x, y]); }));
+    atomos.forEach(x => atomos.forEach(y => atomos.forEach(z => {
+      if (!((x && (x === y || x === z)) || (y && y === z))) listas.push([x, y, z]);
+    })));
+    const fila = l => conAbonos(...l.map(id => abono(50000, id || undefined)));
+    for (const la of listas) for (const lb of listas) {
+      const a = fila(la), b = fila(lb);
+      const r = juntar(a, b).fila;
+      assert.ok(r.abonosCapital.length >= Math.max(la.length, lb.length), JSON.stringify([la, lb]));
+      assert.equal(juntar(r, b).fila.abonosCapital.length, r.abonosCapital.length, 'crece al volver a juntar: ' + JSON.stringify([la, lb]));
+      assert.equal(juntar(r, a).fila.abonosCapital.length, r.abonosCapital.length, 'crece al volver a juntar: ' + JSON.stringify([la, lb]));
+    }
+  });
 });
 
 describe('el abono suelto nace con id: el CRM de verdad', () => {
