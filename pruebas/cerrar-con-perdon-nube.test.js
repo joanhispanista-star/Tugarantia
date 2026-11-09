@@ -100,8 +100,12 @@ describe('6-bis · un abono del otro aparato baja la pérdida del cierre que no 
     assert.equal(P.perdidaDelCierre(f), 0);
     assert.equal(P.cerroConPerdida(f), false);
     assert.equal(P.capitalRecuperadoDe(f), 300000);
-    assert.equal(P.gananciaCobrada(f), 10000, 'los 10.000 de más entraron de verdad');
-    assert.equal(P.gananciaDelCredito(f).ganancia, 10000);
+    /* 9-nov-2026 — decisión de Joan: lo que sobra se pregunta, y por decidir no cuenta
+       (ver «lo que sobra se pregunta», abajo). Antes contaba 10.000 de ganancia en el total
+       y en ningún otro sitio. */
+    assert.equal(P.sobrantePorDecidir(f), 10000, 'los 10.000 de más entraron de verdad: tienen que salir por decidir');
+    assert.equal(P.gananciaCobrada(f), 0);
+    assert.equal(P.gananciaDelCredito(f).ganancia, 0);
   });
 
   test('sin choque, con el abono conocido al cerrar, la cuenta es la misma y no se descuenta dos veces', () => {
@@ -312,6 +316,136 @@ describe('6 · la nube conserva la parte de capital, y un cierre que perdió el 
     assert.equal(NUBE.fusionarListas([k], [Object.assign({}, k, { motivo: 'distinto' })],
       NUBE.LISTAS_QUE_SUMAN.condonaciones).length, 1);
   });
+});
+
+/* ==========================================================================
+ * 9-NOV-2026 — LO QUE SOBRA DE UN CIERRE SE PREGUNTA, CADA VEZ. Decisión de Joan:
+ * «Que me pregunte cada vez». Si lo que el celular anotó y el cierre no conocía pasa de
+ * lo que el cierre perdió, entró más que el capital. Antes eso contaba entero como
+ * ganancia en el total y en ningún otro sitio (385.000 de una deuda de 375.000). Ahora
+ * el CRM se detiene en ese crédito y Joan escoge; mientras no escoja, no cuenta en nada.
+ * Cada peso cuadra: lo que volvió + la ganancia + los descuentos + lo perdido = la deuda,
+ * y lo que sobra va aparte (por decidir, o a su favor).
+ * ======================================================================== */
+describe('lo que sobra se pregunta, y cada peso cuadra', () => {
+  const ABONO = monto => ({ fecha: '2026-10-18', monto, id: 'ab-celular' });
+  /* 300.000 al 20 % que el 20-oct debía 375.000 (60.000 de costo y 15.000 de mora); el
+     computador cierra con 250.000 sin conocer el abono del celular. */
+  function choque(monto) {
+    const p = quincenal();
+    const r = P.cierreConPerdon(cartera(p), p, DIA, 250000, SI);
+    assert.equal(r.ok, true, r.detalle);
+    const delCelular = copia(p);
+    delCelular.abonosCapital = [ABONO(monto)];
+    return NUBE.fusionarFila(aplicar(p, r.registros), delCelular, NUBE.LISTAS_QUE_SUMAN).fila;
+  }
+  const decidir = (f, destino) => Object.assign(copia(f), P.decidirSobrante(f, destino, '2026-10-22').registros);
+  const cuadre = f => {
+    const db = cartera(f), q = f.cicloPago;
+    return { recuperado: P.capitalRecuperadoDe(f), ganancia: P.gananciaCobrada(f), descuentos: P.descuentosDeQuincena(db, q).total,
+      perdida: P.perdidaDelCierre(f), aFavor: P.saldoAFavorDe(f), porDecidir: P.sobrantePorDecidir(f),
+      quincena: P.sobranteCobradoEnQuincena(f, q), fondo: P.movimientosCobradosCredito(f).reduce((t, m) => t + m.monto, 0),
+      garantia: P.garantiaGanadaCredito(f) };
+  };
+  const deuda = c => c.recuperado + c.ganancia + c.descuentos + c.perdida;
+
+  test('por decidir: no cuenta en la ganancia, la quincena, el descuento, el fondo ni la garantía, y se dice', () => {
+    const f = choque(60000);
+    const c = cuadre(f);
+    assert.equal(c.porDecidir, 10000);
+    assert.deepEqual([c.ganancia, c.quincena, c.fondo, c.aFavor], [0, 0, 0, 0]);
+    assert.equal(c.descuentos, 75000);
+    assert.equal(deuda(c), 375000, 'la cuenta de la deuda no cuadra');
+    assert.equal(c.garantia, P.garantiaGanadaCredito(choque(50000)), 'el sobrante por decidir movió la garantía');
+    const x = P.cuentaDelSobrante(f);
+    assert.deepEqual([x.enElCierre, x.delOtroAparato, x.perdidoAlCerrar, x.sobra], [250000, 60000, 50000, 10000]);
+  });
+
+  test('«Lo cobro»: paga primero la mora y el costo perdonados, es ganancia de la quincena del cierre y baja el descuento', () => {
+    const f = decidir(choque(60000), 'cobrar');
+    const c = cuadre(f);
+    assert.equal(c.porDecidir, 0);
+    assert.deepEqual([c.ganancia, c.quincena, c.descuentos, c.aFavor], [10000, 10000, 65000, 0]);
+    assert.equal(deuda(c), 375000);
+    assert.equal(c.fondo, 10000, 'lo cobrado no entró al 80/20');
+    assert.deepEqual(P.piezasDelSobrante(f), { mora: 10000, costo: 0, aFavor: 0 }, 'no fue primero a la mora');
+  });
+
+  test('«Lo cobro» con un abono grande: el perdón entero vuelve y el resto es saldo a su favor', () => {
+    const f = decidir(choque(200000), 'cobrar');
+    const c = cuadre(f);
+    assert.deepEqual([c.ganancia, c.quincena, c.descuentos, c.aFavor], [75000, 75000, 0, 75000]);
+    assert.equal(deuda(c), 375000);
+    assert.equal(c.recuperado + c.ganancia + c.aFavor, 450000, 'entraron 450.000: cada peso tiene que estar en algún lado');
+    assert.ok(c.garantia > P.garantiaGanadaCredito(choque(50000)), 'el costo cobrado no dejó garantía');
+    assert.equal(P.descuentosDelSocio(cartera(f), SOCIO).monto, 0, 'la ficha sigue diciendo un descuento que se cobró');
+  });
+
+  test('«Queda a su favor»: no es ganancia, el descuento se queda y el cliente tiene su saldo', () => {
+    const f = decidir(choque(60000), 'aFavor');
+    const c = cuadre(f);
+    assert.deepEqual([c.ganancia, c.quincena, c.descuentos, c.aFavor, c.fondo], [0, 0, 75000, 10000, 0]);
+    assert.equal(deuda(c), 375000);
+  });
+
+  test('si otro abono cambia lo que sobra, se vuelve a preguntar', () => {
+    const f = decidir(choque(60000), 'cobrar');
+    f.abonosCapital = f.abonosCapital.concat([{ fecha: '2026-10-19', monto: 5000, id: 'otro' }]);
+    assert.equal(P.sobrantePorDecidir(f), 15000);
+    assert.equal(P.gananciaCobrada(f), 0, 'contó una decisión que era de otra cifra');
+  });
+
+  test('la decisión viaja con el crédito y se junta como un campo más', () => {
+    const f = choque(60000);
+    const decidida = decidir(f, 'aFavor');
+    assert.equal(NUBE.fusionarFila(f, decidida, NUBE.LISTAS_QUE_SUMAN).fila.sobranteDecidido.destino, 'aFavor');
+    const otra = decidir(f, 'cobrar');
+    assert.ok(NUBE.fusionarFila(decidida, otra, NUBE.LISTAS_QUE_SUMAN).pisables.some(x => x.campo === 'sobranteDecidido'),
+      'dos decisiones distintas no salen en la tarjeta');
+  });
+
+  test('el CRM se detiene: el Tablero lo nombra, el crédito trae la caja con las cifras y los dos botones', () => {
+    const f = choque(60000);
+    const CRM = abrirPanel({ ahora: '2026-10-21T10:30:00' });
+    CRM.cargarCartera({ socios: [copia(SOCIO)], prestamos: [f], config: { negocio: 'Tu Garantía' } });
+    const aviso = String(CRM.ev('avisoSobrantesPorDecidir()')).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    assert.match(aviso, /Sobra plata en un cierre: decide qué es\./);
+    assert.match(aviso, /sobran \$10\.000/);
+    CRM.ev("verCredito('p1')");
+    const t = String(CRM.elems.mBody.innerHTML).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    assert.match(t, /Al cerrar en este computador entraron \$250\.000 y se anotaron \$50\.000 de capital perdido\. Otro aparato había anotado \$60\.000 que este cierre no conocía: con eso no se perdió capital y sobran \$10\.000 ?\./, t);
+    assert.match(t, /no cuentan en la ganancia, la quincena, el fondo ni la garantía/);
+    assert.match(String(CRM.elems.mBody.innerHTML), /decidirSobrante\('p1','cobrar'\)/);
+    assert.match(String(CRM.elems.mBody.innerHTML), /decidirSobrante\('p1','aFavor'\)/);
+    assert.equal(CRM.ev('gananciaDeQuincena(DB.prestamos[0].cicloPago)'), 0);
+  });
+
+  test('al escoger en el CRM, queda escrito, cuenta en la quincena y el Tablero deja de pedirlo', () => {
+    const f = choque(60000);
+    const CRM = abrirPanel({ ahora: '2026-10-21T10:30:00' });
+    CRM.cargarCartera({ socios: [copia(SOCIO)], prestamos: [f], config: { negocio: 'Tu Garantía' } });
+    CRM.ev("decidirSobrante('p1','cobrar')");
+    const enDisco = JSON.parse(CRM.almacen.joan_socios_v1).prestamos[0];
+    assert.equal(enDisco.sobranteDecidido.destino, 'cobrar');
+    assert.equal(enDisco.sobranteDecidido.monto, 10000);
+    assert.equal(CRM.ev('gananciaDeQuincena(DB.prestamos[0].cicloPago)'), 10000);
+    assert.equal(CRM.ev('avisoSobrantesPorDecidir()'), '');
+    CRM.ev("verCredito('p1')");
+    const t = String(CRM.elems.mBody.innerHTML).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    assert.match(t, /Lo que sobró al cerrar \$10\.000 · lo cobraste: \$10\.000 de lo que le habías perdonado/);
+    assert.match(t, /Entró de verdad \$250\.000 con \$65\.000 perdonados al cerrar/, 'el renglón sigue diciendo el perdón entero');
+  });
+
+  test('el celular dice que está por decidir y no lo cuenta en su quincena', () => {
+    const { abrirEspejo } = require('./banco-espejo.js');
+    const f = choque(60000);
+    const E = abrirEspejo({ cartera: cartera(f), ahora: '2026-10-21T10:30:00' });
+    assert.equal(E.ev('gananciaDeQuincena(' + JSON.stringify(f.cicloPago) + ')'), 0);
+    const g = decidir(f, 'cobrar');
+    const E2 = abrirEspejo({ cartera: cartera(g), ahora: '2026-10-21T10:30:00' });
+    assert.equal(E2.ev('gananciaDeQuincena(' + JSON.stringify(g.cicloPago) + ')'), 10000, 'el celular no cuenta lo que Joan cobró');
+  });
+
 });
 
 /* 9-nov-2026 — la revisión final de v142 (caso a medias del «Se lo perdoné» de v141). */

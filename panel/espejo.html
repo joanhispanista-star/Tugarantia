@@ -1249,6 +1249,9 @@ function gananciaDeQuincena(q) {
   DB.prestamos.forEach(function (p) {
     (p.prorrogas || []).forEach(function (pr) { if (pr.ciclo === q) g += Number(pr.monto) || 0; });
     if (p.pagado && p.cicloPago === q) g += Number(p.gananciaPago) || 0;
+    /* 9-nov-2026 — y lo que Joan decidió cobrar de lo que sobró de un cierre, en la
+       quincena del cierre: la misma cuenta del computador (sobranteCobradoEnQuincena). */
+    if (P.sobranteCobradoEnQuincena) g += P.sobranteCobradoEnQuincena(p, q);
     /* 16-oct-2026 — LO COBRADO DE LAS CUOTAS NO ENTRABA EN NINGUNA QUINCENA.
        Cobrar una cuota deja `gananciaPago` en cero a propósito (la ganancia va
        cuota por cuota), así que un crédito a cuotas entero —195.000 de costo en
@@ -4576,9 +4579,11 @@ function vistaFicha() {
      nada del motor ni del puente (regla 3). Va en la ficha porque el sobrepago
      vive dentro de un crédito ya cerrado, y sin esta línea la única forma de
      encontrarlo era abrir crédito por crédito acordándose de cuál fue. */
-  var aFavor = ps.reduce(function (t, x) { return t + Math.max(0, Number(x.saldoAFavor) || 0); }, 0);
+  /* 9-nov-2026 — con lo que Joan dejó a su favor de lo que sobró de un cierre. */
+  var aFavorDe = function (x) { return P.saldoAFavorDe ? P.saldoAFavorDe(x) : Math.max(0, Number(x.saldoAFavor) || 0); };
+  var aFavor = ps.reduce(function (t, x) { return t + aFavorDe(x); }, 0);
   if (aFavor > 0) {
-    var cuantos = ps.filter(function (x) { return Number(x.saldoAFavor) > 0; }).length;
+    var cuantos = ps.filter(function (x) { return aFavorDe(x) > 0; }).length;
     h += '<div class="aviso ambar"><b>Te ha pagado ' + COP(aFavor) + ' de más</b> '
       + '(en ' + cuantos + ' crédito' + (cuantos === 1 ? '' : 's') + '). Es plata suya. '
       + '<b>Esto no se descuenta solo del próximo crédito:</b> se lo aplicas tú a mano al '
@@ -4720,6 +4725,14 @@ function vistaCredito() {
         : '<div class="fila"><span class="k">Saldo de capital del crédito</span><span class="v">' + COP(capitalActual(p)) + '</span></div>')
     /* 22-oct-2026 — lo que te deja, la misma cuenta que en el computador. */
     + filaGananciaE(p)
+    /* 9-nov-2026 — LO QUE SOBRA DE UN CIERRE (decisión de Joan: «Que me pregunte cada
+       vez»). La decisión se toma en el computador, donde está la caja con las cifras;
+       aquí se dice que está por decidir y que mientras tanto no cuenta. */
+    + ((P.sobrantePorDecidir && P.sobrantePorDecidir(p))
+        ? '<div class="aviso ambar"><b>Sobran ' + COP(P.sobrantePorDecidir(p)) + ' en este cierre, por decidir.</b> '
+          + 'Lo que anotó otro aparato pasa de lo que el cierre perdió. Mientras Joan no decida en el computador qué es, '
+          + 'no cuenta en la ganancia, la quincena, el fondo ni la garantía.</div>'
+        : '')
     + '</div>';
 
   /* EL SOBREPAGO, A LA VISTA DESPUÉS DE CERRAR LA HOJA DE COBRO.
@@ -4729,8 +4742,10 @@ function vistaCredito() {
      mínimo es poder consultarlo.
      Y se dice que NO se descuenta solo, porque no se descuenta solo: nada en el
      repositorio lee este campo para crear el crédito siguiente. */
-  if (Number(p.saldoAFavor) > 0) {
-    h += '<div class="aviso ambar"><b>Pagó ' + COP(p.saldoAFavor) + ' de más en este crédito.</b> '
+  /* 9-nov-2026 — con lo que Joan dejó a su favor de lo que sobró de un cierre (P.saldoAFavorDe). */
+  var deMas = P.saldoAFavorDe ? P.saldoAFavorDe(p) : (Number(p.saldoAFavor) || 0);
+  if (deMas > 0) {
+    h += '<div class="aviso ambar"><b>Pagó ' + COP(deMas) + ' de más en este crédito.</b> '
       + 'Es plata del socio que quedó en tu mano. <b>No se descuenta sola del crédito siguiente</b>: '
       + 'cuando le vuelvas a prestar se la aplicas tú, o se la devuelves. '
       + 'Este número es la anotación de lo que pagó de más — no se borra solo cuando se lo devuelvas.</div>';
@@ -4857,7 +4872,11 @@ function vistaQuincena() {
   DB.prestamos.forEach(function (p) {
     (p.prorrogas || []).forEach(function (pr) { if (pr.fecha === hoy) prorrogadosHoy.push({ p: p, pr: pr }); });
   });
-  var cobradoHoy = pagadosHoy.reduce(function (t, p) { return t + (Number(p.gananciaPago) || 0); }, 0)
+  /* 9-nov-2026 — con lo cobrado de lo que sobró de un cierre (P.piezasDelSobrante). */
+  var cobradoHoy = pagadosHoy.reduce(function (t, p) {
+    var sob = P.piezasDelSobrante ? P.piezasDelSobrante(p) : { mora: 0, costo: 0 };
+    return t + (Number(p.gananciaPago) || 0) + sob.mora + sob.costo;
+  }, 0)
     + prorrogadosHoy.reduce(function (t, x) { return t + (Number(x.pr.monto) || 0); }, 0);
 
   var h = '<div class="card laca">'

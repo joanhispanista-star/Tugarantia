@@ -714,6 +714,8 @@
     <section class="view on" id="v-dash">
       <div class="ph"><div><h1>Tablero<span class="dot">.</span></h1><div class="sub">Tu negocio y la gestión del día</div></div>
         <button class="btn btn-rojo" onclick="nuevoCredito()">＋ Nuevo crédito</button></div>
+      <!-- 9-nov-2026 — lo que sobra de un cierre, por decidir (avisoSobrantesPorDecidir). -->
+      <div id="avisoSobrantes"></div>
       <div class="kpis" id="kpis"></div>
       <div class="kpi-title">📊 Indicadores del negocio</div>
       <div class="kpis2" id="kpis2"></div>
@@ -2457,6 +2459,7 @@ function renderKpis(){
      (perdidasDeCapital, cada pérdida en su quincena), sumada entera. */
   const capTotal=capitalPerdidoTotal();
   const moraA=DB.prestamos.filter(p=>estadoPrestamo(p)==='mora');
+  { const avS=document.getElementById('avisoSobrantes'); if(avS) avS.innerHTML=avisoSobrantesPorDecidir(); }
   document.getElementById('kpis').innerHTML=`
     <div class="kpi"><div class="et">💼 Capital en la calle</div><div class="nm">${COP(capCalle)}</div><div class="x">${act.length} créditos activos</div></div>
     <div class="kpi gan"><div class="et">💰 Ganancia cobrada (total)</div><div class="nm">${COP(ganTotal)}</div><div class="x">costos + prórrogas</div></div>
@@ -5522,7 +5525,9 @@ function quincenasRelevantes(){
    gananciaPago en cero a propósito (la ganancia vive en las cuotas), así que un
    plan entero cobrado no aparecía en ninguna quincena. La cuenta es del puente,
    porque el celular tiene su copia de este tablero. */
-function gananciaDeQuincena(q){ let g=0; DB.prestamos.forEach(p=>{ (p.prorrogas||[]).forEach(pr=>{if(pr.ciclo===q)g+=pr.monto;}); if(p.pagado&&p.cicloPago===q)g+=(p.gananciaPago||0); g+=PUENTE.cobradoDelPlanEnQuincena(p,q); }); return g; }
+/* 9-nov-2026 — y lo que Joan decidió cobrar de lo que sobró de un cierre, en la quincena
+   del cierre (PUENTE.sobranteCobradoEnQuincena; por decidir, nada). */
+function gananciaDeQuincena(q){ let g=0; DB.prestamos.forEach(p=>{ (p.prorrogas||[]).forEach(pr=>{if(pr.ciclo===q)g+=pr.monto;}); if(p.pagado&&p.cicloPago===q)g+=(p.gananciaPago||0); g+=PUENTE.cobradoDelPlanEnQuincena(p,q); g+=PUENTE.sobranteCobradoEnQuincena(p,q); }); return g; }
 /* 5-ago-2026 — LO QUE HABÍA EN LA CALLE EN UNA QUINCENA ES UNA PREGUNTA DEL
    PASADO. Esta función sumaba `capitalActual(p)` —el capital de HOY— y decidía
    si el crédito estaba abierto comparando `p.cicloActual`, que es el corte de
@@ -5720,7 +5725,7 @@ function verDia(iso){
     if(ev.cuo.length){ h+=`<div class="sub-h">📅 Cuotas pactadas (a cuotas o plan de pagos)</div>`+ev.cuo.map(c=>
       `<div class="info-row"><span class="k">${escHTML(c.p.socioNombre)}<div class="muted">cuota ${c.n} de ${c.de}, ya pactada</div></span><span class="vv"><b>${COP(c.monto)}</b> · <a target="_blank" href="${gcalUrl('Cobro '+c.p.socioNombre+' '+COP(c.monto),c.fecha,detalleCobro(c.p,c))}">+Google</a></span></div>`).join(''); }
     if(ev.des.length){ h+=`<div class="sub-h">💵 Desembolsos</div>`+ev.des.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv"><b>${COP(p.capital)}</b> · <a target="_blank" href="${gcalUrl('Desembolso '+p.socioNombre+' '+COP(p.capital),iso,'')}">+Google</a></span></div>`).join(''); }
-    if(ev.pag.length){ h+=`<div class="sub-h">✓ Pagos recibidos</div>`+ev.pag.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv gano">${COP(p.capital)} + ganancia ${COP(p.gananciaPago||0)}</span></div>`).join(''); }
+    if(ev.pag.length){ h+=`<div class="sub-h">✓ Pagos recibidos</div>`+ev.pag.map(p=>{ /* 9-nov-2026 — con lo que Joan cobró de lo que sobró del cierre, y lo que sobra por decidir dicho aparte (cajaDelSobrante) */ const sob=PUENTE.piezasDelSobrante(p), pend=PUENTE.sobrantePorDecidir(p); return `<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv gano">${COP(p.capital)} + ganancia ${COP((p.gananciaPago||0)+sob.mora+sob.costo)}${pend?` <span class="muted">· sobran ${COP(pend)} por decidir</span>`:''}</span></div>`; }).join(''); }
     /* 4-nov-2026 — «volvieron» y no «entraron»: capitalRecuperadoDe es lo que volvió
        de ese crédito en total, con los abonos de otros días. Lo de ese día lo dice el
        detalle («Entró de verdad»), y esta lista no suma nada. */
@@ -6091,7 +6096,7 @@ function verCliente(id){
   /* 7-sep-2026 — lo que te ha pagado DE MÁS, sumado. Es plata de él que tienes
      tú: se ve acá y en el crédito, y no se aplica sola a ningún crédito
      siguiente — la mano es la de Joan, y la pantalla no promete otra cosa. */
-  const aFavorTotal=ps.reduce((t,p)=>t+Math.max(0,Number(p.saldoAFavor)||0),0);
+  const aFavorTotal=ps.reduce((t,p)=>t+PUENTE.saldoAFavorDe(p),0);   // 9-nov-2026: con lo que Joan dejó a su favor de lo que sobró
   /* 22-oct-2026 (C3) — «Su cara», no «Selfie con cédula»: la selfie del registro
      de play/ nunca lleva la cédula en la mano, y Joan buscaba una cédula que no
      tenía por qué estar. */
@@ -6991,6 +6996,54 @@ function guardarRapidoACuotas(){
 }
 
 /* ===== VER CRÉDITO + comprobantes ===== */
+/* 9-nov-2026 — LO QUE SOBRA DE UN CIERRE SE PREGUNTA, CADA VEZ (decisión de Joan: «Que me
+   pregunte cada vez»; las cuentas, en el puente: decisionDelSobrante). Cuando lo que el
+   celular anotó y el cierre no conocía pasa de lo que el cierre perdió, el CRM se detiene
+   aquí: enseña lo anotado en cada aparato, lo perdido y lo que sobra, y Joan escoge.
+   Mientras no escoja, ese sobrante no cuenta en ninguna cifra: lo dice la caja, y el
+   Tablero avisa (avisoSobrantesPorDecidir). Con la decisión tomada, queda escrita aquí. */
+function cajaDelSobrante(p){
+  const c=PUENTE.cuentaDelSobrante?PUENTE.cuentaDelSobrante(p):null;
+  if(!c) return '';
+  const cifras=`Al cerrar en este computador entraron <b>${COP(c.enElCierre)}</b> y se anotaron <b>${COP(c.perdidoAlCerrar)}</b> de capital perdido. `
+    +`Otro aparato había anotado <b>${COP(c.delOtroAparato)}</b> que este cierre no conocía: con eso no se perdió capital y <b>sobran ${COP(c.sobra)}</b>.`;
+  if(c.decision){
+    const x=PUENTE.piezasDelSobrante(p);
+    const dijo=c.decision.destino==='cobrar'
+      ?`lo cobraste: ${COP(x.mora+x.costo)} de lo que le habías perdonado${x.aFavor?` y ${COP(x.aFavor)} a su favor`:''}`
+      :`queda a su favor: ${COP(x.aFavor)}`;
+    return `<div class="info-row fila-larga"><span class="k">Lo que sobró al cerrar</span><span class="vv"><b>${COP(c.sobra)}</b> <span class="muted">· ${dijo} (lo decidiste el ${fmtFecha(c.decision.fecha)})</span></span></div>`;
+  }
+  return `<div class="alerta warn" id="sobrante_${escHTML(p.id)}"><b>Sobra plata en este cierre: decide qué es.</b><br>${cifras}<br>`
+    +`Mientras no decidas, esos ${COP(c.sobra)} no cuentan en la ganancia, la quincena, el fondo ni la garantía.`
+    +`<div class="two" style="margin-top:10px">`
+    +`<button class="btn btn-rojo btn-sm" onclick="decidirSobrante('${escHTML(p.id)}','cobrar')">Lo cobro: paga lo que le perdoné</button>`
+    +`<button class="btn btn-ghost btn-sm" onclick="decidirSobrante('${escHTML(p.id)}','aFavor')">Queda a su favor</button></div>`
+    +`<div class="muted" style="margin-top:6px;font-size:12px">«Lo cobro»: ${COP(c.siCobra.ganancia)} son ganancia de la quincena del cierre y bajan el descuento${c.siCobra.aFavor?`, y ${COP(c.siCobra.aFavor)} quedan a su favor`:''}. `
+    +`«Queda a su favor»: los ${COP(c.siAFavor.aFavor)} son del cliente.</div></div>`;
+}
+function decidirSobrante(id,destino){
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  const c=PUENTE.cuentaDelSobrante(p); if(!c) return;
+  const txt=destino==='cobrar'
+    ?'Cobrar lo que sobró: '+COP(c.siCobra.ganancia)+' entran como ganancia de la quincena del cierre'+(c.siCobra.aFavor?' y '+COP(c.siCobra.aFavor)+' quedan a su favor':'')+'.'
+    :'Dejar a su favor los '+COP(c.sobra)+' que sobraron.';
+  if(!confirm(txt+'\n\n¿Lo anoto?')) return;
+  const r=PUENTE.decidirSobrante(p,destino,hoyISO(),'computador');
+  if(!r.ok) return alert(r.detalle);
+  Object.assign(p,r.registros);
+  if(!quedoEnDisco()){ render(); return; }
+  verCredito(id); render();
+}
+/* Los créditos donde sobra plata por decidir: el Tablero los nombra, uno por uno. */
+function avisoSobrantesPorDecidir(){
+  const ps=(DB.prestamos||[]).filter(p=>PUENTE.sobrantePorDecidir&&PUENTE.sobrantePorDecidir(p)>0);
+  if(!ps.length) return '';
+  return `<div class="alerta warn"><b>Sobra plata en ${ps.length===1?'un cierre':ps.length+' cierres'}: decide qué es.</b> `
+    +`Hasta que decidas, no cuenta en ninguna cifra. `
+    +ps.map(p=>`<a href="#" onclick="verCredito('${escHTML(p.id)}');return false">${escHTML(codCredito(p))} · ${escHTML(p.socioNombre||'')} · sobran ${COP(PUENTE.sobrantePorDecidir(p))}</a>`).join(' · ')
+    +`</div>`;
+}
 function verCredito(id){
   const p=DB.prestamos.find(x=>x.id===id),s=DB.socios.find(x=>x.id===p.socioId)||{},est=estadoPrestamo(p);
   /* El historial dice a qué corte pasó DE VERDAD (`nuevoCiclo`), no a cuál
@@ -7125,7 +7178,7 @@ function verCredito(id){
     ${filaGanancia}
     <div class="info-row"><span class="k">Desembolso</span><b>${fmtFecha(p.fechaDesembolso)}</b></div>
     <div class="info-row"><span class="k">${p.pagado?((PUENTE.cerroConPerdida&&PUENTE.cerroConPerdida(p))?'Cerrado el':'Pagado el'):(pactoV?'Paga (fecha acordada)':cP?`Vence la cuota ${cP.n}`:'Vence (quincena)')}</span><b>${p.pagado?fmtFecha(p.fechaPagado):fmtFecha(PUENTE.corteDelCredito(p))}</b></div>
-    ${(()=>{ /* solo los perdones del CIERRE: los de prórroga van en su renglón */ const vig=PUENTE.condonacionDelCierre?PUENTE.condonacionDelCierre(p):null; const cc=(p.condonaciones||[]).filter(c=>c&&c.sobre!=='prorroga'&&c.sobre!=='pacto'&&(PUENTE.condonacionVigente?PUENTE.condonacionVigente(p,c):(c.sobre!=='cierre'||!(Number(c.capital)>0)||c===vig))); /* 9-nov-2026: la regla de cuál perdón del cierre cuenta vive en el puente (condonacionVigente); aquí estaba copiada con la de antes */ /* 22-oct-2026: ni el capital perdonado al pactar, que no es un perdón del cierre. 30-oct-2026: y del cierre con «Se lo perdoné», solo el vigente (el de un cierre que perdió el choque de la nube no ocurrió), con su capital dicho aparte */ const mc=cc.reduce((t,c)=>t+(Number(c.costo)||0)+(Number(c.mora)||0),0), capAnotado=cc.reduce((t,c)=>t+(Number(c.capital)||0),0);
+    ${(()=>{ /* solo los perdones del CIERRE: los de prórroga van en su renglón */ const vig=PUENTE.condonacionDelCierre?PUENTE.condonacionDelCierre(p):null; const cc=(p.condonaciones||[]).filter(c=>c&&c.sobre!=='prorroga'&&c.sobre!=='pacto'&&(PUENTE.condonacionVigente?PUENTE.condonacionVigente(p,c):(c.sobre!=='cierre'||!(Number(c.capital)>0)||c===vig))); /* 9-nov-2026: la regla de cuál perdón del cierre cuenta vive en el puente (condonacionVigente); aquí estaba copiada con la de antes */ /* 22-oct-2026: ni el capital perdonado al pactar, que no es un perdón del cierre. 30-oct-2026: y del cierre con «Se lo perdoné», solo el vigente (el de un cierre que perdió el choque de la nube no ocurrió), con su capital dicho aparte */ const mc=cc.reduce((t,c)=>{ const x=PUENTE.moraYCostoPerdonados?PUENTE.moraYCostoPerdonados(p,c):c; return t+(Number(x.costo)||0)+(Number(x.mora)||0); },0), capAnotado=cc.reduce((t,c)=>t+(Number(c.capital)||0),0);
       /* 9-nov-2026 — el capital perdonado es el que de verdad no volvió (perdidaDelCierre), el mismo del renglón «Capital
          perdido al cerrar» de abajo. Con un abono del otro aparato que el cierre no conocía, este renglón decía «+ $50.000
          de capital» y el de abajo «$20.000» (segunda ronda de la revisión): lo anotado al cerrar se dice aparte. */
@@ -7133,7 +7186,8 @@ function verCredito(id){
       const abono=capAnotado>cap?` · al cerrar se anotaron ${COP(capAnotado)} de capital perdido; un abono del otro aparato que el cierre no conocía ${cap?`la bajó a ${COP(cap)}`:'cubrió ese capital'}`:'';
       return p.pagado&&p.montoRecibido!=null&&cc.length?`<div class="info-row fila-larga"><span class="k">Entró de verdad</span><span class="vv"><b>${COP(p.montoRecibido)}</b> <span class="muted">con ${COP(mc+cap)} perdonados al cerrar${cap?` (${COP(mc)} de mora y costo + <span class="pierde">${COP(cap)} de capital</span>)`:''}: ${escHTML(cc.map(c=>c.motivo).filter(Boolean).join(' · '))}${abono}</span></span></div>`:''; })()}
     ${PUENTE.perdidaDelCierre&&PUENTE.perdidaDelCierre(p)?`<div class="info-row"><span class="k">Capital perdido al cerrar</span><span class="vv"><b class="pierde">${COP(PUENTE.perdidaDelCierre(p))}</b> <span class="muted">· plata tuya que no vuelve: de los ${COP(p.capital)} prestados volvieron ${COP(PUENTE.capitalRecuperadoDe(p))}</span></span></div>`:''}
-    ${p.saldoAFavor>0?`<div class="info-row"><span class="k">Pagó de más</span><span class="vv"><b>${COP(p.saldoAFavor)}</b> <span class="muted">a su favor · anotado acá, NO se aplica solo al crédito siguiente</span></span></div>`:''}
+    ${cajaDelSobrante(p)}
+    ${PUENTE.saldoAFavorDe(p)>0?`<div class="info-row"><span class="k">Pagó de más</span><span class="vv"><b>${COP(PUENTE.saldoAFavorDe(p))}</b> <span class="muted">a su favor · anotado acá, NO se aplica solo al crédito siguiente</span></span></div>`:''}
     ${pr?`<div class="sub-h">Prórrogas</div>${pr}`:''}
     ${abs?`<div class="sub-h">Abonos a capital</div>${abs}`:''}
     ${planHTML}
