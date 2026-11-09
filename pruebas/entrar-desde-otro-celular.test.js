@@ -1079,9 +1079,12 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
 describe('F7. Mirar el CRM no crea una cartera', () => {
   const ENTRADAS = [...CRM.matchAll(/<button class="navbtn[^"]*" data-v="([a-z]+)">/g)].map(m => m[1]);
 
-  test('control: el menú sigue teniendo sus 16 entradas', () => {
-    assert.equal(ENTRADAS.length, 16, ENTRADAS.join(','));
+  /* 9-nov-2026 — 17: entró «🗺️ Mapa» (panel/mapa-clientes.js). Así las dos
+     pruebas de abajo también tocan el mapa, que solo lee la cartera. */
+  test('control: el menú sigue teniendo sus 17 entradas', () => {
+    assert.equal(ENTRADAS.length, 17, ENTRADAS.join(','));
     assert.ok(ENTRADAS.includes('ventas'));
+    assert.ok(ENTRADAS.includes('mapa'));
   });
 
   test('en un navegador vacío, tocar «Ventas» ya no escribe nada', () => {
@@ -1090,7 +1093,7 @@ describe('F7. Mirar el CRM no crea una cartera', () => {
     assert.equal(P.almacen[LLAVE], undefined, 'con solo mirar nació la llave de la cartera');
   });
 
-  test('ninguna de las 16 entradas del menú la crea', () => {
+  test('ninguna de las 17 entradas del menú la crea', () => {
     const P = abrirPanel({ red: () => Promise.reject(new Error('sin red')) });
     ENTRADAS.forEach(v => {
       P.ev('irA(' + JSON.stringify(v) + ')');

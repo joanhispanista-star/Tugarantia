@@ -252,11 +252,217 @@ describe('3 · nunca coordenadas del cliente', () => {
   });
 
   test('ninguno de los dos archivos lee ubicación, latitud ni geolocalización', () => {
-    for (const f of ['panel/mapa-lugares.js']) {
+    for (const f of ['panel/mapa-lugares.js', 'panel/mapa-clientes.js']) {
       const codigo = leer(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
       for (const x of ['ubicacion', '.lat', '.lng', 'latitud', 'longitud', 'geolocation', 'coords', '.ip']) {
         assert.ok(!codigo.includes(x), f + ' menciona «' + x + '» fuera de un comentario');
       }
     }
+  });
+});
+
+/* ==========================================================================
+ * 4 · La conquista
+ * ======================================================================== */
+describe('4 · conquista: 3 clientes con un crédito pagado entero', () => {
+  const MC = fresco();
+  const enSoacha = n => Array.from({ length: n }, (_, i) => cliente('s' + (i + 1), 'Soacha'));
+
+  test('precondición: el puente de verdad distingue los tres créditos', () => {
+    assert.equal(P.cerroConPerdida(conPerdida('x', 's')), true);
+    assert.equal(P.cerroConPerdida(pagado('y', 's')), false);
+  });
+
+  test('tres que pagaron entero: conquistado', () => {
+    const db = { socios: enSoacha(3), prestamos: [pagado('p1', 's1'), pagado('p2', 's2'), pagado('p3', 's3')] };
+    const q = MC.conquistas(MC.resumir(db, MAPA, P), MAPA);
+    assert.deepEqual(q.conquistados.map(x => x.c), ['25754']);
+    assert.equal(q.conClientes, 1);
+    assert.equal(q.total, 1122);
+  });
+
+  test('un cierre con pérdida no cuenta como pago', () => {
+    const db = { socios: enSoacha(3), prestamos: [pagado('p1', 's1'), pagado('p2', 's2'), conPerdida('p3', 's3')] };
+    const q = MC.conquistas(MC.resumir(db, MAPA, P), MAPA);
+    assert.deepEqual(q.conquistados, []);
+    assert.equal(q.porConquistar[0].pagaron, 2);
+  });
+
+  test('un crédito abierto tampoco', () => {
+    const db = { socios: enSoacha(3), prestamos: [pagado('p1', 's1'), pagado('p2', 's2'), abierto('p3', 's3')] };
+    assert.deepEqual(MC.conquistas(MC.resumir(db, MAPA, P), MAPA).conquistados, []);
+  });
+
+  test('cuentan CLIENTES, no créditos: uno con tres créditos pagados es uno', () => {
+    const db = { socios: enSoacha(3), prestamos: [pagado('p1', 's1'), pagado('p2', 's1'), pagado('p3', 's1')] };
+    assert.deepEqual(MC.conquistas(MC.resumir(db, MAPA, P), MAPA).conquistados, []);
+  });
+
+  test('sin la regla del motor (un puente viejo) no se cuenta ninguna conquista', () => {
+    const db = { socios: enSoacha(3), prestamos: [pagado('p1', 's1'), pagado('p2', 's2'), pagado('p3', 's3')] };
+    const r = MC.resumir(db, MAPA, {});
+    assert.equal(r.reglaDePago, false);
+    assert.deepEqual(MC.conquistas(r, MAPA).conquistados, []);
+  });
+
+  test('los que no se ubican no conquistan nada y salen en la lista con lo que escribieron', () => {
+    const db = { socios: [cliente('s1', 'Mosquera'), cliente('s2', 'Mosquera'), cliente('s3', 'Mosquera')],
+      prestamos: [pagado('p1', 's1'), pagado('p2', 's2'), pagado('p3', 's3')] };
+    const r = MC.resumir(db, MAPA, P);
+    assert.deepEqual(MC.conquistas(r, MAPA).conquistados, []);
+    assert.equal(r.sinUbicar.length, 3);
+    assert.equal(r.sinUbicar[0].texto, 'Mosquera');
+    assert.equal(r.sinUbicar[0].estado, 'ambiguo');
+  });
+});
+
+/* ==========================================================================
+ * 5 · «1–2»
+ * ======================================================================== */
+describe('5 · con uno o dos clientes se dice «1–2»', () => {
+
+  test('la cifra, lo que falta y el color', () => {
+    const MC = fresco();
+    assert.equal(MC.cifra(0), '0');
+    assert.equal(MC.cifra(1), '1–2');
+    assert.equal(MC.cifra(2), '1–2');
+    assert.equal(MC.cifra(3), '3');
+    assert.equal(MC.cifra(1500), '1.500');
+    assert.equal(MC.faltan(0), 'faltan 3');
+    assert.equal(MC.faltan(1), 'faltan 1–2', 'faltar 2 diría que pagó exactamente uno');
+    assert.equal(MC.faltan(2), 'faltan 1–2');
+    assert.equal(MC.faltan(3), '');
+    assert.equal(MC.tramo(1), MC.tramo(2), 'el color separaba el 1 del 2');
+    assert.notEqual(MC.tramo(2), MC.tramo(3));
+  });
+
+  test('en la pantalla: el departamento, el municipio y la conquista con dos clientes no dicen «2»', async () => {
+    const MC = fresco();
+    const caja = cajaFalsa();
+    const db = { socios: [cliente('s1', 'Neiva'), cliente('s2', 'Neiva')], prestamos: [pagado('p1', 's1'), pagado('p2', 's2')] };
+    await MC.abrir({ caja, db, puente: P, pedir: pedirMapa });
+    assert.match(caja.innerHTML, /Huila · 1–2 clientes/);
+    assert.match(caja.innerHTML, /<span>Huila<\/span><b>1–2<\/b>/);
+    assert.doesNotMatch(caja.innerHTML, /· 2 clientes|<b>2<\/b>/);
+    MC._estado.depto = '41';
+    await MC.abrir({ caja, db, puente: P });
+    assert.match(caja.innerHTML, /Neiva \(Huila\) · 1–2 clientes/);
+    assert.doesNotMatch(caja.innerHTML, /· 2 clientes|<b>2<\/b>/);
+    MC._estado.vista = 'conquistas'; MC._estado.depto = null;
+    await MC.abrir({ caja, db, puente: P });
+    assert.match(caja.innerHTML, /faltan 1–2/);
+    assert.doesNotMatch(caja.innerHTML, /faltan 1</);
+  });
+
+  test('los créditos de las fuentes se ven en la pestaña', async () => {
+    const MC = fresco();
+    const caja = cajaFalsa();
+    await MC.abrir({ caja, db: { socios: [], prestamos: [] }, puente: P, pedir: pedirMapa });
+    assert.ok(caja.innerHTML.includes('Límites: DANE, vía geoBoundaries (CC BY 4.0) y OCHA/HDX (CC BY-IGO)'));
+  });
+});
+
+/* ==========================================================================
+ * 6 · La pestaña en el CRM: entra como las demás, lleva a la ficha, solo lee
+ * ======================================================================== */
+describe('6 · la pestaña «🗺️ Mapa» en el CRM', () => {
+  const CRM = leer('panel/crm.html');
+
+  test('botón en el menú, su vista, y irA la pinta al entrar', () => {
+    assert.match(CRM, /<button class="navbtn" data-v="mapa"><span class="ic">🗺️<\/span> Mapa<\/button>/);
+    assert.match(CRM, /<section class="view" id="v-mapa">[\s\S]*?<div id="mapaCaja"><\/div>/);
+    const irA = CRM.slice(CRM.indexOf('function irA(v)'), CRM.indexOf('\ndocument.querySelectorAll(\'.navbtn\')'));
+    assert.match(irA, /if\(v==='mapa'&&typeof abrirMapaClientes==='function'\)abrirMapaClientes\(\)/);
+  });
+
+  test('los .js nuevos se piden con ?v=143, la hoja también, y el mapa NO va en la precarga', () => {
+    assert.match(CRM, /<script src="mapa-lugares\.js\?v=143"><\/script>/);
+    assert.match(CRM, /<script src="mapa-clientes\.js\?v=143"><\/script>/);
+    assert.match(CRM, /<link rel="stylesheet" href="mapa-clientes\.css\?v=143">/);
+    assert.ok(!leer('sw.js').includes('colombia-2026-11.json'), 'el mapa (570 KB) se colaría en la precarga de cada teléfono');
+  });
+
+  test('se ve en el celular: a 880 px o menos, una sola columna', () => {
+    const hoja = leer('panel/mapa-clientes.css');
+    const m = /@media \(max-width:880px\)\{([\s\S]*?)\n\}/.exec(hoja);
+    assert.ok(m, 'la hoja no tiene la regla de 880 px');
+    assert.match(m[1], /\.mapa-cuerpo\{grid-template-columns:minmax\(0,1fr\)\}/);
+  });
+
+  test('sin colores a mano: la hoja usa solo los tokens del CRM', () => {
+    const hoja = leer('panel/mapa-clientes.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.doesNotMatch(hoja, /#[0-9a-f]{3,8}\b/i, 'un hex suelto');
+    assert.doesNotMatch(hoja, /rgba?\(\s*\d/, 'un rgb() con números en vez de una variable');
+  });
+
+  test('cada cliente sin ubicar lleva a su ficha', async () => {
+    const MC = fresco();
+    const caja = cajaFalsa();
+    const abiertas = [];
+    await MC.abrir({ caja, db: { socios: [cliente('s7', 'Narnia')], prestamos: [] }, puente: P, pedir: pedirMapa,
+      abrirFicha: id => abiertas.push(id) });
+    assert.match(caja.innerHTML, /#7 Persona s7<\/b> · escribió «Narnia»/);
+    assert.match(caja.innerHTML, /data-mapa="ficha" data-id="s7"/);
+    const boton = { getAttribute: k => ({ 'data-mapa': 'ficha', 'data-id': 's7' }[k]) };
+    caja.oy.click({ target: { closest: () => boton } });
+    assert.deepEqual(abiertas, ['s7']);
+  });
+
+  test('dibuja en menos de 1 s con 1.122 municipios y 2.000 clientes', async () => {
+    const MC = fresco();
+    const caja = cajaFalsa();
+    const ciudades = ['Bogotá', 'Soacha', 'Medellín', 'Cali', 'Neiva', 'Pasto', 'Mosquera'];
+    const socios = Array.from({ length: 2000 }, (_, i) => cliente('s' + i, ciudades[i % ciudades.length]));
+    const prestamos = socios.filter((_, i) => i % 2).map((s, i) => pagado('p' + i, s.id));
+    await MC.abrir({ caja, db: { socios, prestamos }, puente: P, pedir: pedirMapa });
+    MC._estado.vista = 'conquistas';
+    const t = Date.now();
+    await MC.abrir({ caja, db: { socios, prestamos }, puente: P });
+    assert.ok(Date.now() - t < 1000, 'tardó ' + (Date.now() - t) + ' ms');
+    assert.equal((caja.innerHTML.match(/<path class="mapa-q /g) || []).length, 1122);
+  });
+});
+
+describe('7 · la pestaña solo LEE la cartera', () => {
+
+  test('los dos archivos no guardan ni escriben el almacenamiento', () => {
+    for (const f of ['panel/mapa-lugares.js', 'panel/mapa-clientes.js']) {
+      const codigo = leer(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+      for (const x of ['setItem', 'removeItem', 'localStorage', 'guardar(', 'sessionStorage', 'indexedDB']) {
+        assert.ok(!codigo.includes(x), f + ' usa ' + x);
+      }
+    }
+  });
+
+  test('en el CRM de verdad: abrir el mapa no toca el disco ni llama a guardar()', async () => {
+    const { abrirPanel } = require('./banco-panel.js');
+    const red = url => (/mapa\/colombia-2026-11\.json$/.test(url) ? pedirMapa()
+      : Promise.reject(new Error('sin red')));
+    const B = abrirPanel({ red });
+    B.cargarCartera({ socios: [cliente('s1', 'Soacha'), cliente('s2', 'Mosquera')],
+      prestamos: [pagado('p1', 's1')] });
+    /* Los dos módulos corren DENTRO de la página, como en el navegador: así
+       un guardar() o un localStorage suyos serían los de la página, y esta
+       prueba los vería. */
+    const vm = require('node:vm');
+    for (const f of ['panel/mapa-lugares.js', 'panel/mapa-clientes.js']) vm.runInContext(leer(f), B.ctx, { filename: f });
+    assert.equal(typeof B.ctx.MapaClientes.abrir, 'function', 'precondición: el módulo cargó en la página');
+    B.ev('window.__guardo = 0; guardar = function () { window.__guardo++; };');
+    const antes = JSON.stringify(B.almacen);
+    const dbAntes = JSON.stringify(B.ev('DB'));
+    B.ev("irA('mapa')");
+    for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r));
+    assert.match(B.elems.mapaCaja.innerHTML, /<svg class="mapa-svg/, 'el mapa no se pintó: ' + B.elems.mapaCaja.innerHTML.slice(0, 200));
+    assert.match(B.elems.mapaCaja.innerHTML, /Mosquera/, 'el cliente sin ubicar no salió');
+    assert.equal(B.ev('window.__guardo'), 0, 'la pestaña llamó a guardar()');
+    assert.equal(JSON.stringify(B.almacen), antes, 'la pestaña escribió en el almacenamiento');
+    assert.equal(JSON.stringify(B.ev('DB')), dbAntes, 'la pestaña le cambió algo a la cartera');
+  });
+
+  test('si los dos archivos no llegaron, la pestaña lo dice (y no queda en blanco)', () => {
+    const { abrirPanel } = require('./banco-panel.js');
+    const B = abrirPanel({});
+    B.ev("irA('mapa')");
+    assert.match(B.elems.mapaCaja.innerHTML, /versión vieja del CRM: el mapa no cargó/);
   });
 });

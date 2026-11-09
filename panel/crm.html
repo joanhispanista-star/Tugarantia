@@ -48,6 +48,9 @@
 <!-- La hoja del chat es la MISMA que carga la app del socio. No trae colores
      propios: se pinta con los tokens de esta página. -->
 <link rel="stylesheet" href="../app/chat.css">
+<!-- 9-nov-2026 — la pestaña «🗺️ Mapa» (panel/mapa-clientes.js). Sin colores
+     propios: se pinta con los tokens de esta página. -->
+<link rel="stylesheet" href="mapa-clientes.css?v=143">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -683,6 +686,8 @@
     <button class="navbtn" data-v="cred"><span class="ic">💵</span> Créditos</button>
     <button class="navbtn" data-v="resp"><span class="ic">🛡️</span> Con garantía</button>
     <button class="navbtn" data-v="clientes"><span class="ic">🧑‍🤝‍🧑</span> Clientes</button>
+    <!-- 9-nov-2026 — dónde están tus clientes, por zonas (panel/mapa-clientes.js). -->
+    <button class="navbtn" data-v="mapa"><span class="ic">🗺️</span> Mapa</button>
     <button class="navbtn" data-v="cobranzas"><span class="ic">📣</span> Cobranzas</button>
     <button class="navbtn" data-v="ventas"><span class="ic">📈</span> Ventas</button>
     <button class="navbtn" data-v="comercial"><span class="ic">🚀</span> Comercial</button>
@@ -954,6 +959,16 @@
           oninput="renderClientes()" onkeydown="if(event.key==='Enter')abrirUnicoCliente()">
       </div>
       <div class="card"><div id="tblClientes"></div></div>
+    </section>
+
+    <!-- 9-nov-2026 — EL MAPA DE TUS CLIENTES, pedido de Joan con maquetas: la
+         opción 1 (Departamentos) más la 3 (Conquistas). Zonas, nunca puntos: sale
+         de la ciudad de cada ficha, no del GPS. Lo pinta panel/mapa-clientes.js,
+         que solo LEE la cartera; el mapa (panel/mapa/colombia-2026-11.json) se
+         baja al abrir la pestaña la primera vez, no al abrir el CRM. -->
+    <section class="view" id="v-mapa">
+      <div class="ph"><div><h1>Mapa<span class="dot">.</span></h1><div class="sub">Dónde están tus clientes, por departamento y municipio · y los municipios que ya conquistaste</div></div></div>
+      <div id="mapaCaja"></div>
     </section>
 
     <section class="view" id="v-socios">
@@ -24182,7 +24197,9 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
      salía en blanco hasta el botón, y una función que Joan no encuentra no
      existe. Callado: un fallo se pinta en la tarjeta, no en un alert. */
   if(v==='mensajes'){ renderMensajes(); traerConversaciones(); traerChatEquipo(true); }
-  if(v==='resp')renderRespaldados(); }
+  if(v==='resp')renderRespaldados();
+  /* 9-nov-2026 — el mapa se pinta al entrar, no en cada render(): solo lee. */
+  if(v==='mapa'&&typeof abrirMapaClientes==='function')abrirMapaClientes(); }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>irA(b.dataset.v)));
 /* 6-nov-2026 — EN EL CELULAR EL TOQUE SE NOTA. A 880 px o menos el menú no va al lado
    del contenido sino encima (la media query de la hoja): mide 1.301 px en el CRM de
@@ -24557,6 +24574,24 @@ setTimeout(function(){ if(!window.NubeCRM){ var b=document.getElementById('nubeB
    no llegó, la línea de Ajustes quedaría vacía, y vacía no se distingue de
    «todo bien». El botón manual sigue sirviendo, y se dice. */
 setTimeout(function(){ if(!window.HistorialesAuto){ var b=document.getElementById('historialesBarra'); if(b) b.innerHTML='<div class="alerta warn">Este computador está sirviendo una versión vieja del CRM: los historiales de tus clientes NO suben solos. Recárgalo con Ctrl+Shift+R; mientras, Ajustes → Avanzado → ☁ Subir historiales.</div>'; try{ pintarNubeTodo(); }catch(e){} } },1500);
+</script>
+<!-- 9-nov-2026 — LA PESTAÑA «🗺️ MAPA». Después del bloque grande, como
+     nube-crm.js: no hace nada al cargar, y lo que usa (DB, PUENTE, verCliente)
+     ya existe cuando Joan toca la pestaña. -->
+<script src="mapa-lugares.js?v=143"></script>
+<script src="mapa-clientes.js?v=143"></script>
+<script>
+/* 9-nov-2026 — la RECETA E del mapa: si los dos archivos no llegaron (un
+   service worker viejo, sin señal), la pestaña lo dice en vez de quedar vacía.
+   Le pasa la cartera para LEER (DB) y la regla de pagado del motor (PUENTE);
+   no le pasa guardar(). El fetch va desde aquí y no desde el módulo para que
+   sea el de esta página (el del service worker y el de las pruebas). */
+function abrirMapaClientes(){
+  var caja=document.getElementById('mapaCaja'); if(!caja) return;
+  if(!window.MapaClientes||!window.MapaLugares){ caja.innerHTML='<div class="alerta warn">Este computador está sirviendo una versión vieja del CRM: el mapa no cargó. Recárgalo con Ctrl+Shift+R.</div>'; return; }
+  try{ window.MapaClientes.abrir({ caja:caja, db:DB, puente:PUENTE, abrirFicha:function(id){ verCliente(id); }, pedir:function(u){ return fetch(u); } }); }
+  catch(e){ caja.innerHTML='<div class="alerta warn">El mapa no se pudo dibujar: '+escHTML((e&&e.message)||e)+'</div>'; }
+}
 </script>
 <script>
 /* 23-oct-2026 — LA SESIÓN DE 24 H SE RETOMA AL ABRIR (ver «LA SESIÓN DURA 24
