@@ -453,3 +453,43 @@ describe('después de negarse, la pestaña vieja no le promete nada a nadie', ()
   });
 
 });
+
+/* 9-nov-2026 — revisión de plata-e1 (leve c): dos avisos de éxito seguían con alert normal
+   después de un guardar() que puede negarse. «Listo: quedaron anotados N contacto(s)» le dice
+   a Joan que esa gente ya no le va a salir esta semana (el tope de la Ley 2300 se cuenta con esa
+   anotación), y «Listo: … volvió a como estaba antes de ese cruce», que la ficha ya no tiene
+   lo de otra persona. En la pestaña vieja ninguno de los dos quedó en el disco. */
+describe('los avisos de «Listo» tras guardar callan en la pestaña vieja', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  test('«Listo: quedaron anotados» no sale si la anotación de los contactos no quedó', () => {
+    const { A, B, almacen } = dosPestanas();
+    cobrar(A, 'P1', 100000);
+    const antes = almacen[KEY];
+    B.ev("__avisos = []; alert = function (m) { __avisos.push(String(m)); }; confirm = function () { return true; }");
+    B.ev("__p = ['texto', '2026-11-03']; prompt = function () { return __p.shift(); }");
+    B.ev("_cob.lote = { socios: ['C1'], plantillas: ['recordatorio'], archivo: 'lote.csv', cuando: Date.now() }");
+    B.ev('marcarLoteEnviado()');
+    assert.equal(almacen[KEY], antes, 'la pestaña vieja escribió encima');
+    const dijo = JSON.parse(B.ev('JSON.stringify(__avisos)'));
+    assert.ok(!dijo.some(m => /^Listo: quedaron anotados/.test(m)), 'dijo que quedaron anotados: ' + dijo.join(' | '));
+    assert.match(aviso(B), OTRA_PESTANA, 'la franja no dijo lo que pasó');
+  });
+
+  test('CONTROL: en la pestaña buena, el aviso sale como siempre', () => {
+    const { A } = dosPestanas();
+    A.ev("__avisos = []; alert = function (m) { __avisos.push(String(m)); }; confirm = function () { return true; }");
+    A.ev("__p = ['texto', '2026-11-03']; prompt = function () { return __p.shift(); }");
+    A.ev("_cob.lote = { socios: ['C1'], plantillas: ['recordatorio'], archivo: 'lote.csv', cuando: Date.now() }");
+    A.ev('marcarLoteEnviado()');
+    assert.ok(JSON.parse(A.ev('JSON.stringify(__avisos)')).some(m => /^Listo: quedaron anotados 1 contacto/.test(m)));
+  });
+
+  test('«Listo: … volvió a como estaba antes de ese cruce» pasa por avisoDeExito', () => {
+    const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8').replace(/\r\n/g, '\n');
+    const codigo = CRM.replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.ok(!codigo.includes("alert('Listo: '+(s.nombre||'la ficha')+' volvió a como estaba"), 'sigue con alert normal');
+    assert.ok(codigo.includes("avisoDeExito('Listo: '+(s.nombre||'la ficha')+' volvió a como estaba antes de ese cruce.')"));
+    assert.ok(!codigo.includes("alert('Listo: quedaron anotados"), 'sigue con alert normal');
+  });
+});

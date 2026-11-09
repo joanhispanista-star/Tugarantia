@@ -3123,7 +3123,9 @@ function deshacerUnion(ficha,nombre,celular){
           +'y le dejó sus fotos de cédula, su selfie y su huella si no tenía.\n\n'
           +'Si esa persona no era tu cliente, nada de eso es suyo.\n\n¿Deshago también el cruce? Vuelven los datos que la ficha tenía antes y se sueltan las fotos de ese registro.')){
           deshacerCruce(s,c);
-          alert('Listo: '+(s.nombre||'la ficha')+' volvió a como estaba antes de ese cruce.');
+          /* 9-nov-2026 — deshacerCruce guarda, y en una pestaña vieja guardar() se niega: «Listo»
+             solo si quedó (avisoDeExito; la franja ya dijo lo que pasó). */
+          avisoDeExito('Listo: '+(s.nombre||'la ficha')+' volvió a como estaba antes de ese cruce.');
         }
       });
       cuentasJuntas();
@@ -4701,8 +4703,11 @@ function marcarLoteEnviado() {
   var r = anotarContactos(filas, canal === 'voz' ? 'voz' : 'sms', dia);
   _cob.lote = null;
   renderCobranzas();
+  /* 9-nov-2026 — anotarContactos guarda, y en una pestaña vieja guardar() se niega: decir
+     «quedaron anotados» ahí es decirle que esa gente ya no le va a salir esta semana (el tope
+     de la Ley 2300 se cuenta con esa anotación) sin que nada haya quedado. */
   if (!r.perdidos) {
-    alert('Listo: quedaron anotados ' + r.anotados + ' contacto(s) del ' + dia + '.\n\n' +
+    avisoDeExito('Listo: quedaron anotados ' + r.anotados + ' contacto(s) del ' + dia + '.\n\n' +
           'Esa gente ya no te va a aparecer para escribirle esta semana.');
   }
 }
