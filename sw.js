@@ -2032,7 +2032,19 @@
    panel/espejo.html, ya en v142). Y el CRM no
    afirma de la cédula que falta lo que no se sabe, «Volver» tras «Tomar las fotos»
    regresa a «Tu rostro», y un pasaporte se llama pasaporte: dos páginas, play/index.html
-   y panel/crm.html, ya en v142, y ningún .js publicado. */
+   y panel/crm.html, ya en v142, y ningún .js publicado.
+   9-nov-2026, la segunda ronda de la revisión, y main (04e6ac2) junto en la rama: la
+   salida de la puerta del PIN, traer.html y el chat del equipo vienen de main, que
+   está en v141, así que publicar esto es publicar v142 encima de lo que ya hay.
+   Cambian páginas, todas ya en v142: panel/crm.html (PlataChat como en main, la fila
+   «Cédula leída», la ficha con lo que dijo la base, la marca de la fila, «Revisar la
+   cartera», la galería, el WhatsApp del cierre con cuál crédito, el detalle a 390 px,
+   el botón después de la casilla, el capital perdido en total), panel/espejo.html (la
+   tarjeta del choque, «volvieron», el total, {credito}), panel/subir.html (la tarjeta
+   del choque) y play/index.html (la vuelta de la cámara tras «Tomar las fotos»; su
+   VERSION_PLAY sube al 9-nov). Y un .js ya en v142 y sin publicar: app/puente.js (un
+   solo perdón del cierre cuenta, un «Pagó todo» de v141 no se lee como cierre con
+   pérdida, y exporta condonacionVigente). Nada más sube de versión. No hay base nueva. */
 const CACHE = 'tugarantia-v142';
 const BASE = new URL('./', self.location).pathname;
 
