@@ -2097,7 +2097,25 @@
    cerrado dice «Capital prestado».
    Cambian app/puente.js y panel/nube.js, que ya iban en ?v=143, y las páginas crm, espejo,
    subir y traer. CACHE y VERSION_SITIO ya decían v143. No hay base nueva: la decisión es
-   el mismo campo sobranteDecidido, con su cifra y su cierre (jsonb). */
+   el mismo campo sobranteDecidido, con su cifra y su cierre (jsonb).
+   9-nov-2026, v143 (cuarta tanda de E1): QUE LA PANTALLA DIGA LO QUE HACE LA CUENTA. El
+   celular dice «Capital prestado» en un crédito cerrado sin pérdida, como el computador. En
+   el detalle del CRM, la lista de abonos dice de cada abono que el cierre no conoció lo que
+   es: por decidir, cobrado (cuánto volvió a capital y cuánto es ganancia), a su favor o «era
+   la misma plata»; ya no lo llama «capital que vuelve». «Entró de verdad» dice que el perdón
+   se cobró con la plata del otro aparato, en vez de «$0 perdonados». La ayuda de «Queda a su
+   favor» nombra solo lo que hubo. Los créditos del aviso del Tablero van en el color de la
+   alerta y su código no se parte, y los botones de la caja miden 44 px en pantalla chica. Y
+   un hueco que hoy no se alcanza: con cuotas, lo cobrado de esa plata cae en la quincena de
+   su descuento (antes bajaba el descuento y no sumaba a ninguna ganancia).
+   Cambian app/puente.js, que ya iba en ?v=143 (no sube nada), y las páginas crm y espejo.
+   No hay base nueva.
+   OJO, distinto de v142: app/comisiones.js y app/gente.js (referidos, racha y «Créditos que
+   pagó») preguntan cerroConPerdida, que lee perdidaDelCierre. En v142 un abono del celular
+   que cubría la pérdida la bajaba solo, y el cierre dejaba de contar como pérdida. Desde v143
+   ese cierre sigue contando como pérdida (la comisión espera, y no cuenta como pago para el
+   referido, la racha ni «Créditos que pagó») hasta que Joan escoja «Lo cobro». Es lo
+   prudente: puede ser la misma plata. */
 const CACHE = 'tugarantia-v143';
 const BASE = new URL('./', self.location).pathname;
 
