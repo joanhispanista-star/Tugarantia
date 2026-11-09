@@ -24050,6 +24050,16 @@ function alTocarElMenu(ev) {
 (function () { const lado = document.querySelector('.side'); if (lado) lado.addEventListener('click', alTocarElMenu); })();
 function entrar(){ const retomada=_retomandoDueno===true, campoPin=document.getElementById('pinInput');
   if(!retomada) document.getElementById('pinErr').className='gate-err';
+  /* 9-nov-2026 — EL PIN SE COMPARA CON LO QUE HAY EN EL DISCO, NO CON LO DE HACE HORAS
+     (revisión de plata-e1). Una puerta abierta en un aparato sin cartera tiene en memoria
+     el 1234 de fábrica; si la cartera llegaba mientras tanto por otra pestaña (traer.html),
+     ese 1234 entraba y la relectura de abajo enseñaba las fichas de verdad. Antes de E1
+     abría un CRM con 0 fichas; con la relectura, abría la cartera. Se relee ANTES de
+     comparar, y la salida de la puerta vuelve a decir lo que hay. */
+  if(!retomada && !_crmAbierto && !_oyendoCartera && _otraPestanaEscribio()){
+    DB=cargar(); _selloDesdeDisco(false); if(_fechasMigradas) guardar();
+    try{ pintarSalidaDeLaPuerta(); }catch(e){}
+  }
   if(retomada||campoPin.value===DB.config.pin){
     /* 23-oct-2026 — LA SESIÓN DE 24 H (ver «LA SESIÓN DURA 24 HORAS»). Con el
        PIN se abre una nueva y el PIN no se queda escrito en el campo; al

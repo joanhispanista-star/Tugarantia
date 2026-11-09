@@ -439,4 +439,17 @@ describe('después de negarse, la pestaña vieja no le promete nada a nadie', ()
     assert.match(aviso(B), /no se guardó/);
   });
 
+  test('una puerta vieja no abre con el 1234 de su memoria la cartera que llegó después', () => {
+    const almacen = {};
+    const B = abrirPanel({ almacen, ahora: HOY, tarjeta: true });
+    assert.equal(B.ev('DB.config.pin'), '1234', 'precondición: aparato sin cartera');
+    const A = abrirPanel({ almacen, ahora: HOY });
+    A.cargarCartera(clon(CARTERA));
+    B.ev("document.getElementById('pinInput').value = '1234'; entrar()");
+    assert.equal(B.ev('_crmAbierto'), false, 'el PIN de fábrica abrió la cartera de verdad');
+    B.ev("document.getElementById('pinInput').value = '123456'; entrar()");
+    assert.equal(B.ev('_crmAbierto'), true, 'con el PIN de la cartera que llegó no entra');
+    assert.equal(B.ev('DB.socios.length'), 2);
+  });
+
 });
