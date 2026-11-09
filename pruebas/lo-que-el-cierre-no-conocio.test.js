@@ -710,3 +710,32 @@ describe('los botones de la caja miden al menos 44 px en pantalla chica', () => 
     assert.ok(ok, 'ninguna regla de pantalla chica lleva los botones de la caja a 44 px');
   });
 });
+
+/* 9-nov-2026 — revisión de plata-e1, cuarta tanda (texto): la ayuda de «Queda a su favor» decía
+   «lo perdido y perdonado queda como se anotó» también en un «Se lo perdoné» sin pérdida. */
+describe('la ayuda de «Queda a su favor» nombra solo lo que hubo', () => {
+  const ayuda = f => {
+    const C = abrirPanel({ ahora: '2026-10-21T10:30:00' });
+    C.cargarCartera({ socios: [copia(SOCIO)], prestamos: [copia(f)], config: { negocio: 'Tu Garantía' } });
+    const t = plano(C.ev('cajaDelSobrante(DB.prestamos[0])'));
+    const m = /«Queda a su favor»: .*?\. /.exec(t);
+    assert.ok(m, 'no salió la ayuda: ' + t);
+    return m[0];
+  };
+
+  test('sin pérdida, solo lo perdonado', () => {
+    const t = ayuda(conAbonoDelOtro(q0, CAMINOS['CRM · Se lo perdoné sin pérdida (315.000)']().cerrado, 60000));
+    assert.doesNotMatch(t, /perdido/, t);
+    assert.match(t, /los \$60\.000 son del cliente; lo perdonado queda como se anotó\./, t);
+  });
+
+  test('con pérdida y perdón, las dos cosas', () => {
+    const t = ayuda(conAbonoDelOtro(q0, CAMINOS['Se lo perdoné con pérdida (250.000)']().cerrado, 60000));
+    assert.match(t, /lo perdido y lo perdonado quedan como se anotaron\./, t);
+  });
+
+  test('CONTROL: sin perder ni perdonar nada, lo del cierre', () => {
+    const t = ayuda(conAbonoDelOtro(q0, CAMINOS['CRM · Pagó todo']().cerrado, 60000));
+    assert.match(t, /lo del cierre queda como se anotó\./, t);
+  });
+});

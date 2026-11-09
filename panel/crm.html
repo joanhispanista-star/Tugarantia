@@ -7064,7 +7064,10 @@ function cajaDelSobrante(p){
       +`</div>`:'')
     +`<div class="muted" style="margin-top:6px;font-size:12px">`
     +(hay('cobrar')?`«Es plata nueva»: ${enFrase(va)}. `:'')
-    +`«Queda a su favor»: los ${COP(c.delOtroAparato)} son del cliente; lo ${hay('cobrar')?'perdido y perdonado':'del cierre'} queda como se anotó. `
+    /* 9-nov-2026 — cuarta tanda: decía «lo perdido y perdonado queda como se anotó» también en un
+       «Se lo perdoné» sin pérdida, donde no se perdió nada. Nombra solo lo que hubo. */
+    +`«Queda a su favor»: los ${COP(c.delOtroAparato)} son del cliente; ${pe.capital&&(pe.mora+pe.costo)?'lo perdido y lo perdonado quedan como se anotaron'
+      :pe.capital?'lo perdido queda como se anotó':(pe.mora+pe.costo)?'lo perdonado queda como se anotó':'lo del cierre queda como se anotó'}. `
     +`«Era la misma plata»: esos ${COP(c.delOtroAparato)} ya estaban dentro de lo que se anotó al cerrar (por ejemplo, te dijo que ya se los había dado al cobrador): no suman nada y las cifras quedan como el cierre las anotó.</div></div>`;
 }
 function decidirSobrante(id,destino){
