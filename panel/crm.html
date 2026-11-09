@@ -7538,7 +7538,23 @@ function preguntasDelPerdon(p,r,e){
   return `${dsc.veces?`<div class="alerta warn">Ya lleva <b>${dsc.veces} descuento${dsc.veces!==1?'s':''}</b> por ${COP(dsc.monto)}.</div>`:''}
     <div class="field"><label>¿Por qué se lo perdonas?</label>
       <input id="pgMotivo" type="text" maxlength="120" value="${escHTML(e.motivo)}" placeholder="se quedó sin trabajo, cliente viejo…" oninput="_cobro.motivo=this.value;pintarBoton('${p.id}')"></div>
-    ${x>0?`<label class="casilla-perdida"><input type="checkbox" id="pgEntiende" ${Number(e.entiende)===x?'checked':''} onchange="_cobro.id='${p.id}';_cobro.entiende=this.checked?${x}:0;pintarBoton('${p.id}')"><span>Entiendo que pierdo <b>${COP(x)}</b> de capital</span></label>`:''}`;
+    ${x>0?`<label class="casilla-perdida"><input type="checkbox" id="pgEntiende" ${Number(e.entiende)===x?'checked':''} onchange="_cobro.id='${p.id}';_cobro.entiende=this.checked?${x}:0;pintarBoton('${p.id}')"><span>Entiendo que pierdo <b>${COP(x)}</b> de capital</span></label>`:''}
+    ${botonDeAbajoDelPerdon(p,e)}`;
+}
+/* 9-nov-2026 — EL BOTÓN PARA CERRAR, TAMBIÉN DESPUÉS DE LA CASILLA. La segunda ronda
+   de la revisión: Joan escribe el motivo, marca «Entiendo que pierdo $X» y no pasa
+   nada a la vista. La casilla es lo último del cuadro, y el botón rojo quedó arriba,
+   detrás de la cabecera: a 1280 px había que subir unos 700 px pasando Prórroga,
+   Abonó, Pactar y Ajustar; en un iPhone, también en a cuotas y en pago acordado. La
+   maqueta que aprobó Joan ponía el botón después de la casilla.
+   Es el MISMO botón, no otra decisión: llama a registrarCobro como el de arriba,
+   nace con la decisión de la hoja (decisionDeLaHoja) y pintarBoton los repinta
+   juntos. El de arriba se queda donde estaba: quien ya lo usa lo sigue encontrando. */
+function botonDeAbajoDelPerdon(p,e){
+  let dc=null;
+  try{ dc=decisionDeLaHoja(p,liqCredito(p,gv('pgFecha')||hoyISO()),e); }catch(err){ dc=null; }
+  if(!dc) return '';
+  return `<button type="button" class="btn ${dc.listo?'btn-rojo':'btn-ghost'}" id="pgBtnCierre" ${dc.listo?'':'disabled'} style="width:100%;margin-top:8px" onclick="registrarCobro('${p.id}')">${escHTML(dc.txt)}</button>`;
 }
 /* La hoja del perdón en un crédito con cuotas: el recuadro, lo que cuesta, las
    preguntas y la vuelta atrás. Si el puente no puede ni hacer la cuenta, lo
@@ -7710,6 +7726,9 @@ function pintarBoton(id){
      repinta con lo que vale para ESE crédito, no con la cuenta del quincenal. */
   const liq=liqCredito(p,gv('pgFecha')||hoyISO()), e=estadoDelCobro(p,liq), dc=decisionDeLaHoja(p,liq,e);
   btn.disabled=!dc.listo; btn.className=dc.listo?'btn btn-rojo':'btn btn-ghost'; btn.textContent=dc.txt;
+  /* 9-nov-2026 — y el de abajo de la hoja del perdón, igual (botonDeAbajoDelPerdon). */
+  const abajo=document.getElementById('pgBtnCierre');
+  if(abajo){ abajo.disabled=btn.disabled; abajo.className=btn.className; abajo.textContent=btn.textContent; }
 }
 /* La pregunta de abajo. Los números del descuento (garantía, lo que te cuesta)
    ya están arriba, en el mismo bloque de siempre: acá solo se pregunta. */

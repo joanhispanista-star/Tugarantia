@@ -468,3 +468,46 @@ describe('el detalle de un cierre con perdón cabe en un iPhone', () => {
     assert.match(bloque, /#mBody \.info-row\.fila-larga \.vv\{flex:1 1 100%;min-width:0;text-align:left\}/);
   });
 });
+
+/* 9-nov-2026 — la segunda ronda: al marcar «Entiendo que pierdo $X» no pasaba nada a
+   la vista; el botón rojo quedaba arriba, detrás de la cabecera, y la casilla era lo
+   último del cuadro. La maqueta que aprobó Joan ponía el botón DESPUÉS de la casilla.
+   Que se vea se midió en Chrome sin ventana (1280 y 390 px, quincenal y a cuotas). */
+describe('el botón para cerrar queda también después de la casilla', () => {
+  const abajoDe = P => { const h = String(P.elems.pgDif.innerHTML); const i = h.indexOf('id="pgEntiende"'), j = h.indexOf('id="pgBtnCierre"'); return { h, i, j }; };
+
+  for (const [nombre, credito, fecha, monto] of [['quincenal', quincenal, '2026-10-20', 250000], ['a cuotas', aCuotas, '2026-11-05', 500000]]) {
+    test(nombre + ': está después de la casilla, dice lo mismo que el de arriba y se apaga con él', () => {
+      const P = crmCon(fecha + 'T10:30:00', credito());
+      abrirCobro(P, fecha); escribir(P, monto);
+      P.ev("modoCobro('p1','perdon')");
+      motivo(P, 'se quedó sin trabajo');
+      const { h, i, j } = abajoDe(P);
+      assert.ok(i >= 0, 'precondición: la casilla');
+      assert.ok(j > i, 'el botón no está después de la casilla: ' + texto(h).slice(-300));
+      casilla(P, P.ev('perdonDeLaHoja(DB.prestamos[0],gv("pgFecha"),estadoDelCobro(DB.prestamos[0],liqCredito(DB.prestamos[0],gv("pgFecha")))).perdona.capital'));
+      assert.equal(P.elems.pgBtnCierre.textContent, P.elems.pgBtn.textContent);
+      assert.match(P.elems.pgBtnCierre.textContent, /Cerrar el crédito/);
+      assert.equal(P.elems.pgBtnCierre.disabled, false);
+      casilla(P, 0);
+      assert.equal(P.elems.pgBtnCierre.disabled, true, 'sin la casilla, el de abajo también se apaga');
+      assert.equal(P.elems.pgBtn.disabled, true);
+    });
+  }
+
+  test('el de abajo cierra igual que el de arriba: llama a lo mismo', () => {
+    const P = crmCon('2026-10-20T10:30:00', quincenal());
+    abrirCobro(P, '2026-10-20'); escribir(P, 250000);
+    P.ev("modoCobro('p1','perdon')");
+    const h = String(P.elems.pgDif.innerHTML);
+    assert.match(h, /id="pgBtnCierre"[^>]*onclick="registrarCobro\('p1'\)"/);
+  });
+
+  test('fuera del perdón no aparece: el cobro de siempre se ve como siempre', () => {
+    const P = crmCon('2026-10-20T10:30:00', quincenal());
+    abrirCobro(P, '2026-10-20');
+    assert.doesNotMatch(String(P.elems.pgDif.innerHTML) + String(P.elems.pgAccion.innerHTML), /pgBtnCierre/);
+    escribir(P, 250000);
+    assert.doesNotMatch(String(P.elems.pgDif.innerHTML), /pgBtnCierre/, 'antes de elegir «Se lo perdoné»');
+  });
+});
