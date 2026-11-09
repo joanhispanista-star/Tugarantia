@@ -482,15 +482,64 @@ describe('4 · En el CRM: la cédula que no está se dice, con lo que se sabe', 
 
   test('«Cédula leída» dice lo que pasó: por las letras no es un error', async () => {
     const letras = plano((await tarjeta({ cedula_frente: FRENTE, cedula_reverso: RESPALDO }, { fotos_tomadas: 'cedula_reverso,cedula_frente', cedula_leida_con: 'letras' })).todo);
-    assert.match(letras, /Se leyó por sus letras, no por el código de barras/);
+    assert.match(letras, /Su teléfono dijo que la leyó por sus letras, no por el código de barras/);
     assert.doesNotMatch(letras, /No llegó la lectura/);
     const sinFotos = plano((await tarjeta({ selfie: CARA }, { fotos_tomadas: 'selfie' })).todo);
     assert.match(sinFotos, /No llegó lectura: cuando se anotó su registro, su teléfono no tenía las fotos de su cédula/);
     /* La del código viaja con las fotos: no se dice «no se leyó» de quien sí se leyó. */
     const porCodigo = plano((await tarjeta({ selfie: CARA }, { fotos_tomadas: 'cedula_reverso,cedula_frente,selfie', cedula_leida_con: 'codigo' })).todo);
-    assert.match(porCodigo, /Su teléfono la leyó por el código de barras, y esa lectura todavía no llega/);
+    assert.match(porCodigo, /Su teléfono dijo que la leyó por el código de barras, y esa lectura todavía no llega/);
     const deAntes = plano((await tarjeta({ selfie: CARA }, {})).todo);
     assert.match(deAntes, /No llegó la lectura del código de barras/, 'el registro de antes sigue diciendo que no se sabe');
+  });
+
+  /* 9-nov-2026 — la segunda ronda: la fila esperaba una lectura que la misma tarjeta
+     decía que ya no existía, y pintaba como hecho lo que solo dijo el teléfono. */
+  async function filaLeida(fotos, datos, creado, huellaDeLaFila) {
+    const P = crm(fotos, huellaDeLaFila);
+    P.ctx.__r = [Object.assign(registro(datos, creado), { huella: huellaDeLaFila })]; P.ev('_registros=__r');
+    P.ev('verDatosRegistro(17)');
+    await asentar();
+    const todo = plano(P.elems.mBody.innerHTML);
+    const m = todo.match(/Cédula leída (.*?)(?: Lo que subió| Fotos| Registrado|$)/);
+    return { todo, fila: m ? m[1] : todo, fotos: plano(P.elems.regFotos.innerHTML) };
+  }
+  const TRES = { fotos_tomadas: 'cedula_reverso,cedula_frente,selfie', cedula_leida_con: 'codigo' };
+
+  test('con la cédula rechazada por la base, la fila no dice que la lectura viene en camino', async () => {
+    for (const motivo of ['otro_documento', 'en_duda']) {
+      const { todo, fotos } = await filaLeida({ selfie: CARA }, TRES, null, { ip: '190.1.1.1', momento: '2026-11-03T15:00:00Z', cedula_rechazada: { motivo, momento: '2026-11-03T15:00:00Z' } });
+      assert.doesNotMatch(todo, /todavía no llega|viaja con sus fotos/, motivo + ': «espera» lo que la tarjeta dice que el teléfono borró');
+      assert.match(todo, /No llegó lectura: la nube no guardó la cédula de sus fotos/);
+      assert.match(fotos, /el teléfono las borró/, 'la tarjeta de abajo sigue diciendo lo suyo');
+    }
+    const grandes = await filaLeida({ selfie: CARA }, TRES, null, { ip: '190.1.1.1', momento: '2026-11-03T15:00:00Z', fotos_rechazadas: { fotos: [{ tipo: 'cedula_reverso', motivo: 'muy_grande' }], momento: '2026-11-03T15:00:00Z' } });
+    assert.doesNotMatch(grandes.todo, /todavía no llega/);
+    assert.match(grandes.todo, /la nube no aceptó las fotos de su cédula/);
+  });
+
+  test('pasado el día, la lectura que no llegó ya no se espera', async () => {
+    const { todo } = await filaLeida({}, TRES, '2026-10-29T15:00:00Z', { aparato_telefono: { modelo: 'X' } });
+    assert.doesNotMatch(todo, /todavía no llega/, 'cinco días después sigue «en camino»');
+    assert.match(todo, /esa lectura no llegó: viajaba con sus fotos, que no subieron/);
+    const sinLectura = await filaLeida({}, { fotos_tomadas: 'cedula_reverso,cedula_frente,selfie' }, '2026-10-29T15:00:00Z', { aparato_telefono: { modelo: 'X' } });
+    assert.doesNotMatch(sinLectura.todo, /todavía no suben/);
+    assert.match(sinLectura.todo, /pasado un día el teléfono las borra/);
+  });
+
+  test('si sus fotos subieron sin la lectura, no se dice que viaja con ellas: es la alarma', async () => {
+    const { todo } = await filaLeida({ cedula_frente: FRENTE, cedula_reverso: RESPALDO, selfie: CARA }, TRES, null, { ip: '190.1.1.1', momento: '2026-11-03T15:30:00Z' });
+    assert.doesNotMatch(todo, /todavía no llega/);
+    assert.match(todo, /pero sus fotos llegaron sin esa lectura/);
+    assert.match(todo, /«🔢 Leer el código de barras de la foto»/, 'manda al botón con su nombre de verdad');
+  });
+
+  test('lo que solo dijo el teléfono se dice como dicho, no como hecho', async () => {
+    const { todo } = await filaLeida({}, TRES, null, { ip: '190.1.1.1' });
+    assert.match(todo, /Su teléfono dijo que la leyó por el código de barras, y esa lectura todavía no llega/, 'el primer día sí se espera');
+    assert.doesNotMatch(todo, /Su teléfono la leyó/);
+    const letras = await filaLeida({}, { fotos_tomadas: 'cedula_reverso,cedula_frente', cedula_leida_con: 'letras' }, null, { ip: '190.1.1.1' });
+    assert.doesNotMatch(letras.todo, /Se leyó por sus letras/);
   });
 });
 
@@ -624,7 +673,7 @@ describe('4-quater · 4-nov-2026: la ficha sabe lo que el registro sabe', () => 
   const verFicha = P => plano(P.elems.mBody.innerHTML);
 
   test('la fila «Cédula leída» dice lo mismo que el registro', () => {
-    assert.match(verFicha(ficha({ fotos_tomadas: 'cedula_reverso,cedula_frente,selfie', cedula_leida_con: 'letras' })), /Se leyó por sus letras/);
+    assert.match(verFicha(ficha({ fotos_tomadas: 'cedula_reverso,cedula_frente,selfie', cedula_leida_con: 'letras' })), /Su teléfono dijo que la leyó por sus letras/);
     assert.match(verFicha(ficha({ fotos_tomadas: 'selfie' })), /No llegó lectura: cuando se anotó su registro/);
     assert.match(verFicha(ficha({ fotos_tomadas: 'sin_permiso' })), /No llegó lectura: cuando se anotó su registro no tenía el permiso/);
     for (const v of [{ fotos_tomadas: 'selfie' }, { fotos_tomadas: 'sin_permiso' }, { fotos_tomadas: 'cedula_reverso,cedula_frente', cedula_leida_con: 'letras' }]) {
@@ -634,7 +683,7 @@ describe('4-quater · 4-nov-2026: la ficha sabe lo que el registro sabe', () => 
 
   test('a quien se le leyó el código no se le dice «no llegó» en la ficha, que no guarda la lectura', () => {
     const t = verFicha(ficha({ fotos_tomadas: 'cedula_reverso,cedula_frente,selfie', cedula_leida_con: 'codigo' }));
-    assert.match(t, /Su teléfono la leyó por el código de barras al registrarse/);
+    assert.match(t, /Su teléfono dijo que la leyó por el código de barras al registrarse; esa lectura no está en esta ficha/);
     assert.doesNotMatch(t, /No llegó la lectura/);
     assert.doesNotMatch(t, /todavía no llega/);
   });

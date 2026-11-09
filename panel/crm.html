@@ -11756,7 +11756,7 @@ function bloqueHuella(h,donde){
       /* 4-nov-2026 — desde la ficha, con lo que el registro le dejó (s.vinculacion):
          el mismo cliente decía «se leyó por sus letras» en el registro y, al abrirle
          la ficha, «desde aquí no se distinguen». */
-      +escHTML(lecturaQueNoLlego(donde&&(donde.registro||(donde.socio&&{datos:donde.socio.vinculacion})),!(donde&&donde.registro)))+'</span></div>')
+      +escHTML(lecturaQueNoLlego(donde&&(donde.registro||(donde.socio&&{datos:donde.socio.vinculacion})),!(donde&&donde.registro),h))+'</span></div>')
     /* 20-oct-2026, revisión — h.momento es cuándo se leyeron la IP y la
        conexión (al subir las fotos), no cuándo se creó el registro: si la
        persona volvió a subir fotos otro día, son fechas distintas y decir
@@ -12540,20 +12540,44 @@ function chipCedulaRegistro(r){
    la primera vez (ver fotosTomadasDe), y salió encima de tres fotos que sí llegaron.
    `enLaFicha`: la ficha no guarda la lectura (huellaParaFicha), así que de quien se
    le leyó bien no se puede decir que todavía no llega. */
-function lecturaQueNoLlego(r,enLaFicha){
-  const d=r&&r.datos, tom=fotosTomadasDe(d);
+/* 9-nov-2026 — Y AQUÍ TAMBIÉN MANDA LO QUE DIJO LA BASE, Y LA EDAD. La segunda ronda
+   de la revisión: el arreglo de «suben cuando entre» llegó a porQueFaltaLaCedula y
+   no a esta fila, y en el mismo «Ver datos» se leía arriba «esa lectura todavía no
+   llega: viaja con sus fotos» y abajo «el teléfono las borró». Ahora la fila mira lo
+   mismo que la tarjeta: la cédula rechazada, las fotos sin aceptar, si las fotos ya
+   subieron (huella.momento lo escribe registro_archivos_guardar al subirlas: si
+   subieron sin lectura, no viene en camino) y si pasó el día en que el teléfono las
+   borra. Y lo que solo DIJO el teléfono se dice así: cedula_leida_con viaja por la
+   puerta sin sesión y lo puede escribir cualquiera, así que no se pinta como hecho. */
+const LEER_DE_NUEVO=' Si el respaldo está aquí abajo, «🔢 Leer el código de barras de la foto» lo intenta otra vez.';
+function lecturaQueNoLlego(r,enLaFicha,huella){
+  const d=r&&r.datos, tom=fotosTomadasDe(d), h=(huella&&typeof huella==='object')?huella:{};
+  if(h.cedula_rechazada) return 'No llegó lectura: la nube no guardó la cédula de sus fotos ('
+    +(h.cedula_rechazada.motivo==='otro_documento'?'no es la del documento de su registro':'no se pudo confirmar de quién es')+').';
+  const rech=((h.fotos_rechazadas&&Array.isArray(h.fotos_rechazadas.fotos))?h.fotos_rechazadas.fotos:[]).some(x=>x&&(x.tipo==='cedula_frente'||x.tipo==='cedula_reverso'));
+  if(rech) return 'No llegó lectura: la nube no aceptó las fotos de su cédula, y el teléfono ya no las tiene.';
   /* v139 también lee las letras impresas, y eso no es un error: la huella no lo
      trae (registro_archivos_guardar no guarda cedula_vista), así que viaja con
      los datos del registro, igual que fotos_tomadas. */
-  if(d&&d.cedula_leida_con==='letras') return 'Se leyó por sus letras, no por el código de barras: el teléfono llenó lo que pudo leer y la persona lo revisó.';
-  if(d&&d.cedula_leida_con==='codigo') return enLaFicha
-    ?'Su teléfono la leyó por el código de barras al registrarse.'
-    :'Su teléfono la leyó por el código de barras, y esa lectura todavía no llega: viaja con sus fotos.';
+  if(d&&d.cedula_leida_con==='letras') return 'Su teléfono dijo que la leyó por sus letras, no por el código de barras: llena lo que puede leer y la persona lo revisa. Esa lectura no viaja a la nube.';
+  const subieron=!enLaFicha&&!!h.momento;   // la ficha no guarda la lectura: no se puede saber
+  const horas=enLaFicha?NaN:(Date.now()-new Date(r&&r.creado_en).getTime())/3600e3;
+  if(d&&d.cedula_leida_con==='codigo'){
+    if(enLaFicha) return 'Su teléfono dijo que la leyó por el código de barras al registrarse; esa lectura no está en esta ficha.';
+    if(subieron) return 'Su teléfono dijo que la leyó por el código de barras, pero sus fotos llegaron sin esa lectura.'+LEER_DE_NUEVO;
+    if(horas>=24) return 'Su teléfono dijo que la leyó por el código de barras, y esa lectura no llegó: viajaba con sus fotos, que no subieron, y pasado un día el teléfono las borra.';
+    return 'Su teléfono dijo que la leyó por el código de barras, y esa lectura todavía no llega: viaja con sus fotos.';
+  }
   if(esPasaporte(d)) return 'Su documento es un pasaporte: no trae el código de barras de la cédula.';
   if(tom&&tom.cedula_soltada) return 'No llegó lectura: la cédula que tomó no coincidió con el documento escrito (o dijo que no era suya), y el teléfono la borró.';
   if(tom&&!tom.permiso) return 'No llegó lectura: cuando se anotó su registro no tenía el permiso de las fotos.';
   if(tom&&!tom.cedula_frente&&!tom.cedula_reverso) return 'No llegó lectura: cuando se anotó su registro, su teléfono no tenía las fotos de su cédula.';
-  if(tom) return 'Tomó su cédula, pero no llegó lectura del código de barras: no se pudo leer, o sus fotos todavía no suben. Si el respaldo está aquí abajo, «🔢 Leer el código» lo intenta otra vez.';
+  if(tom){
+    if(subieron) return 'Su teléfono dijo que tomó su cédula, y sus fotos llegaron sin lectura del código de barras: no se pudo leer.'+LEER_DE_NUEVO;
+    if(enLaFicha) return 'Su teléfono dijo que tomó su cédula, y no llegó lectura del código de barras.';
+    if(horas>=24) return 'Su teléfono dijo que tomó su cédula, y no llegó lectura del código de barras: no se pudo leer, o sus fotos no subieron y pasado un día el teléfono las borra.';
+    return 'Su teléfono dijo que tomó su cédula, y no llegó lectura del código de barras: no se pudo leer, o sus fotos todavía no suben.'+LEER_DE_NUEVO;
+  }
   return 'No llegó la lectura del código de barras. Puede ser que no lo escaneara, '
     +'o que la subida de sus fotos no llegara: son cosas distintas y desde aquí '
     +'no se distinguen.';
