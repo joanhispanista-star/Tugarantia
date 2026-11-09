@@ -625,6 +625,13 @@
     .main{min-height:100vh}
     #txtJefe{font-size:16px}
   }
+  /* 9-nov-2026 — los botones de la caja «Llegó plata que este cierre no conoció» (cajaDelSobrante)
+     son .btn-sm, y medían 38 px de alto a 390 px: por debajo de los 44 que pide el dedo en un
+     iPhone, en una decisión de plata que no se puede deshacer desde la caja. En pantalla chica
+     van a 44; en el computador siguen pequeños. */
+  @media screen and (max-width:880px){
+    .caja-sobrante .btn{min-height:44px}
+  }
   /* 4-nov-2026 — EL CALENDARIO NO PUEDE PONER UN NÚMERO BAJO EL DÍA EQUIVOCADO (Bloque
      1 de RECETA-CRM-MOVIL.md). #calDow y #calGrid son dos rejillas independientes, y
      repeat(7,1fr) es minmax(auto,1fr): una columna nunca queda más angosta que su celda
@@ -7048,7 +7055,7 @@ function cajaDelSobrante(p){
   if(cobra.capital) va.push(`${COP(cobra.capital)} vuelven a capital recuperado`);
   if(cobra.ganancia) va.push(`${COP(cobra.ganancia)} de mora y costo perdonados pasan a ganancia de la quincena del cierre y bajan el descuento`);
   if(cobra.aFavor) va.push(`${COP(cobra.aFavor)} quedan a su favor`);
-  return `<div class="alerta warn" id="sobrante_${id}"><b>Llegó plata que este cierre no conoció: decide qué es.</b><br>${cierre}<br>`
+  return `<div class="alerta warn caja-sobrante" id="sobrante_${id}"><b>Llegó plata que este cierre no conoció: decide qué es.</b><br>${cierre}<br>`
     +`Mientras no decidas, esos ${COP(c.delOtroAparato)} no cuentan en ninguna cifra (ni en la ganancia, la quincena, el Calendario, el fondo, la garantía ni el cupo), y las del cierre quedan como se anotaron${pe.capital?`: la pérdida sigue en ${COP(pe.capital)}`:''}.`
     +(id?`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">`
       +(hay('cobrar')?`<button class="btn btn-rojo btn-sm" onclick="decidirSobrante('${id}','cobrar')">Es plata nueva: lo cobro</button>`:'')

@@ -688,3 +688,25 @@ describe('los enlaces del aviso del Tablero van en el color de la alerta, con el
     assert.doesNotMatch(regla('.alerta a.enlace-alerta'), /#[0-9a-f]{3,6}\b|rgb\(/i);
   });
 });
+
+/* 9-nov-2026 — revisión de plata-e1, cuarta tanda (pantalla): los botones de la caja medían 38 px
+   de alto a 390 px (son .btn-sm), por debajo de los 44 que pide el dedo. La medida de verdad está
+   en las capturas -v2; aquí, que la hoja lo mande y que la caja lleve la clase. */
+describe('los botones de la caja miden al menos 44 px en pantalla chica', () => {
+  const hoja = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8').split(String.fromCharCode(13)).join('');
+  const css = hoja.slice(0, hoja.indexOf('</style>'));
+
+  test('la caja lleva caja-sobrante, y a 880 px o menos sus botones van a 44 px', () => {
+    const C = abrirPanel({ ahora: '2026-10-21T10:30:00' });
+    const f = conAbonoDelOtro(q0, CAMINOS['CRM · Se lo perdoné sin pérdida (315.000)']().cerrado, 60000);
+    C.cargarCartera({ socios: [copia(SOCIO)], prestamos: [copia(f)], config: { negocio: 'Tu Garantía' } });
+    const h = String(C.ev('cajaDelSobrante(DB.prestamos[0])'));
+    assert.match(h, /^<div class="alerta warn caja-sobrante" id="sobrante_p1">/);
+    assert.equal((h.match(/<button class="btn /g) || []).length, 3, 'los tres botones son .btn');
+    /* Una regla de pantalla chica (≤ 880 px) que lleva esos botones a 44 px. */
+    const bloques = [...css.matchAll(/@media[^{]*max-width:\s*(\d+)px\)\s*\{([\s\S]*?)\n  \}/g)];
+    const ok = bloques.some(m => Number(m[1]) <= 880 && Number(m[1]) >= 390 && /\.caja-sobrante \.btn\{min-height:(\d+)px\}/.test(m[2])
+      && Number(/\.caja-sobrante \.btn\{min-height:(\d+)px\}/.exec(m[2])[1]) >= 44);
+    assert.ok(ok, 'ninguna regla de pantalla chica lleva los botones de la caja a 44 px');
+  });
+});
