@@ -1216,7 +1216,16 @@ var LLAVE_PASO = 'play_registro_paso';
    lo guardaba la versión anterior; quien manda al leer es el nombre. */
 function guardarPaso(n) {
   var p = PASOS[n];
-  try { localStorage.setItem(LLAVE_PASO, JSON.stringify({ paso: n, id: p ? p.id : '', t: Date.now() })); } catch (e) {}
+  var c = { paso: n, id: p ? p.id : '', t: Date.now() };
+  /* 9-nov-2026 — Y DE DÓNDE VENÍA, si llegó a la cédula de un brinco («Tomar las
+     fotos», ver tomarLadoQueFalta). Es el único dato que permite, tras relanzarse
+     la pestaña, saber que el primer paso no es «abrió el formulario y no hizo nada»:
+     detrás hay una selfie, una ubicación y un permiso (ver hayPasoGuardado). */
+  var v = VOLVER_TRAS_LAS_FOTOS;
+  if (p && p.id === 'documento' && v && v.paso && v.intento && v.intento === String(REGISTRO.intento || '')) {
+    c.desde = v.paso; c.intento = v.intento;
+  }
+  try { localStorage.setItem(LLAVE_PASO, JSON.stringify(c)); } catch (e) {}
   anotarToque();
 }
 function leerCheckpoint() {
@@ -1311,6 +1320,14 @@ function hayPasoGuardado() {
      misma pregunta que pinta el ✓). Sin foto sigue siendo «abrió el formulario
      y no hizo nada», y el enlace vuelve a la portada como el 22-sep. */
   if (indiceDelCheckpoint(c) > 0) return true;
+  /* 9-nov-2026 — salvo que haya llegado de un brinco desde un paso de más adelante
+     (guardarPaso, c.desde). La segunda ronda de la revisión: quien estaba en «Tu
+     rostro» con la selfie y el permiso tocaba «Tomar las fotos», la cámara del
+     sistema tumbaba la pestaña antes de la primera foto, y como el primer paso sin
+     foto «no cuenta», el arranque soltaba la selfie, la ubicación y el permiso sin
+     una palabra; su fila decía «sin permiso» de quien sí lo dio. Ese registro sí
+     va a mitad. */
+  if (c.desde && indiceDe(c.desde) > 0) return true;
   return hayFotoLista('cedula_reverso') || hayFotoLista('cedula_frente');
 }
 function olvidarPaso() { try { localStorage.removeItem(LLAVE_PASO); } catch (e) {} }
@@ -2304,6 +2321,16 @@ function pintarRegistro(paso) {
   if (viajando()) return;
   VISTA = 'registro';
   PASO = Math.max(0, Math.min(paso, PASOS.length - 1));
+  /* 9-nov-2026 — tras relanzarse la pestaña en el paso de la cédula, «Volver» vuelve a
+     donde estaba si el paso guardado lo dice (guardarPaso), y no a la portada, que
+     suelta lo sensible. Se lee ANTES de guardar el paso, que lo pisa. Solo para el
+     mismo registro (el intento). */
+  if (!VOLVER_TRAS_LAS_FOTOS && PASOS[PASO] && PASOS[PASO].id === 'documento') {
+    var cv = leerCheckpoint();
+    if (cv && cv.id === 'documento' && cv.desde && cv.intento && cv.intento === String(REGISTRO.intento || '') && indiceDe(cv.desde) > 0) {
+      VOLVER_TRAS_LAS_FOTOS = { paso: cv.desde, intento: cv.intento };
+    }
+  }
   guardarPaso(PASO);   // por si el teléfono recarga al volver de la cámara
   /* 17-sep-2026 — Y LA DIRECCIÓN TAMBIÉN, que es lo que faltaba desde el 9-sep.
      El paso se guardaba bien, pero el arranque solo lo leía si la dirección

@@ -124,6 +124,30 @@ describe('1 · En el teléfono: con el permiso y sin la cédula, se avisa una ve
     assert.equal(B.pasoActual(P), 'contacto');
   });
 
+  /* 9-nov-2026 — la segunda ronda: el mismo daño por otra puerta. Tras «Tomar las
+     fotos» el paso guardado es el primero, y el primero sin foto de la cédula «no
+     cuenta» (hayPasoGuardado, la regla del 22-sep): si la cámara del sistema tumbaba
+     la pestaña antes de la primera foto, el arranque soltaba la selfie, la ubicación
+     y el permiso de quien sí los dio, y su fila decía «sin permiso». */
+  test('«Tomar las fotos» y la pestaña se relanza antes de la primera foto: no se pierde nada', () => {
+    const P = conSelfieYAviso();
+    const cp = JSON.parse(P.almacen.play_registro_paso);
+    assert.equal(cp.id, 'documento');
+    const Q = B.abrir({ almacen: P.almacen, sesion: {} });
+    assert.equal(B.pasoActual(Q), 'documento', 'no volvió al paso de la cédula');
+    assert.equal(Q.ev("hayFotoLista('selfie')"), true, 'se perdió la selfie');
+    assert.equal(Q.ev('autorizoEsteIntento()'), true, 'se perdió el permiso: su fila diría «sin permiso»');
+    B.tocar(Q, 'Volver');
+    assert.equal(B.pasoActual(Q), 'rostro', '«Volver» lo sacó a la portada, que suelta lo sensible');
+    assert.equal(Q.ev("hayFotoLista('selfie')"), true);
+  });
+
+  test('control: quien solo abrió el formulario sigue volviendo a la portada (la regla del 22-sep)', () => {
+    const P = B.abrir();
+    assert.equal(B.pasoActual(P), 'documento');
+    assert.equal(P.ev('hayPasoGuardado()'), false);
+  });
+
   test('«Cancelar» el escáner no le cambia a «Volver» a dónde va', () => {
     const P = conSelfieYAviso();
     P.ev("pintarRegistro(indiceDe('documento'))");   // lo que hace «Cancelar»
