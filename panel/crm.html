@@ -7255,8 +7255,21 @@ function verCredito(id){
          perdido al cerrar» de abajo. Con un abono del otro aparato que el cierre no conocía, este renglón decía «+ $50.000
          de capital» y el de abajo «$20.000» (segunda ronda de la revisión): lo anotado al cerrar se dice aparte. */
       const cap=capAnotado&&PUENTE.perdidaDelCierre?PUENTE.perdidaDelCierre(p):capAnotado;
-      const abono=capAnotado>cap?` · al cerrar se anotaron ${COP(capAnotado)} de capital perdido; con la plata del otro aparato que el cierre no conoció y decidiste cobrar, ${cap?`bajó a ${COP(cap)}`:'volvió entero'}`:'';
-      return p.pagado&&p.montoRecibido!=null&&cc.length?`<div class="info-row fila-larga"><span class="k">Entró de verdad</span><span class="vv"><b>${COP(p.montoRecibido)}</b> <span class="muted">con ${COP(mc+cap)} perdonados al cerrar${cap?` (${COP(mc)} de mora y costo + <span class="pierde">${COP(cap)} de capital</span>)`:''}: ${escHTML(cc.map(c=>c.motivo).filter(Boolean).join(' · '))}${abono}</span></span></div>`:''; })()}
+      /* 9-nov-2026 — cuarta tanda: con «Lo cobro» en un cierre sin pérdida, la mora y el costo
+         perdonados se cobran con la plata del otro aparato y el renglón decía «con $0 perdonados
+         al cerrar: acordado», un motivo para un perdón de cero. Si lo cobrado se llevó TODO el
+         perdón, se dice lo que se perdonó al cerrar y que se cobró entero; si se llevó una parte de
+         la mora y el costo, también se dice cuánto. */
+      const mcAnotado=cc.reduce((t,c)=>t+(Number(c.costo)||0)+(Number(c.mora)||0),0), mcCobrado=Math.max(0,mcAnotado-mc);
+      const todoCobrado=mc+cap===0&&(mcCobrado>0||capAnotado>cap);
+      const conLaPlata=' con la plata del otro aparato que el cierre no conoció y decidiste cobrar, ';
+      const abono=todoCobrado?' · el perdón se cobró entero con la plata del otro aparato que el cierre no conoció'
+        :(capAnotado>cap?` · al cerrar se anotaron ${COP(capAnotado)} de capital perdido;${conLaPlata}${cap?`bajó a ${COP(cap)}`:'volvió entero'}`:'')
+        +(mcCobrado?`${capAnotado>cap?', y':' ·'}${capAnotado>cap?' ':conLaPlata}se cobraron ${COP(mcCobrado)} de la mora y el costo que perdonaste`:'');
+      const cifraPerdon=todoCobrado
+        ?`con ${COP(mcAnotado+capAnotado)} perdonados al cerrar${capAnotado?` (${COP(mcAnotado)} de mora y costo + ${COP(capAnotado)} de capital)`:''}`
+        :`con ${COP(mc+cap)} perdonados al cerrar${cap?` (${COP(mc)} de mora y costo + <span class="pierde">${COP(cap)} de capital</span>)`:''}`;
+      return p.pagado&&p.montoRecibido!=null&&cc.length?`<div class="info-row fila-larga"><span class="k">Entró de verdad</span><span class="vv"><b>${COP(p.montoRecibido)}</b> <span class="muted">${cifraPerdon}: ${escHTML(cc.map(c=>c.motivo).filter(Boolean).join(' · '))}${abono}</span></span></div>`:''; })()}
     ${PUENTE.perdidaDelCierre&&PUENTE.perdidaDelCierre(p)?`<div class="info-row"><span class="k">Capital perdido al cerrar</span><span class="vv"><b class="pierde">${COP(PUENTE.perdidaDelCierre(p))}</b> <span class="muted">· plata tuya que no vuelve: de los ${COP(p.capital)} prestados volvieron ${COP(PUENTE.capitalRecuperadoDe(p))}</span></span></div>`:''}
     ${cajaDelSobrante(p)}
     ${PUENTE.saldoAFavorDe(p)>0?`<div class="info-row"><span class="k">Pagó de más</span><span class="vv"><b>${COP(PUENTE.saldoAFavorDe(p))}</b> <span class="muted">a su favor · anotado acá, NO se aplica solo al crédito siguiente</span></span></div>`:''}

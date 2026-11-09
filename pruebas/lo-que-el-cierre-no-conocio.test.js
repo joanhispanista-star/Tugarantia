@@ -583,3 +583,45 @@ describe('la lista de abonos del detalle dice lo que es el abono que el cierre n
     assert.match(abonos(Object.assign(copia(q0), { abonosCapital: [ABONO(60000)] })), CAPITAL_QUE_VUELVE);
   });
 });
+
+/* 9-nov-2026 — revisión de plata-e1, cuarta tanda: después de «Lo cobro» en un cierre sin pérdida
+   (el caso real: 315.000 con «Se lo perdoné» y 60.000 del cobrador), el renglón «Entró de verdad»
+   decía «con $0 perdonados al cerrar: acordado»: un motivo para un perdón de cero. Las cifras
+   estaban bien; la frase no decía qué pasó con el perdón. */
+describe('«Entró de verdad» dice que el perdón se cobró con la plata del otro aparato', () => {
+  const entro = f => {
+    const C = abrirPanel({ ahora: '2026-10-21T10:30:00' });
+    C.cargarCartera({ socios: [copia(SOCIO)], prestamos: [copia(f)], config: { negocio: 'Tu Garantía' } });
+    C.ev("verCredito('p1')");
+    const t = plano(C.elems.mBody.innerHTML);
+    const m = /Entró de verdad .*?(?= Capital perdido al cerrar| Lo que el cierre no conoció| Llegó plata|$)/.exec(t);
+    assert.ok(m, 'no salió «Entró de verdad»: ' + t.slice(0, 300));
+    return m[0];
+  };
+  const sinPerdida = conAbonoDelOtro(q0, CAMINOS['CRM · Se lo perdoné sin pérdida (315.000)']().cerrado, 60000);
+  const conPerdida = monto => conAbonoDelOtro(q0, CAMINOS['Se lo perdoné con pérdida (250.000)']().cerrado, monto);
+
+  test('sin pérdida, «Lo cobro» se lleva todo el perdón: lo dice, sin «$0 perdonados»', () => {
+    const t = entro(decidir(sinPerdida, 'cobrar'));
+    assert.doesNotMatch(t, /con \$0 perdonados/, t);
+    assert.match(t, /Entró de verdad \$315\.000 con \$60\.000 perdonados al cerrar: x · el perdón se cobró entero con la plata del otro aparato que el cierre no conoció/, t);
+  });
+
+  test('con pérdida y lo cobrado lo cubre todo, dice lo perdonado al cerrar sin pintarlo de pérdida', () => {
+    const t = entro(decidir(conPerdida(150000), 'cobrar'));
+    assert.doesNotMatch(t, /con \$0 perdonados/, t);
+    assert.match(t, /con \$125\.000 perdonados al cerrar \(\$75\.000 de mora y costo \+ \$50\.000 de capital\): se quedó sin trabajo · el perdón se cobró entero/, t);
+  });
+
+  test('si lo cobrado se lleva una parte de la mora y el costo, dice cuánto', () => {
+    const t = entro(decidir(conPerdida(60000), 'cobrar'));
+    assert.match(t, /con \$65\.000 perdonados al cerrar: se quedó sin trabajo · al cerrar se anotaron \$50\.000 de capital perdido; con la plata del otro aparato que el cierre no conoció y decidiste cobrar, volvió entero, y se cobraron \$10\.000 de la mora y el costo que perdonaste/, t);
+  });
+
+  test('CONTROL: con «Queda a su favor» o por decidir, el perdón queda como se anotó', () => {
+    [sinPerdida, decidir(sinPerdida, 'aFavor'), decidir(sinPerdida, 'misma')].forEach(f => {
+      const t = entro(f);
+      assert.match(t, /Entró de verdad \$315\.000 con \$60\.000 perdonados al cerrar: x$/, t);
+    });
+  });
+});
