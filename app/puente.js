@@ -633,9 +633,18 @@
     return { ok: true, registros: { sobranteDecidido: { monto: c.delOtroAparato, destino: destino,
       fecha: fechaFin(fecha) || hoyISO(), quien: String(quien || 'computador'), cierre: huellaDelCierre(p) } } };
   }
-  /* Lo cobrado de esa plata, en la quincena del cierre (la misma vara de gananciaPago). */
+  /* Lo cobrado de esa plata, en la quincena del cierre.
+     9-nov-2026 (cuarta tanda de la revisión) — con la MISMA llave que el perdón que deja de ser
+     descuento (quincenaDeCondonacion, la de descuentosDeQuincena). Comparaba p.cicloPago con la
+     quincena tal cual: en un crédito con cuotas el corte es la fecha de una cuota (30-oct), que no
+     es fila de ningún tablero (es de la quincena del 31-oct). «Lo cobro» bajaba los «Descuentos
+     dados» del 31-oct y no sumaba esos pesos a ninguna ganancia. Hoy no se alcanza (a un crédito
+     con cuotas no le llega un abono suelto), pero si un día llega, cuadra. */
   function sobranteCobradoEnQuincena(p, q) {
-    if (!(p && p.pagado) || !q || p.cicloPago !== q) return 0;
+    var h = fechaFin(q);
+    if (!(p && p.pagado) || !h) return 0;
+    var c = condonacionDeEsteCierre(p);
+    if (!c || quincenaDeCondonacion(p, c) !== h) return 0;
     var x = piezasDelSobrante(p);
     return x.mora + x.costo;
   }

@@ -132,8 +132,13 @@ const cifras = f => {
   return { recuperado: P.capitalRecuperadoDe(f), ganancia: P.gananciaCobrada(f), aFavor: P.saldoAFavorDe(f),
     porDecidir: P.sobrantePorDecidir(f), perdida: P.perdidaDelCierre(f), descuentos: d.costo + d.mora,
     garantia: P.garantiaGanadaCredito(f), fondo: P.movimientosCobradosCredito(f).reduce((t, m) => t + m.monto, 0),
-    quincena: P.sobranteCobradoEnQuincena(f, f.cicloPago) };
+    quincena: P.sobranteCobradoEnQuincena(f, filaDelCierre(f)) };
 };
+/* La fila del tablero donde cae el cierre. En el quincenal es su corte (cicloPago); con cuotas el
+   corte es la fecha de una cuota (30-oct), que no es fila de ningún tablero: va a la quincena que
+   lo contiene (31-oct), la misma de la ganancia de sus cuotas. Hasta la cuarta tanda esta prueba
+   medía con cicloPago tal cual, y por eso no veía el hueco de sobranteCobradoEnQuincena. */
+const filaDelCierre = f => (f.planPagos ? P.quincenaDe(f.cicloPago) : f.cicloPago);
 const entro = c => c.recuperado + c.ganancia + c.aFavor + c.porDecidir;
 const deuda = c => c.recuperado + c.ganancia + c.descuentos + c.perdida;
 
@@ -622,6 +627,40 @@ describe('«Entró de verdad» dice que el perdón se cobró con la plata del ot
     [sinPerdida, decidir(sinPerdida, 'aFavor'), decidir(sinPerdida, 'misma')].forEach(f => {
       const t = entro(f);
       assert.match(t, /Entró de verdad \$315\.000 con \$60\.000 perdonados al cerrar: x$/, t);
+    });
+  });
+});
+
+/* 9-nov-2026 — revisión de plata-e1, cuarta tanda (latente): sobranteCobradoEnQuincena comparaba
+   p.cicloPago con la quincena tal cual, y el perdón que deja de ser descuento va por
+   quincenaDeCondonacion. En un crédito A CUOTAS (corte del 30-oct, quincena del 31-oct), «Lo cobro»
+   bajaba 30.000 los «Descuentos dados» del 31-oct y no los sumaba a ninguna ganancia. Hoy no se
+   alcanza (a un crédito con cuotas no le llega un abono suelto), pero aquí se mide el tablero de
+   verdad: en CADA quincena, lo que deja de ser descuento es lo que pasa a ganancia. */
+describe('con «Lo cobro», lo que deja de ser descuento y lo que pasa a ganancia caen en la misma quincena', () => {
+  const QUINCENAS = ['2026-10-15', '2026-10-31', '2026-11-15', '2026-11-30'];
+  const casos = {
+    'CONTROL · quincenal · sin pérdida (340.000)': () => { const a = q0; return { a, c: aplicar(a, P.cierreConPerdon(cartera(a), a, DIA, 340000, SI).registros) }; },
+    'CONTROL · quincenal · sin pérdida el 5-nov (340.000)': () => { const a = q0; return { a, c: aplicar(a, P.cierreConPerdon(cartera(a), a, '2026-11-05', 340000, SI).registros) }; },
+    'a cuotas · sin pérdida (700.000)': () => { const a = aCuotas(); return { a, c: aplicar(a, P.cierreConPerdon(cartera(a), a, DIA, 700000, SI).registros) }; },
+    'a cuotas · sin pérdida el 5-nov (700.000)': () => { const a = aCuotas(); return { a, c: aplicar(a, P.cierreConPerdon(cartera(a), a, '2026-11-05', 700000, SI).registros) }; }
+  };
+  Object.keys(casos).forEach(nombre => {
+    test(nombre, () => {
+      const { a, c } = casos[nombre]();
+      assert.equal(c.pagado, true, 'no cerró');
+      const f = conAbonoDelOtro(a, c, 30000);
+      const g = decidir(f, 'cobrar');
+      const pz = P.piezasDelSobrante(g);
+      assert.ok(pz.mora + pz.costo > 0, 'lo cobrado no tocó la mora ni el costo: el caso no mide nada');
+      let total = 0;
+      QUINCENAS.forEach(q => {
+        const baja = P.descuentosDeQuincena(cartera(f), q).total - P.descuentosDeQuincena(cartera(g), q).total;
+        const sube = P.sobranteCobradoEnQuincena(g, q);
+        assert.equal(sube, baja, nombre + ' · quincena ' + q + ': bajó ' + baja + ' de descuento y subió ' + sube + ' de ganancia');
+        total += sube;
+      });
+      assert.equal(total, pz.mora + pz.costo, nombre + ': lo cobrado no entró en ninguna quincena');
     });
   });
 });
