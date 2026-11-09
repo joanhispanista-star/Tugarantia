@@ -2177,6 +2177,12 @@ const PCT=n=>(isFinite(n)?n:0).toLocaleString('es-CO',{maximumFractionDigits:1})
 /* ===== Indicadores globales del negocio (histórico, todos los créditos) ===== */
 function montoTotalInvertido(){ return DB.prestamos.reduce((s,p)=>s+p.capital,0); }
 function gananciaTotalHistorica(){ return DB.prestamos.reduce((s,p)=>s+gananciaCobrada(p),0); }
+/* 9-nov-2026 — todo el capital perdido, de todos los cortes (ver renderKpis). */
+function capitalPerdidoTotal(){
+  const f=PUENTE.capitalPerdidoDe; let capital=0, creditos=0;
+  if(typeof f==='function') DB.prestamos.forEach(p=>{ const x=f(p)||0; if(x>0){ capital+=x; creditos++; } });
+  return {capital,creditos};
+}
 function capitalRecuperadoTotal(){ return DB.prestamos.reduce((s,p)=>s+capitalRecuperadoDe(p),0); }
 function ingresosTotales(){ return capitalRecuperadoTotal()+gananciaTotalHistorica(); }
 function gananciaPorProrrogas(){ return DB.prestamos.reduce((s,p)=>s+(p.prorrogas||[]).reduce((t,pr)=>t+pr.monto,0),0); }
@@ -2287,13 +2293,22 @@ function renderKpis(){
      typeof: con el app/puente.js viejo de la caché la tarjeta no aparece, en
      vez de tumbar el tablero. */
   const capCiclo=(typeof PUENTE.capitalPerdidoDeQuincena==='function')?PUENTE.capitalPerdidoDeQuincena(DB,cg):null;
+  /* 9-nov-2026 — Y EL TOTAL, A LA VISTA. La segunda ronda de la revisión: Joan cierra
+     con $0 un crédito que vencía el 15-oct, pierde 150.000, va al Tablero y lee
+     «Capital perdido $0 — ninguno en créditos con corte del 17 nov». Es cierto (la
+     tarjeta va por corte, como se definió), pero los clientes en dificultad casi
+     siempre vienen de un corte viejo, así que casi nunca muestra el cierre del día, y
+     el total no estaba en ninguna parte: había que sumar la columna de Ciclos. Choca
+     con «la pérdida de capital nunca se esconde». La misma cuenta que Ciclos
+     (perdidasDeCapital, cada pérdida en su quincena), sumada entera. */
+  const capTotal=capitalPerdidoTotal();
   const moraA=DB.prestamos.filter(p=>estadoPrestamo(p)==='mora');
   document.getElementById('kpis').innerHTML=`
     <div class="kpi"><div class="et">💼 Capital en la calle</div><div class="nm">${COP(capCalle)}</div><div class="x">${act.length} créditos activos</div></div>
     <div class="kpi gan"><div class="et">💰 Ganancia cobrada (total)</div><div class="nm">${COP(ganTotal)}</div><div class="x">costos + prórrogas</div></div>
     <div class="kpi gan"><div class="et">📈 Ganancia ciclo actual</div><div class="nm">${COP(ganCiclo)}</div><div class="x">quincena ${fmtCorto(cg)}</div></div>
     <div class="kpi"><div class="et">🎁 Descuentos dados</div><div class="nm">${COP(descCiclo.total)}</div><div class="x">${descCiclo.total?`${descCiclo.clientes} cliente${descCiclo.clientes===1?'':'s'} · ya restados de la ganancia`:`ninguno en ${fmtCorto(cg)}`}</div></div>
-    ${capCiclo?`<div class="kpi ${capCiclo.capital?'alert':''}"><div class="et">💸 Capital perdido</div><div class="nm">${COP(capCiclo.capital)}</div><div class="x">${capCiclo.capital?`${capCiclo.clientes} cliente${capCiclo.clientes===1?'':'s'} · créditos con corte del ${fmtCorto(cg)} · plata tuya que no vuelve: no se resta de la ganancia`:`ninguno en créditos con corte del ${fmtCorto(cg)}`}</div></div>`:''}
+    ${capCiclo?`<div class="kpi ${capCiclo.capital?'alert':''}"><div class="et">💸 Capital perdido</div><div class="nm">${COP(capCiclo.capital)}</div><div class="x">${capCiclo.capital?`${capCiclo.clientes} cliente${capCiclo.clientes===1?'':'s'} · créditos con corte del ${fmtCorto(cg)} · plata tuya que no vuelve: no se resta de la ganancia`:`ninguno en créditos con corte del ${fmtCorto(cg)}`}${capTotal.capital?` · <b>en total ${COP(capTotal.capital)}</b>`:''}</div></div>`:''}
     <div class="kpi dark"><div class="et">🏦 Invertido en el ciclo</div><div class="nm">${COP(invCiclo)}</div><div class="x">capital activo en ${fmtCorto(cg)}</div></div>
     <div class="kpi alert"><div class="et">⚠️ En mora</div><div class="nm">${COP(moraA.reduce((s,p)=>s+vencidoHoy(p),0))}</div><div class="x">${moraA.length} vencidos</div></div>`;
 
@@ -2301,6 +2316,7 @@ function renderKpis(){
   document.getElementById('kpis2').innerHTML=`
     <div class="kpi dark"><div class="et">🏦 Monto total invertido</div><div class="nm">${COP(invTotal)}</div><div class="x">histórico · todos los créditos</div></div>
     <div class="kpi verde"><div class="et">📥 Ingresos totales</div><div class="nm">${COP(ingTotal)}</div><div class="x">capital recuperado + ganancia</div></div>
+    ${capTotal.capital?`<div class="kpi alert"><div class="et">💸 Capital perdido (total)</div><div class="nm">${COP(capTotal.capital)}</div><div class="x">histórico · ${capTotal.creditos} crédito${capTotal.creditos===1?'':'s'} · plata tuya que no vuelve: no se resta de la ganancia</div></div>`:''}
     <div class="kpi"><div class="et">🧑‍🤝‍🧑 Clientes registrados</div><div class="nm">${DB.socios.length}</div><div class="x">total en la ficha</div></div>
     <div class="kpi"><div class="et">📂 Créditos activos</div><div class="nm">${act.length}</div><div class="x">de ${DB.prestamos.length} en total</div></div>
     <div class="kpi gan"><div class="et">↻ Ganancia por prórrogas</div><div class="nm">${COP(ganProrr)}</div><div class="x">la ganancia de cada prórroga</div></div>

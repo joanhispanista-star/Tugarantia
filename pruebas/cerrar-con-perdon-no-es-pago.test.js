@@ -859,6 +859,26 @@ describe('7 · Lo que Joan lee de un cierre con pérdida', () => {
     const k = texto(CRM.elems.kpis.innerHTML);
     assert.match(k, /Capital perdido \$0 ninguno en créditos con corte del 31 oct/, 'la tarjeta dijo otra cosa: ' + k);
   });
+
+  /* 9-nov-2026 — la segunda ronda: con la tarjeta por corte, el cierre del día casi
+     nunca sale, y el total no estaba en ninguna parte. */
+  test('el Tablero y los Indicadores dicen el capital perdido en total, aunque sea de otro corte', () => {
+    const CRM = crmCon('2026-10-31T10:30:00', [SOCIO], [cerrado(150000)]);
+    CRM.ev('render()');
+    assert.match(texto(CRM.elems.kpis.innerHTML), /Capital perdido \$0 ninguno en créditos con corte del 31 oct · en total \$150\.000/);
+    assert.match(texto(CRM.elems.kpis2.innerHTML), /Capital perdido \(total\) \$150\.000 histórico · 1 crédito/);
+    const OTRO = crmCon('2026-10-31T10:30:00', [SOCIO], [pagarTodo(credito(), '2026-10-31')]);
+    OTRO.ev('render()');
+    assert.doesNotMatch(texto(OTRO.elems.kpis.innerHTML) + texto(OTRO.elems.kpis2.innerHTML), /· en total \$|Capital perdido \(total\)/, 'sin pérdida no se pinta');
+    /* La misma cifra que la columna de Ciclos, sumada. */
+    assert.equal(CRM.ev('capitalPerdidoTotal().capital'), P.capitalPerdidoDe(cerrado(150000)));
+  });
+
+  test('el celular también dice el total', () => {
+    const E = abrirEspejo({ ahora: '2026-10-31T10:30:00', cartera: { socios: [copia(SOCIO)], prestamos: [cerrado(150000)], respaldados: [],
+      config: { negocio: 'Tu Garantía' }, contadores: { cliente: 1, credito: 7, respaldado: 0 }, plantillas: {} } });
+    assert.match(texto(E.ev('vistaQuincena()')), /Capital perdido en total \$150\.000/);
+  });
 });
 /* ==========================================================================
  * 8. 9-nov-2026 — LA SEGUNDA RONDA: LO QUE QUEDABA DICIENDO «PAGADO»

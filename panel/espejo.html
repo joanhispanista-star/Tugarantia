@@ -4880,6 +4880,17 @@ function vistaQuincena() {
             + 'plata tuya que no vuelve: no está restada de la ganancia de arriba</div>'
           : '';
       })()
+    /* 9-nov-2026 — y el total de todos los cortes, si lo hay: la línea de arriba va
+       por corte y un cierre de un corte viejo no sale en ella (ver renderKpis en
+       crm.html). La misma cuenta que el computador. */
+    + (function () {
+        var f = P.capitalPerdidoDe, t = 0;
+        if (typeof f === 'function') (DB.prestamos || []).forEach(function (p) { t += f(p) || 0; });
+        return t
+          ? '<div class="fila"><span class="k">Capital perdido en total</span>'
+            + '<span class="v">' + COP(t) + '</span></div>'
+          : '';
+      })()
     + '</div>';
 
   h += '<div class="tit-bloque"><h3 class="tit">Lo que registraste hoy</h3></div>';
