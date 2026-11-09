@@ -4874,10 +4874,12 @@ function vistaQuincena() {
     (p.prorrogas || []).forEach(function (pr) { if (pr.fecha === hoy) prorrogadosHoy.push({ p: p, pr: pr }); });
   });
   /* 9-nov-2026 — con lo cobrado de lo que sobró de un cierre (P.piezasDelSobrante). */
-  var cobradoHoy = pagadosHoy.reduce(function (t, p) {
+  /* La ganancia de un cierre de hoy: la de la fila y la del total son la MISMA cuenta. */
+  var gananciaDeHoy = function (p) {
     var sob = P.piezasDelSobrante ? P.piezasDelSobrante(p) : { mora: 0, costo: 0 };
-    return t + (Number(p.gananciaPago) || 0) + sob.mora + sob.costo;
-  }, 0)
+    return (Number(p.gananciaPago) || 0) + sob.mora + sob.costo;
+  };
+  var cobradoHoy = pagadosHoy.reduce(function (t, p) { return t + gananciaDeHoy(p); }, 0)
     + prorrogadosHoy.reduce(function (t, x) { return t + (Number(x.pr.monto) || 0); }, 0);
 
   var h = '<div class="card laca">'
@@ -4943,8 +4945,11 @@ function vistaQuincena() {
           ? 'volvieron ' + COP(P.capitalRecuperadoDe(p)) + ' de ' + COP(Number(p.capital) || 0) + ' · ' + COP(perdio) + ' de capital perdido'
           : COP(P.capitalRecuperadoDe(p)) + ' de capital devuelto') + '</span></span>'
         /* La cifra de la derecha, entera: con la pérdida, el texto de la
-           izquierda es más largo y la partía en «$» y «0». */
-        + '<span style="white-space:nowrap">' + COP(Number(p.gananciaPago) || 0) + '</span></div>';
+           izquierda es más largo y la partía en «$» y «0».
+           9-nov-2026 — y con lo que Joan cobró de la plata que el cierre no conoció, que el
+           total de abajo ya sumaba: la fila decía $0 y el total $10.000 (revisión de
+           plata-e1). Una lista que no suma su total es peor que no ponerla. */
+        + '<span style="white-space:nowrap">' + COP(gananciaDeHoy(p)) + '</span></div>';
     });
     prorrogadosHoy.forEach(function (x) {
       h += '<div class="linea-item"><span>Prórroga · ' + esc(x.p.socioNombre || '')

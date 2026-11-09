@@ -430,3 +430,20 @@ describe('lo que Joan ve: el Tablero, la caja del crédito y el celular', () => 
     assert.equal(E2.ev('gananciaDeQuincena(' + JSON.stringify(g.cicloPago) + ')'), 75000, 'el celular no cuenta lo que Joan cobró');
   });
 });
+
+/* 9-nov-2026 — revisión de plata-e1 (leve a): en el celular, «Lo que registraste hoy» decía en la
+   fila del cierre solo gananciaPago, y el total «Ganancia registrada hoy» sumaba además lo que Joan
+   cobró de la plata que el cierre no conoció: la fila decía $0 y el total $10.000. */
+describe('«Lo que registraste hoy» en el celular: las filas suman el total', () => {
+  test('con «lo cobro», la fila del cierre dice lo mismo que el total', () => {
+    const cerrado = CAMINOS['Se lo perdoné con pérdida (250.000)']().cerrado;
+    const g = decidir(conAbonoDelOtro(q0, cerrado, 60000), 'cobrar');
+    const E = abrirEspejo({ cartera: cartera(g), ahora: DIA + 'T18:00:00' });
+    const t = plano(E.ev('vistaQuincena()'));
+    const m = /Lo que registraste hoy (.*?) Ganancia registrada hoy (\$[\d.]+)/.exec(t);
+    assert.ok(m, 'no encontré «Lo que registraste hoy»: ' + t.slice(0, 400));
+    assert.equal(m[2], '$10.000', 'el total cambió: ' + m[0]);
+    const filas = (m[1].match(/\$[\d.]+(?= |$)/g) || []);
+    assert.equal(filas[filas.length - 1], '$10.000', 'la fila del cierre no suma el total: ' + m[1]);
+  });
+});
