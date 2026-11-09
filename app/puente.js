@@ -440,10 +440,34 @@
      de un cierre que perdonó capital, solo si es la del cierre vigente. */
   function condonacionVigente(p, c) {
     /* Un renglón sucio se sigue contando como hasta hoy: este filtro es SOLO
-       para los cierres con pérdida, y no le cambia nada a lo de antes. */
+       para los cierres con «Se lo perdoné» (sobre:'cierre', que nace en v142), y
+       no le cambia nada a lo de antes. */
     if (!c || typeof c !== 'object') return true;
-    if (c.sobre !== 'cierre' || !(num(c.capital) > 0)) return true;
-    return condonacionDelCierre(p) === c;
+    if (c.sobre !== 'cierre') return true;
+    return perdonDelCierreVigente(p) === c;
+  }
+  /* 9-nov-2026 — UN CRÉDITO SE CIERRA UNA VEZ: CUENTA UN SOLO PERDÓN DEL CIERRE. La
+     segunda ronda de la revisión encontró «Descuentos dados» contando dos veces el
+     perdón de un solo cierre, sin ningún choque: (1) el mismo crédito a cuotas cerrado
+     sin pérdida y con el mismo monto en dos computadores (cada condonación lleva su
+     id, y la nube conserva las dos); (2) gana un cierre con pérdida contra otro que
+     cerró con descuento, y el del que perdió seguía contando porque no tenía capital.
+     Un cierre con pérdida tiene el suyo (condonacionDelCierre: su fecha y su
+     capital). Uno sin pérdida, el de su fecha que cuadra con lo que la fila dice que
+     se perdonó (lo causado menos lo que entró por costo y mora); si la fila no lo
+     guarda (con cuotas), el primero de su fecha. Una fila abierta no cerró: ninguno. */
+  function perdonDelCierreVigente(p) {
+    if (!(p && p.pagado)) return null;
+    if (perdidaAnotada(p) > 0) return condonacionDelCierre(p);
+    var f = fechaFin(p.fechaPagado), conds = lista(p.condonaciones);
+    var esperado = (p.costoCausado != null || p.moraCausada != null)
+      ? Math.max(0, Math.round(num(p.costoCausado) + num(p.moraCausada) - num(p.gananciaPago))) : null;
+    for (var i = 0; i < conds.length; i++) {
+      var c = conds[i];
+      if (!c || typeof c !== 'object' || c.sobre !== 'cierre' || num(c.capital) > 0 || fechaFin(c.fecha) !== f) continue;
+      if (esperado == null || Math.round(num(c.costo) + num(c.mora)) === esperado) return c;
+    }
+    return null;
   }
   /* Todo el capital que este crédito no va a devolver, uno por hecho: cada
      perdón de un pacto vigente (perdonesDeCapital) y la pérdida del cierre.
@@ -4920,6 +4944,7 @@
     perdidasDeCapital: perdidasDeCapital,
     perdidaDelCierre: perdidaDelCierre,
     condonacionDelCierre: condonacionDelCierre,
+    condonacionVigente: condonacionVigente,
     /* Un cierre con pérdida no es un pago (31-oct-2026): para las comisiones
        (app/comisiones.js), «Tu gente» (app/gente.js) y los recibos del CRM y
        del celular. */

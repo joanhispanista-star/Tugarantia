@@ -148,6 +148,47 @@ describe('6-bis · un abono del otro aparato baja la pérdida del cierre que no 
     assert.equal(P.perdidaDelCierre(g), 50000);
   });
 
+  /* 9-nov-2026 — la segunda ronda: «Descuentos dados» contaba dos veces el perdón de
+     un solo cierre, sin ningún choque. */
+  test('el mismo crédito a cuotas cerrado igual en dos computadores: un solo perdón', () => {
+    const p = aCuotas();
+    const r1 = P.cierreConPerdon(cartera(p), p, '2026-10-20', 700000, SI);
+    const r2 = P.cierreConPerdon(cartera(p), p, '2026-10-20', 700000, SI);
+    assert.equal(r1.ok && r2.ok, true);
+    const a = aplicar(p, r1.registros), b = aplicar(p, r2.registros);
+    assert.equal(P.perdidaDelCierre(a), 0, 'precondición: sin pérdida');
+    const f = NUBE.fusionarFila(a, b, NUBE.LISTAS_QUE_SUMAN).fila;
+    assert.equal(f.condonaciones.length, 2, 'precondición: la nube conserva las dos (cada una con su id)');
+    const solo = P.descuentosDelSocio(cartera(a), SOCIO);
+    const junto = P.descuentosDelSocio(cartera(f), SOCIO);
+    assert.equal(junto.monto, solo.monto, 'contó dos veces el perdón de un solo cierre');
+    assert.equal(junto.veces, 1);
+    const q = P.quincenaDeCondonacion(f, f.condonaciones[0]);
+    assert.equal(P.descuentosDeQuincena(cartera(f), q).total, P.descuentosDeQuincena(cartera(a), q).total);
+  });
+
+  test('gana un cierre con pérdida contra uno que cerró con descuento: el perdón del que perdió no cuenta', () => {
+    const p = quincenal();
+    const conPerdida = aplicar(p, P.cierreConPerdon(cartera(p), p, DIA, 250000, SI).registros);
+    const conDescuento = aplicar(p, P.cierreConPerdon(cartera(p), p, DIA, 330000, SI).registros);
+    assert.equal(P.perdidaDelCierre(conDescuento), 0, 'precondición: el otro cerró sin pérdida');
+    const f = NUBE.fusionarFila(conPerdida, conDescuento, NUBE.LISTAS_QUE_SUMAN).fila;
+    assert.equal(f.condonaciones.length, 2);
+    const d = P.descuentosDelSocio(cartera(f), SOCIO);
+    assert.equal(d.costo + d.mora, 75000, 'sumó el perdón del cierre que perdió: ' + JSON.stringify(d));
+    assert.equal(d.monto, 125000, 'el perdón de este cierre: 75.000 de mora y costo + 50.000 de capital');
+    const q = P.quincenaDeCondonacion(f, P.condonacionDelCierre(f));
+    assert.equal(P.descuentosDeQuincena(cartera(f), q).total, 75000);
+  });
+
+  test('lo de antes no cambia: un perdón de prórroga o de «Pagó todo» con descuento sigue contando', () => {
+    const p = quincenal();
+    p.condonaciones = [{ fecha: '2026-10-15', costo: 10000, mora: 0, motivo: 'x', sobre: 'prorroga' },
+      { fecha: '2026-10-20', costo: 5000, mora: 2000, motivo: 'y', quien: 'computador' }];
+    assert.equal(P.descuentosDelSocio(cartera(p), SOCIO).veces, 2);
+    assert.equal(P.condonacionVigente(p, p.condonaciones[1]), true);
+  });
+
   test('un crédito con cuotas no pasa por aquí: sus abonos viajan con su plan', () => {
     const p = aCuotas();
     const r = P.cierreConPerdon(cartera(p), p, '2026-10-20', 300000, SI);
