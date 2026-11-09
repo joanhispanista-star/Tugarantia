@@ -445,6 +445,32 @@ input.enlace-instalar{margin-top:var(--e3);font-size:14px}
 .pill.ambar{border-color:var(--ambar-filete);
   background:var(--ambar-papel);color:var(--ambar-tinta)}
 
+/* ---------------- la propuesta: «¿A dónde te consignamos?» (9-nov-2026) ----
+   Las clases cp-* las pinta app/cuentas-pago.js y cada página les pone su
+   hoja (así lo hacen play/ y PlataChat). Son las de play/ con los tokens de
+   aquí: esta hoja no tiene verde, y «llega más rápido» va en el azul que
+   explica. La casilla y las condiciones traen su propia hoja
+   (app/calculadora-solicitud.js). */
+.cp-etq{display:inline-block;margin-left:var(--e2);padding:2px var(--e2);border-radius:999px;
+  font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;vertical-align:middle;
+  background:var(--linea);color:var(--gris)}
+.cp-etq.cp-rapido{background:var(--azul-tinte);color:var(--tinta);box-shadow:inset 0 0 0 1px var(--azul-texto)}
+.cp-elegir{margin-top:var(--e4)}
+.cp-tit{font-size:15px;font-weight:700}
+.cp-sub{font-size:13px;color:var(--gris);margin-top:var(--e1);line-height:1.45}
+.cp-opcion{display:flex;gap:var(--e3);align-items:flex-start;margin:var(--e3) 0 0;padding:var(--e3);
+  border:1px solid var(--linea);border-radius:14px;cursor:pointer;font-size:14px;font-weight:400}
+.cp-opcion.cp-sel{border-color:var(--azul-texto);background:var(--azul-tinte)}
+.cp-opcion input{width:22px;height:22px;flex:none;margin:1px 0 0;accent-color:var(--rojo)}
+.cp-opcion .cp-txt b{display:block;font-weight:600}
+.cp-opcion .cp-etq{margin:var(--e1) 0 0}
+.cp-otra{padding:0 var(--e1)}
+.cp-otra select{width:100%;min-height:44px}
+.cp-ayuda{font-size:12.5px;color:var(--gris);margin-top:5px;line-height:1.45}
+.cp-mia{display:flex;gap:var(--e3);align-items:center;font-weight:600;margin-top:var(--e3)}
+.cp-mia input{width:22px;height:22px;flex:none;margin:0;accent-color:var(--rojo)}
+.cp-error{margin-top:var(--e3);font-size:13.5px;color:var(--ambar-tinta)}
+
 /* ---------------- calculadora ---------------- */
 /* el selector de producto: rojo el de quince días, azul el de seis meses */
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:var(--e2);margin-bottom:var(--e4)}
@@ -907,8 +933,12 @@ details.plegado>summary{padding:0 var(--e4)}
    31-oct-2026: el Historial dice «Cerrado» —no «Pagado en fecha», ni sus
    cuotas como pagadas, ni garantía «al pagarlo»— del crédito que Joan cerró
    con «Se lo perdoné» sin que el cliente devolviera el capital, y ese crédito
-   no da insignias de pago. Sale con el CACHE v142. */
-var VERSION_APP = '2026-10-31';
+   no da insignias de pago. Sale con el CACHE v142.
+   9-nov-2026: la propuesta de Joan se ve y se acepta aquí (la cuenta sin juntar y
+   la junta), con las condiciones y a dónde se consigna (app/propuesta-en-la-app.js,
+   nuevo). Si un cliente dice que «no le llegó la propuesta», esta fecha dice si
+   tiene la versión que se la muestra. Sale con el CACHE v143. */
+var VERSION_APP = '2026-11-09';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
@@ -1002,7 +1032,16 @@ setTimeout(function () {
      enlace al registro. -->
 <script src="creditos.js"></script>
 <script src="calculadora-solicitud.js?v=139"></script>
-<script src="sesion-socio.js?v=139"></script>
+<!-- 9-nov-2026 — LA PROPUESTA EN LA APP. Hasta hoy esta app no preguntaba por
+     la solicitud: quien pidió en play/ y abría su app instalada no veía la
+     propuesta de Joan ni tenía dónde aceptarla. propuesta-en-la-app.js es la
+     lógica de play/ (las mismas funciones de la base, con lo mismo), y
+     bancos-colombia.js y cuentas-pago.js son los de play/ para «¿A dónde te
+     consignamos?». Sin estos dos, se acepta sin la pregunta (como play/). -->
+<script src="bancos-colombia.js"></script>
+<script src="cuentas-pago.js"></script>
+<script src="propuesta-en-la-app.js?v=143"></script>
+<script src="sesion-socio.js?v=143"></script>
 <script src="ver-como.js"></script>
 <!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
      momento seguro (momentoSeguroSocio). Si no llega, la app sigue igual. -->
@@ -1429,7 +1468,22 @@ function cargarCuenta() {
     /* Ya no está junta (o nunca lo estuvo): si había un paquete guardado de
        antes —Joan deshizo una unión equivocada—, se borra YA del teléfono. */
     if (SESION.paquete) { delete SESION.paquete; delete SESION.paqueteEn; guardarSesionSocio(SESION); }
-    return SS.miRegistro(CFG, SESION, guardarSesionSocio).then(pintarSinJuntar);
+    /* 9-nov-2026 — Y SU SOLICITUD, ANTES DE PINTAR: con una propuesta
+       esperando, lo primero que tiene que ver es la propuesta (ver LA
+       PROPUESTA EN LA APP). Se pinta una sola vez, con las dos respuestas, en
+       vez de pintar «Nos falta un paso» y cambiarlo debajo del dedo.
+       Con mi_registro en 404 NO se pregunta: esa base todavía no tiene la reja
+       de solicitud_de_la_cuenta, y mi_solicitud podría traer lo que pidió
+       otra persona con este número (la misma razón por la que no se abre el
+       chat). mi_solicitud nunca tumba la pantalla: si falla, la tarjeta lo dice. */
+    var cel = SESION.celular;
+    return SS.miRegistro(CFG, SESION, guardarSesionSocio).then(function (estado) {
+      if (estado === 'apagado' || !PDA) return pintarSinJuntar(estado);
+      return PDA.cargar().then(function () {
+        if (!SESION || SESION.celular !== cel) return;   // salió mientras contestaba
+        pintarSinJuntar(estado);
+      });
+    });
   }).catch(function (e) {
     var c = e && e.causa;
     if (c === 'sesion') {
@@ -1465,18 +1519,29 @@ function pintarSinRed(msg) {
    mostrarle la cobranza de otra persona a quien registró ese número. */
 function pintarSinJuntar(estado) {
   PANTALLA = 'sin_juntar';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
-  var t = SS.textoSinJuntar(estado);
+  /* 9-nov-2026 — con su solicitud (PDA.que(): pidió, hay propuesta o aceptó),
+     para que «Nos falta un paso de nuestro lado» no sea lo único que diga
+     cuando hay una propuesta esperando su respuesta. */
+  SJ_ESTADO = estado;
+  var conPropuesta = estado !== 'apagado' && !!PDA;
+  var t = SS.textoSinJuntar(estado, conPropuesta ? PDA.que() : null);
   var conChat = estado !== 'apagado';
   S = null; TAB = 'chat';
+  /* La cuenta de antes no se queda pintada debajo (pCuenta, oculta): sus
+     tarjetas repetirían los id de la propuesta de esta pantalla. */
+  var cuentaVieja = $('cuerpo'); if (cuentaVieja) cuentaVieja.innerHTML = '';
   /* 21-oct-2026 — la tarjeta de instalar: es el rato de esperar la respuesta.
      Debajo del estado de su registro, que es lo que vino a mirar; dentro de
      otra app, primero (desde ahí no se puede instalar). */
   var instalar = tarjetaInstalar('espera'), arriba = instalarVaArriba();
   $('entrarCuerpo').innerHTML =
+    /* 9-nov-2026 — LA PROPUESTA, ARRIBA DE TODO: es lo que tiene que
+       contestar, y lo único de esta pantalla que depende de ella. */
+    (conPropuesta ? '<div id="propuestaCaja">' + PDA.html() + '</div>' : '') +
     (arriba ? instalar : '') +
     '<div class="card">' +
-      '<h3 class="tit">' + esc(t.titulo) + '</h3>' +
-      '<p class="sub">' + esc(t.texto) + '</p>' +
+      '<h3 class="tit" id="sjTit">' + esc(t.titulo) + '</h3>' +
+      '<p class="sub" id="sjTexto">' + esc(t.texto) + '</p>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="cargarCuenta()">Volver a mirar</button>' +
     '</div>' +
     /* 28-oct-2026 — mientras espera la respuesta: es justo cuando sirve subir
@@ -1492,6 +1557,73 @@ function pintarSinJuntar(estado) {
   if (conChat) arrancarChat();
   montarHistoriaLaboral();   // 28-oct-2026
   avisarQueEsMomento();   // 21-oct-2026 — la cuenta sin juntar es el inicio de quien se registró
+}
+
+/* ===========================================================================
+ * LA PROPUESTA EN LA APP — 9 de noviembre de 2026
+ *
+ * Una clienta pidió en play/, Joan le mandó una propuesta y el CRM le dijo
+ * que «en su app la ve y la acepta». Esta app nunca preguntaba por la
+ * solicitud: ella vio «Nos falta un paso de nuestro lado», escribió «estoy
+ * esperando el desembolso» y Joan terminó registrando un crédito a mano, sin
+ * la propuesta. Ahora la cuenta (sin juntar, arriba de todo; junta, arriba de
+ * Inicio) dice en qué va su solicitud y deja aceptar la propuesta con «Las
+ * condiciones de este crédito», «¿A dónde te consignamos?» y la casilla.
+ *
+ * La lógica es la de play/, en app/propuesta-en-la-app.js: las mismas
+ * funciones de la base con los mismos parámetros, así la constancia de lo
+ * que leyó es la misma y el CRM no avisa «aceptó SIN constancia». Aquí solo
+ * se le dice cómo hablar con la nube (la sesión de esta app), cómo se cuenta
+ * una escritura en camino (SE ACTUALIZA SOLA no recarga encima de una
+ * aceptación) y dónde se pinta. Los nombres de los manejadores son los de
+ * play/ a propósito: la misma prueba los toca en las dos páginas.
+ * ======================================================================== */
+var SJ_ESTADO = '';   // el estado del registro que pintó la cuenta sin juntar
+var PDA = (function () {
+  var PEA = window.PropuestaEnLaApp, CS = window.CalculadoraSolicitud;
+  if (!PEA || typeof PEA.crear !== 'function' || !SS) return null;
+  try {
+    return PEA.crear({
+      CS: CS || null,
+      CP: window.CuentasPago || null,
+      rpc: function (fn, cuerpo) { return SS.conSesion(CFG, SESION, fn, cuerpo, guardarSesionSocio); },
+      escritura: escrituraEnCamino,
+      quien: function () { return (SESION && SESION.celular) || ''; },
+      caja: function () { return $('propuestaCaja'); },
+      porId: $,
+      hoy: hoyISO,
+      /* Desde qué teléfono aceptó (19-oct-2026), como play/. */
+      alAceptar: function () { anotarAparatoSocio('aceptacion'); },
+      /* Lo que dice la tarjeta de la cuenta sin juntar depende de la propuesta:
+         si la acaba de aceptar, deja de decir que está esperando. */
+      alCambiar: function () {
+        if (PANTALLA !== 'sin_juntar' || !SS) return;
+        var t = SS.textoSinJuntar(SJ_ESTADO, PDA ? PDA.que() : null);
+        var a = $('sjTit'), b = $('sjTexto');
+        if (a) a.textContent = t.titulo;
+        if (b) b.textContent = t.texto;
+      },
+      textoVencida: SS.TEXTOS.vencida,
+      volverAMirar: 'cargarCuenta()'
+    });
+  } catch (e) { return null; }
+})();
+/* Los manejadores que pintan las tarjetas (los mismos nombres que en play/). */
+function marcarCondiciones(si) { if (PDA) PDA.marcar(si); }
+function elegirDestino(v) { if (PDA) PDA.elegir(v); }
+function medioDestino(m) { if (PDA) PDA.medio(m); }
+function escribirDestino(campo, valor) { if (PDA) PDA.escribir(campo, valor); }
+function aceptarContrapropuesta(id) { if (PDA) PDA.aceptar(id); }
+/* La cuenta junta: se pregunta al abrirla y se pinta arriba de Inicio si
+   todavía está ahí. Solo con su sesión: ni el «Ver como» de Joan ni un enlace
+   piden nada a nombre de nadie. */
+function cargarPropuestaDeLaCuenta() {
+  if (!PDA || !S || S.origen !== 'nube' || !SESION || !SESION.access_token) return;
+  var cel = SESION.celular;
+  PDA.cargar().then(function () {
+    if (!SESION || SESION.celular !== cel || !S || S.origen !== 'nube') return;
+    if (PANTALLA === 'inicio') PDA.pintar();
+  });
 }
 
 /* ===========================================================================
@@ -2004,8 +2136,15 @@ function abrir(resp) {
   /* 21-oct-2026 — si esta carga la hizo SE ACTUALIZA SOLA, vuelve a la
      pestaña donde estaba (solo las de la lista, y solo con su cuenta).
      23-oct-2026 — y si la abrió el atajo «Calculadora» del ícono, a esa. */
+  /* 9-nov-2026 — lo que quedó pintado en la entrada (la cuenta sin juntar, con
+     su propuesta) no se queda oculto debajo: repetiría los id de la tarjeta
+     de la propuesta de Inicio. Cada pantalla de la entrada se vuelve a pintar
+     entera al mostrarse. No es pintar una pantalla (la pantalla la dice irA,
+     abajo): es vaciar una que queda oculta. */
+  var entradaVieja = $('entrarCuerpo'); if (entradaVieja) entradaVieja.innerHTML = '';
   irA(pestanaAlVolver() || atajoDelManifiesto() || 'inicio');
   mostrar('pCuenta');
+  cargarPropuestaDeLaCuenta();   // 9-nov-2026 — ver LA PROPUESTA EN LA APP
   /* 26-oct-2026 (chat-1) — el número de «Chat (n)» late en toda la app, no
      solo dentro de la pestaña. Solo con sesión (chatDisponible lo mira). */
   arrancarLatidoChat();
@@ -2069,6 +2208,10 @@ function vistaInicio() {
   /* 8-oct-2026: el aviso de la responsable nueva va primero, una sola vez
      (avisoResponsable, junto a la autorización de datos). */
   var h = avisoResponsable();
+  /* 9-nov-2026 — su solicitud de crédito, si hay una abierta (ver LA
+     PROPUESTA EN LA APP): una propuesta esperando su respuesta es lo primero
+     que tiene que ver. Solo en su cuenta (origen nube, con su sesión). */
+  if (PDA && S.origen === 'nube' && SESION && SESION.access_token) h += '<div id="propuestaCaja">' + PDA.html() + '</div>';
 
   var cuota = proximaCuotaRespaldado();
   /* "Este corte" se mide contra el corte que viene DE VERDAD, no contra el
@@ -5237,6 +5380,9 @@ function cerrarSesionLocal() {
   /* 26-oct-2026 (chat-1) — sin sesión no hay a quién preguntarle: los dos
      relojes del chat se paran y el número de la barra se borra. */
   pararChat(); pararLatidoChat();
+  /* 9-nov-2026 — y la propuesta: la casilla, la cuenta elegida y las cuentas
+     del registro de esta cuenta no se quedan para la siguiente. */
+  if (PDA) PDA.soltar();
   if (SS) SS.borrar(localStorage);
   try { sessionStorage.removeItem(SS ? SS.LLAVE_PLAY : 'play_sesion'); } catch (e) {}
 }
@@ -5336,6 +5482,13 @@ function momentoSeguroSocio() {
   if (location.search.indexOf('cfg') >= 0) return false;
   if (nuncaSeguroSocio()) return false;
   if (ocupadoSocio()) return false;
+  /* 9-nov-2026 — LA PROPUESTA A MEDIAS FRENA EN CUALQUIER PANTALLA, como en
+     play/ (momentoSeguroPlay): la casilla «Leí y acepto» marcada o la cuenta
+     a medio elegir viven en memoria a propósito (es un dato de pago), y una
+     recarga se las llevaba. Inicio y la cuenta sin juntar son de la lista, y
+     son justo donde está la propuesta; y la persona sale a la app del banco a
+     copiar el número y vuelve. */
+  if (PDA && PDA.aMedias()) return false;
   if (PANTALLAS_SEGURAS.indexOf(PANTALLA) < 0) return false;
   if (PANTALLA === 'entrar') return sinTeclear('inCel') && sinTeclear('inClave');
   if (PANTALLA === 'sin_juntar') return sinTeclear('chTexto');

@@ -275,8 +275,28 @@
 
   /** Lo que la pantalla de la cuenta sin juntar dice, según el registro. Es
    *  texto plano: quien lo pinte lo escapa. El último renglón es una promesa
-   *  que el servidor cumple: vincular_interna deja el aviso en su chat. */
-  function textoSinJuntar(estado) {
+   *  que el servidor cumple: vincular_interna deja el aviso en su chat.
+   *  9-nov-2026 — `propuesta` (opcional): lo que mi_solicitud dice de su
+   *  crédito, como lo lee app/propuesta-en-la-app.js ('espera', 'propuesta',
+   *  'aceptada' o nada). Con una propuesta esperando, «Nos falta un paso de
+   *  nuestro lado» a secas le decía a la clienta que esperara, y la propuesta
+   *  que tenía que contestar no salía en ninguna parte: escribió «estoy
+   *  esperando el desembolso» y nadie la había aceptado. Ahora el texto dice
+   *  primero lo de su crédito (la tarjeta va arriba) y después lo de juntar. */
+  var ANTES_DEL_REGISTRO = {
+    espera: 'Tu solicitud de crédito llegó y la estamos revisando: la ves arriba. ',
+    propuesta: 'Te hicimos una propuesta de crédito: la tienes arriba, esperando tu respuesta. ',
+    aceptada: 'Ya aceptaste tu propuesta de crédito (arriba): te avisamos por este chat cuando te enviemos la plata. '
+  };
+  function textoSinJuntar(estado, propuesta) {
+    var t = textoDelRegistro(estado);
+    /* Con el registro descartado o la puerta sin encender no se antepone nada:
+       ahí la app no pregunta por su solicitud (ver cargarCuenta en socio.html),
+       o lo que dice contradiría la tarjeta. */
+    var antes = (estado === 'descartado' || estado === 'apagado') ? '' : (ANTES_DEL_REGISTRO[propuesta] || '');
+    return antes ? { titulo: t.titulo, texto: antes + t.texto } : t;
+  }
+  function textoDelRegistro(estado) {
     var aviso = 'Te avisamos por este chat cuando esté.';
     if (estado === 'nuevo') {
       return { titulo: 'Tu registro llegó y lo estamos revisando',

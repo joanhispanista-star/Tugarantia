@@ -2115,7 +2115,20 @@
    que cubría la pérdida la bajaba solo, y el cierre dejaba de contar como pérdida. Desde v143
    ese cierre sigue contando como pérdida (la comisión espera, y no cuenta como pago para el
    referido, la racha ni «Créditos que pagó») hasta que Joan escoja «Lo cobro». Es lo
-   prudente: puede ser la misma plata. */
+   prudente: puede ser la misma plata.
+   9-nov-2026, v143 (la propuesta conectada): LA APP INSTALADA VE Y ACEPTA SU PROPUESTA.
+   Una clienta pidió en play/, Joan le mandó una propuesta, y su app (app/socio.html)
+   solo decía «Nos falta un paso de nuestro lado»: esa página nunca preguntaba por la
+   solicitud. Ahora la cuenta sin juntar (arriba de todo) y la junta (arriba de Inicio)
+   dicen en qué va —pidió, hay una propuesta esperando su respuesta, o aceptó y a dónde
+   se le consigna— y dejan aceptar con «Las condiciones de este crédito», «¿A dónde te
+   consignamos?» y la casilla, con las mismas funciones de la base que play/ (mismos
+   parámetros, mismo orden, mismos respaldos sin la migración): la misma constancia.
+   Entra un .js NUEVO, app/propuesta-en-la-app.js, con ?v=143 en la dirección (firma al
+   llegar, y socio.html no arranca sin él), y cambia uno publicado, app/sesion-socio.js
+   (textoSinJuntar dice primero lo de su crédito), que pasa a ?v=143 en socio.html y en
+   la precarga. socio.html pide además app/bancos-colombia.js y app/cuentas-pago.js, que
+   no cambiaron y ya estaban en la precarga. No hay base nueva. */
 const CACHE = 'tugarantia-v143';
 const BASE = new URL('./', self.location).pathname;
 
@@ -2141,8 +2154,15 @@ const ARCHIVOS = [
      contrato. NUEVO: sin versión en la dirección, no hay copia vieja con la
      que mezclarse. El CACHE lo sube quien integra el lote del 30-oct. */
   'app/chat-vivo.js',
-  /* 7-oct-2026 — la puerta unica de la app del socio. Ver la nota de v132. */
-  'app/sesion-socio.js?v=139',
+  /* 7-oct-2026 — la puerta unica de la app del socio. Ver la nota de v132.
+     9-nov-2026 — ?v=143: textoSinJuntar dice primero lo de su solicitud de
+     crédito (ver la nota de v143, «la propuesta en la app»). */
+  'app/sesion-socio.js?v=143',
+  /* 9-nov-2026 — la propuesta en la app instalada (app/socio.html): ver y
+     aceptar la propuesta de Joan con las mismas funciones de la base que
+     play/. NUEVO, pero con ?v=143 en la dirección, como lo pide la página:
+     firma al llegar, y socio.html no arranca sin él. */
+  'app/propuesta-en-la-app.js?v=143',
   'app/ver-como.js',
   'app/chat.css',
   'app/app.webmanifest',
@@ -2307,7 +2327,8 @@ const ARCHIVOS = [
   /* 22-oct-2026 — dónde recibe la plata el cliente: la lista de bancos y sus
      reglas. Los cargan play/ (el paso «¿Dónde te enviamos la plata?» y
      «¿A dónde te consignamos?» al aceptar), platachat/ (al aceptar) y el CRM
-     («Consignar a: …»). Sin ellos cada página se protege sola (`if (CP)`):
+     («Consignar a: …»). 9-nov-2026 — y app/socio.html, al aceptar en la app
+     instalada. Sin ellos cada página se protege sola (`if (CP)`):
      el paso se salta y se acepta como antes. Tienen que llegar JUNTO con las
      páginas que los llaman: el número de CACHE lo sube quien publica. */
   'app/bancos-colombia.js',
