@@ -449,3 +449,22 @@ describe('4 · los informes dicen la pérdida aparte de la ganancia', () => {
     assert.match(P.elems.mBody.innerHTML, /class="pierde">-\$50\.000/);
   });
 });
+
+/* 9-nov-2026 — la segunda ronda, en un iPhone (390 px): el chip «Cerrada con perdón
+   04 de nov de 2026» se salía del cuadro y «Entró de verdad» se partía «verda / d».
+   Lo que se ve se midió en Chrome sin ventana (antes: chip hasta 417 px con el cuadro
+   en 370, barra de lado, etiqueta de 39 px; después: nada fuera). Aquí se cuida que
+   las piezas sigan puestas. */
+describe('el detalle de un cierre con perdón cabe en un iPhone', () => {
+  test('«Entró de verdad» es un renglón largo y el chip parte si no cabe (solo en pantalla chica)', () => {
+    const hoja = require('node:fs').readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
+    assert.match(hoja, /<div class="info-row fila-larga"><span class="k">Entró de verdad<\/span>/);
+    const chica = hoja.slice(hoja.indexOf('@media (max-width:560px){\r\n    .info-row.con-botones .vv{text-align:left}') >= 0
+      ? hoja.indexOf('@media (max-width:560px){\r\n    .info-row.con-botones .vv{text-align:left}')
+      : hoja.indexOf('@media (max-width:560px){\n    .info-row.con-botones .vv{text-align:left}'));
+    const bloque = chica.slice(0, chica.indexOf('\n  }'));
+    assert.match(bloque, /#mBody \.info-row \.vv \.chip\{white-space:normal\}/);
+    assert.match(bloque, /#mBody \.info-row\.fila-larga\{flex-wrap:wrap\}/);
+    assert.match(bloque, /#mBody \.info-row\.fila-larga \.vv\{flex:1 1 100%;min-width:0;text-align:left\}/);
+  });
+});
