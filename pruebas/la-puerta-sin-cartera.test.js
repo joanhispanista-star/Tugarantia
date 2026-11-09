@@ -98,9 +98,30 @@ describe('en el computador de Joan, con su cartera, nada cambia', () => {
     assert.equal(abrir({ socios: [], prestamos: [], config: { pin: '482915' } }).ev('carteraVaciaAqui()'), false);
   });
 
-  test('un disco que no se puede leer no es «no hay cartera»: no se afirma nada', () => {
-    const P = abrirPanel({ tarjeta: true, ahora: HOY, almacen: { [KEY]: '{esto no es json' } });
-    assert.equal(P.ev('carteraVaciaAqui()'), false);
+  /* 9-nov-2026 — revisión de plata-e1: con el JSON roto esto decía «hay cartera», y la sesión
+     guardada abría sola un CRM en $0 (cargar() lee un disco roto como vacío); si getItem lanzaba,
+     decía lo contrario. Un disco ilegible no abre solo: se queda la puerta, que lo dice. */
+  test('un disco que no se puede leer no abre solo un CRM en $0: se queda la puerta, que dice que está dañado', () => {
+    ['{esto no es json', '[1,2]'].forEach(roto => {
+      const almacen = {};
+      const P = abrirPanel({ tarjeta: true, ahora: HOY, almacen });
+      P.ev("document.getElementById('pinInput').value = '1234'; entrar()");
+      assert.equal(P.ev('_crmAbierto'), true, 'la prueba necesita una sesión guardada');
+      almacen[KEY] = roto;
+      const Q = abrirPanel({ tarjeta: true, ahora: HOY, almacen });
+      assert.equal(Q.ev('carteraVaciaAqui()'), true, roto);
+      Q.ev('retomarSesionAlAbrir()');
+      assert.equal(Q.ev('_crmAbierto'), false, 'abrió solo un CRM en $0 con el disco roto: ' + roto);
+      assert.equal(almacen[KEY], roto, 'tocó el disco: ' + roto);
+      if (roto[0] === '{') assert.match(Q.elems.salidaPuertaTexto.textContent, /Lo guardado en este aparato está dañado y no lo puedo leer/, roto);
+    });
+  });
+
+  /* CONTROL: esta ya decía «no abre»; queda para que las dos salidas no se vuelvan a separar. */
+  test('CONTROL · un disco que no se deja leer (getItem lanza) se contesta igual', () => {
+    const P = abrirPanel({ tarjeta: true, ahora: HOY, almacen: {} });
+    P.ev("localStorage.getItem = function () { throw new Error('bloqueado'); }");
+    assert.equal(P.ev('carteraVaciaAqui()'), true);
   });
 });
 

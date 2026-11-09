@@ -13745,19 +13745,25 @@ function conectarPuertaDeJoan() {
    salida (pintarSalidaDeLaPuerta, que vino de main el 6-nov y ganó contra la puerta que
    tenía esta rama: la misma pregunta, contestada una vez).
    Mira cualquier lista con algo, no solo socios y créditos, y un PIN que no sea el de
-   fábrica también cuenta: más vale pedirle el PIN a un aparato vacío que dejar en la puerta
-   a quien sí tiene cartera. Por lo mismo, un disco que no se puede leer no es «no hay nada». */
+   fábrica también cuenta: alguien configuró este aparato, y su sesión se retoma.
+   9-nov-2026 — Y UN DISCO QUE NO SE PUEDE LEER TAMPOCO ABRE SOLO (revisión de plata-e1). Si
+   getItem lanzaba, esto decía «vacía»; con el JSON roto decía lo contrario, y la sesión
+   guardada abría sola un CRM en $0: cargar() lee un disco roto como vacío. Las dos son lo
+   mismo, un disco que no se deja leer, y se contestan igual: la sesión no se abre sola y se
+   queda la puerta, que pide el PIN y dice que lo guardado está dañado (textoSalidaDeLaPuerta).
+   No se afirma que no haya nada, ni se borra nada: el disco sigue ahí para el respaldo.
+   Devuelve true cuando aquí no hay una cartera que la sesión pueda abrir. */
 function carteraVaciaAqui() {
   if (hayCarteraDeJoan()) return false;
   let t;
   try { t = localStorage.getItem(KEY); } catch (e) { return true; }
   if (!t) return true;
-  try {
-    const d = JSON.parse(t);
-    if (d && d.config && d.config.pin && String(d.config.pin) !== '1234') return false;
-    return !['socios', 'clientes', 'prestamos', 'respaldados', 'prospectos', 'bases', 'papelera', 'papeleraSocios', 'asignaciones', 'equipo']
-      .some(k => Array.isArray(d[k]) && d[k].length);
-  } catch (e) { return false; }
+  let d;
+  try { d = JSON.parse(t); } catch (e) { return true; }
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return true;
+  if (d.config && d.config.pin && String(d.config.pin) !== '1234') return false;
+  return !['socios', 'clientes', 'prestamos', 'respaldados', 'prospectos', 'bases', 'papelera', 'papeleraSocios', 'asignaciones', 'equipo']
+    .some(k => Array.isArray(d[k]) && d[k].length);
 }
 function celularBonito(t) { const s = String(t || ''); return s.length === 10 ? s.slice(0, 3) + ' ' + s.slice(3, 6) + ' ' + s.slice(6) : s; }
 function decirEnPuertaEquipo(html, tono) {
