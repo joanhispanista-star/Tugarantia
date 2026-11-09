@@ -507,3 +507,79 @@ describe('el detalle del celular, con un crédito cerrado, dice lo prestado', ()
     assert.match(detalle(abierto), /Saldo de capital del crédito \$240\.000/);
   });
 });
+
+/* 9-nov-2026 — revisión de plata-e1, cuarta tanda: en el detalle del CRM, la lista «Abonos a
+   capital» decía del abono que el cierre no conoció «abono a capital $60.000 · no deja garantía:
+   es capital que vuelve», por decidir y con cualquier decisión. La caja de arriba decía que esa
+   plata no cuenta en ninguna cifra, y con «Queda a su favor» o «Era la misma plata» no vuelve
+   ningún capital. Cada estado dice lo suyo. */
+describe('la lista de abonos del detalle dice lo que es el abono que el cierre no conoció', () => {
+  const conPerdida = conAbonoDelOtro(q0, CAMINOS['Se lo perdoné con pérdida (250.000)']().cerrado, 60000);
+  const sinPerdida = conAbonoDelOtro(q0, CAMINOS['CRM · Se lo perdoné sin pérdida (315.000)']().cerrado, 60000);
+  const abonos = f => {
+    const C = abrirPanel({ ahora: '2026-10-21T10:30:00' });
+    C.cargarCartera({ socios: [copia(SOCIO)], prestamos: [copia(f)], config: { negocio: 'Tu Garantía' } });
+    C.ev("verCredito('p1')");
+    const t = plano(C.elems.mBody.innerHTML);
+    const i = t.indexOf('Abonos a capital');
+    assert.ok(i >= 0, 'no salió la lista de abonos: ' + t.slice(0, 300));
+    return t.slice(i, t.indexOf('Comprobantes de pago', i));
+  };
+  const CAPITAL_QUE_VUELVE = /abono a capital \$60\.000 · no deja garantía: es capital que vuelve/;
+
+  test('por decidir, no es capital que vuelve', () => {
+    [conPerdida, sinPerdida].forEach(f => {
+      const t = abonos(f);
+      assert.doesNotMatch(t, CAPITAL_QUE_VUELVE, t);
+      assert.match(t, /abono \$60\.000 · el cierre no lo conoció: por decidir, y hasta que decidas no cuenta en ninguna cifra/, t);
+    });
+  });
+
+  test('«Queda a su favor» y «Era la misma plata» lo dicen, sin capital que vuelva', () => {
+    const a = abonos(decidir(conPerdida, 'aFavor'));
+    assert.doesNotMatch(a, CAPITAL_QUE_VUELVE, a);
+    assert.match(a, /abono \$60\.000 · el cierre no lo conoció y quedó a su favor: no es capital ni ganancia/, a);
+    const m = abonos(decidir(sinPerdida, 'misma'));
+    assert.doesNotMatch(m, CAPITAL_QUE_VUELVE, m);
+    assert.match(m, /abono \$60\.000 · el cierre no lo conoció: era la misma plata que entró al cierre y no suma nada/, m);
+  });
+
+  test('cobrado, dice cuánto volvió a capital y cuánto es ganancia', () => {
+    assert.match(abonos(decidir(conPerdida, 'cobrar')), /abono \$60\.000 · el cierre no lo conoció y lo cobraste: \$50\.000 volvieron a capital y \$10\.000 son ganancia/);
+    assert.match(abonos(decidir(sinPerdida, 'cobrar')), /abono \$60\.000 · el cierre no lo conoció y lo cobraste: \$60\.000 son ganancia/);
+  });
+
+  test('con un abono que el cierre sí conoció y otro que no, cada uno dice lo suyo', () => {
+    /* El computador anota 100.000 el 10-oct y cierra con «Pagó todo»; el celular anotó 50.000 el
+       12-oct sobre la copia vieja. */
+    const C = abrirPanel({ ahora: '2026-10-10T10:00:00' });
+    C.cargarCartera({ socios: [copia(SOCIO)], prestamos: [copia(q0)], config: { negocio: 'Tu Garantía' } });
+    C.ev("confirm=t=>String(t).indexOf('WhatsApp')<0;alert=()=>{};document.getElementById('abCap').value='100000';abonarCapital('p1','2026-10-10')");
+    const conAbono = JSON.parse(C.ev('JSON.stringify(DB.prestamos[0])'));
+    const cerrado = cierreDelCRM(conAbono, "pagarTotal('p1')");
+    const cel = delCelular(q0, "abonarEnCalle('p1', 50000, '2026-10-12')");
+    const f = NUBE.fusionarFila(cerrado, cel, NUBE.LISTAS_QUE_SUMAN).fila;
+    assert.equal(P.sobrantePorDecidir(f), 50000);
+    const t = abonos(f);
+    assert.match(t, /abono a capital \$100\.000 · no deja garantía: es capital que vuelve/, t);
+    assert.match(t, /abono \$50\.000 · el cierre no lo conoció: por decidir/, t);
+  });
+
+  test('si no se puede saber cuál es, ningún renglón promete nada y una línea dice la cifra', () => {
+    /* Dos abonos de 60.000: uno lo conoció el cierre y el otro no. */
+    const f = Object.assign(copia(sinPerdida), { abonosCapital: sinPerdida.abonosCapital.concat([ABONO(60000, '2026-10-19')]) });
+    f.abonosCapital[1].id = 'otro';
+    f.montoRecibido = 255000;
+    assert.equal(P.sobrantePorDecidir(f), 60000);
+    assert.equal(P.abonosQueElCierreNoConocioCuales(f), null);
+    const t = abonos(f), renglones = t.slice(0, t.indexOf('De estos abonos'));
+    assert.doesNotMatch(renglones, /capital que vuelve|abono a capital|no lo conoció/, t);
+    assert.match(t, /De estos abonos hay \$60\.000 que el cierre no conoció, y no se puede saber cuáles: están por decidir, y hasta que decidas no cuentan en ninguna cifra\. Los demás son capital que vuelve/, t);
+    /* Y con la decisión tomada, la línea la dice. */
+    assert.match(abonos(decidir(f, 'cobrar')), /no se puede saber cuáles y los cobraste: \$60\.000 son ganancia/);
+  });
+
+  test('CONTROL: abierto, el abono sigue siendo capital que vuelve', () => {
+    assert.match(abonos(Object.assign(copia(q0), { abonosCapital: [ABONO(60000)] })), CAPITAL_QUE_VUELVE);
+  });
+});

@@ -469,6 +469,33 @@
     var n = Math.max(0, saldado + perdida - queda);
     return Math.min(n, Math.max(0, sumaDeAbonos(p, conCuotas)));
   }
+  /* 9-nov-2026 — CUÁLES abonos son los que el cierre no conoció, para nombrarlos en la lista
+     «Abonos a capital» del detalle (revisión de plata-e1, cuarta tanda: ahí el abono por decidir
+     salía como «capital que vuelve», que es falso por decidir, a su favor o si era la misma
+     plata). La cuenta de arriba da una cifra, no los renglones: se busca el ÚNICO grupo de abonos
+     que suma exactamente esa cifra. Si no hay ninguno, o hay más de uno (dos abonos iguales, uno
+     que el cierre conoció y otro que no), no se adivina: null, y la pantalla lo dice para todos.
+     Devuelve las posiciones en p.abonosCapital; [] si no hay nada que el cierre no conociera. */
+  function abonosQueElCierreNoConocioCuales(p) {
+    var n = abonosQueElCierreNoConocio(p);
+    if (!n) return [];
+    var conCuotas = tienePlan(p), cand = [];
+    lista(p.abonosCapital).forEach(function (a, i) {
+      if (!a || typeof a !== 'object') return;
+      if (conCuotas && a.cuotaPlan != null && a.cuotaPlan !== '') return;
+      var m = Math.round(num(a.monto));
+      if (m > 0) cand.push({ i: i, m: m });
+    });
+    /* 12 abonos sueltos son 4.096 grupos: de sobra para un crédito de quincena. */
+    if (!cand.length || cand.length > 12) return null;
+    var hallado = null, veces = 0;
+    for (var g = 1; g < (1 << cand.length) && veces < 2; g++) {
+      var s = 0, pos = [];
+      for (var k = 0; k < cand.length; k++) if (g & (1 << k)) { s += cand[k].m; pos.push(cand[k].i); }
+      if (s === n) { veces++; hallado = pos; }
+    }
+    return veces === 1 ? hallado : null;
+  }
   /* Lo que pasa de la pérdida anotada: solo informativo (la caja lo dice). */
   function sobranteDelCierre(p) {
     return Math.max(0, abonosQueElCierreNoConocio(p) - perdidaAnotada(p));
@@ -5169,6 +5196,7 @@
     moraYCostoPerdonados: moraYCostoPerdonados,
     saldoAFavorDe: saldoAFavorDe,
     cuentaDelSobrante: cuentaDelSobrante,
+    abonosQueElCierreNoConocioCuales: abonosQueElCierreNoConocioCuales,
     decidirSobrante: decidirSobrante,
     sobranteCobradoEnQuincena: sobranteCobradoEnQuincena,
     condonacionDelCierre: condonacionDelCierre,

@@ -7096,7 +7096,38 @@ function verCredito(id){
      «💵 Abonó y el resto pasa…» el crédito decía «prórroga $88.000» y los
      $112.000 que bajaron el capital no aparecían en ningún renglón. Los de las
      cuotas del plan no van: ya salen en su cuota. */
-  const abs=(p.abonosCapital||[]).filter(a=>a&&!a.cuotaPlan).map(a=>`<div class="info-row"><span class="k">${fmtFecha(a.fecha)}</span><span class="vv">abono a capital ${COP(a.monto)} <span class="muted">· no deja garantía: es capital que vuelve</span></span></div>`).join('');
+  /* 9-nov-2026 — un abono que el cierre no conoció NO es «capital que vuelve» mientras Joan no
+     decida, ni si queda a su favor o era la misma plata (revisión de plata-e1, cuarta tanda: la
+     caja de arriba decía «no cuenta en ninguna cifra» y este renglón, lo contrario). Cada uno dice
+     lo que es en su estado; cobrado, cuánto volvió a capital y cuánto es ganancia. Si el puente no
+     puede saber cuáles son (dos abonos iguales, uno conocido y otro no), no se adivina: ningún
+     renglón promete nada y una línea debajo dice la cifra. */
+  const sob=PUENTE.cuentaDelSobrante?PUENTE.cuentaDelSobrante(p):null;
+  const cualesNC=sob&&PUENTE.abonosQueElCierreNoConocioCuales?PUENTE.abonosQueElCierreNoConocioCuales(p):[];
+  const cobradoNC=()=>{
+    const x=PUENTE.piezasDelSobrante(p), partes=[];
+    if(x.capital) partes.push(`${COP(x.capital)} volvieron a capital`);
+    if(x.mora+x.costo) partes.push(`${COP(x.mora+x.costo)} son ganancia`);
+    if(x.aFavor) partes.push(`${COP(x.aFavor)} quedan a su favor`);
+    return enFrase(partes);
+  };
+  /* Lo que sigue a «el cierre no lo conoció» (un renglón) o a «el cierre no conoció» (la cifra de varios). */
+  const dichoNC=(uno,varios)=>{
+    const d=sob&&sob.decision&&sob.decision.destino;
+    if(!d) return varios?': están por decidir, y hasta que decidas no cuentan en ninguna cifra':': por decidir, y hasta que decidas no cuenta en ninguna cifra';
+    if(d==='aFavor') return varios?' y quedaron a su favor: no son capital ni ganancia':' y quedó a su favor: no es capital ni ganancia';
+    if(d==='misma') return varios?': eran la misma plata que entró al cierre y no suman nada':': era la misma plata que entró al cierre y no suma nada';
+    return (varios?' y los cobraste: ':uno?' y lo cobraste: ':` y lo cobraste con los demás que no conoció (${COP(sob.delOtroAparato)} en total): `)+cobradoNC();
+  };
+  const filasAbs=(p.abonosCapital||[]).map((a,i)=>({a,i})).filter(x=>x.a&&!x.a.cuotaPlan).map(({a,i})=>{
+    const fecha=`<span class="k">${fmtFecha(a.fecha)}</span>`;
+    if(sob&&cualesNC===null) return `<div class="info-row">${fecha}<span class="vv">abono ${COP(a.monto)}</span></div>`;
+    if(sob&&cualesNC.indexOf(i)>=0) return `<div class="info-row fila-larga">${fecha}<span class="vv">abono ${COP(a.monto)} <span class="muted">· el cierre no lo conoció${dichoNC(cualesNC.length===1,false)}</span></span></div>`;
+    return `<div class="info-row">${fecha}<span class="vv">abono a capital ${COP(a.monto)} <span class="muted">· no deja garantía: es capital que vuelve</span></span></div>`;
+  }).join('');
+  const abs=filasAbs&&sob&&cualesNC===null
+    ?filasAbs+`<div class="muted" style="font-size:12.5px;margin-top:4px">De estos abonos hay ${COP(sob.delOtroAparato)} que el cierre no conoció, y no se puede saber cuáles${dichoNC(false,true)}. Los demás son capital que vuelve y no dejan garantía.</div>`
+    :filasAbs;
   const comps=(p.comprobantes||[]);
   /* 1-oct-2026: la foto del comprobante pasa por fotoSegura, igual que las del
      registro. Si no es una imagen, queda la tarjeta con su monto y fecha. */
