@@ -465,3 +465,49 @@ describe('5 · el pago acordado y el plan del §8 también cierran con perdón',
     assert.equal(t.registros.cuotas[2].conPerdon, true);
   });
 });
+
+/* 9-nov-2026 — LO QUE DEJÓ PENDIENTE lote-v142, CON SALIDA EN PANTALLA.
+   (c) Plan del §8 con un abono suelto que anotó otro aparato: «Se lo perdoné» no dejaba
+       cerrar con NINGÚN monto (no_cuadra), porque las cuotas no conocían ese capital ya
+       pagado. Ahora la deuda del plan descuenta lo que ya entró, y se dice.
+   (b) Con cuotas, un abono a una cuota que el cierre no conoce no baja la pérdida: la
+       pantalla del cierre dice que se traiga primero. */
+describe('lo que dejó pendiente lote-v142: el plan del §8 y las cuotas, con salida', () => {
+  const { abrirPanel } = require('./banco-panel.js');
+  const conAbonoSuelto = () => { const p = planDel8(); p.abonosCapital = [{ fecha: '2026-10-25', monto: 50000, id: 'del-celular' }]; return p; };
+
+  test('(c) con un abono suelto del otro aparato, «Se lo perdoné» cierra con cualquier monto y cada peso cuadra', () => {
+    for (const x of [0, 100000, 200000, 250000]) {
+      const p = conAbonoSuelto();
+      const r = P.cierreConPerdon(cartera(p), p, '2026-11-03', x, SI);
+      assert.equal(r.ok, true, x + ': ' + r.detalle);
+      assert.equal(r.abono_sin_plan, 50000);
+      assert.equal(r.debia.capital, 250000, 'pidió otra vez el capital que ya entró');
+      const c = aplicar(p, r.registros);
+      assert.equal(P.capitalActual(c), r.perdona.capital);
+      assert.equal(P.capitalRecuperadoDe(c) + P.perdidaDelCierre(c), 300000, 'lo que volvió más lo perdido tiene que dar el capital');
+      assert.equal(P.capitalRecuperadoDe(c), 50000 + Math.min(x, 250000));
+    }
+  });
+
+  test('(c) CONTROL: sin abono suelto, el plan del §8 pide lo de siempre y no dice nada de más', () => {
+    const p = planDel8();
+    const r = P.cierreConPerdon(cartera(p), p, '2026-11-03', 200000, SI);
+    assert.equal(r.ok, true, r.detalle);
+    assert.equal(r.debia.capital, 300000);
+    assert.equal(r.abono_sin_plan, undefined);
+  });
+
+  test('(c) y (b) en la pantalla del cierre: el abono que ya entró se dice, y con cuotas se pide traer primero lo del celular', () => {
+    const CRM = abrirPanel({ ahora: '2026-11-03T10:30:00' });
+    const p = conAbonoSuelto();
+    CRM.cargarCartera(cartera(p));
+    CRM.ctx.__r = P.cierreConPerdon(cartera(p), p, '2026-11-03', 200000, SI);
+    const t = String(CRM.ev('recuadroDelPerdon(__r)')).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
+    assert.match(t, /Ya entró un abono suelto de \$50\.000 que las cuotas no conocían \(lo anotó otro aparato\): ese capital ya está pagado y no se vuelve a pedir\./);
+    assert.match(t, /Antes de cerrar: si el cobrador anotó en el celular un abono a una cuota de este crédito que aquí no ves, tráelo primero con ☁ Subir\./);
+    const q = quincenal();
+    CRM.ctx.__q = P.cierreConPerdon(cartera(q), q, DIA, 250000, SI);
+    assert.doesNotMatch(String(CRM.ev('recuadroDelPerdon(__q)')), /Antes de cerrar/, 'en el quincenal el abono sí baja la pérdida: no hace falta');
+  });
+});

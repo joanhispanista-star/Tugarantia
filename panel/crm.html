@@ -7779,6 +7779,8 @@ function recuadroDelPerdon(r){
     <div class="tit">Lo que le perdonas: ${COP(r.perdona.total)}</div>
     ${filas.join('')}
     <div class="nota"><b>${r.garantia?`Le deja ${COP(r.garantia)} de garantía`:'No le suma garantía'}</b>${r.garantia?': solo del costo que entra.':(r.perdona.capital?': no alcanzó ni para el capital, y la garantía sale del costo que entra.':'.')}</div>
+    ${todo?`<div class="nota">Antes de cerrar: si el cobrador anotó en el celular un abono a una cuota de este crédito que aquí no ves, tráelo primero con <b>☁ Subir</b>. Con cuotas, un abono que el cierre no conoce no baja la pérdida, y si en el choque te quedas con este cierre esa plata no entra en ningún informe.</div>`:''}
+    ${r.abono_sin_plan?`<div class="nota">Ya entró un abono suelto de <b>${COP(r.abono_sin_plan)}</b> que las cuotas no conocían (lo anotó otro aparato): ese capital ya está pagado y no se vuelve a pedir.</div>`:''}
     <div class="nota">Debía hoy ${COP(r.debia.total)}${todo?' por todo el crédito':''} (${COP(r.debia.capital)} de capital + ${COP(r.debia.costo)} de costo${r.debia.mora?` + ${COP(r.debia.mora)} de mora`:''}). Entran ${COP(r.monto)}${r.monto?', primero al capital':''}. El crédito queda <b>cerrado</b>.${r.costo_que_no_se_cobra?` No cuenta ${COP(r.costo_que_no_se_cobra)} de costo de cuotas que no han empezado: no se deben.`:''}</div>
   </div>`;
 }
@@ -7839,6 +7841,7 @@ function cerrarConPerdon(id){
   if(r.perdona.capital) partes.push('• CAPITAL: '+COP(r.perdona.capital)+' — pérdida: plata tuya que no vuelve');
   const entra=[COP(r.aplica.capital)+' de capital']; if(r.aplica.costo) entra.push(COP(r.aplica.costo)+' de costo'); if(r.aplica.mora) entra.push(COP(r.aplica.mora)+' de mora');
   if(!confirm(`Cerrar el crédito de ${p.socioNombre}: recibió ${COP(r.monto)}\n\n`
+    +(r.abono_sin_plan?`Ya entró un abono suelto de ${COP(r.abono_sin_plan)} que las cuotas no conocían: ese capital no se vuelve a pedir.\n`:'')
     +`Debía hoy ${COP(r.debia.total)}${r.tipo!=='quincenal'?' (todo el crédito)':''}: ${COP(r.debia.capital)} de capital + ${COP(r.debia.costo)} de costo${r.debia.mora?' + '+COP(r.debia.mora)+' de mora':''}.\n`
     +`La plata va primero al capital: ${entra.join(' + ')}.\n\n`
     +`Le perdonas ${COP(r.perdona.total)}:\n${partes.join('\n')}\n• Motivo: ${reg.condonacion.motivo}\n\n`

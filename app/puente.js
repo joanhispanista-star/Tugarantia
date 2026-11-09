@@ -3952,6 +3952,16 @@
           r.debia.capital += d.capital; r.debia.costo += d.costo; r.debia.mora += d.mora;
           r.costo_que_no_se_cobra += d.costo_que_no_se_cobra;
         });
+        /* 9-nov-2026 — UN ABONO SUELTO QUE EL PLAN NO CONOCE YA PAGÓ ESE CAPITAL (lo que
+           dejó pendiente lote-v142, 45-4). El celular anota un abono suelto, sin cuota, a
+           un crédito que en el computador pasó al plan del §8; «Mandar lo mío encima» lo
+           junta (los abonos sueltos son una lista que suma). Las cuotas no lo conocen, así
+           que la deuda del plan decía 50.000 de capital más que lo que de verdad se debe,
+           y la prueba de abajo («el capital que queda sin devolver tiene que ser
+           EXACTAMENTE la pérdida») no dejaba cerrar con NINGÚN monto. Lo que se debe de
+           capital es lo del crédito (capitalActual): la diferencia ya entró, y se dice. */
+        var sinPlan = Math.max(0, r.debia.capital - Math.round(capitalActual(p)));
+        if (sinPlan) { r.debia.capital -= sinPlan; r.abono_sin_plan = sinPlan; }
       } else {
         liq = liquidarCiclo(p, f);
         r.debia.capital = Math.round(num(liq.capital));
