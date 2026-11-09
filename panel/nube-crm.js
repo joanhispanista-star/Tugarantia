@@ -600,8 +600,11 @@
        revisión de la nube y la subida se comía el abono del celular sin
        choque. Cuando no lo es, enseñar la tarjeta cuesta menos que perder un
        pacto. */
+    /* 9-nov-2026 — `mismoPago` tampoco es un campo: es el aviso de que un abono de cada
+       lado, del mismo día y monto, cuenta como uno (NUBE.fusionarFila). Sin esto la
+       entrada adoptaba la nube callada y el abono del celular se iba sin que Joan lo viera. */
     var pisa = fu.pisables.some(function (pz) {
-      return pz.campo === 'pagoAcordado' || Object.prototype.hasOwnProperty.call(s, pz.campo);
+      return pz.campo === 'pagoAcordado' || pz.campo === 'mismoPago' || Object.prototype.hasOwnProperty.call(s, pz.campo);
     });
     if (pisa) return false;
     return Object.keys(fu.fila).every(function (k) {

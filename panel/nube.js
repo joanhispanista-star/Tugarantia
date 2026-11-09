@@ -1205,7 +1205,17 @@
       if (mapa[nombre] && Array.isArray(fila[nombre])) fila[nombre] = conSusRepetidos(fila[nombre], m[nombre], s[nombre], mapa[nombre]);
     });
     if (mapa.abonosCapital && Array.isArray(fila.abonosCapital)) {
-      fila.abonosCapital = sinGemelosDeVersion(fila.abonosCapital, m.abonosCapital, s.abonosCapital, mapa.abonosCapital);
+      var mismoPago = [];
+      fila.abonosCapital = sinGemelosDeVersion(fila.abonosCapital, m.abonosCapital, s.abonosCapital, mapa.abonosCapital, mismoPago);
+      /* 9-nov-2026 — y si el mismo día y monto viene con id en los dos lados, la tarjeta
+         lo pregunta: `mismoPago` dice el abono de cada lado, y `ids` cuáles son, para
+         que «Dejar lo de la nube» pueda dejar uno solo. */
+      if (mismoPago.length) {
+        var lineaDe = function (x) { return 'abono ' + texto(x.fecha).slice(0, 10) + ' $' + num(x.monto); };
+        pisables.push({ campo: 'mismoPago', mio: mismoPago.map(function (p) { return lineaDe(p.mio); }).join(' · '),
+          suyo: mismoPago.map(function (p) { return lineaDe(p.suyo); }).join(' · '),
+          ids: { mio: mismoPago.map(function (p) { return texto(p.mio.id); }), suyo: mismoPago.map(function (p) { return texto(p.suyo.id); }) } });
+      }
     }
 
     /* 3-oct-2026 — LA MISMA ENTREGA, ANOTADA DISTINTO EN LOS DOS APARATOS.
@@ -1571,7 +1581,7 @@
      de verdad, se cuentan como uno: es lo que pasaba hasta hoy, y es el error que se
      corrige volviendo a anotar. El otro, duplicarlo, deja debiendo de menos sin que
      nadie lo note. */
-  function sinGemelosDeVersion(juntos, mias, suyas, campos) {
+  function sinGemelosDeVersion(juntos, mias, suyas, campos, mismoPago) {
     var suelto = function (x) {
       return !!x && typeof x === 'object' && !Array.isArray(x) && (x.cuotaPlan == null || x.cuotaPlan === '');
     };
@@ -1600,7 +1610,7 @@
     };
     var soloMias = deMas(mias, cuenta(suyas));
     var soloSuyas = deMas(suyas, cuenta(mias));
-    var usadas = {}, sobran = {};
+    var usadas = {}, sobran = {}, libres = [];
     soloSuyas.forEach(function (x) {
       for (var i = 0; i < soloMias.length; i++) {
         if (!usadas[i] && conId(soloMias[i]) !== conId(x) && dia(soloMias[i]) === dia(x)) {
@@ -1609,7 +1619,30 @@
           return;
         }
       }
+      libres.push(x);
     });
+    /* 9-nov-2026 — ¿EL MISMO PAGO ANOTADO EN LOS DOS APARATOS? (revisión de plata-e1).
+       Con la app nueva en los dos, un pago de 100.000 que Joan anota en el computador y
+       el cobrador en el celular trae dos ids distintos: quedan dos abonos, y ninguna
+       tarjeta lo decía. Desde los datos no se distingue de DOS pagos reales del mismo
+       monto, uno en cada aparato, que es justo lo que E1 vino a arreglar (el plan, riesgo
+       14: 400.000 y no 450.000). Así que aquí no se decide: los dos se quedan, como
+       manda E1, y quien llama recibe la pareja en `mismoPago` para PREGUNTAR. Las
+       tarjetas lo dicen, y «Dejar lo de la nube» deja uno solo (ver fusionarConLoMio en
+       panel/subir.html). Solo entre lo que cada lado trae de más: dos de un mismo
+       aparato los anotó él. */
+    if (Array.isArray(mismoPago)) {
+      libres.forEach(function (x) {
+        if (!conId(x)) return;
+        for (var i = 0; i < soloMias.length; i++) {
+          if (!usadas[i] && conId(soloMias[i]) && dia(soloMias[i]) === dia(x)) {
+            usadas[i] = true;
+            mismoPago.push({ mio: soloMias[i], suyo: x });
+            return;
+          }
+        }
+      });
+    }
     /* Se saca uno por pareja, no todos los de esa identidad: dos de antes del otro lado
        contra uno de aquí son dos pagos, no uno. */
     return lista(juntos).filter(function (x) {

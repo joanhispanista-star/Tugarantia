@@ -1643,7 +1643,23 @@ function fusionarConLoMio(tabla, deLaNube, mio){
        dos lados perdía el descuento entero y sin aviso. El mapa local se queda
        abajo, pero solo para CONTAR en la tarjeta del choque. */
     var r = NUBE.fusionarFila(deLaNube, mio, NUBE.LISTAS_QUE_SUMAN);
-    return (r && r.fila) ? r.fila : deLaNube;
+    if(!(r && r.fila)) return deLaNube;
+    /* 9-nov-2026 — ¿EL MISMO PAGO? (pisable `mismoPago`, ver fraseMismoPago). Si el
+       abono de este computador tiene un gemelo en la nube, mismo día y monto, «Dejar lo
+       de la nube» es la respuesta «era el mismo pago»: queda el de la nube y el de acá
+       no entra. «Mandar lo mío encima» deja los dos: «eran dos pagos». Sin esto, en el
+       computador ningún botón dejaba uno solo. */
+    var mp=(r.pisables||[]).filter(function(p){ return p && p.campo==='mismoPago' && p.ids; })[0];
+    if(mp && Array.isArray(r.fila.abonosCapital)){
+      var fuera={};
+      (mp.ids.suyo||[]).forEach(function(id){ fuera[id]=(fuera[id]||0)+1; });
+      r.fila.abonosCapital=r.fila.abonosCapital.filter(function(x){
+        var id=x&&x.id!=null?String(x.id):'';
+        if(id && fuera[id]>0){ fuera[id]--; return false; }
+        return true;
+      });
+    }
+    return r.fila;
   }catch(e){
     /* Si no se pudo fusionar, se avisa y se queda la versión de la nube tal
        cual, que es la que Joan eligió. Callarlo sería peor que el error. */
@@ -1728,11 +1744,29 @@ function tarjetaChoque(it, ref){
           'las dos elecciones puede juntarlo con plata que ese acuerdo no conocía. Mientras tanto no se toca en '+
           'ninguno de los dos lados: nada se pierde.'
         : eleccion==='nube'
-        ? queHaceLoDeLaNube(it)
+        ? queHaceLoDeLaNube(it)+fraseMismoPago(it,'nube')
         : eleccion==='mio'
-        ? queHaceLoMio(it)
-        : 'Sin elegir. Mientras no elijas, esta ficha no se toca en ninguno de los dos lados.')+'</div>'+
+        ? queHaceLoMio(it)+fraseMismoPago(it,'mio')
+        : 'Sin elegir. Mientras no elijas, esta ficha no se toca en ninguno de los dos lados.'+fraseMismoPago(it,null))+'</div>'+
   '</div>';
+}
+
+/* 9-nov-2026 — ¿EL MISMO PAGO ANOTADO EN LOS DOS APARATOS? (NUBE.fusionarFila, pisable
+   `mismoPago`). Con la app nueva cada abono trae su id, y un pago de 100.000 anotado en
+   el computador y en el celular salía como dos sin que la tarjeta dijera nada, y ningún
+   botón dejaba uno solo. Desde los datos no se sabe si fue uno o fueron dos: se pregunta,
+   y cada botón es una respuesta («lo mío» deja los dos; «lo de la nube», uno). */
+function fraseMismoPago(it, lado){
+  if(!it || it.tabla!=='creditos' || !it.local || !it.fila || !it.fila.datos) return '';
+  var r=null;
+  try{ r=NUBE.fusionarFila(NUBE.sinFotos(it.local), it.fila.datos, NUBE.LISTAS_QUE_SUMAN); }catch(e){ r=null; }
+  var x=((r&&r.pisables)||[]).filter(function(p){ return p && p.campo==='mismoPago'; })[0];
+  if(!x) return '';
+  var pregunta = ' <b>¿Es el mismo pago?</b> Este computador y la nube traen cada uno un abono del mismo día y monto ('+
+    esc(textoLegible(x.mio))+'). ';
+  if(lado==='mio') return pregunta+'Con lo tuyo quedan los dos: dos pagos. Si era el mismo pago, elige «Dejar lo de la nube».';
+  if(lado==='nube') return pregunta+'Con lo de la nube queda uno solo, el de la nube: el mismo pago. Si eran dos pagos, elige «Mandar lo mío encima».';
+  return pregunta+'Si son dos pagos, «Mandar lo mío encima» deja los dos. Si es el mismo pago, «Dejar lo de la nube» deja uno solo.';
 }
 
 /* Lo que de verdad pasa al aplicar «lo mío», dicho con las mismas reglas que
@@ -1911,9 +1945,11 @@ function cuotasEnDiscusion(tabla, mio, suyo, lado){
   try{ r=NUBE.fusionarFila(mio, suyo, NUBE.LISTAS_QUE_SUMAN); }catch(e){ r=null; }
   /* 22-oct-2026 (revisión) — y el pago acordado de cada lado, con la plata
      que el pacto del otro no conocía (pagoAcordadoEnChoque). */
-  return ((r&&r.pisables)||[]).filter(function(p){ return p && (p.campo==='abonosCapital' || p.campo==='pagoAcordado'); }).map(function(p){
+  return ((r&&r.pisables)||[]).filter(function(p){ return p && (p.campo==='abonosCapital' || p.campo==='pagoAcordado' || p.campo==='mismoPago'); }).map(function(p){
     var v=p[lado];
     if(p.campo==='pagoAcordado') return { k:'pago acordado', v:textoLegible(v) };
+    /* 9-nov-2026 — el mismo día y monto, con id en los dos lados (fraseMismoPago). */
+    if(p.campo==='mismoPago') return { k:'¿el mismo pago?', v:textoLegible(v) };
     return typeof v==='string'
       ? { k:'lo que entró por las cuotas', v:textoLegible(v) }
       : { k:'a capital ese día', v:pesosCO(v) };

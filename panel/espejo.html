@@ -5195,6 +5195,17 @@ function avisoPagosDeCuotas(c) {
      la instrucción de volver a anotar habla solo de la plata que trae SOLO el
      lado que no queda. Antes pedía anotar otra vez un abono que seguía ahí, y
      el cliente quedaba debiendo esa plata de menos. */
+  /* 9-nov-2026 — ¿EL MISMO PAGO ANOTADO EN LOS DOS APARATOS? (NUBE.fusionarFila, pisable
+     `mismoPago`). Desde los datos no se sabe si fue uno o fueron dos: se pregunta, y cada
+     botón es una respuesta. «Lo mío» junta las listas (los dos abonos); «lo de la nube»
+     deja la versión de la nube tal cual (el suyo solo). */
+  var mp = pis.filter(function (p) { return p && p.campo === 'mismoPago'; })[0];
+  if (mp) {
+    h += '<div class="aviso ambar"><b>¿Es el mismo pago?</b> Este celular y la nube traen cada uno un abono del mismo '
+      + 'día y monto (' + esc(valorCorto('mismoPago', mp.mio)) + '). '
+      + 'Si son dos pagos, <b>Mandar lo mío encima</b> deja los dos. '
+      + 'Si es el mismo pago, <b>Dejar lo de la nube</b> deja uno solo.</div>';
+  }
   var pa = pis.filter(function (p) { return p && p.campo === 'pagoAcordado'; })[0];
   if (pa) {
     h += '<div class="aviso ambar"><b>El pago acordado no se junta con lo que no conocía.</b> '
@@ -5266,7 +5277,9 @@ var ETIQUETAS = {
   prorrogas: 'Prórroga de ese día (lo que entró)', abonosCapital: 'A capital ese día',
   /* 22-oct-2026 (revisión) — el pago acordado de cada lado y la plata que el
      pacto del otro no conocía (NUBE.fusionarFila). */
-  pagoAcordado: 'Pago acordado'
+  pagoAcordado: 'Pago acordado',
+  /* 9-nov-2026 — un abono de cada lado, mismo día y monto, que cuenta como uno. */
+  mismoPago: '¿El mismo pago?'
 };
 /* 17-oct-2026, revisión — `abonosCapital` llega como pisable de DOS formas: en
    pesos (lo que fue a capital el día de una prórroga, 3-oct) o en texto, cuando
@@ -5291,7 +5304,7 @@ function valorCorto(campo, v, fila) {
   if (campo === 'planPagos') return resumenDelPlan(v);
   /* 22-oct-2026 — «pago acordado $280000 el 2026-11-20: abono 2026-11-05
      $50000», dicho como el resto del celular. */
-  if (campo === 'pagoAcordado' && typeof v === 'string') {
+  if ((campo === 'pagoAcordado' || campo === 'mismoPago') && typeof v === 'string') {
     return v.replace(/\d{4}-\d{2}-\d{2}/g, function (f) { return fmtFecha(f); })
             .replace(/\$(\d+)/g, function (x, n) { return COP(Number(n)); });
   }

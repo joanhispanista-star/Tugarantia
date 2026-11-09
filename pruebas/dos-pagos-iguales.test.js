@@ -352,3 +352,55 @@ describe('el pago acordado y la prórroga cuentan los abonos repetidos', () => {
     assert.equal(suma(r.fila), dice.mio, 'la tarjeta dice 50.000 de mi lado y «lo mío» deja otra cifra');
   });
 });
+
+/* 9-nov-2026 — ¿EL MISMO PAGO ANOTADO EN LOS DOS APARATOS? (revisión de plata-e1). Con la app
+   nueva en los dos, un pago de 100.000 que Joan anota en el computador y el cobrador en el
+   celular trae dos ids distintos: quedaban dos abonos, ninguna tarjeta lo decía y, en el
+   computador, ningún botón dejaba uno solo. Desde los datos no se distingue de dos pagos
+   reales del mismo monto, que es lo que E1 vino a arreglar (la primera prueba de este
+   archivo). Así que se pregunta: «lo mío» deja los dos y «lo de la nube» deja uno. */
+describe('¿el mismo pago con id en los dos aparatos? se pregunta, y cada botón es una respuesta', () => {
+  const pc = () => conAbonos(abono(100000, 'abono-del-pc'));
+  const cel = () => conAbonos(abono(100000, 'abono-del-celular'));
+
+  test('la fusión lo dice en un pisable propio, con el abono y el id de cada lado', () => {
+    const r = juntar(pc(), cel());
+    const x = r.pisables.find(p => p.campo === 'mismoPago');
+    assert.ok(x, 'ninguna tarjeta lo diría');
+    assert.equal(x.mio, 'abono ' + HOY + ' $100000');
+    assert.deepEqual(x.ids, { mio: ['abono-del-pc'], suyo: ['abono-del-celular'] });
+    assert.equal(capital(r.fila), 300000, '«lo mío» sigue siendo «son dos pagos», como manda E1');
+  });
+
+  test('dos del mismo aparato contra uno del otro: la pregunta es por UNO solo', () => {
+    const r = juntar(conAbonos(abono(100000, 'a1'), abono(100000, 'a2')), cel());
+    assert.deepEqual(r.pisables.find(p => p.campo === 'mismoPago').ids.suyo, ['abono-del-celular']);
+  });
+
+  test('montos o días distintos no se preguntan', () => {
+    const otro = conAbonos(Object.assign(abono(100000, 'x'), { fecha: '2026-11-04' }));
+    assert.ok(!juntar(pc(), otro).pisables.some(p => p.campo === 'mismoPago'));
+    assert.ok(!juntar(pc(), conAbonos(abono(90000, 'y'))).pisables.some(p => p.campo === 'mismoPago'));
+  });
+
+  test('la subida del CRM no lo resuelve callada: nadaQueSumar dice que pisa', () => {
+    const fs = require('node:fs');
+    const src = fs.readFileSync(path.join(RAIZ, 'panel', 'nube-crm.js'), 'utf8').replace(/\r\n/g, '\n');
+    const i = src.indexOf('\n  function nadaQueSumar(');
+    const caja = { N, lista: v => (Array.isArray(v) ? v : []), objeto: v => ((v && typeof v === 'object' && !Array.isArray(v)) ? v : {}) };
+    vm.createContext(caja);
+    vm.runInContext(src.slice(i, src.indexOf('\n  }\n', i) + 4), caja);
+    assert.equal(caja.nadaQueSumar(pc(), cel()), false);
+    assert.equal(caja.nadaQueSumar(pc(), pc()), true, 'lo idéntico sigue sin choque');
+  });
+
+  test('la tarjeta del celular lo pregunta y dice qué hace cada botón', () => {
+    const cartera = { socios: [{ id: 'C1', numero: 1, nombre: 'Cliente Inventada', telefono: '3001234567', gestiones: [] }], prestamos: [cel()],
+      respaldados: [], config: { negocio: 'Tu Garantía' }, contadores: { cliente: 1, credito: 1, respaldado: 0 }, plantillas: {} };
+    const E = abrirEspejo({ cartera, sesion: true, ahora: HOY + 'T15:00:00' });
+    E.ctx.__c = { tabla: 'creditos', id: 'P1', mio: cel(), suyo: pc() };
+    const h = E.ev('avisoPagosDeCuotas(__c)').replace(/<[^>]+>/g, '');
+    assert.match(h, /¿Es el mismo pago\? Este celular y la nube traen cada uno un abono del mismo día y monto/);
+    assert.match(h, /Si son dos pagos, Mandar lo mío encima deja los dos\. Si es el mismo pago, Dejar lo de la nube deja uno solo\./);
+  });
+});

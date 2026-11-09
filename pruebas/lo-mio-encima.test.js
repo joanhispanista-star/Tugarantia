@@ -497,3 +497,40 @@ describe('«Mandar lo mío encima» escribe la cartera ANTES de mover el espejo 
     assert.match(h, /se juntan/);
   });
 });
+
+/* 9-nov-2026 — ¿el mismo pago con id en los dos aparatos? (NUBE.fusionarFila, pisable
+   `mismoPago`). La tarjeta de ☁ Subir lo pregunta, y cada botón es una respuesta: en el
+   computador, ninguno dejaba uno solo. */
+describe('☁ Subir pregunta si un abono del mismo día y monto en los dos lados es el mismo pago', () => {
+  const montarMismoPago = () => {
+    const m = martes();
+    const ab = id => [{ fecha: '2026-10-01', monto: 100000, id }];
+    m.mio.abonosCapital = ab('del-pc'); m.cartera.prestamos = [m.mio];
+    m.suyo.abonosCapital = ab('del-celular'); m.paquete.creditos = [fila('c1', m.suyo, 5)];
+    const S = montar(m);
+    assert.deepEqual(enElPaso7(S, m.paquete, {}).choques, ['creditos|c1']);
+    return S;
+  };
+  const tarjeta = (S, cual) => {
+    S.ev('E.decisiones = {}' + (cual ? '; E.decisiones[llaveDe("creditos", E.plan.choques[0].fila)] = "' + cual + '"' : ''));
+    return S.ev('tarjetaChoque(E.plan.choques[0], "b0")').replace(/<[^>]+>/g, '');
+  };
+  const abonosTrasAplicar = cual => {
+    const S = montarMismoPago();
+    S.ev('E.decisiones[llaveDe("creditos", E.plan.choques[0].fila)] = "' + cual + '"; aplicar()');
+    return JSON.parse(S.almacen[KEY]).prestamos[0].abonosCapital.map(x => x.id);
+  };
+
+  test('la tarjeta pregunta, sin elegir y con cada elección', () => {
+    const S = montarMismoPago();
+    assert.match(tarjeta(S, null), /¿Es el mismo pago\?.*Si son dos pagos, «Mandar lo mío encima» deja los dos\. Si es el mismo pago, «Dejar lo de la nube» deja uno solo\./);
+    assert.match(tarjeta(S, 'mio'), /Con lo tuyo quedan los dos: dos pagos\./);
+    assert.match(tarjeta(S, 'nube'), /Con lo de la nube queda uno solo, el de la nube: el mismo pago\./);
+    assert.match(tarjeta(S, null), /¿el mismo pago\?/, 'la cara no enseña el abono en discusión');
+  });
+
+  test('«Mandar lo mío encima» deja los dos; «Dejar lo de la nube» deja solo el de la nube', () => {
+    assert.deepEqual(abonosTrasAplicar('mio').sort(), ['del-celular', 'del-pc']);
+    assert.deepEqual(abonosTrasAplicar('nube'), ['del-celular']);
+  });
+});
