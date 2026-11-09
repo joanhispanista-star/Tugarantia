@@ -1745,8 +1745,14 @@ function queHaceLoMio(it){
     return 'Elegiste lo tuyo. Al aplicar, en lo que no coincide queda lo tuyo, y las gestiones, comprobantes '+
       (pa ? 'de los dos lados se juntan. ' : 'y prórrogas de los dos lados se juntan. ')+
       'Los pagos de las cuotas NO se juntan: quedan solo los de este '+
-      'computador ('+pc.mio+') y lo que trae la nube para esas cuotas ('+pc.suyo+') no entra. Si esa plata '+
-      'entró de verdad, vuelve a anotarla como abono a la cuota después. '+(pa ? frasePagoAcordado(pa,'mio')+' ' : '')+
+      'computador ('+pc.mio+') y lo que trae la nube para esas cuotas ('+pc.suyo+') no entra. '+
+      /* 9-nov-2026 — a un crédito cerrado no se le anota nada después (ver
+         avisoPagosDeCuotas en panel/espejo.html). */
+      ((it.local && it.local.pagado)
+        ? 'Lo tuyo es un crédito CERRADO, y a un crédito cerrado no se le anotan abonos: si esa plata entró de '+
+          'verdad, no la elijas; deja lo de la nube y vuelve a cerrar el crédito desde el CRM con toda la plata que entró. '
+        : 'Si esa plata entró de verdad, vuelve a anotarla como abono a la cuota después. ')+
+      (pa ? frasePagoAcordado(pa,'mio')+' ' : '')+
       'Lo tuyo se manda en la próxima subida.'+
       (it.borrado ? ' Allá está borrada: con lo tuyo vuelve a quedar viva en la nube.' : '');
   }

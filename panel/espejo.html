@@ -5164,8 +5164,17 @@ function avisoPagosDeCuotas(c) {
       + 'Con <b>Mandar lo mío encima</b> quedan solo los de este celular (' + esc(valorCorto('abonosCapital', x.mio))
       + ') y lo que trae la nube para esas cuotas (' + esc(valorCorto('abonosCapital', x.suyo)) + ') no entra. '
       + 'Con <b>Dejar lo de la nube</b> es al revés: queda lo de la nube y lo de este celular no entra. '
-      + 'Si la plata del lado que no queda entró de verdad, se vuelve a anotar después como abono a la cuota, '
-      + 'desde el computador.</div>';
+      /* 9-nov-2026 — a un crédito CERRADO no se le anota nada después: abonoACuota
+         contesta «Este crédito ya está pagado» y el detalle del CRM no trae botón de
+         cobro. La segunda ronda de la revisión: la tarjeta lo prometía igual. Si un
+         lado está cerrado, se dice la salida que sí existe. */
+      + (((mio && mio.pagado) || (c.suyo && c.suyo.pagado))
+        ? 'Si la plata del lado que no queda entró de verdad: con el lado abierto se vuelve a anotar después como '
+          + 'abono a la cuota, desde el computador; un crédito cerrado ya no recibe abonos, así que si queda el lado '
+          + 'cerrado esa plata no entra en ninguna parte. Para no perderla, quédate con el lado abierto y vuelve a '
+          + 'cerrar el crédito desde el computador con toda la plata que entró.</div>'
+        : 'Si la plata del lado que no queda entró de verdad, se vuelve a anotar después como abono a la cuota, '
+          + 'desde el computador.</div>');
   }
   /* 22-oct-2026 (revisión) — EL PAGO ACORDADO NO SE JUNTA CON LO QUE NO
      CONOCÍA (NUBE.fusionarFila, pisable `pagoAcordado`). Antes esta tarjeta
