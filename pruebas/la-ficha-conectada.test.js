@@ -18,7 +18,8 @@
  *      juntar que ya existe, y no la junta sola;
  *   3. «＋ Nuevo crédito» y el formulario de Créditos avisan ANTES si hay una
  *      propuesta abierta, con las dos salidas;
- *   4. al crear la ficha desde la solicitud se ofrece juntar la cuenta.
+ *   4. al crear la ficha desde la solicitud se ofrece juntar la cuenta;
+ *   5. el CRM no dice «en su app la ve» de lo que su app no puede mostrar.
  * Los nombres y números son de mentira.
  * ==========================================================================*/
 const { test, describe } = require('node:test');
@@ -238,5 +239,35 @@ describe('4. al crear la ficha desde la solicitud se ofrece juntar la cuenta', (
       assert.equal(s.length, 1, 'no creó la ficha');
       assert.deepEqual(s[0].cuentaPorJuntar ? s[0].cuentaPorJuntar.registro_id : null, si ? 55 : null, si ? 'dijo que sí y no quedó por juntar' : 'dijo que no y quedó por juntar');
     }
+  });
+});
+
+describe('5. el CRM no promete «en su app la ve» de lo que su app no puede mostrar', () => {
+  test('la que quedó con su cédula (pedida desde su cuenta junta): se dice que su app no la ve', async () => {
+    const m = Object.assign({}, MARTA, { cedula: '52123456' });
+    const sol = SOLICITUD(); sol.cedula = '52123456'; sol.celular = null; sol.pedido = null;
+    const { P } = await montar({ socios: [m], solicitudes: [sol] });
+    assert.equal(P.ev('laVeEnSuApp(_solicitudes[0])'), false);
+    P.ev("verCliente('C900')");
+    assert.match(plano(ficha(P)), /su app solo muestra las que quedan con su celular: hoy no la va a ver/);
+    const avisos = [];
+    P.ctx.alert = x => avisos.push(String(x));
+    P.ev("crearDesdeSolicitud('31')");
+    assert.doesNotMatch(avisos.join('\n'), /Cuando la acepte desde su app/);
+    assert.match(avisos.join('\n'), /hoy no la va a ver ni a poder aceptarla desde ahí/);
+    /* En la bandeja y al cambiarle la propuesta, lo mismo. */
+    P.ev('renderBandeja()');
+    assert.match(plano(P.elems.bandeja.innerHTML), /📨 Esperando que acepte .*hoy no la va a ver/);
+    P.ev("editarContrapropuesta('31')");
+    assert.match(plano(ficha(P)), /hoy no la va a ver ni a poder aceptarla desde ahí/);
+    /* Y la de su celular (play/) sí la ve: ahí el aviso de siempre es verdad. */
+    const { P: Q } = await montar({ solicitudes: [SOLICITUD()] });
+    assert.equal(Q.ev('laVeEnSuApp(_solicitudes[0])'), true);
+    const avisosQ = [];
+    Q.ctx.alert = x => avisosQ.push(String(x));
+    Q.ev("crearDesdeSolicitud('31')");
+    assert.match(avisosQ.join('\n'), /Cuando la acepte desde su app te aparece «✅ Aceptó»/);
+    Q.ev('renderBandeja()');
+    assert.doesNotMatch(plano(Q.elems.bandeja.innerHTML), /hoy no la va a ver/);
   });
 });

@@ -2136,7 +2136,12 @@
    junta, con el botón de juntar de siempre (nunca la junta sola). «＋ Nuevo crédito»,
    «＋ Con garantía» y el formulario de Créditos avisan ANTES si hay una propuesta
    abierta, con las dos salidas. Y al crear la ficha desde una solicitud se ofrece
-   juntar su cuenta. Solo cambia la página: ningún .js del CRM sube de versión. */
+   juntar su cuenta. Solo cambia la página: ningún .js del CRM sube de versión.
+   Y lo que el CRM promete: «en su app la ve» y «cuando la acepte desde su app» solo se
+   dicen de las solicitudes que su app puede mostrar (las que quedaron con su celular:
+   mi_solicitud busca por ahí). De las que quedaron con la cédula de una ficha (pedidas
+   desde una cuenta junta) se dice que su app no las ve, en la bandeja, en la ficha, al
+   proponer y al tratar de desembolsar. */
 const CACHE = 'tugarantia-v143';
 const BASE = new URL('./', self.location).pathname;
 
