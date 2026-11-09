@@ -2060,8 +2060,25 @@
    subir y traer) y VERSION_SITIO sube a v143 en las cinco que se actualizan solas. No hay
    base nueva: la nube guarda los punteros y las marcas tal cual (jsonb).
    OJO: tiene que publicarse ANTES del SQL del PIN (E2), y con la cola del iPhone en cero:
-   el computador resube una vez las fichas con fotos. OJO al integrar: sale el viernes
-   junto con fondo-pendiente, que también pensaba en v143. */
+   el computador resube una vez las fichas con fotos.
+   9-nov-2026, v143 junto con lote-v142 (765281a), que se publica antes, el mar 10-nov: la
+   revisión de E1 y lo que v142 dejó pendiente. En la nube: un abono de antes empareja
+   contando cuántas veces está; el pago acordado y la prórroga cuentan los repetidos; el
+   mismo día y monto con id en los dos aparatos se pregunta («Dejar lo de la nube» deja uno
+   solo); la foto de un cruce deshecho no vuelve. En una pestaña vieja: la nube se toca
+   solo si guardar() entró, ningún diálogo dice «✓ registrado» tras negarse, una pintada no
+   saca la franja, la franja se va cuando algo entra, y la puerta relee antes de comparar
+   el PIN. «Traer» no le quita a un aparato con cartera su PIN ni la fecha del respaldo, y
+   el aviso del PIN que viaja ya no manda a subir los ajustes (desde v143 el PIN no sube).
+   Del cierre con pérdida: un «Se lo perdoné» de v141 con gananciaPago 0 no se lee como
+   pérdida; lo que sobra se pregunta cada vez (decisión de Joan) y hasta entonces no cuenta
+   en ninguna cifra; el plan del §8 con un abono suelto ya cierra.
+   Cambia un .js más, ya publicado y que ya firmaba al llegar: app/puente.js, que piden
+   app/socio.html, panel/crm.html, panel/espejo.html, panel/subir.html, panel/traer.html y
+   platachat/index.html: pasa a ?v=143 en esas páginas y en la precarga. panel/nube.js y
+   panel/nube-crm.js ya estaban en ?v=143. CACHE y VERSION_SITIO ya decían v143. No hay base
+   nueva: sobranteDecidido es un campo más del crédito (jsonb). La regla de los ?v= se mide
+   contra lo que estará publicado: TG_PUBLICADO=lote-v142. */
 const CACHE = 'tugarantia-v143';
 const BASE = new URL('./', self.location).pathname;
 
@@ -2077,7 +2094,7 @@ const ARCHIVOS = [
   'legal/terminos.html',
   'app/socio.html',
   'app/motor.js?v=141',   // 28-oct-2026 — ?v=141: cambió el M1 de la cartera por tramo (ver la nota de v141)
-  'app/puente.js?v=142',   // 30-oct-2026 — ?v=142: el cierre con descuento (ver la nota de v142)
+  'app/puente.js?v=143',   // 9-nov-2026 — ?v=143: lo que sobra se pregunta y el §8 con abono suelto (ver la nota de v143)
   /* El chat: lo comparten la app del socio, el CRM y el espejo, igual que el
      motor y el puente. Es la razón de que este service worker viva en la raíz. */
   'app/chat.js',
