@@ -318,3 +318,58 @@ describe('la subida que ya existe sigue subiendo', () => {
     assert.ok(almacen[KEY]);
   });
 });
+
+/* 9-nov-2026 — LA REVISIÓN DE plata-e1 (pestañas y aparatos): lo que la pestaña vieja
+   decía y hacía DESPUÉS de negarse a guardar. */
+describe('después de negarse, la pestaña vieja no le promete nada a nadie', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8').replace(/\r\n/g, '\n');
+  const solicitud = P => P.ev("DB.socios[0].cedula = '1012345678'; renderBandeja = function () {};" +
+    "_solicitudes = [{ id: 'S1', nombre: 'Cliente Inventada', cedula: '1012345678', capital: 300000, origen: 'pegada', estado: 'nueva' }];" +
+    "__marcas = []; marcarEnNube = function (s, e) { __marcas.push(e); };" +
+    "__dialogos = []; confirm = function (m) { __dialogos.push(String(m)); return true; };");
+
+  test('desembolsar una solicitud desde la pestaña vieja: la nube no la da por atendida y nadie dice «✓ registrado»', () => {
+    const { A, B, almacen } = dosPestanas();
+    cobrar(A, 'P1', 100000);
+    solicitud(B);
+    B.ev("crearDesdeSolicitud('S1')");
+    assert.equal(JSON.parse(almacen[KEY]).prestamos.length, 1, 'el crédito entró al disco desde una pestaña vieja');
+    assert.deepEqual(JSON.parse(B.ev('JSON.stringify(__marcas)')), [], 'la nube sacó la solicitud de la bandeja sin que el crédito quedara');
+    assert.equal(B.ev('_solicitudes.length'), 1, 'la solicitud ya no está para volver a hacerlo');
+    assert.ok(!JSON.parse(B.ev('JSON.stringify(__dialogos)')).some(m => /✓ Crédito .* registrado/.test(m)), 'dijo «✓ registrado» de un crédito que no está');
+  });
+
+  test('CONTROL: en una pestaña al día, sí queda, sí se marca y sí se dice', () => {
+    const { A, almacen } = dosPestanas();
+    solicitud(A);
+    A.ev("crearDesdeSolicitud('S1')");
+    assert.equal(JSON.parse(almacen[KEY]).prestamos.length, 2);
+    assert.deepEqual(JSON.parse(A.ev('JSON.stringify(__marcas)')), ['atendida']);
+    assert.ok(JSON.parse(A.ev('JSON.stringify(__dialogos)')).some(m => /✓ Crédito .* registrado/.test(m)));
+  });
+
+  test('la ficha desde Registrados, el préstamo con garantía y el cruce tocan la nube solo después del disco', () => {
+    const cuerpo = nombre => { const i = CRM.indexOf('\nfunction ' + nombre + '('); return CRM.slice(i, CRM.indexOf('\nfunction ', i + 10)); };
+    for (const [fn, marca] of [['guardarCliente', 'marcarRegistro(regAtendido'], ['guardarRespaldado', 'marcarEnNube(sol'],
+      ['aplicarCruce', "marcarRegistro(idReg,'atendido')"], ['crearDesdeSolicitud', "marcarEnNube(s,'atendida')"]]) {
+      const c = cuerpo(fn);
+      assert.ok(c.indexOf('quedoEnDisco()') > 0, fn + ' no pregunta si quedó');
+      assert.ok(c.indexOf('quedoEnDisco()') < c.indexOf(marca), fn + ' le avisa a la nube antes de saber si quedó');
+    }
+  });
+
+  test('desde la pestaña vieja no sale un SMS que se paga y cuya anotación no quedaría', () => {
+    let vistas = 0;
+    for (const fn of ['enviarMensajes', 'enviarInvitaciones']) {
+      const i = CRM.indexOf('\nfunction ' + fn + '(');
+      if (i < 0) continue;
+      vistas++;
+      const c = CRM.slice(i, CRM.indexOf("rpc('enviar_mensajes'", i));
+      assert.match(c, /if \(_otraPestanaEscribio\(\)\) \{ negarseAGuardar\(\); return; \}/, fn);
+    }
+    assert.ok(vistas >= 1, 'no encontré las funciones que mandan SMS');
+  });
+
+});

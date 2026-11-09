@@ -2035,6 +2035,15 @@ function pintarAvisoOtraPestana(){
       boton('entendidoOtraPestana','Entendido');
 }
 function recargarPorOtraPestana(){ try{ location.reload(); }catch(e){} }
+/* 9-nov-2026 — ¿QUEDÓ EN EL DISCO? (revisión de plata-e1). Varias acciones le avisan a la
+   nube DESPUÉS de cambiar la cartera: «esta solicitud quedó atendida», «este registro
+   ya tiene ficha». Lo hacían antes de guardar, o sin mirar lo que contestó guardar(), y
+   en una pestaña vieja guardar() se niega: la nube ya había sacado a esa persona de la
+   bandeja, y en el disco no quedaba ni la ficha ni el crédito. La franja decía «vuelve a
+   hacerlo», pero ya no había de dónde. Ahora la nube se toca solo si esto devuelve true.
+   _libroSinGuardar es la medida: _trasGuardar lo baja con cada escritura que entra (con
+   o sin fotos), y lo sube una negativa o un disco que no recibió nada. */
+function quedoEnDisco(){ guardar(); return !_libroSinGuardar; }
 function entendidoOtraPestana(){ _otraPestana=null; pintarAvisoOtraPestana(); }
 /* Lo que hay en memoria acaba de salir del disco: ya no queda nada sin guardar.
    Si esta pestaña se había negado a guardar, el aviso sigue, pero ya no pide
@@ -4688,6 +4697,10 @@ function enviarCobranzas(canal) {
       'Suman ' + COP(suma) + ' por cobrar.\n' +
       'Se paga(n) ' + piezas + ' ' + (canal === 'voz' ? 'llamada(s)' : 'SMS') + '.\n\n' +
       'Esto SALE DE VERDAD y se cobra. ¿Seguro?')) return;
+  /* 9-nov-2026 — DESDE UNA PESTAÑA VIEJA NO SALE NADA (revisión de plata-e1): el mensaje
+     se paga y sale, y lo que se anota después (anotarContactos) no entraría al disco.
+     Mejor no mandarlo y decir por qué: la franja pide recargar. */
+  if (_otraPestanaEscribio()) { negarseAGuardar(); return; }
 
   var b1 = document.getElementById('btnEnvSMS'), b2 = document.getElementById('btnEnvVoz');
   if (b1) b1.disabled = true; if (b2) b2.disabled = true;
@@ -4999,6 +5012,8 @@ function enviarInvitaciones() {
   if (!confirm('Invitar a ' + filas.length + ' prospecto(s) por mensaje de texto.\n\n' +
       'Esto SALE DE VERDAD y se cobra.\n\n' +
       'Solo van los que autorizaron que les escribas. ¿Seguro?')) return;
+  /* 9-nov-2026 — lo mismo que en enviarMensajes: desde una pestaña vieja no sale nada. */
+  if (_otraPestanaEscribio()) { negarseAGuardar(); return; }
 
   var mensajes = filas.map(function (f) {
     return { celular: f.celular, nombre: f.nombre, texto: textoInvitacion(f), monto: 0 };
@@ -6477,8 +6492,10 @@ function guardarCliente(id){
      registró se junta sola cuando su historial suba a la nube
      (juntarCuentasPendientes, en el reloj de 45 s). Si la nube ve algo raro,
      no la junta y la ficha pide el toque. */
-  if(!id&&_registroPendiente){ creado.cuentaPorJuntar={registro_id:Number(_registroPendiente),desde:hoyISO()};
-    marcarRegistro(_registroPendiente,'atendido'); _registroPendiente=null; }
+  /* 9-nov-2026 — el registro queda «atendido» en la nube solo si la ficha entró al
+     disco: se marca abajo, después de guardar (ver quedoEnDisco). */
+  const regAtendido=(!id&&_registroPendiente)?_registroPendiente:null;
+  if(regAtendido){ creado.cuentaPorJuntar={registro_id:Number(regAtendido),desde:hoyISO()}; _registroPendiente=null; }
   /* 23-oct-2026 — «¿Quién de tu equipo lo atiende?» (campoAsignarFicha): solo
      si Joan lo cambió en ESTE cuadro. Lo que el cuadro no pintó llega como ''
      y no toca nada; «Nadie» llega como 'nadie' y se la quita. */
@@ -6489,7 +6506,10 @@ function guardarCliente(id){
     const destino=elegido==='nadie'?'':elegido;
     if((!destino||personaDeEquipo(destino))&&anotarAsignacion(creado.id,destino,hoyISO(),'A'+Date.now()+'-0')) asignadoA=destino;
   }
-  _fotosTmp={frente:null,reverso:null,selfie:null}; _ubicTmp=null; guardar(); cerrarModal(); render(); irA('clientes');
+  _fotosTmp={frente:null,reverso:null,selfie:null}; _ubicTmp=null;
+  const fichaEnDisco=quedoEnDisco();
+  if(fichaEnDisco&&regAtendido) marcarRegistro(regAtendido,'atendido');
+  cerrarModal(); render(); if(!fichaEnDisco) return; irA('clientes');
   /* 23-oct-2026 — y si cuenta desde mañana, por qué (fraseDesdeManana). */
   if(asignadoA!==null){ const manana=fraseDesdeManana(creado.id);
     return publicarTrasAsignar(fraseAsignado(creado.nombre,asignadoA)+(manana?'\n\n'+manana:'')); }
@@ -21982,7 +22002,8 @@ function aplicarCruce(idReg,idSocio,op){
     /* 8-oct-2026 — y lo que Joan dejó girado (↻) mirando este registro. */
     const girosC=girosDeFotos([f.cedula_frente,f.cedula_reverso,f.selfie],s2.girosFotos||null);
     if(girosC) s2.girosFotos=girosC;
-    guardar();
+    /* 9-nov-2026 — sin el cruce en el disco, el registro se queda en la bandeja. */
+    if(!quedoEnDisco()){ render(); return; }
     if(a.fallo){
       avisoDeExito('Quedó cruzado, pero NO pude traer las fotos: '+a.fallo+
             '\n\nEl registro sigue en la bandeja para que lo vuelvas a intentar en un minuto.');
@@ -22180,8 +22201,10 @@ function guardarRespaldado(){
   const tm=sol?topeMoraDeAceptacion(sol):null;
   if(tm){ nr.topeMoraEA=tm.ea; nr.condicionesDe=String(sol.id); }
   DB.respaldados.push(nr);
-  if(sol){ marcarEnNube(sol,'atendida'); quitarSolicitud(sol.id); }
-  guardar(); cerrarModal(); render(); irA('resp');
+  /* 9-nov-2026 — primero el disco, después la nube (ver quedoEnDisco). */
+  const enDisco=quedoEnDisco();
+  if(sol&&enDisco){ marcarEnNube(sol,'atendida'); quitarSolicitud(sol.id); }
+  cerrarModal(); render(); if(enDisco) irA('resp');
 }
 function verRespaldado(id){
   const r=(DB.respaldados||[]).find(x=>x.id===id); if(!r)return;
@@ -23055,8 +23078,10 @@ function crearDesdeSolicitud(id){
        resolvedor vuelva a preguntar lo mismo. Ver el comentario de adentro:
        `s.cedula` de una solicitud NO es la cedula. */
     return archivosDe(s.cedula).then(a=>{ const nuevo=socioDesdeDatos(s,a,diez(s.cedula)); DB.socios.push(nuevo);
+      /* 9-nov-2026 — primero el disco, después la nube (ver quedoEnDisco). */
+      if(!quedoEnDisco()){ render(); return; }
       if(s.registro_id&&sbListo()) rpc('marcar_registro',{p_clave:sbCfg().clave,p_id:Number(s.registro_id),p_estado:'atendido'}).catch(()=>{});
-      guardar(); crearDesdeSolicitud(id); });
+      crearDesdeSolicitud(id); });
   }
   if(!cli) return alert('No tengo ficha de "'+s.nombre+'" con el número '+(s.cedula||'—')+' (ni como cédula ni como celular).\n\nCréale la ficha primero desde Clientes y vuelve a intentar.');
   /* 8-oct-2026 (segunda vuelta) — UNA ACEPTACIÓN SIN CONSTANCIA, O QUE NO CASA.
@@ -23114,8 +23139,12 @@ function crearDesdeSolicitud(id){
      campo). */
   if(dst) p.consignarA=JSON.parse(JSON.stringify(dst));
   DB.prestamos.push(p);
+  /* 9-nov-2026 — primero el disco, después la nube (ver quedoEnDisco). Si no quedó, la
+     solicitud sigue en la bandeja para volver a hacerlo, y no se dice «✓ registrado»:
+     es lo que Joan lee antes de girar la plata. */
+  if(!quedoEnDisco()){ render(); return; }
   marcarEnNube(s,'atendida'); quitarSolicitud(id);
-  guardar(); render();
+  render();
   if(confirm('✓ Crédito '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
 }
 
