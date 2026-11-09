@@ -447,3 +447,31 @@ describe('«Lo que registraste hoy» en el celular: las filas suman el total', (
     assert.equal(filas[filas.length - 1], '$10.000', 'la fila del cierre no suma el total: ' + m[1]);
   });
 });
+
+/* 9-nov-2026 — revisión de plata-e1 (leve f): el detalle de un crédito cerrado cuyo abono del otro
+   aparato pasaba de la pérdida decía «Capital $240.000»: lo prestado menos ese abono, una cifra que
+   no es ni lo prestado ni lo que se debe. Cerrado, se dice lo prestado. */
+describe('el detalle de un crédito cerrado dice lo prestado', () => {
+  const capital = f => {
+    const C = abrirPanel({ ahora: '2026-10-21T10:30:00' });
+    C.cargarCartera({ socios: [copia(SOCIO)], prestamos: [copia(f)], config: { negocio: 'Tu Garantía' } });
+    C.ev("verCredito('p1')");
+    return plano(C.elems.mBody.innerHTML);
+  };
+
+  test('con el abono del otro aparato, pase o no de la pérdida, y con cualquier decisión', () => {
+    const conPerdida = CAMINOS['Se lo perdoné con pérdida (250.000)']().cerrado;
+    const pagoTodo = CAMINOS['CRM · Pagó todo']().cerrado;
+    [conAbonoDelOtro(q0, conPerdida, 60000), decidir(conAbonoDelOtro(q0, conPerdida, 60000), 'cobrar'),
+     conAbonoDelOtro(q0, pagoTodo, 60000), decidir(conAbonoDelOtro(q0, pagoTodo, 60000), 'misma')].forEach((f, i) => {
+      const t = capital(f);
+      assert.match(t, /Capital prestado \$300\.000/, 'caso ' + i + ': ' + t.slice(0, 200));
+      assert.doesNotMatch(t, /Capital \$240\.000/, 'caso ' + i);
+    });
+  });
+
+  test('CONTROL: abierto, sigue diciendo el capital que se debe', () => {
+    const abierto = Object.assign(copia(q0), { abonosCapital: [ABONO(60000)] });
+    assert.match(capital(abierto), /Capital \$240\.000/);
+  });
+});

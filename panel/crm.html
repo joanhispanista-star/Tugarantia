@@ -7206,9 +7206,12 @@ function verCredito(id){
     ${acuerdoDe(p)?`<div class="alerta ${acuerdoIncumplido(p)?'warn':'info'}"><b>🤝 Acuerdo pactado:</b> paga la prórroga de <b>${COP(p.acuerdo.monto)}</b> el <b>${fmtFecha(p.acuerdo.pactadaPara)}</b>.${acuerdoIncumplido(p)?' <b>Ese día no pagó</b>: el precio pactado venció y corre lo causado real.':' El precio queda congelado si cumple.'}
       <div style="margin-top:8px"><button class="btn btn-sm btn-negro" onclick="cumplirAcuerdo('${p.id}')">✓ Cumplió: recibí la prórroga</button>
       <button class="btn btn-ghost btn-sm" onclick="romperAcuerdo('${p.id}')">✕ Deshacer</button></div></div>`:''}
-    ${(p.pagado&&PUENTE.perdidaDelCierre&&PUENTE.perdidaDelCierre(p))
+    ${p.pagado
       /* 30-oct-2026 — cerrado con pérdida, «Capital» (lo que no se pagó) se leería
-         como una deuda viva: se dice lo prestado, y la pérdida va en su renglón. */
+         como una deuda viva: se dice lo prestado, y la pérdida va en su renglón.
+         9-nov-2026 — y en CUALQUIER crédito cerrado (revisión de plata-e1): con un abono del
+         otro aparato que el cierre no conoció, «Capital $240.000» era lo prestado menos ese
+         abono, una cifra que no es ni lo prestado ni lo que se debe (no se debe nada). */
       ?`<div class="info-row"><span class="k">Capital prestado</span><b>${COP(p.capital)}</b></div>`
       :`<div class="info-row"><span class="k">${cP?'Capital pendiente del crédito':'Capital'}</span><b>${COP(capitalActual(p))}</b></div>`}
     ${filaCosto}
