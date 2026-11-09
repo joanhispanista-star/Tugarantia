@@ -5894,7 +5894,7 @@ function verCliente(id){
      de un registro con la llave: una hecha a mano no tiene por qué tener fotos. */
   const declaro=fotosTomadasDe(s.vinculacion)?{datos:s.vinculacion}:null;
   const enLaFicha={cedula_frente:!!s.cedulaFrenteFoto,cedula_reverso:!!s.cedulaReversoFoto,selfie:!!s.selfieFoto};
-  const colaFicha=declaro?porQueFaltaLaCedula(enLaFicha,declaro):'';
+  const colaFicha=declaro?porQueFaltaLaCedula(enLaFicha,declaro,s.huellaRegistro):'';
   const pedirFicha=declaro?botonPedirFotosFicha(s,ladosQueFaltan(enLaFicha,declaro)):'';
   const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div>${avisoLadoQueFalta(!!s.cedulaFrenteFoto,!!s.cedulaReversoFoto,colaFicha,!!s.selfieFoto,esPasaporte(s.vinculacion))}${pedirFicha}<div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Su cara'].indexOf(f[0])];
       return `<div class="gal-it"><a data-foto="${f[1]}" target="_blank"><img data-foto="${f[1]}" id="fichaFoto_${cual}"><div class="cap">${f[0]}</div></a>${botonGirar("girarFotoFicha('"+escHTML(s.id)+"','"+cual+"')")}</div>`; }).join('')}</div>`
@@ -11819,6 +11819,19 @@ function aparatoDeHuellaCRM(h){
 function huellaParaFicha(h){
   const r={ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''};
   if(h.aparato_telefono&&typeof h.aparato_telefono==='object') r.aparato_telefono=h.aparato_telefono;
+  /* 9-nov-2026 — LO QUE LA BASE DIJO DE LA CÉDULA TAMBIÉN VIAJA. Sin esto, la ficha
+     de quien mandó la cédula de OTRA persona decía «Su teléfono la leyó por el código
+     de barras» y «aquí no están, pídeselas»: la señal más importante del registro
+     desaparecía al abrirle la ficha. Y la de quien sí le llegó la lectura después de
+     un primer toque sin permiso decía «No llegó lectura» al lado de sus tres fotos.
+     Viaja lo mínimo: SI llegó la lectura (no lo leído: nombre, número y nacimiento
+     ya están en el registro y la ficha no los necesita otra vez), el motivo del
+     rechazo y qué foto de la cédula no se aceptó. */
+  if(h.cedula_leida&&typeof h.cedula_leida==='object') r.lectura_llego=true;
+  if(h.cedula_rechazada&&typeof h.cedula_rechazada==='object') r.cedula_rechazada={motivo:String(h.cedula_rechazada.motivo||'')};
+  const rech=((h.fotos_rechazadas&&Array.isArray(h.fotos_rechazadas.fotos))?h.fotos_rechazadas.fotos:[])
+    .filter(x=>x&&(x.tipo==='cedula_frente'||x.tipo==='cedula_reverso')).map(x=>({tipo:x.tipo,motivo:String(x.motivo||'')}));
+  if(rech.length) r.fotos_rechazadas={fotos:rech};
   return r;
 }
 /* El celular (diez dígitos) de quien se mira: el del registro o el de la ficha. */
@@ -12556,6 +12569,9 @@ function lecturaQueNoLlego(r,enLaFicha,huella){
     +(h.cedula_rechazada.motivo==='otro_documento'?'no es la del documento de su registro':'no se pudo confirmar de quién es')+').';
   const rech=((h.fotos_rechazadas&&Array.isArray(h.fotos_rechazadas.fotos))?h.fotos_rechazadas.fotos:[]).some(x=>x&&(x.tipo==='cedula_frente'||x.tipo==='cedula_reverso'));
   if(rech) return 'No llegó lectura: la nube no aceptó las fotos de su cédula, y el teléfono ya no las tiene.';
+  /* La ficha no guarda lo leído, solo que llegó (huellaParaFicha). Va antes de lo que
+     dijo el teléfono: un primer toque sin permiso no gana contra lo que llegó. */
+  if(h.lectura_llego) return 'Llegó a la nube la lectura del código de barras de su cédula, con sus fotos. Lo leído está en su registro.';
   /* v139 también lee las letras impresas, y eso no es un error: la huella no lo
      trae (registro_archivos_guardar no guarda cedula_vista), así que viaja con
      los datos del registro, igual que fotos_tomadas. */

@@ -688,6 +688,38 @@ describe('4-quater · 4-nov-2026: la ficha sabe lo que el registro sabe', () => 
     assert.doesNotMatch(t, /todavía no llega/);
   });
 
+  /* 9-nov-2026 — la segunda ronda: la ficha soltaba lo que la base dijo de la cédula. */
+  test('la ficha guarda si llegó la lectura y si la base rechazó la cédula, y nada de lo leído', () => {
+    const P = crm({});
+    P.ctx.__h = { ip: '190.1.1.1', aparato: 'Android', momento: '2026-11-03T15:00:00Z',
+      cedula_leida: { nombres: 'LUIS', apellidos: 'EJEMPLO', documento: '80000000', nacimiento: '1990-01-01' },
+      cedula_rechazada: { motivo: 'otro_documento', momento: '2026-11-03T15:00:00Z', cedula: '79999999' },
+      fotos_rechazadas: { fotos: [{ tipo: 'cedula_frente', motivo: 'muy_grande' }, { tipo: 'selfie', motivo: 'muy_grande' }], momento: '2026-11-03T15:00:00Z' } };
+    const r = P.ev('huellaParaFicha(__h)');
+    assert.equal(r.lectura_llego, true);
+    assert.deepEqual(JSON.parse(JSON.stringify(r.cedula_rechazada)), { motivo: 'otro_documento' });
+    assert.deepEqual(JSON.parse(JSON.stringify(r.fotos_rechazadas)), { fotos: [{ tipo: 'cedula_frente', motivo: 'muy_grande' }] });
+    assert.doesNotMatch(JSON.stringify(r), /LUIS|80000000|1990|79999999/, 'lo leído no se copia a la ficha');
+    assert.deepEqual(Object.keys(P.ev('huellaParaFicha({ip:"1",aparato:"a",momento:"m"})')).sort(), ['aparato', 'ip', 'momento'], 'sin nada de eso, la de siempre');
+  });
+
+  test('de quien le llegó la lectura (después de un primer toque sin permiso) la ficha no dice «No llegó lectura»', () => {
+    const t = verFicha(ficha({ fotos_tomadas: 'sin_permiso' }, { huellaRegistro: Object.assign({}, HUELLA, { lectura_llego: true }),
+      cedulaFrenteFoto: 'foto:reg:' + CEL + '/cedula_frente', cedulaReversoFoto: 'foto:reg:' + CEL + '/cedula_reverso', selfieFoto: 'foto:reg:' + CEL + '/selfie' }));
+    assert.doesNotMatch(t, /No llegó lectura/, 'le llegó, y la ficha decía lo contrario');
+    assert.match(t, /Llegó a la nube la lectura del código de barras de su cédula/);
+  });
+
+  test('la cédula que la base rechazó sigue diciéndose en la ficha', () => {
+    const P = ficha({ fotos_tomadas: 'cedula_reverso,cedula_frente,selfie', cedula_leida_con: 'codigo' },
+      { huellaRegistro: Object.assign({}, HUELLA, { cedula_rechazada: { motivo: 'otro_documento' } }), selfieFoto: 'foto:reg:' + CEL + '/selfie' });
+    const t = verFicha(P);
+    assert.doesNotMatch(t, /Su teléfono (dijo que )?la leyó por el código de barras/, 'la frase más tranquila, justo de la cédula de otro');
+    assert.match(t, /No llegó lectura: la nube no guardó la cédula de sus fotos \(no es la del documento de su registro\)/);
+    assert.match(t, /La nube no guardó la cédula de sus fotos: no es la del documento de su registro/);
+    assert.doesNotMatch(t, /dijo que las tomó, y aquí no están/);
+  });
+
   test('una ficha de antes sigue diciendo que no se sabe', () => {
     assert.match(verFicha(ficha(null)), LECTURA_VIEJA);
   });
