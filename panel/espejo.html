@@ -1160,6 +1160,8 @@ function aplicarVars(txt, p, s, extra) {
     .split('{nombre}').join((s.nombre || '').split(' ')[0] || s.nombre || '')
     .split('{negocio}').join((DB.config && DB.config.negocio) || 'Tu Garantía')
     .split('{monto}').join(COP(p ? capitalActual(p) : 0))
+    /* 9-nov-2026 — {credito}, el de la plantilla 'cierre' (ver crm.html). */
+    .split('{credito}').join(p ? 'de ' + COP(Number(p.capital) || 0) + ' que recibiste el ' + fmtFecha(p.fechaDesembolso) : '{credito}')
     /* 3-oct-2026 — {saldo} puede llegar hecho, como en crm.html: en el recibo
        del abono + prórroga es lo que paga el día del corte si paga a tiempo. */
     .split('{saldo}').join(e.saldo || COP(p ? totalCiclo(p) : 0))

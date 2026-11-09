@@ -1492,8 +1492,13 @@ const PLANTILLAS_DEF={
      casos —el crédito quedó cerrado y de él no debe nada— sin hablar de pago
      ni de cumplimiento, y sin cifras: con $0 no hay qué «recibimos», y lo
      perdonado es asunto de Joan. Es confirmación de una operación (art. 8 de
-     la Ley 2300), como el recibo: no es cobranza. */
-  cierre:{t:'Crédito cerrado con descuento',x:'Tras «Se lo perdoné» cuando no devolvió todo el capital',m:'Hola {nombre} 🙂 Te confirmamos que tu crédito quedó cerrado: de ese crédito ya no nos debes nada. Gracias por la confianza; cualquier cosa nos cuentas.'},
+     la Ley 2300), como el recibo: no es cobranza.
+     9-nov-2026 — Y DICE CUÁL CRÉDITO ({credito}: lo prestado y el día que lo
+     recibió). La segunda ronda de la revisión: es el caso exacto de Joan, una
+     cliente con varios créditos, y «tu crédito quedó cerrado… ya no nos debes
+     nada» sin decir cuál se lee como que ya no debe nada, con otros abiertos y en
+     mora. Lo prestado identifica el crédito; no es lo que entró ni lo perdonado. */
+  cierre:{t:'Crédito cerrado con descuento',x:'Tras «Se lo perdoné» cuando no devolvió todo el capital',m:'Hola {nombre} 🙂 Te confirmamos que tu crédito {credito} quedó cerrado: de ese crédito ya no nos debes nada. Gracias por la confianza; cualquier cosa nos cuentas.'},
   historial:{t:'Su historial de socio',x:'Le manda a su celular todo lo que ha construido contigo',m:'Hola {nombre} 🙂 Te compartimos tu historial de socio, para que lo veas cuando quieras desde tu celular. Ahí sale todo lo que has pagado, la garantía que llevas acumulada, hasta cuánto puedes pedir y con qué tasa. Y algo que queremos que tengas claro: aunque alguna vez te atrases, sigues siendo socio y aquí te seguimos prestando.\n\n{enlace}'},
   prorroga:{t:'Prórroga registrada',x:'Tras dejar la prórroga',m:'Listo {nombre}, ya registramos tu prórroga de {prorroga}, no te preocupes por nada. Tu pago de {saldo} pasa tranquilo para la quincena del {fecha_pago}. Gracias por avisarnos; cualquier cosa nos cuentas.'},
   /* 3-oct-2026 — el recibo del «💵 Abonó y el resto pasa a la próxima
@@ -1538,6 +1543,7 @@ const PLANTILLAS_DEF={
 };
 /* La invitación de fábrica de antes del 7-oct, letra por letra: cargar() la
    reconoce en el disco y la cambia por la de hoy. */
+const CIERRE_SIN_CREDITO='Hola {nombre} 🙂 Te confirmamos que tu crédito quedó cerrado: de ese crédito ya no nos debes nada. Gracias por la confianza; cualquier cosa nos cuentas.';
 const INVITACION_CON_CODIGO='Hola {nombre}, te escribimos para pasarte tu código de entrada: {codigo}\nEntras acá: {enlace}\nEl código sirve para una sola persona, así que no lo reenvíes.';
 
 /* ===========================================================================
@@ -1694,6 +1700,8 @@ function cargar(){
      la que sale al gestionar: se cambia SOLO si es idéntica a la de fábrica (si
      Joan la escribió a su manera, se queda y el aviso de plantillas se lo dice). */
   if(d.plantillas.invitacion===INVITACION_CON_CODIGO) d.plantillas.invitacion=PLANTILLAS_DEF.invitacion.m;
+  /* 9-nov-2026 — el cierre de fábrica sin {credito}: el mismo bisturí. */
+  if(d.plantillas.cierre===CIERRE_SIN_CREDITO) d.plantillas.cierre=PLANTILLAS_DEF.cierre.m;
   d.config=Object.assign({costoBasePct:20,tasaUsuraEA:0,pin:'1234',negocio:'Tu Garantía',whatsapp:''},d.config||{});
   /* 28-ago-2026 — LA DIRECCIÓN GUARDADA QUE SE QUEDÓ VIEJA.
      Mismo bisturí que las tres migraciones de plantillas de aquí arriba, y por
@@ -2389,6 +2397,7 @@ function sinFraseProrroga(txt){
 }
 /* `extra` trae lo que no sale de un préstamo quincenal: el código de invitación
    y los datos de una cuota del préstamo con garantía. */
+function textoDelCredito(p){ return 'de '+COP(Number(p.capital)||0)+' que recibiste el '+fmtFecha(p.fechaDesembolso); }
 function aplicarVars(txt,p,s,enlace,extra){ const e=extra||{}; s=s||{};
   /* {prorroga} es lo que el socio va a pagar HOY por prorrogar: el costo del
      ciclo más el recargo de mora ya causado. Si acá dijera solo K(p), el
@@ -2403,6 +2412,9 @@ function aplicarVars(txt,p,s,enlace,extra){ const e=extra||{}; s=s||{};
      recibo del abono + prórroga es «lo que paga el día del corte si paga a
      tiempo», leído del crédito guardado. Sin `extra.saldo` es lo de siempre. */
   .replaceAll('{monto}',COP(p?capitalActual(p):0)).replaceAll('{saldo}',e.saldo||COP(p?totalCiclo(p):0))
+  /* 9-nov-2026 — {credito}: cuál, en las palabras del cliente (ver la plantilla
+     'cierre'). Sin crédito delante se deja con sus llaves, y se avisa. */
+  .replaceAll('{credito}',p?textoDelCredito(p):'{credito}')
   .replaceAll('{prorroga}',of==null?'—':of)
   /* 3-oct-2026 — {abono}: lo que entregó en el abono + prórroga. Solo lo
      contesta ese recibo (varsDePlantilla).
@@ -5573,7 +5585,7 @@ const TOKENS_POR_PLANTILLA={
   venceHoy:TOKENS_QUINCENAL, moraTemprana:TOKENS_QUINCENAL, mora:TOKENS_QUINCENAL,
   recibo:TOKENS_QUINCENAL.concat(['nivel']), prorroga:TOKENS_QUINCENAL,
   /* 31-oct-2026: el cierre con pérdida no dice cifras (ver la plantilla). */
-  cierre:['nombre','negocio'],
+  cierre:['nombre','negocio','credito'],
   /* 3-oct-2026: {abono} solo lo contesta este recibo (varsDePlantilla). */
   abonoProrroga:TOKENS_QUINCENAL.concat(['abono']),
   /* Estas cuatro van sin crédito delante (p=null): {monto} y {saldo} saldrían

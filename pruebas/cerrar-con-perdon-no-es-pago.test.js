@@ -630,9 +630,35 @@ describe('7 · después de cerrar con pérdida no se le agradece un pago que no 
     assert.doesNotMatch(pregunta, /recibo/, 'le ofreció «el recibo» de un pago que no hubo');
     assert.equal(r.titulo, 'Gestionar · Rosa Inventada');
     assert.equal(r.elegida, 'cierre');
-    assert.match(r.mensaje, /tu crédito quedó cerrado: de ese crédito ya no nos debes nada/);
+    assert.match(r.mensaje, /tu crédito de \$200\.000 que recibiste el 01 de oct de 2026 quedó cerrado: de ese crédito ya no nos debes nada/,
+      'la segunda ronda: con varios créditos, «tu crédito quedó cerrado» sin decir cuál se lee como que ya no debe nada');
     assert.doesNotMatch(r.mensaje, /pago|cumplimiento|Recibido/i,
       'le ofreció mandarle «Tu pago quedó registrado… gracias por tu cumplimiento» a quien entregó $0: ' + r.mensaje);
+  });
+
+  test('dos cierres de la misma clienta no proponen el mismo texto, y no queda ninguna llave suelta', () => {
+    const a = cerrarEnLaHoja(deRosa(), '2026-10-31', 0, 200000);
+    const b = cerrarEnLaHoja(deRosa({ id: 'r9', numero: 9, capital: 350000, fechaDesembolso: '2026-10-05' }), '2026-10-31', 0, 350000);
+    assert.notEqual(a.mensaje, b.mensaje);
+    assert.match(b.mensaje, /tu crédito de \$350\.000 que recibiste el 05 de oct de 2026 quedó cerrado/);
+    assert.doesNotMatch(a.mensaje + b.mensaje, /\{[a-z_]+\}/, 'quedó una llave sin contestar');
+    const CRM = crmCon('2026-10-31T10:30:00', [ROSA], []);
+    assert.deepEqual(JSON.parse(CRM.ev("JSON.stringify(tokensSueltos(PLANTILLAS_DEF.cierre.m,'cierre'))")), []);
+    /* La de fábrica que ya quedó guardada en un disco se pone al día; una escrita por Joan, no. */
+    const V = abrirPanel({ ahora: '2026-10-31T10:30:00' });
+    V.cargarCartera({ socios: [], prestamos: [], plantillas: { cierre: V.ev('CIERRE_SIN_CREDITO') } });
+    assert.match(V.ev('DB.plantillas.cierre'), /\{credito\}/);
+    const W = abrirPanel({ ahora: '2026-10-31T10:30:00' });
+    W.cargarCartera({ socios: [], prestamos: [], plantillas: { cierre: 'Hola {nombre}, lo mío' } });
+    assert.equal(W.ev('DB.plantillas.cierre'), 'Hola {nombre}, lo mío');
+  });
+
+  test('el celular contesta {credito} igual que el computador', () => {
+    const c = cerrar({ socios: [ROSA], prestamos: [deRosa()] }, deRosa(), '2026-10-31', 0);
+    const E = abrirEspejo({ ahora: '2026-10-31T10:30:00', cartera: { socios: [copia(ROSA)], prestamos: [c], respaldados: [],
+      config: { negocio: 'Tu Garantía' }, contadores: { cliente: 7, credito: 1, respaldado: 0 }, plantillas: {} } });
+    assert.equal(E.ev("aplicarVars('tu crédito {credito} quedó cerrado', creditoPorId('r1'), {nombre:'Rosa'})"),
+      'tu crédito de $200.000 que recibiste el 01 de oct de 2026 quedó cerrado');
   });
 
   test('a cuotas cerrado con 500.000 de 650.000: tampoco es un pago, y el mensaje es el mismo', () => {
