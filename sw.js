@@ -2078,7 +2078,26 @@
    platachat/index.html: pasa a ?v=143 en esas páginas y en la precarga. panel/nube.js y
    panel/nube-crm.js ya estaban en ?v=143. CACHE y VERSION_SITIO ya decían v143. No hay base
    nueva: sobranteDecidido es un campo más del crédito (jsonb). La regla de los ?v= se mide
-   contra lo que estará publicado: TG_PUBLICADO=lote-v142. */
+   contra lo que estará publicado: TG_PUBLICADO=lote-v142.
+   9-nov-2026, v143 (tercera tanda de E1): LA REGLA DE JOAN, ENTERA. «Que me pregunte cada
+   vez» vale para todo crédito cerrado cuyo cierre no conoció un abono del otro aparato, haya
+   o no capital perdido: con «Se lo perdoné» sin pérdida o con «Pagó todo», esa plata se
+   esfumaba de todas las cifras. Hasta que Joan decida, no cuenta en ninguna y las del cierre
+   quedan como se anotaron (también la pérdida: un abono menor que ella ya no la baja solo,
+   como en v142). Tres respuestas, solo las que tienen sentido: «Es plata nueva: lo cobro»
+   (capital perdido, mora y costo perdonados, en ese orden; el resto a su favor), «Queda a
+   su favor» y «Era la misma plata» (nueva: no suma nada). La decisión guarda su cifra y su
+   cierre, viaja con el crédito y, contra nada del otro lado, ya no es choque; dos distintas
+   sí, y las tarjetas dicen cuál es cuál. Los créditos ya cerrados con v141 o v142 que tengan
+   un abono así empiezan a preguntar: el Tablero los nombra. Y lo que dejó la revisión: en el
+   celular, «Lo que registraste hoy» suma su total; en una pestaña vieja, «Listo: quedaron
+   anotados» y «Listo: … antes de ese cruce» callan si no quedó nada; un disco ilegible no
+   abre solo un CRM en $0; «Traer» conserva el PIN de un aparato con cartera y PIN propio
+   aunque la nube traiga uno de antes de v143, y dice qué PIN pedirá el CRM; y un crédito
+   cerrado dice «Capital prestado».
+   Cambian app/puente.js y panel/nube.js, que ya iban en ?v=143, y las páginas crm, espejo,
+   subir y traer. CACHE y VERSION_SITIO ya decían v143. No hay base nueva: la decisión es
+   el mismo campo sobranteDecidido, con su cifra y su cierre (jsonb). */
 const CACHE = 'tugarantia-v143';
 const BASE = new URL('./', self.location).pathname;
 
@@ -2094,7 +2113,7 @@ const ARCHIVOS = [
   'legal/terminos.html',
   'app/socio.html',
   'app/motor.js?v=141',   // 28-oct-2026 — ?v=141: cambió el M1 de la cartera por tramo (ver la nota de v141)
-  'app/puente.js?v=143',   // 9-nov-2026 — ?v=143: lo que sobra se pregunta y el §8 con abono suelto (ver la nota de v143)
+  'app/puente.js?v=143',   // 9-nov-2026 — ?v=143: la plata que un cierre no conoció se pregunta siempre y el §8 con abono suelto (ver la nota de v143)
   /* El chat: lo comparten la app del socio, el CRM y el espejo, igual que el
      motor y el puente. Es la razón de que este service worker viva en la raíz. */
   'app/chat.js',
