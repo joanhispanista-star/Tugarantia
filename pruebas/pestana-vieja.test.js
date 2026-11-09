@@ -416,4 +416,27 @@ describe('después de negarse, la pestaña vieja no le promete nada a nadie', ()
     assert.match(aviso(B), OTRA_PESTANA);
   });
 
+  test('después de rehacerlo y que entre, la franja se va', () => {
+    const { A, B, almacen } = dosPestanas();
+    cobrar(A, 'P1', 100000);
+    B.ev("DB.socios[1].gestiones.push({ fecha: '2026-11-03', canal: 'wa', plantilla: 'x' })");
+    B.ev('guardar()');
+    B.ev('estoyOcupado = function () { return false; }');
+    B.ev('alEscribirOtraPagina({ key: KEY })');
+    assert.match(aviso(B), /no se guardó/, 'precondición: la franja de «vuelve a hacerlo»');
+    B.ev("DB.socios[1].gestiones.push({ fecha: '2026-11-03', canal: 'wa', plantilla: 'x' })");
+    assert.equal(B.ev('guardar()'), true);
+    assert.equal(JSON.parse(almacen[KEY]).socios[1].gestiones.length, 1);
+    assert.equal(aviso(B), '', 'sigue diciendo que no se guardó lo que acaba de entrar');
+  });
+
+  test('la relectura con la migración de fechas no se lleva la franja: no fue Joan quien guardó', () => {
+    const { A, B } = dosPestanas();
+    cobrar(A, 'P1', 100000);
+    B.ev("DB.socios[1].gestiones.push({ fecha: '2026-11-03', canal: 'wa', plantilla: 'x' })");
+    B.ev('guardar()');
+    B.ev('_fechasMigradas = 1; recargarSinReclamar()');
+    assert.match(aviso(B), /no se guardó/);
+  });
+
 });

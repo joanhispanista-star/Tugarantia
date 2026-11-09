@@ -1611,6 +1611,9 @@ var _libroSinGuardar=false;
    guardó; 'al-dia' cuando ya se releyó, pero lo último que Joan hizo aquí no
    quedó. Con `var` y acá arriba por lo mismo que el sello. */
 var _otraPestana=null, _cajaOtraPestana=null;
+/* 9-nov-2026 — true mientras la pestaña se relee: la escritura de la migración de
+   fechas que corre ahí no es algo que Joan haya hecho (ver _trasGuardar). */
+var _enRelectura=false;
 function _huella(t){ t=String(t==null?'':t); var h=0x811c9dc5; for(var i=0;i<t.length;i++){ h^=t.charCodeAt(i); h=Math.imul(h,0x01000193); } return (h>>>0).toString(36); }
 function _sello(t){
   t=String(t==null?'':t);
@@ -1670,6 +1673,13 @@ function _trasGuardar(t, ajena){
   if(ajena){ try{ localStorage.removeItem('joan_panel_espejo_pc'); }catch(e){} }
   _sello(t);
   _libroSinGuardar=false;
+  /* 9-nov-2026 — LA FRANJA SE VA CUANDO ALGO SÍ ENTRA (revisión de plata-e1). Tras una
+     negativa, Joan rehacía el cobro, entraba al disco, y la franja seguía diciendo «lo
+     último que hiciste aquí no se guardó: vuelve a hacerlo» encima del cuadro que ya
+     enseñaba el capital rebajado. Quien le cree a la franja cobra otra vez. Lo que esta
+     escritura lleva es todo lo que esta pestaña tiene en memoria, así que lo que no
+     había quedado, o ya se rehízo, o se perdió con la relectura que la franja anunció. */
+  if(_otraPestana && !_enRelectura){ _otraPestana=null; try{ pintarAvisoOtraPestana(); }catch(e){} }
   try{ if(window.NubeCRM) NubeCRM.algoCambio(); }catch(e){}
   /* 7-oct-2026 — y los historiales de los clientes (historiales-auto.js):
      el mismo aviso, su propio reloj de 90 s. */
@@ -24119,7 +24129,9 @@ function alEscribirOtraPagina(ev){
     recargarSinReclamar();
   }catch(e){}
 }
-function recargarSinReclamar(){ _recargaPendiente=false; DB=cargar(); _selloDesdeDisco(false); _carteraReleida(); if(_fechasMigradas) guardar(); render(); }
+function recargarSinReclamar(){ _recargaPendiente=false; _enRelectura=true;
+  try{ DB=cargar(); _selloDesdeDisco(false); _carteraReleida(); if(_fechasMigradas) guardar(); }finally{ _enRelectura=false; }
+  render(); }
 function esperarParaRecargar(){
   if(_recargaPendiente) return;
   _recargaPendiente=true;
@@ -24142,7 +24154,9 @@ function estoyOcupado(){ try{ if(modal.classList.contains('on')) return true; va
    cartera: las MISMAS tres líneas del arranque y de importar(), con el sello en
    medio. Sin el `if(_fechasMigradas) guardar()`, la migración de fechas se
    vuelve a correr y vuelve la garantía duplicada que cargar() documenta. */
-function recargarCartera(){ DB=cargar(); _selloDesdeDisco(true); _carteraReleida(); if(_fechasMigradas) guardar(); render(); }
+function recargarCartera(){ _enRelectura=true;
+  try{ DB=cargar(); _selloDesdeDisco(true); _carteraReleida(); if(_fechasMigradas) guardar(); }finally{ _enRelectura=false; }
+  render(); }
 
 /* ===========================================================================
  * ☁ TODO SUBE SOLO — LA LÍNEA COMÚN — 22-oct-2026
