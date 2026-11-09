@@ -12539,14 +12539,39 @@ function pedirFotosPorElChat(id,falta){
    primer toque de un signup que se cayó. Y PlataChat no cambia (decisión de Joan): la
    llave viaja porque «Ver datos» la necesita para no decir «este registro es de
    antes», pero su fila se ve como se veía. */
+/* 9-nov-2026 — LA FILA TAMBIÉN DICE LO QUE DIJO LA BASE, Y NO SE CALLA CON UN LADO.
+   La segunda ronda de la revisión encontró dos huecos:
+   · La cédula de OTRA persona (huella.cedula_rechazada), la foto que la base no
+     aceptó (huella.fotos_rechazadas) y la cédula que a los días no ha llegado salían
+     con la fila limpia: la marca solo leía lo que dijo el teléfono, aunque r.huella
+     ya estaba en la mano. Son los registros que más conviene mirar, y «＋ Abrirle la
+     ficha» está a un toque.
+   · «Si la lectura del código ya llegó, la cédula llegó» es falso con un solo lado:
+     la lectura sale del respaldo, que es el que se toma primero, y el que falta casi
+     siempre es el frente. La regla vale solo para quien se registró sin ninguno (el
+     primer toque de un signup que se cayó).
+   Las llaves de la base no las escribe el teléfono: las escribe
+   registro_archivos_guardar. «Más de un día» es el día en que el teléfono las borra
+   (EC.fotosPertenecen), y huella.momento lo escribe esa misma función al subirlas. */
 function chipCedulaRegistro(r){
   if(String((r&&r.app)||'')==='platachat') return '';
-  const tom=fotosTomadasDe(r&&r.datos);
-  if(!tom||(tom.cedula_frente&&tom.cedula_reverso)) return '';
-  if(r.huella&&r.huella.cedula_leida) return '';
-  const uno=tom.cedula_frente||tom.cedula_reverso, pasaporte=esPasaporte(r.datos);
+  const h=(r&&r.huella&&typeof r.huella==='object')?r.huella:{};
+  const tom=fotosTomadasDe(r&&r.datos), pasaporte=esPasaporte(r&&r.datos);
+  const chip=texto=>`<div style="margin-top:4px"><span class="chip riesgo-medio">🪪 ${texto}</span> <button class="btn btn-ghost btn-sm" onclick="pedirFotosPorElChat('${escHTML(String(r.id))}','')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
+  if(h.cedula_rechazada) return chip(h.cedula_rechazada.motivo==='otro_documento'
+    ?'La nube rechazó su cédula: no es la del documento de su registro'
+    :'La nube rechazó su cédula: no se pudo confirmar de quién es');
+  const rech=((h.fotos_rechazadas&&Array.isArray(h.fotos_rechazadas.fotos))?h.fotos_rechazadas.fotos:[]).some(x=>x&&(x.tipo==='cedula_frente'||x.tipo==='cedula_reverso'));
+  if(rech) return chip('La nube no aceptó la foto de su cédula');
+  if(!tom) return '';
+  if(tom.cedula_frente&&tom.cedula_reverso){
+    const horas=(Date.now()-new Date(r.creado_en).getTime())/3600e3;
+    return (!h.momento&&!h.cedula_leida&&horas>=24)?chip('Su cédula no llegó, y ya pasó más de un día'):'';
+  }
+  const uno=tom.cedula_frente||tom.cedula_reverso;
+  if(h.cedula_leida&&!uno) return '';
   if(pasaporte&&uno) return '';
-  return `<div style="margin-top:4px"><span class="chip riesgo-medio">🪪 ${pasaporte?'Se registró sin la foto de su pasaporte':(uno?'Se registró con un solo lado de la cédula':'Se registró sin la cédula')}</span> <button class="btn btn-ghost btn-sm" onclick="pedirFotosPorElChat('${escHTML(String(r.id))}','')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
+  return chip(pasaporte?'Se registró sin la foto de su pasaporte':(uno?'Se registró con un solo lado de la cédula':'Se registró sin la cédula'));
 }
 /* Y la fila «Cédula leída» de bloqueHuella, cuando no hay lectura del código.
    4-nov-2026 — «No llegó lectura», no «No se leyó»: esto es lo que dijo el teléfono

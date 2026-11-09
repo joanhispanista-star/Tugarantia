@@ -781,6 +781,46 @@ describe('5 · 📥 Registrados y «💬 Pedirle las fotos por el chat»', () =>
     assert.doesNotMatch(plano(bandeja({}).elems.tblRegistros.innerHTML), /🪪/);
   });
 
+  /* 9-nov-2026 — la segunda ronda: la fila salía limpia justo de los registros que
+     más conviene mirar, y el caso normal de «un solo lado» ya no se marcaba. */
+  const filaCon = (datos, huella, creado) => {
+    const P = crm({});
+    P.ctx.__r = [Object.assign(registro(datos, creado), { huella })]; P.ev('_registros=__r');
+    P.ev('renderRegistros()');
+    return P.elems.tblRegistros.innerHTML;
+  };
+  const LECTURA = { nombres: 'LUIS', apellidos: 'EJEMPLO', documento: '80000000' };
+
+  test('un solo lado se marca aunque haya llegado la lectura: la lectura sale del respaldo', () => {
+    const h = filaCon({ fotos_tomadas: 'cedula_reverso,selfie', cedula_leida_con: 'codigo' }, { ip: '190.1.1.1', momento: '2026-11-03T15:00:00Z', cedula_leida: LECTURA });
+    assert.match(plano(h), /🪪 Se registró con un solo lado de la cédula/);
+    assert.match(h, /pedirFotosPorElChat\('17',''\)/);
+    /* Control: sin ningún lado y con la lectura, es el primer toque de un signup caído. */
+    assert.doesNotMatch(plano(filaCon({ fotos_tomadas: 'selfie' }, { ip: '190.1.1.1', momento: '2026-11-03T15:00:00Z', cedula_leida: LECTURA })), /🪪/);
+  });
+
+  test('la cédula que la base rechazó se marca en la fila', () => {
+    const TRES = { fotos_tomadas: 'cedula_reverso,cedula_frente,selfie', cedula_leida_con: 'codigo' };
+    assert.match(plano(filaCon(TRES, { ip: '190.1.1.1', momento: '2026-11-03T15:00:00Z', cedula_rechazada: { motivo: 'otro_documento' } })), /🪪 La nube rechazó su cédula: no es la del documento de su registro/);
+    assert.match(plano(filaCon({}, { cedula_rechazada: { motivo: 'en_duda' } })), /🪪 La nube rechazó su cédula: no se pudo confirmar de quién es/, 'también de un registro de antes de la llave');
+    assert.match(plano(filaCon(TRES, { ip: '190.1.1.1', momento: '2026-11-03T15:00:00Z', fotos_rechazadas: { fotos: [{ tipo: 'cedula_frente', motivo: 'muy_grande' }] } })), /🪪 La nube no aceptó la foto de su cédula/);
+    assert.doesNotMatch(plano(filaCon(TRES, { ip: '190.1.1.1', momento: '2026-11-03T15:00:00Z', fotos_rechazadas: { fotos: [{ tipo: 'selfie', motivo: 'muy_grande' }] } })), /🪪/, 'la selfie no es la cédula');
+  });
+
+  test('la cédula que dijo tomar y a los días no llegó se marca; la que llegó, no', () => {
+    const TRES = { fotos_tomadas: 'cedula_reverso,cedula_frente,selfie' };
+    assert.match(plano(filaCon(TRES, { aparato_telefono: { modelo: 'X' } }, '2026-10-29T15:00:00Z')), /🪪 Su cédula no llegó, y ya pasó más de un día/);
+    assert.doesNotMatch(plano(filaCon(TRES, { ip: '190.1.1.1', momento: '2026-10-29T15:05:00Z' }, '2026-10-29T15:00:00Z')), /🪪/, 'subieron');
+    assert.doesNotMatch(plano(filaCon(TRES, { aparato_telefono: { modelo: 'X' } })), /🪪/, 'el primer día todavía pueden subir');
+  });
+
+  test('PlataChat no cambia: tampoco con la cédula rechazada', () => {
+    const P = crm({});
+    P.ctx.__r = [Object.assign(registro({ fotos_tomadas: 'cedula_reverso,selfie' }), { app: 'platachat', huella: { cedula_rechazada: { motivo: 'otro_documento' } } })]; P.ev('_registros=__r');
+    P.ev('renderRegistros()');
+    assert.doesNotMatch(plano(P.elems.tblRegistros.innerHTML), /🪪/);
+  });
+
   /* chat.js corre en el reino de Node dentro del banco: su fetch es el global. */
   async function conChat(fn) {
     const real = globalThis.fetch, urls = [];
