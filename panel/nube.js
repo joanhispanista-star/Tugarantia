@@ -152,6 +152,41 @@
     if (v === MARCA_OTRO_APARATO) return 2;
     return esPunteroDeFoto(v) ? 3 : 4;
   }
+  /* 9-nov-2026 — UNA FOTO SOLTADA AL DESHACER UN CRUCE NO VUELVE (revisión de plata-e1).
+     «Queda lo que más dice» no distingue «nunca la tuve» de «la solté»: Joan deshacía un
+     cruce equivocado (crm.html, deshacerCruce, «se sueltan las fotos de ese registro»), y
+     si el celular había tocado esa ficha desde el último ☁ Subir, al juntarlas el puntero
+     de la otra persona volvía solo, con su selfie y con cupo de más (38.000 en vez de
+     20.000), aunque el cruce siguiera marcado deshecho. Con main no pasaba: el puntero
+     nunca salía del computador.
+     Lo que ya sabe soltarla está en la ficha: el cruce deshecho, que viaja como hecho
+     fechado y se junta (`cruces`, con `deshecho` completado desde cualquier lado). Un
+     puntero foto:reg:<cel>/… se suelta si hay un cruce deshecho con ese celular y ninguno
+     vivo: si Joan lo vuelve a cruzar, el cruce nuevo lo deja. Devuelve la pregunta, para
+     fusionarFila y devolverFotos. */
+  function fotoSoltadaPorCruces(listas) {
+    var estado = {};
+    lista(listas).forEach(function (l) {
+      lista(l).forEach(function (c) {
+        if (!c || typeof c !== 'object') return;
+        var cel = texto(c.celular).replace(/\D/g, '').slice(-10);
+        if (!cel) return;
+        var id = identidad(c, LISTAS_SOCIO.cruces);
+        var e = estado[id] || (estado[id] = { cel: cel, deshecho: false });
+        if (c.deshecho) e.deshecho = true;
+      });
+    });
+    var deshecho = {}, vivo = {};
+    Object.keys(estado).forEach(function (id) {
+      if (estado[id].deshecho) deshecho[estado[id].cel] = true; else vivo[estado[id].cel] = true;
+    });
+    return function (v) {
+      var m = /^foto:reg:(\d+)\//.exec(texto(v));
+      if (!m) return false;
+      var cel = m[1].slice(-10);
+      return !!deshecho[cel] && !vivo[cel];
+    };
+  }
 
   /* ---------------------------------------------- las listas que SOLO SUMAN --
      Estas listas nunca se editan ni se reordenan: solo se les agrega al final.
@@ -1481,6 +1516,12 @@
       }
     }
 
+    /* 9-nov-2026 — y la foto de un cruce deshecho no vuelve por la fusión (ver
+       fotoSoltadaPorCruces): ni con «lo mío» ni con «lo de la nube». */
+    if (mapa.cruces) {
+      var soltada = fotoSoltadaPorCruces([m.cruces, s.cruces]);
+      CAMPOS_FOTO.forEach(function (k) { if (soltada(fila[k])) delete fila[k]; });
+    }
     return { fila: fila, pisables: pisables, hayChoque: pisables.length > 0 };
   }
 
@@ -2605,6 +2646,12 @@
       if (!conContenido(aca)) return;
       if (!conContenido(alla) || esMarcaDeFoto(alla) || (esPunteroDeFoto(alla) && !esPunteroDeFoto(aca))) d[k] = aca;
     });
+    /* 9-nov-2026 — el camino sin tarjeta tampoco revive la foto de un cruce que aquí se
+       deshizo (ver fotoSoltadaPorCruces). */
+    if (Array.isArray(d.cruces) || Array.isArray(local.cruces)) {
+      var soltada = fotoSoltadaPorCruces([d.cruces, local.cruces]);
+      CAMPOS_FOTO.forEach(function (k) { if (soltada(d[k])) delete d[k]; });
+    }
     if (Array.isArray(d.cuotas) && Array.isArray(local.cuotas)) {
       d.cuotas = d.cuotas.map(function (c, i) {
         if (!c || typeof c !== 'object' || conContenido(c.comprobante)) return c;

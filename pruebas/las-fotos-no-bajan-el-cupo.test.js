@@ -403,3 +403,47 @@ describe('la ficha dice qué significa cada marca', () => {
     assert.equal(C.ev('DB.socios[0].cedulaFrenteFoto'), FOTO, 'le tocó una foto que sí tenía');
   });
 });
+
+/* 9-nov-2026 — UN CRUCE DESHECHO NO VUELVE (revisión de plata-e1). Joan deshace un cruce
+   equivocado: «se sueltan las fotos de ese registro». Desde que el puntero viaja, si el
+   celular había tocado esa ficha, al juntarlas el puntero de la otra persona volvía solo,
+   con «lo mío» y con «lo de la nube», y el cupo con él. */
+describe('la foto de un cruce deshecho no vuelve por la nube', () => {
+  const CEL = '3001112233';
+  const cruce = extra => Object.assign({ fecha: '2026-11-04', registro_id: 'R9', celular: CEL, campos: [] }, extra || {});
+  /* lo que tiene el celular (y la nube): el cruce vivo con sus fotos */
+  const conElCruce = () => ficha({ cedulaFrenteFoto: TOKEN('cedula_frente'), cedulaReversoFoto: TOKEN('cedula_reverso'), selfieFoto: TOKEN('selfie'),
+    cruces: [cruce()], gestiones: [{ fecha: '2026-11-05', canal: 'whatsapp', plantilla: 'x' }] });
+  /* lo que dejó deshacerCruce en el computador */
+  const deshecha = () => ficha({ cruces: [cruce({ deshecho: '2026-11-06' })] });
+
+  test('con «lo mío encima» y con «dejar lo de la nube», las fotos de ese registro se quedan sueltas', () => {
+    for (const r of [N.fusionarFila(deshecha(), conElCruce(), N.LISTAS_QUE_SUMAN), N.fusionarFila(conElCruce(), deshecha(), N.LISTAS_QUE_SUMAN)]) {
+      assert.equal(r.fila.selfieFoto, undefined, 'volvió la selfie de quien no es el cliente');
+      assert.equal(r.fila.cedulaFrenteFoto, undefined);
+      assert.ok(r.fila.cruces[0].deshecho, 'el cruce dejó de estar deshecho');
+      assert.equal(r.fila.gestiones.length, 1, 'se perdió la gestión del celular');
+      assert.deepEqual(mide(r.fila), mide(deshecha()), 'el cupo subió con las fotos de otra persona');
+    }
+  });
+
+  test('el camino sin tarjeta tampoco la revive', () => {
+    const d = N.devolverFotos(conElCruce(), deshecha());
+    assert.equal(d.selfieFoto, undefined);
+  });
+
+  test('si Joan lo vuelve a cruzar, el cruce nuevo sí deja sus fotos', () => {
+    const otraVez = ficha({ selfieFoto: TOKEN('selfie'), cruces: [cruce({ deshecho: '2026-11-06' }), cruce({ fecha: '2026-11-08', registro_id: 'R9b' })] });
+    assert.equal(N.fusionarFila(otraVez, conElCruce(), N.LISTAS_QUE_SUMAN).fila.selfieFoto, TOKEN('selfie'));
+  });
+
+  test('CONTROL: sin nada deshecho, la foto que solo trae la nube entra como siempre', () => {
+    const sinNada = ficha({ cruces: [cruce()] });
+    assert.equal(N.fusionarFila(sinNada, conElCruce(), N.LISTAS_QUE_SUMAN).fila.selfieFoto, TOKEN('selfie'));
+  });
+
+  test('un cruce deshecho de OTRO celular no suelta estas fotos', () => {
+    const otro = ficha({ selfieFoto: TOKEN('selfie'), cruces: [cruce(), cruce({ fecha: '2026-10-01', registro_id: 'R1', celular: '3009998877', deshecho: '2026-10-02' })] });
+    assert.equal(N.fusionarFila(otro, conElCruce(), N.LISTAS_QUE_SUMAN).fila.selfieFoto, TOKEN('selfie'));
+  });
+});
