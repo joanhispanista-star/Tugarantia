@@ -388,4 +388,32 @@ describe('después de negarse, la pestaña vieja no le promete nada a nadie', ()
     }
   });
 
+  test('una pintada que quiere guardar no saca la franja: Ventas no manda a repetir un cobro que sí quedó', () => {
+    const { A, B, almacen } = dosPestanas();
+    cobrar(A, 'P1', 70000);
+    const antes = almacen[KEY];
+    B.ev('renderVentas()');
+    assert.equal(almacen[KEY], antes, 'la pintada escribió encima');
+    assert.equal(aviso(B), '', 'la franja culpa a Joan de algo que no hizo: ' + aviso(B));
+    assert.equal(B.ev('_libroSinGuardar'), false);
+  });
+
+  test('sin nada nuevo en memoria desde lo último que esta pestaña guardó, tampoco hay franja', () => {
+    const { A, B } = dosPestanas();
+    B.ev("estoyOcupado = function () { return false; }; DB.socios[1].gestiones.push({ fecha: '2026-11-03', canal: 'wa', plantilla: 'b' })");
+    assert.equal(B.ev('guardar()'), true);
+    A.ev('recargarCartera()');
+    cobrar(A, 'P1', 70000);
+    assert.equal(B.ev('guardar()'), false);
+    assert.equal(aviso(B), '');
+  });
+
+  test('CONTROL: con algo de Joan sin guardar, la franja sí sale', () => {
+    const { A, B } = dosPestanas();
+    cobrar(A, 'P1', 70000);
+    B.ev("DB.socios[1].gestiones.push({ fecha: '2026-11-03', canal: 'wa', plantilla: 'x' })");
+    B.ev('guardar()');
+    assert.match(aviso(B), OTRA_PESTANA);
+  });
+
 });

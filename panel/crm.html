@@ -1889,7 +1889,7 @@ function codRespaldado(r){ return PUENTE.codRespaldado(r); }
  * ======================================================================== */
 var _guardadoOk = true;
 
-function guardar(){
+function guardar(deFondo){
   /* 4-nov-2026 — UNA PESTAÑA VIEJA NO BORRA UN COBRO. Medido el 3-nov con este
      mismo archivo en dos pestañas: la A cobra y guarda; la B tiene un cuadro
      abierto, así que no se recarga sola (alEscribirOtraPagina espera), y al
@@ -1904,7 +1904,7 @@ function guardar(){
      Joan acaba de hacer, y quien llamó sigue trabajando con sus referencias; con
      dos guardar() en una misma acción, el segundo escribiría media acción sobre
      la cartera releída. */
-  if (_otraPestanaEscribio()) return negarseAGuardar();
+  if (_otraPestanaEscribio()) return negarseAGuardar(deFondo === 'de-fondo');
   /* 1-oct-2026 — se pregunta ANTES de escribir si lo que se va a pisar lo
      escribió otro (ver EL SELLO DE LA CARTERA, arriba). Desde el 4-nov solo puede
      ser «sí» cuando no se pudo saber, o en modo equipo. */
@@ -2003,7 +2003,22 @@ function pintarAvisoGuardado(salvadoSinFotos){
    llenó» ya ocupa abajo. Por debajo de la puerta de la sesión, como los demás.
    La recarga es de verdad (location.reload) y no un DB=cargar(): así no queda
    ningún cuadro a medio llenar con la copia de antes, y es lo que dice el botón. */
-function negarseAGuardar(){
+function negarseAGuardar(deFondo){
+  /* 9-nov-2026 — UNA NEGATIVA SIN NADA QUE PERDER NO HABLA DE «LO ÚLTIMO QUE HICISTE»
+     (revisión de plata-e1). renderVentas guarda al pintar: con solo abrir Ventas en la
+     pestaña vieja salía la franja «lo último que hiciste aquí hay que volver a hacerlo»,
+     y lo último que Joan había hecho era un cobro que SÍ estaba en el disco. Si obedecía,
+     el cobro quedaba doble (desde E1 cada abono trae id, ya no se funden). Si quien
+     guarda es una pintada ('de-fondo'), o si lo de esta memoria es lo mismo que esta
+     pestaña ya escribió o leyó (su sello), no hay nada de Joan que no haya quedado: no se
+     dice nada, y la pestaña se pone al día sola en cuanto quede libre, como cuando otra
+     escribe (esperarParaRecargar). */
+  var nadaQuePerder=false;
+  try{ var t=JSON.stringify(DB); nadaQuePerder=!!_SELLO_MIO && t.length===_SELLO_MIO.largo && _huella(t)===_SELLO_MIO.huella; }catch(e){}
+  if(deFondo || nadaQuePerder){
+    try{ esperarParaRecargar(); }catch(e){}
+    return false;
+  }
   _otraPestana='sin-guardar';
   _libroSinGuardar=true;
   try{ pintarAvisoOtraPestana(); }catch(e){}
@@ -18259,7 +18274,8 @@ function renderVentas() {
      aparato» y lo mandaba aquí en vez de al espejo. Peor con una cartera dañada, que
      cargar() lee como vacía: la pisaba con una vacía, sin avisar, y lo que traer.html
      habría respaldado ya no existía. Con datos, como siempre. */
-  if ((DB.socios || []).length || (DB.prestamos || []).length || (DB.respaldados || []).length || prospectos().length) guardar();
+  /* 9-nov-2026 — 'de-fondo': es una pintada, no algo que hizo Joan (ver negarseAGuardar). */
+  if ((DB.socios || []).length || (DB.prestamos || []).length || (DB.respaldados || []).length || prospectos().length) guardar('de-fondo');
 
   var c = conteoEmbudo();
   var total = prospectos().length;
