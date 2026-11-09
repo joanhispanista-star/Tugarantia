@@ -2055,6 +2055,13 @@ function _carteraReleida(){
 /* Los avisos que afirman que algo quedó. «Ajustes guardados.» justo después de
    negarse a guardar sería mentira, y la franja ya dijo lo que pasó. */
 function avisoDeExito(m){ if(_otraPestana==='sin-guardar') return; alert(m); }
+/* 9-nov-2026 — Y LAS PREGUNTAS QUE AFIRMAN QUE ALGO QUEDÓ (revisión de plata-e1). Tras
+   negarse a guardar, la pestaña vieja seguía preguntando «✓ Crédito … registrado ¿Enviar
+   el mensaje de bienvenida?» o «¡Pago completo! ¿Enviar recibo?», y con un sí abría el
+   WhatsApp con «Tu pago quedó registrado» de un pago que no estaba en el disco. Con un
+   crédito, «✓ registrado» es lo que Joan lee antes de girar la plata. Se contesta que no,
+   sin preguntar: la franja ya dijo lo que pasó. */
+function confirmarExito(m){ if(_otraPestana==='sin-guardar') return false; return confirm(m); }
 
 
 const COP=n=>'$'+Math.round(n||0).toLocaleString('es-CO');
@@ -6898,7 +6905,7 @@ function guardarRapido(){
   const p={ id:'P'+Date.now(),numero:nextNumCredito(),socioId:s.id,socioNombre:s.nombre,telefono:s.telefono,capital:cap,costoPct:costo,fechaDesembolso:f,cicloActual:ovr||MotorReglas.calcularFechaCorte(f),prorrogas:[],abonosCapital:[],comprobantes:[],pagado:false,fechaCreacion:new Date().toISOString() };
   DB.prestamos.push(p);
   guardar(); cerrarModal(); render(); irA('cred');
-  if(confirm('✓ Crédito '+codCredito(p)+' registrado para '+s.nombre+' ('+codCliente(s)+').\n\n¿Enviar mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
+  if(confirmarExito('✓ Crédito '+codCredito(p)+' registrado para '+s.nombre+' ('+codCliente(s)+').\n\n¿Enviar mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
 }
 /* La ficha del crédito que se registra: la que ya existe con ese celular, o
    una nueva. Una sola para los dos registros del formulario (un solo pago y a
@@ -6955,7 +6962,7 @@ function guardarRapidoACuotas(){
   const p={ id:'P'+Date.now(),numero:nextNumCredito(),socioId:s.id,socioNombre:s.nombre,telefono:s.telefono,capital:cap,costoPct:plan.cuotas[0].pct,fechaDesembolso:f,cicloActual:plan.cuotas[0].fecha_corte,prorrogas:[],abonosCapital:[],comprobantes:[],pagado:false,fechaCreacion:new Date().toISOString(),planPagos:PUENTE.planPagosDeAlta(plan) };
   DB.prestamos.push(p);
   guardar(); cerrarModal(); render(); irA('cred');
-  if(confirm('✓ Crédito a cuotas '+codCredito(p)+' registrado para '+s.nombre+' ('+codCliente(s)+').\n\n¿Enviar mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
+  if(confirmarExito('✓ Crédito a cuotas '+codCredito(p)+' registrado para '+s.nombre+' ('+codCliente(s)+').\n\n¿Enviar mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
 }
 
 /* ===== VER CRÉDITO + comprobantes ===== */
@@ -8488,7 +8495,7 @@ function registrarAbonoProrroga(id){
   guardar(); cerrarModal(); render();
   /* El recibo dice lo GUARDADO (PUENTE.reciboAbonoConProrroga): con pacto, la
      fecha y el monto de Joan, y el capital ya sin lo perdonado. */
-  if(s&&confirm(px
+  if(s&&confirmarExito(px
     ?`Listo: abonó ${COP(a.x)}, queda debiendo ${COP(px.capital)} de capital y paga ${COP(px.monto)} el ${fmtFecha(px.fecha)}, como lo decidiste.\n\n¿Mandarle el recibo por WhatsApp?`
     :`Listo: abonó ${COP(a.x)}, queda debiendo ${COP(r.capital_despues)} de capital y paga ${COP(r.total_siguiente)} el ${fmtFecha(r.corte_nuevo)}.\n\n¿Mandarle el recibo por WhatsApp?`))
     gestionar(id,'abonoProrroga');
@@ -8596,7 +8603,7 @@ function guardarAjuste(id){
   /* El cliente se entera: su app ya dice la fecha y el monto nuevos, y el
      recordatorio de siempre los lleva por WhatsApp (dice lo de ESE día). */
   const s=DB.socios.find(x=>x.id===p.socioId);
-  if(s&&confirm(`Guardado: paga ${COP(r.monto)} el ${fmtFecha(r.fecha)}.\n\n¿Avisarle por WhatsApp la fecha y el monto?`))
+  if(s&&confirmarExito(`Guardado: paga ${COP(r.monto)} el ${fmtFecha(r.fecha)}.\n\n¿Avisarle por WhatsApp la fecha y el monto?`))
     gestionar(id,'recordatorio2');
 }
 /* 3-oct-2026 (revisión) — LA PLATA DE MÁS DEL DÍA DE LA PRÓRROGA. El puente
@@ -8627,7 +8634,7 @@ function registrarAbonoMismoDia(id){
      volvería a ofrecer la misma plata como «más». */
   reiniciarCobro(id);
   guardar(); cerrarModal(); render();
-  if(s&&confirm(`Listo: ese día entregó ${COP(md.prorroga+md.a_capital_ya+a.x)} en total. Queda debiendo ${COP(md.capital_despues)} de capital y paga ${COP(md.total_siguiente)} el ${fmtFecha(md.corte)}.\n\n¿Mandarle el recibo por WhatsApp?`))
+  if(s&&confirmarExito(`Listo: ese día entregó ${COP(md.prorroga+md.a_capital_ya+a.x)} en total. Queda debiendo ${COP(md.capital_despues)} de capital y paga ${COP(md.total_siguiente)} el ${fmtFecha(md.corte)}.\n\n¿Mandarle el recibo por WhatsApp?`))
     gestionar(id,'abonoProrroga');
 }
 
@@ -8776,7 +8783,7 @@ function pagarTotal(id,o){
   }
   /* Un comprobante tiene que decir la plata del comprobante: lo que ENTRÓ. */
   addComp(p,'pago',monto); guardar(); cerrarModal(); render();
-  if(s&&confirm('¡Pago completo! ¿Enviar recibo por WhatsApp?'))gestionar(id,'recibo'); }
+  if(s&&confirmarExito('¡Pago completo! ¿Enviar recibo por WhatsApp?'))gestionar(id,'recibo'); }
 /* =========================================================================
    4-ago-2026 (tarde) — LA PRÓRROGA PASA POR EL MOTOR. ARREGLO ESTRUCTURAL.
 
@@ -8966,7 +8973,7 @@ function registrarProrroga(id,o){
   addComp(p,'prorroga',r.total_a_pagar);
   p.cicloActual=r.fecha_corte_nueva;
   guardar(); cerrarModal(); render();
-  const s=DB.socios.find(x=>x.id===p.socioId); if(s&&confirm('Prórroga registrada. ¿Avisar por WhatsApp?'))gestionar(id,'prorroga'); }
+  const s=DB.socios.find(x=>x.id===p.socioId); if(s&&confirmarExito('Prórroga registrada. ¿Avisar por WhatsApp?'))gestionar(id,'prorroga'); }
 
 /* =========================================================================
    EL ACUERDO DE PRÓRROGA (29-ago-2026) — «paga la prórroga, pero otro día».
@@ -9033,7 +9040,7 @@ function guardarAcuerdo(id){
               costo:r.costo_prorroga, mora:r.recargo_mora||0, diasMora:r.dias_mora||0,
               condonadaMora:_acuerdoDesc.mora||0, motivoDescuento:_acuerdoDesc.motivo||'' };
   guardar(); cerrarModal(); render();
-  if(confirm('Acuerdo registrado. ¿Mandarle la confirmación por WhatsApp?\n\n(Confirmar una operación pactada no gasta el contacto de cobranza de la semana: es la excepción del art. 8 de la Ley 2300.)'))
+  if(confirmarExito('Acuerdo registrado. ¿Mandarle la confirmación por WhatsApp?\n\n(Confirmar una operación pactada no gasta el contacto de cobranza de la semana: es la excepción del art. 8 de la Ley 2300.)'))
     gestionar(id,'acuerdoPactado');
 }
 function cumplirAcuerdo(id){
@@ -9075,7 +9082,7 @@ function cumplirAcuerdo(id){
      la nube en silencio (ver registrarAbonoProrroga). */
   p.acuerdo=null;
   guardar(); cerrarModal(); render();
-  const s=DB.socios.find(x=>x.id===p.socioId); if(s&&confirm('Prórroga registrada. ¿Avisar por WhatsApp?'))gestionar(id,'prorroga');
+  const s=DB.socios.find(x=>x.id===p.socioId); if(s&&confirmarExito('Prórroga registrada. ¿Avisar por WhatsApp?'))gestionar(id,'prorroga');
 }
 function romperAcuerdo(id){
   const p=DB.prestamos.find(x=>x.id===id), a=acuerdoDe(p); if(!p||!a) return;
@@ -9189,8 +9196,8 @@ function cobrarCuotaDelPlan(p,f){
   addComp(p,'pago',r.total);
   guardar(); cerrarModal(); render();
   const s=DB.socios.find(x=>x.id===p.socioId);
-  if(p.pagado) alert('✓ '+p.socioNombre+' terminó de pagar el crédito '+codCredito(p)+(PUENTE.esPlanDeAlta(p)?' a cuotas.':' con su plan de pagos.'));
-  if(s&&confirm('Cuota registrada. ¿Mandarle el recibo por WhatsApp?'))gestionar(p.id,'recibo');
+  if(p.pagado) avisoDeExito('✓ '+p.socioNombre+' terminó de pagar el crédito '+codCredito(p)+(PUENTE.esPlanDeAlta(p)?' a cuotas.':' con su plan de pagos.'));
+  if(s&&confirmarExito('Cuota registrada. ¿Mandarle el recibo por WhatsApp?'))gestionar(p.id,'recibo');
 }
 /* 16-oct-2026 — EL COBRO DE UN CRÉDITO A CUOTAS, según lo que entregó. Lo
    decide decisionCuotaDeAlta, la misma que pintó el botón de la hoja. */
@@ -9252,7 +9259,7 @@ function abonarACuotaDelPlan(p,r){
   addComp(p,'abonoCuota',r.monto,r.registros.abono.id);
   reiniciarCobro(p.id); guardar(); cerrarModal(); render();
   const s=DB.socios.find(x=>x.id===p.socioId);
-  if(s&&confirm(`Abono registrado: en la cuota ${r.n}, `
+  if(s&&confirmarExito(`Abono registrado: en la cuota ${r.n}, `
     +(dq.enSu?`${fraseEnSuFecha(dq,false)}.`:`quedan ${COP(dq.q.total)} para el ${fmtFecha(r.fecha_cuota)}.`)
     +`\n\n¿Mandarle el recibo por WhatsApp?`)) gestionar(p.id,'recibo');
 }
@@ -9288,7 +9295,7 @@ function pagarTodoElCredito(id,fecha){
   addComp(p,'pago',r.total);
   reiniciarCobro(id); guardar(); cerrarModal(); render();
   const s=DB.socios.find(x=>x.id===p.socioId);
-  if(s&&confirm('✓ '+p.socioNombre+' saldó el crédito '+codCredito(p)+'.\n\n¿Mandarle el recibo por WhatsApp?')) gestionar(id,'recibo');
+  if(s&&confirmarExito('✓ '+p.socioNombre+' saldó el crédito '+codCredito(p)+'.\n\n¿Mandarle el recibo por WhatsApp?')) gestionar(id,'recibo');
 }
 /* =========================================================================
    16-oct-2026 — CAMBIAR LA FECHA O EL % DE UNA CUOTA DESPUÉS DEL ALTA.
@@ -22288,9 +22295,9 @@ function confirmarCuota(rid,n){
   guardar(); cerrarModal(); render();
   const s=DB.socios.find(x=>x.id===r.socioId);
   if(r.pagado){
-    alert('✓ '+r.socioNombre+' terminó de pagar el préstamo '+codRespaldado(r)+'.\n\nSe le liberaron '+COP(r.capital)+' de garantía: ya vuelven a contarle para el cupo quincenal.');
+    avisoDeExito('✓ '+r.socioNombre+' terminó de pagar el préstamo '+codRespaldado(r)+'.\n\nSe le liberaron '+COP(r.capital)+' de garantía: ya vuelven a contarle para el cupo quincenal.');
   }
-  if(s&&confirm('Cuota '+n+' registrada. ¿Mandarle el recibo por WhatsApp?')){
+  if(s&&confirmarExito('Cuota '+n+' registrada. ¿Mandarle el recibo por WhatsApp?')){
     const msg=aplicarVars(DB.plantillas.reciboRespaldado||PLANTILLAS_DEF.reciboRespaldado.m,null,s,'',
       {cuota:COP(liq.total_a_pagar),n:String(n),plazo:String(r.plazoMeses)});
     window.open(waLink(waNum(s),msg),'_blank','noopener');
@@ -23145,7 +23152,7 @@ function crearDesdeSolicitud(id){
   if(!quedoEnDisco()){ render(); return; }
   marcarEnNube(s,'atendida'); quitarSolicitud(id);
   render();
-  if(confirm('✓ Crédito '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
+  if(confirmarExito('✓ Crédito '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
 }
 
 /* La ficha de un cliente nuevo, con TODO lo que declaró al registrarse — el

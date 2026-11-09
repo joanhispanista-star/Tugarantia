@@ -372,4 +372,20 @@ describe('después de negarse, la pestaña vieja no le promete nada a nadie', ()
     assert.ok(vistas >= 1, 'no encontré las funciones que mandan SMS');
   });
 
+  test('las preguntas de «quedó registrado» callan tras negarse, sin preguntar', () => {
+    const { A, B } = dosPestanas();
+    cobrar(A, 'P1', 100000);
+    B.ev("DB.socios[1].gestiones.push({ fecha: '2026-11-03', canal: 'wa', plantilla: 'x' })");
+    B.ev('guardar()');
+    B.ev('__preguntas = 0; confirm = function () { __preguntas++; return true; }');
+    assert.equal(B.ev("confirmarExito('¡Pago completo! ¿Enviar recibo por WhatsApp?')"), false);
+    assert.equal(B.ev('__preguntas'), 0);
+    const codigo = CRM.replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const frase of ["confirm('✓ ", "confirm('¡Pago completo!", "confirm('Prórroga registrada.", "confirm('Cuota registrada.",
+      "confirm('Acuerdo registrado.", 'confirm(`Abono registrado:', 'confirm(`Guardado: paga', 'confirm(`Listo: ese día entregó', 'confirm(px',
+      "alert('✓ '+p.socioNombre+' terminó de pagar", "alert('✓ '+r.socioNombre+' terminó de pagar"]) {
+      assert.ok(!codigo.includes(frase), 'sigue preguntando sin mirar si quedó: ' + frase);
+    }
+  });
+
 });
