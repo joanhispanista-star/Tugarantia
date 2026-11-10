@@ -273,3 +273,31 @@ describe('5. los avisos no prometen lo que su app no hace', () => {
     assert.doesNotMatch(q, /su app/);
   });
 });
+
+describe('6. sin la bandeja (colgada o caída), «＋ Nuevo crédito» dice que no sabe', () => {
+  for (const modo of ['colgada', 'caida']) {
+    test('bandeja ' + modo + ': el formulario lo dice, y vuelve a preguntar', async () => {
+      let preguntas = 0;
+      const P = abrirPanel({ red: url => {
+        const fn = (/\/rpc\/([a-z_]+)$/.exec(url) || [])[1];
+        if (fn === 'listar_solicitudes_abiertas') { preguntas++; return modo === 'colgada' ? new Promise(() => {}) : Promise.reject(new Error('sin red')); }
+        return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('[]'), json: () => Promise.resolve([]) });
+      } });
+      P.almacen.joan_socios_sb = JSON.stringify({ url: 'https://prueba.supabase.co', anon: 'llave-anon', clave: CLAVE });
+      P.cargarCartera({ socios: [FICHA()], prestamos: [], config: {} });
+      P.ev('traerSolicitudes(true)'); await asentar();
+      P.ev('_solPreguntadaEn = 0');   // el freno de 15 s ya pasó
+      const antes = preguntas;
+      P.ev("nuevoCredito('C900')");
+      const t = plano(P.elems.mBody.innerHTML);
+      assert.match(t, new RegExp('No sé si Marta Prueba tiene una propuesta abierta: ' + (modo === 'caida' ? 'no pude preguntarle a la nube' : 'la nube todavía no contesta')));
+      assert.match(P.elems.mBody.innerHTML, /id="qCap"/, 'el formulario no se abrió');
+      assert.ok(preguntas > antes, 'no volvió a preguntarle a la nube');
+    });
+  }
+  test('con la bandeja al día, nada', async () => {
+    const { P } = await montar(() => []);
+    P.ev("nuevoCredito('C900')");
+    assert.doesNotMatch(plano(P.elems.mBody.innerHTML), /No sé si/);
+  });
+});

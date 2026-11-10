@@ -6600,6 +6600,7 @@ function nuevoCredito(preId,aMano){
      guardar se vuelve a mirar: seguirAManoPese pregunta si algo apareció. */
   _aManoVisto=(pre&&aMano===true)?pre.id:null;
   openModal(pre?'Nuevo crédito · '+codCliente(pre)+' '+pre.nombre:'Nuevo crédito',`
+    ${aMano===true?'':sinSaberSiTienePropuesta(pre)}
     <div class="sub-h">Pega el mensaje de WhatsApp (opcional)</div>
     <textarea class="pastebox" id="qPaste" placeholder="Ej:&#10;Hola, soy Carlos Rincón 311 245 7788&#10;correo carlos@gmail.com&#10;Necesito 400.000"></textarea>
     <button class="btn btn-negro btn-sm" style="margin-top:10px" onclick="parsearPegado()">Leer y prellenar</button>
@@ -23751,6 +23752,19 @@ function seguirAManoPese(s, abiertas, nombre) {
   if (!abiertas) abiertas = s ? solicitudesConPropuesta(s) : [];
   if (!abiertas.length || (s && _aManoVisto === s.id)) return true;
   return confirm(textoAntesDeAMano(s || { nombre: nombre }, abiertas));
+}
+/* 10-nov-2026 — Y SI LA NUBE NO HA CONTESTADO, SE DICE. El aviso de antes sale
+   de la bandeja. Con la bandeja colgada o caída la lista está vacía, y
+   «＋ Nuevo crédito» abría el formulario como si no hubiera nada, aunque la
+   ficha dijera «Preguntando a la nube qué pidió…» (revisión del 10-nov). No se
+   sabe, y se dice; se vuelve a preguntar, y si la respuesta llega antes de
+   registrar, seguirAManoPese avisa al guardar. */
+function sinSaberSiTienePropuesta(s) {
+  if (!s || (typeof CARTERA_EQUIPO !== 'undefined' && CARTERA_EQUIPO) || !sbListo() || _solEstado === 'ok') return '';
+  try { traerSolicitudesSiToca(); } catch (e) {}
+  return '<div class="alerta warn" style="margin-bottom:10px">No sé si ' + escHTML(s.nombre || 'este cliente') + ' tiene una propuesta abierta: '
+    + (_solEstado === 'error' ? 'no pude preguntarle a la nube.' : 'la nube todavía no contesta.')
+    + ' Si la tiene y la nube contesta antes de que registres, te aviso al guardar. Si no, revisa 📋 Socios: un crédito a mano no la cierra.</div>';
 }
 
 /* ===========================================================================
