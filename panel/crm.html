@@ -6595,7 +6595,10 @@ function nuevoCredito(preId,aMano){
      propuesta esperando: el crédito no llevó lo que se le propuso y la
      solicitud quedó colgando. `aMano` es «Registrarlo a mano igual». */
   if(pre&&aMano!==true){ const abiertas=solicitudesConPropuesta(pre); if(abiertas.length) return avisoAntesDeAMano(pre,abiertas); }
-  _aManoVisto=pre?pre.id:null;
+  /* 10-nov-2026 — «ya lo vio» solo si de verdad vio el aviso («Registrarlo a
+     mano igual»). Si al abrir no había nada (la bandeja no había llegado), al
+     guardar se vuelve a mirar: seguirAManoPese pregunta si algo apareció. */
+  _aManoVisto=(pre&&aMano===true)?pre.id:null;
   openModal(pre?'Nuevo crédito · '+codCliente(pre)+' '+pre.nombre:'Nuevo crédito',`
     <div class="sub-h">Pega el mensaje de WhatsApp (opcional)</div>
     <textarea class="pastebox" id="qPaste" placeholder="Ej:&#10;Hola, soy Carlos Rincón 311 245 7788&#10;correo carlos@gmail.com&#10;Necesito 400.000"></textarea>
@@ -6931,8 +6934,10 @@ function guardarRapido(){
   let s=socioDelCredito(tel);
   /* 9-nov-2026 — y si esa persona tiene una propuesta abierta, las dos salidas
      antes (seguirAManoPese): desde Créditos el formulario no sabe de quién es
-     hasta aquí. */
-  if(!seguirAManoPese(s)) return;
+     hasta aquí. 10-nov-2026 — también sin ficha: las de ese celular
+     (propuestasAbiertasDelAlta). Y se guardan, para ofrecer cerrarlas después. */
+  const abiertas=propuestasAbiertasDelAlta(s,tel);
+  if(!seguirAManoPese(s,abiertas,nombre)) return;
   /* El cupo se revisa ANTES de tocar el DB: si dices que no, no queda ni la
      ficha ni el crédito a medio crear. Al cliente nuevo no hay qué revisarle:
      todavía no tiene historia, y su cupo sale de los datos que le cargues. */
@@ -6966,7 +6971,10 @@ function guardarRapido(){
   s=fichaDelAlta(s,nombre,tel);
   const p={ id:'P'+Date.now(),numero:nextNumCredito(),socioId:s.id,socioNombre:s.nombre,telefono:s.telefono,capital:cap,costoPct:costo,fechaDesembolso:f,cicloActual:ovr||MotorReglas.calcularFechaCorte(f),prorrogas:[],abonosCapital:[],comprobantes:[],pagado:false,fechaCreacion:new Date().toISOString() };
   DB.prestamos.push(p);
-  guardar(); cerrarModal(); render(); irA('cred');
+  /* 10-nov-2026 — quedoEnDisco es el guardar() de siempre, y además dice si
+     quedó: la propuesta solo se cierra en la nube con el crédito ya en disco. */
+  const enDisco=quedoEnDisco(); cerrarModal(); render(); irA('cred');
+  if(enDisco) cerrarPropuestasTrasAMano(abiertas,codCredito(p),s.nombre);
   if(confirmarExito('✓ Crédito '+codCredito(p)+' registrado para '+s.nombre+' ('+codCliente(s)+').\n\n¿Enviar mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
 }
 /* La ficha del crédito que se registra: la que ya existe con ese celular, o
@@ -6995,7 +7003,8 @@ function guardarRapidoACuotas(){
   if(!a.ok){ alert('No registré nada: el plan de cuotas no cuadra.\n\n'+a.error); return; }
   const plan=a.plan;
   let s=socioDelCredito(tel);
-  if(!seguirAManoPese(s)) return;   // 9-nov-2026 — la propuesta abierta, como en guardarRapido
+  const abiertas=propuestasAbiertasDelAlta(s,tel);   // 9-nov-2026 — la propuesta abierta, como en guardarRapido
+  if(!seguirAManoPese(s,abiertas,nombre)) return;
   const r=revisarCupo(s,cap);
   if(r&&(r.pasa||r.pasaSumando)&&!confirm(textoCupo(r)+'\n¿Lo registro igual?'))return;
   const ea=eaDelPlanAlta(f,cap,plan), usura=DB.config.tasaUsuraEA;
@@ -7024,7 +7033,8 @@ function guardarRapidoACuotas(){
      saben de cuotas, y el puente los mueve cuota por cuota. */
   const p={ id:'P'+Date.now(),numero:nextNumCredito(),socioId:s.id,socioNombre:s.nombre,telefono:s.telefono,capital:cap,costoPct:plan.cuotas[0].pct,fechaDesembolso:f,cicloActual:plan.cuotas[0].fecha_corte,prorrogas:[],abonosCapital:[],comprobantes:[],pagado:false,fechaCreacion:new Date().toISOString(),planPagos:PUENTE.planPagosDeAlta(plan) };
   DB.prestamos.push(p);
-  guardar(); cerrarModal(); render(); irA('cred');
+  const enDisco=quedoEnDisco(); cerrarModal(); render(); irA('cred');   // 10-nov-2026 — como en guardarRapido
+  if(enDisco) cerrarPropuestasTrasAMano(abiertas,codCredito(p),s.nombre);
   if(confirmarExito('✓ Crédito a cuotas '+codCredito(p)+' registrado para '+s.nombre+' ('+codCliente(s)+').\n\n¿Enviar mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
 }
 
@@ -22314,7 +22324,13 @@ function nuevoRespaldado(preId,sol){
   /* 9-nov-2026 — «＋ Con garantía» a mano desde la ficha, con una propuesta
      abierta: el mismo aviso que «＋ Nuevo crédito» (ver LO QUE PIDIÓ, EN SU
      FICHA). Con `sol` viene de la solicitud: ya es lo que pidió. */
-  if(preId&&!sol){ _aManoVisto=null; const ps=DB.socios.find(x=>x.id===preId); if(ps&&!seguirAManoPese(ps)) return; }
+  /* 10-nov-2026 — y al guardar se vuelve a mirar (guardarRespaldado), porque el
+     cliente se puede cambiar en la lista; si aquí ya dijo que sí, no se le
+     pregunta dos veces por la misma ficha. */
+  if(!sol){ _aManoVisto=null;
+    const ps=preId?DB.socios.find(x=>x.id===preId):null;
+    const ab=ps?propuestasAbiertasDelAlta(ps,ps.telefono):[];
+    if(ab.length){ if(!seguirAManoPese(ps,ab,ps.nombre)) return; _aManoVisto=ps.id; } }
   const elegibles=DB.socios.filter(s=>maxRespaldadoDe(s)>0)
     .sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
   if(!elegibles.length) return alert('Ahora mismo ningún cliente tiene garantía ganada LIBRE.\n\nLa garantía ganada sale de pagar: cada crédito quincenal que te pagan le deja al cliente el '+PCT_GARANTIA+' del costo. El cupón por sus datos NO sirve de respaldo para este producto.\n\nY la que ya está sosteniendo un crédito quincenal abierto tampoco: se libera cuando te lo paguen.');
@@ -22395,6 +22411,12 @@ function guardarRespaldado(){
   if(!r||!r.sim) return alert('Pon el capital.');
   if(!r.sim.dentro_del_respaldo) return alert('Ese monto pasa la garantía ganada de '+r.s.nombre+'. El préstamo con garantía va uno a uno contra lo ganado.');
   const s=r.s, sim=r.sim, f=gv('rFecha')||hoyISO();
+  /* 10-nov-2026 — A MANO (sin solicitud), la propuesta abierta del cliente que
+     quedó en la lista: la misma pregunta que «＋ Nuevo crédito», y después del
+     registro, la de cerrarla (ver UNA SOLICITUD, UN CRÉDITO). */
+  const enLaLista=gv('rSol');
+  const abiertas=enLaLista?[]:propuestasAbiertasDelAlta(s,s.telefono);
+  if(!seguirAManoPese(s,abiertas,s.nombre)) return;
   if(!confirm('Registrar el préstamo con garantía de '+s.nombre+':\n\n'
     +'• Capital: '+COP(sim.capital)+'\n• Plazo: '+sim.plazo_meses+' mes(es) al 2% mensual sobre el saldo\n'
     +'• Cuota: '+COP(sim.cuota_tipica)+'\n• Total a devolver: '+COP(sim.total_a_pagar)+'\n\n'
@@ -22421,6 +22443,7 @@ function guardarRespaldado(){
   const enDisco=quedoEnDisco();
   if(sol&&enDisco){ marcarEnNube(sol,'atendida'); quitarSolicitud(sol.id); }
   cerrarModal(); render(); if(enDisco) irA('resp');
+  if(!enLaLista&&enDisco) cerrarPropuestasTrasAMano(abiertas,codRespaldado(nr),s.nombre);
 }
 function verRespaldado(id){
   const r=(DB.respaldados||[]).find(x=>x.id===id); if(!r)return;
@@ -23323,6 +23346,15 @@ function crearDesdeSolicitud(id){
       crearDesdeSolicitud(id); });
   }
   if(!cli) return alert('No tengo ficha de "'+s.nombre+'" con el número '+(s.cedula||'—')+' (ni como cédula ni como celular).\n\nCréale la ficha primero desde Clientes y vuelve a intentar.');
+  /* 10-nov-2026 — UNA SOLICITUD, UN CRÉDITO (ver la sección del mismo nombre).
+     Si a esta ficha ya se le registró un crédito DESPUÉS de esta propuesta (a
+     mano, o con esta misma solicitud si no se alcanzó a cerrar), este sería el
+     segundo por lo mismo. No se frena —puede ser otro crédito de verdad—, pero
+     se pregunta, con el código y la fecha a la vista. */
+  const yaTiene=creditosDespuesDePropuesta(cli,s);
+  if(yaTiene.length&&!confirm(textoYaTieneCredito(cli,s,yaTiene)+'\n\n'
+    +'Si ese crédito es el de esta propuesta, NO registres otro: toca Cancelar y ciérrala en su ficha («Ya tiene su crédito: cerrar la propuesta») o con ✕ en la bandeja.\n\n'
+    +'¿Le registro OTRO crédito además de ese?')) return;
   /* 8-oct-2026 (segunda vuelta) — UNA ACEPTACIÓN SIN CONSTANCIA, O QUE NO CASA.
      Aceptó por la puerta vieja (app en caché, o la base sin la migración del
      8-oct) y no quedó lo que leyó; o lo que dice su app no casa con la base.
@@ -23543,9 +23575,12 @@ function solicitudesDeLaFicha(s) {
 }
 /* Las que tienen una propuesta abierta (esperando o aceptada): las que un
    crédito a mano dejaría colgando. */
+function conPropuestaAbierta(sol) {
+  return !!(sol && sol.contrapropuesta && typeof sol.contrapropuesta === 'object'
+    && (sol.estado === 'contrapropuesta' || sol.estado === 'aceptada'));
+}
 function solicitudesConPropuesta(s) {
-  return solicitudesDeLaFicha(s).filter(x => x.sol.contrapropuesta && typeof x.sol.contrapropuesta === 'object'
-    && (x.sol.estado === 'contrapropuesta' || x.sol.estado === 'aceptada'));
+  return solicitudesDeLaFicha(s).filter(x => conPropuestaAbierta(x.sol));
 }
 /* Lo propuesto, en una línea: lo mismo que el cliente ve en pesos. */
 function propuestaEnUnaLinea(sol) {
@@ -23620,12 +23655,21 @@ function filaLoQuePidio(s, x) {
     accion = '<button class="btn btn-ghost btn-sm" onclick="editarContrapropuesta(\'' + id + '\')">✏️ Cambiar propuesta</button>';
   }
   const noLaVe = cp && sol.estado !== 'aceptada' && !laVeEnSuApp(sol) && sol.origen !== 'pegada';
+  /* 10-nov-2026 — y si ya tiene un crédito registrado DESPUÉS de esta propuesta
+     (ver UNA SOLICITUD, UN CRÉDITO): se dice, y se ofrece cerrarla. El botón de
+     registrar sigue (puede ser otro crédito de verdad), pero ya no en rojo, y
+     crearDesdeSolicitud vuelve a preguntar. */
+  const ya = cp && conPropuestaAbierta(sol) ? creditosDespuesDePropuesta(s, sol) : [];
+  if (ya.length && sol.estado === 'aceptada') accion = accion.replace('btn btn-rojo btn-sm', 'btn btn-ghost btn-sm');
   return '<div class="info-row con-botones"><span class="k">🙋 ' + loQuePidioDe(sol)
     + (sol.pedido_nota ? '<div class="muted" style="font-style:italic">«' + escHTML(String(sol.pedido_nota)) + '»</div>' : '')
     + '<div class="muted">' + (cp ? escHTML(propuestaEnUnaLinea(sol)) : pc && sol.estado === 'nueva' ? 'todavía sin propuesta: el automático le propone si dejas correr la hora' : 'todavía sin propuesta') + '</div>'
     + (chip ? '<div style="margin-top:4px">' + chip + '</div>' : '')
     + condicionesAceptadasDe(sol) + destinoEnLaFila(sol)
     + (noLaVe ? '<div class="muted" style="color:var(--ambar);white-space:normal">⚠️ ' + escHTML(NO_LA_VE_EN_SU_APP) + '</div>' : '')
+    + (ya.length ? '<div class="alerta warn" style="margin-top:6px;white-space:normal">⚠️ <b>' + escHTML(textoYaTieneCredito(s, sol, ya)) + '</b> '
+        + 'Si ese crédito es el de esta propuesta, no registres otro: ciérrala' + (laVeEnSuApp(sol) ? ', y su app deja de ofrecérsela.' : '.')
+        + '<div style="margin-top:8px"><button class="btn btn-sm" onclick="cerrarPropuestaYaRegistrada(\'' + id + '\',\'' + escHTML(String(s.id)) + '\')">Ya tiene su crédito: cerrar la propuesta</button></div></div>' : '')
     + '</span><span class="vv">' + accion + '</span></div>';
 }
 /* Cuando llegan las solicitudes de la nube (traerSolicitudes), la ficha que
@@ -23642,40 +23686,145 @@ function pintarLoQuePidio() {
    ni a dónde consignar), la solicitud se queda en la bandeja y su app sigue
    esperando. Joan puede tener sus razones: se avisa, no se prohíbe. */
 let _aManoVisto = null;   // la ficha cuyo aviso ya vio Joan en este «＋ Nuevo crédito»
+/* 10-nov-2026 — Los textos dicen lo que va a pasar de verdad: una propuesta que
+   su app no muestra (laVeEnSuApp) no se «acepta desde su app», y un crédito a
+   mano ya no deja la propuesta abierta sin preguntar (cerrarPropuestasTrasAMano).
+   Y «lo que aceptó» solo si la aceptó. */
 function textoAntesDeAMano(s, abiertas) {
   const aceptada = abiertas.find(x => x.sol.estado === 'aceptada');
+  const ve = abiertas.some(x => laVeEnSuApp(x.sol));
   return (s.nombre || 'Este cliente') + ' tiene ' + (abiertas.length === 1 ? 'una propuesta abierta' : abiertas.length + ' propuestas abiertas') + ':\n\n'
     + abiertas.map(x => '• ' + propuestaEnUnaLinea(x.sol).replace(/^le/, 'Le') + ' — ' + (x.sol.estado === 'aceptada' ? 'la ACEPTÓ' : 'esperando que la acepte')).join('\n') + '\n\n'
     + (aceptada
       ? 'Lo bueno es registrarlo desde la solicitud («Registrar el crédito con lo que aceptó», en su ficha): lleva lo que aceptó, el techo del recargo y a dónde consignarle, y la solicitud sale de la bandeja.\n\n'
-      : 'Lo bueno es esperar a que la acepte (o cambiarle la propuesta con «✏️ Cambiar propuesta») y registrarlo desde la solicitud.\n\n')
-    + 'Si lo registras a mano, la propuesta queda abierta: su app seguirá esperando, y la solicitud sigue en la bandeja hasta que la descartes (✕).\n\n¿Lo registro a mano igual?';
+      : ve
+        ? 'Lo bueno es esperar a que la acepte en su app (o cambiarle la propuesta con «✏️ Cambiar propuesta») y registrarlo desde la solicitud.\n\n'
+        : 'Su app no le muestra esta propuesta (quedó guardada con su cédula): no la puede aceptar desde ahí. Confírmale las condiciones por el chat.\n\n')
+    + 'Si lo registras a mano, al terminar te pregunto si cierro la propuesta. '
+    + (ve ? 'Ciérrala: si queda abierta, su app se la sigue ofreciendo y la puede aceptar encima de este crédito.'
+          : 'Si queda abierta, sigue en la bandeja como pendiente.')
+    + '\n\n¿Lo registro a mano igual?';
 }
 function avisoAntesDeAMano(s, abiertas) {
   const aceptada = abiertas.find(x => x.sol.estado === 'aceptada');
+  const ve = abiertas.some(x => laVeEnSuApp(x.sol));
   const id = escHTML(s.id);
   openModal('Antes de registrarlo a mano · ' + (s.nombre || ''), `
     <div class="alerta warn"><b>${escHTML(s.nombre || 'Este cliente')} tiene ${abiertas.length === 1 ? 'una propuesta abierta' : abiertas.length + ' propuestas abiertas'}.</b>
-      Un crédito a mano no lleva lo que aceptó: ni el monto y la fecha de la propuesta, ni el techo del recargo, ni a dónde consignarle.</div>
+      ${aceptada ? 'Un crédito a mano no lleva lo que aceptó: ni el monto y la fecha de la propuesta, ni el techo del recargo, ni a dónde consignarle.'
+        : 'Un crédito a mano no lleva lo que le propusiste: ni el monto y la fecha de la propuesta, ni el techo del recargo, ni a dónde consignarle.'}</div>
     ${abiertas.map(x => filaLoQuePidio(s, x)).join('')}
-    <div class="sub-h">${aceptada ? 'Lo bueno: registrarlo desde la solicitud' : 'Lo bueno: esperar a que la acepte'}</div>
+    <div class="sub-h">${aceptada ? 'Lo bueno: registrarlo desde la solicitud' : ve ? 'Lo bueno: esperar a que la acepte' : 'Su app no le muestra esta propuesta'}</div>
     <div class="help">${aceptada
       ? 'Con «Registrar el crédito con lo que aceptó» el crédito lleva lo que aceptó, y la solicitud sale de la bandeja.'
-      : 'Cuando la acepte desde su app, en su ficha te sale «Registrar el crédito con lo que aceptó». Si quieres cambiarle algo, usa «✏️ Cambiar propuesta».'}</div>
+      : ve
+        ? 'Cuando la acepte desde su app, en su ficha te sale «Registrar el crédito con lo que aceptó». Si quieres cambiarle algo, usa «✏️ Cambiar propuesta».'
+        : 'Quedó guardada con su cédula, y su app solo muestra las que quedan con su celular: no la puede aceptar desde ahí. Confírmale las condiciones por el chat.'}</div>
     <div class="sub-h">Si lo registras a mano</div>
-    <div class="help">La propuesta queda abierta: <b>su app seguirá esperando</b>, y la solicitud sigue en la bandeja hasta que la descartes (✕).</div>
+    <div class="help">${ve
+      ? 'Al terminar te pregunto si cierro la propuesta. Ciérrala: si queda abierta, <b>su app se la sigue ofreciendo</b> y la puede aceptar encima de este crédito.'
+      : 'Al terminar te pregunto si cierro la propuesta. Si queda abierta, sigue en la bandeja como pendiente.'}</div>
     <div class="two" style="margin-top:12px">
       <button class="btn btn-ghost" onclick="verCliente('${id}')">Volver a su ficha</button>
       <button class="btn btn-ghost" onclick="nuevoCredito('${id}',true)">Registrarlo a mano igual</button>
     </div>`);
 }
 /* El formulario de Créditos (sin ficha de entrada) se entera de quién es al
-   guardar, por el celular: ahí va el mismo aviso, como pregunta. */
-function seguirAManoPese(s) {
-  if (!s || _aManoVisto === s.id) return true;
-  const abiertas = solicitudesConPropuesta(s);
-  if (!abiertas.length) return true;
-  return confirm(textoAntesDeAMano(s, abiertas));
+   guardar, por el celular: ahí va el mismo aviso, como pregunta. `abiertas` la
+   arma quien llama (propuestasAbiertasDelAlta), para ofrecer cerrarlas después
+   del registro; `nombre`, el del formulario, para el cliente que todavía no
+   tiene ficha. */
+function seguirAManoPese(s, abiertas, nombre) {
+  if (!abiertas) abiertas = s ? solicitudesConPropuesta(s) : [];
+  if (!abiertas.length || (s && _aManoVisto === s.id)) return true;
+  return confirm(textoAntesDeAMano(s || { nombre: nombre }, abiertas));
+}
+
+/* ===========================================================================
+ * UNA SOLICITUD, UN CRÉDITO — 10 de noviembre de 2026
+ *
+ * La revisión del 10-nov encontró cómo llegar a DOS créditos por una sola
+ * solicitud. Joan registra a mano («Registrarlo a mano igual») y la propuesta
+ * queda abierta. Desde v143 su app sí la muestra con «Acepto»: ella acepta, y
+ * la ficha le ofrece «Registrar el crédito con lo que aceptó». Ese botón no
+ * sabía que ya había uno. Y había más caminos al mismo sitio: aceptada y a
+ * mano (la solicitud nunca se cerraba, y su app seguía diciendo «Aceptaste…»),
+ * o un cliente NUEVO en el formulario de Créditos, que registraba sin ningún
+ * aviso porque todavía no tenía ficha. Es el patrón del caso del 9-nov.
+ *
+ * Desde hoy:
+ *   · el aviso de antes también encuentra las propuestas por el celular del
+ *     formulario (propuestasAbiertasDelAlta), con ficha o sin ella;
+ *   · después de un crédito a mano, en el mismo paso, se pregunta si se
+ *     cierra la propuesta (cerrarPropuestasTrasAMano). Queda 'atendida' en la
+ *     nube, y su app deja de ofrecerla. Se pregunta, no se hace sola: puede
+ *     ser otro crédito de verdad;
+ *   · la ficha y crearDesdeSolicitud dicen si ya le registraste un crédito
+ *     DESPUÉS de esta propuesta (creditosDespuesDePropuesta), y para registrar
+ *     otro piden un sí explícito.
+ * ======================================================================== */
+/* Las propuestas abiertas de a quien se le registra un crédito a mano: las de
+   su ficha, y las que pidió ese celular (la única pista de un cliente nuevo). */
+function propuestasAbiertasDelAlta(s, tel) {
+  const out = s ? solicitudesConPropuesta(s) : [];
+  const t = telDiez(tel);
+  if (t.length === 10) solicitudesDeRegistro({ id: null, telefono: t }).forEach(x => {
+    if (!conPropuestaAbierta(x) || out.some(y => String(y.sol.id) === String(x.id))) return;
+    out.push({ sol: x, por: 'registro', tel: telDeSolicitud(x), sinJuntar: false });
+  });
+  return out;
+}
+/* Después del registro a mano, con el crédito ya en disco: ¿cierro la
+   propuesta? Solo las que siguen en la bandeja. */
+function cerrarPropuestasTrasAMano(abiertas, cod, nombre) {
+  /* La de una cuenta sin juntar que usa el número de esta ficha no se cierra:
+     no se sabe si es esta persona (ver socioDeSolicitud), y crearDesdeSolicitud
+     ya no la desembolsa. */
+  const vivas = (abiertas || []).map(x => _solicitudes.find(y => String(y.id) === String(x.sol.id)))
+    .filter(x => conPropuestaAbierta(x) && !(esSolicitudSinJuntar(x) && !socioDeSolicitud(x)));
+  if (!vivas.length) return false;
+  const ve = vivas.some(laVeEnSuApp);
+  if (!confirm('El crédito ' + cod + ' de ' + (nombre || 'este cliente') + ' quedó registrado. '
+    + (vivas.length === 1 ? 'Tenía una propuesta abierta' : 'Tenía ' + vivas.length + ' propuestas abiertas') + ':\n\n'
+    + vivas.map(x => '• ' + propuestaEnUnaLinea(x).replace(/^le/, 'Le') + ' — ' + (x.estado === 'aceptada' ? 'la ACEPTÓ' : 'esperando que la acepte')).join('\n') + '\n\n'
+    + '¿' + (vivas.length === 1 ? 'La cierro' : 'Las cierro') + ', para que '
+    + (ve ? 'su app deje de ofrecérsela y no la acepte encima de este crédito?' : 'no siga en la bandeja como pendiente?') + '\n\n'
+    + 'Si tocas Cancelar, sigue abierta' + (ve ? ': su app se la sigue ofreciendo, y si la acepta su ficha te ofrece registrar otro crédito.' : '.'))) return false;
+  vivas.forEach(x => { marcarEnNube(x, 'atendida'); quitarSolicitud(x.id); });
+  try { pintarLoQuePidio(); } catch (e) {}
+  return true;
+}
+/* Los créditos (de un solo pago o con garantía) que esta ficha ya tiene y que
+   se registraron DESPUÉS de esta propuesta. `deEsta`: salió de esta misma
+   solicitud (condicionesDe), y la solicitud no se alcanzó a cerrar. Un crédito
+   sin fechaCreacion (de antes) se compara por su día de desembolso. */
+function creditosDespuesDePropuesta(cli, sol) {
+  const cp = sol && sol.contrapropuesta && typeof sol.contrapropuesta === 'object' ? sol.contrapropuesta : null;
+  if (!cli || !cp || !cp.creada_en) return [];
+  const desde = Date.parse(String(cp.creada_en)), dia = String(cp.creada_en).slice(0, 10);
+  if (!isFinite(desde)) return [];
+  const despues = x => {
+    const f = Date.parse(String(x.fechaCreacion || ''));
+    if (isFinite(f)) return f >= desde;
+    const d = String(x.fechaDesembolso || '').slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= dia;
+  };
+  const de = (x, cod) => ({ cod, fecha: String(x.fechaCreacion || x.fechaDesembolso || ''), deEsta: String(x.condicionesDe || '') === String(sol.id) });
+  return (DB.prestamos || []).filter(p => p && p.socioId === cli.id && despues(p)).map(p => de(p, codCredito(p)))
+    .concat((DB.respaldados || []).filter(r => r && r.socioId === cli.id && despues(r)).map(r => de(r, codRespaldado(r))));
+}
+function textoYaTieneCredito(cli, sol, lista) {
+  return 'A ' + (cli.nombre || 'este cliente') + ' ya le registraste ' + lista.map(c => c.cod + ' el ' + fmtFecha(c.fecha)).join(' y ')
+    + (lista.some(c => c.deEsta) ? ', con esta misma solicitud' : ', después de esta propuesta') + '.';
+}
+/* «Ya tiene su crédito: cerrar la propuesta», en su ficha. 'atendida', como la
+   cierra crearDesdeSolicitud: se le registró un crédito. */
+function cerrarPropuestaYaRegistrada(id, socioId) {
+  const s = _solicitudes.find(x => String(x.id) === String(id)); if (!s) return;
+  if (!confirm('¿Cierro la propuesta de ' + s.nombre + ' (' + propuestaEnUnaLinea(s) + ')?\n\n'
+    + 'Queda como atendida: ' + (laVeEnSuApp(s) ? 'su app deja de ofrecérsela, ' : '') + 'sale de la bandeja y ya no se registra otro crédito con ella.')) return;
+  marcarEnNube(s, 'atendida'); quitarSolicitud(id);
+  if (document.getElementById('fichaPidio')) pintarLoQuePidio(); else if (socioId) verCliente(socioId);
 }
 
 /* `modo` se recibe y NO se lee de _cpModo, y ahí estaba el defecto: cambiar de

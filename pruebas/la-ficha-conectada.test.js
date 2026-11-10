@@ -174,9 +174,12 @@ describe('3. «＋ Nuevo crédito» con una propuesta abierta avisa antes', () =
     P.ev("nuevoCredito('C900')");
     const t = plano(ficha(P));
     assert.equal(P.elems.mTitle.textContent, 'Antes de registrarlo a mano · Marta Prueba');
-    assert.match(t, /Un crédito a mano no lleva lo que aceptó/);
+    /* 10-nov-2026 — todavía no la aceptó: «lo que aceptó» no era verdad (revisión del 10-nov). */
+    assert.match(t, /Un crédito a mano no lleva lo que le propusiste/);
+    assert.doesNotMatch(t, /no lleva lo que aceptó/);
     assert.match(t, /Lo bueno: esperar a que la acepte/);
-    assert.match(t, /La propuesta queda abierta: su app seguirá esperando/);
+    /* 10-nov-2026 — y ya no queda abierta sin preguntar (pruebas/una-solicitud-un-credito.test.js). */
+    assert.match(t, /Al terminar te pregunto si cierro la propuesta\. Ciérrala: si queda abierta, su app se la sigue ofreciendo/);
     assert.match(ficha(P), /onclick="nuevoCredito\('C900',true\)">Registrarlo a mano igual/);
     P.ev("nuevoCredito('C900',true)");
     assert.match(ficha(P), /id="qCap"/, '«Registrarlo a mano igual» no abrió el formulario');
@@ -187,7 +190,7 @@ describe('3. «＋ Nuevo crédito» con una propuesta abierta avisa antes', () =
     el('qNombre').value = 'Marta Prueba'; el('qTel').value = CEL; el('qCap').value = '500000';
     el('qFecha').value = P.ev('hoyISO()'); el('qCosto').value = '20';
     P.ev('guardarRapido()');
-    assert.equal(preguntas.some(m => /propuesta abierta/.test(m)), false, 'preguntó dos veces lo mismo');
+    assert.equal(preguntas.some(m => /tiene una propuesta abierta/.test(m)), false, 'preguntó dos veces lo mismo');
     assert.equal(JSON.parse(P.ev('JSON.stringify(DB.prestamos)')).length, 1, 'no lo registró a mano');
     /* Sin propuesta abierta, «＋ Nuevo crédito» abre el formulario de siempre. */
     const { P: Q } = await montar({ solicitudes: [] });
@@ -213,7 +216,7 @@ describe('3. «＋ Nuevo crédito» con una propuesta abierta avisa antes', () =
     P.ev('guardarRapido()');
     assert.ok(preguntas.length >= 1, 'no preguntó');
     assert.match(preguntas[0], /Marta Prueba tiene una propuesta abierta/);
-    assert.match(preguntas[0], /Si lo registras a mano, la propuesta queda abierta: su app seguirá esperando/);
+    assert.match(preguntas[0], /Si lo registras a mano, al terminar te pregunto si cierro la propuesta\. Ciérrala: si queda abierta, su app se la sigue ofreciendo/);
     assert.equal(JSON.parse(P.ev('JSON.stringify(DB.prestamos)')).length, 0, 'registró con «No»');
   });
 
