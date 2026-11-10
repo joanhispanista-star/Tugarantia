@@ -397,7 +397,15 @@
     var estado = {};
     q.conquistados.forEach(function (x) { estado[x.c] = 'conq'; });
     q.porConquistar.forEach(function (x) { estado[x.c] = 'con'; });
-    var caminos = m.municipios.map(function (x) {
+    /* Lo conquistado se pinta al FINAL, con su borde amarillo (ver la hoja): a
+       escala de país un municipio puede medir un punto, y pintado antes que
+       sus vecinos le tapaban medio borde. En las capturas del 9-nov Soacha y
+       Bucaramanga, conquistados, casi no se veían. Lo que tiene clientes va
+       después de lo vacío por lo mismo. */
+    var capa = { vacio: 0, con: 1, conq: 2 };
+    var caminos = m.municipios.slice().sort(function (a, b) {
+      return capa[estado[a.c] || 'vacio'] - capa[estado[b.c] || 'vacio'];
+    }).map(function (x) {
       return '<path class="mapa-q ' + (estado[x.c] || 'vacio') + '" data-mapa="muni" data-c="' + esc(x.c) + '" d="' + x.d + '"><title>' + esc(textoMuni(x.c)) + '</title></path>';
     }).join('') + m.departamentos.map(function (d) { return '<path class="mapa-borde" d="' + d.d + '"/>'; }).join('');
     var fila = function (x) {

@@ -335,6 +335,19 @@ describe('4 · conquista: 3 clientes con un crédito pagado entero', () => {
     assert.deepEqual(MC.conquistas(r, MAPA).conquistados, []);
   });
 
+  /* En las capturas del 9-nov, Soacha y Bucaramanga conquistados casi no se
+     veían: pintados antes que sus vecinos, estos les tapaban el borde. */
+  test('en el mapa, lo conquistado se pinta al final, encima de sus vecinos', async () => {
+    const MC = fresco();
+    const caja = cajaFalsa();
+    MC._estado.vista = 'conquistas';
+    await MC.abrir({ caja, db: { socios: [...enSoacha(3), cliente('s9', 'Neiva')],
+      prestamos: [pagado('p1', 's1'), pagado('p2', 's2'), pagado('p3', 's3')] }, puente: P, pedir: pedirMapa });
+    const capas = [...caja.innerHTML.matchAll(/<path class="mapa-q (\w+)" data-mapa="muni" data-c="(\d+)"/g)].map(m => m[1] + ' ' + m[2]);
+    assert.equal(capas.length, 1122);
+    assert.deepEqual(capas.slice(-2), ['con 41001', 'conq 25754'], 'primero lo vacío, después lo que tiene clientes y al final lo conquistado');
+  });
+
   test('los que no se ubican no conquistan nada y salen en la lista con lo que escribieron', () => {
     const db = { socios: [cliente('s1', 'Mosquera'), cliente('s2', 'Mosquera'), cliente('s3', 'Mosquera')],
       prestamos: [pagado('p1', 's1'), pagado('p2', 's2'), pagado('p3', 's3')] };

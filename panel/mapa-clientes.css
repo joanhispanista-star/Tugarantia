@@ -37,9 +37,13 @@
 
 /* Conquistas (laca, amarillo). */
 .mapa-q{stroke:var(--laca);stroke-width:.4px;vector-effect:non-scaling-stroke;cursor:pointer}
+/* 10-nov: «Con clientes» iba al 32 % y casi no se distinguía de «Sin
+   clientes»; ahora al 50 %, que sigue lejos del amarillo entero. Y lo
+   conquistado lleva borde de su mismo amarillo: 2 px que se ven aunque el
+   municipio mida un punto (mapa-clientes.js lo pinta al final). */
 .mapa-q.vacio{fill:var(--laca-3)}
-.mapa-q.con{fill:rgba(var(--amarillo-rgb),.32)}
-.mapa-q.conq{fill:var(--amarillo)}
+.mapa-q.con{fill:rgba(var(--amarillo-rgb),.5)}
+.mapa-q.conq{fill:var(--amarillo);stroke:var(--amarillo);stroke-width:2px}
 .mapa-oscuro .mapa-q:hover{stroke:var(--blanco-laca);stroke-width:1.2px}
 .mapa-oscuro .mapa-borde{fill:none;stroke:rgba(var(--blanco-laca-rgb),.38);stroke-width:.8px;vector-effect:non-scaling-stroke;pointer-events:none}
 
@@ -68,7 +72,7 @@
 .mapa-leyenda .mapa-z.t5{background:var(--azul-osc)}
 .mapa-leyenda-q i{border-color:rgba(var(--blanco-laca-rgb),.2)}
 .mapa-leyenda .mapa-q.vacio{background:var(--laca-3)}
-.mapa-leyenda .mapa-q.con{background:rgba(var(--amarillo-rgb),.32)}
+.mapa-leyenda .mapa-q.con{background:rgba(var(--amarillo-rgb),.5)}
 .mapa-leyenda .mapa-q.conq{background:var(--amarillo)}
 
 .mapa-lado{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);padding:var(--e3) var(--e4)}
