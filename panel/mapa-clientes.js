@@ -386,7 +386,10 @@
     if (!l.length) return '';
     var filas = l.slice().sort(function (a, b) { return (Number(a.numero) || 0) - (Number(b.numero) || 0); }).map(function (x) {
       var porque = x.estado === 'vacio' ? 'Sin ciudad en la ficha.'
-        : x.estado === 'ambiguo' ? 'Sin ubicar (nombre repetido): ' + x.opciones.join(' o ') + '.'
+        /* Con una sola opción no es un nombre repetido: es «Colombia», que
+           también es el país. Lo dice su motivo. */
+        : x.estado === 'ambiguo' ? (x.opciones.length > 1 ? 'Sin ubicar (nombre repetido): ' + x.opciones.join(' o ') + '.'
+          : 'Sin ubicar: ' + (x.motivo || 'nombre repetido') + '.')
         : x.estado === 'otro-depto' ? 'La ciudad no está en el departamento que escribió (' + x.opciones.join(' o ') + ').'
         : 'No reconozco esa ciudad.';
       return '<li><div><b>' + (x.numero != null && x.numero !== '' ? '#' + esc(x.numero) + ' ' : '') + esc(x.nombre || 'Sin nombre') + '</b>' +

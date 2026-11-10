@@ -139,7 +139,15 @@
     'santiago de cali': ['76001'],
     'bquilla': ['08001'], 'b quilla': ['08001'],
     'bga': ['68001'],
-    'vcio': ['50001'], 'villavo': ['50001']
+    'vcio': ['50001'], 'villavo': ['50001'],
+    /* 10-nov, del barrido del revisor. «San Andrés» a secas sigue repetido
+       (también hay uno en Santander); con «Isla» ya no. «Barranca» NO entra:
+       la gente dice así a Barrancabermeja, pero también existen Barrancas
+       (La Guajira) y Barranca de Upía (Meta), y aquí no se adivina. */
+    'san juan de pasto': ['52001'],
+    'san andres isla': ['88001'], 'san andres islas': ['88001'],
+    'fusa': ['25290'],
+    'zipa': ['25899']
   };
 
   /* LAS LOCALIDADES DE BOGOTÁ. Quien vive en Kennedy escribe «Kennedy» en
@@ -242,11 +250,14 @@
     var crudo = String(textoCiudad == null ? '' : textoCiudad).trim();
     var t = normalizar(crudo);
     var pista = textoDepto ? deptoDe(idx, textoDepto) : null;
-    if (!t) return { estado: 'vacio', texto: crudo, motivo: 'sin ciudad' };
+    /* «D.C.» o «Distrito Capital» solos se quedan sin nada al normalizar,
+       pero la ficha SÍ tiene texto: la pantalla no puede decir «sin ciudad». */
+    if (!t) return crudo ? { estado: 'desconocido', texto: crudo, motivo: 'no reconozco esa ciudad' }
+      : { estado: 'vacio', texto: crudo, motivo: 'sin ciudad' };
 
     /* «Colombia» a secas es el país o el municipio del Huila: no se escoge. */
     if (t === 'colombia' && !pista) {
-      return { estado: 'ambiguo', texto: crudo, opciones: candidatos(idx, t), motivo: 'es el país o Colombia (Huila)' };
+      return { estado: 'ambiguo', texto: crudo, opciones: candidatos(idx, t), motivo: 'puede ser el país o Colombia (Huila)' };
     }
     var r = veredicto(idx, candidatos(idx, t), pista, crudo, 'nombre');
     if (r) return r;
@@ -259,6 +270,11 @@
 
     /* Partido: cada trozo es o un departamento (pista) o una ciudad. */
     var trozos = crudo.split(/[,;()\/\-–]+/).map(normalizar).filter(Boolean);
+    /* «…, Colombia» al final es el país. Si llegó hasta aquí es porque lo de
+       antes no casó solo («Medelin, Colombia», «Huila, Colombia»), y ese
+       «Colombia» no puede hacer de municipio: los mandaba todos al Colombia
+       del Huila. «Colombia, Huila» (el municipio primero) sí sigue casando. */
+    if (trozos.length > 1 && trozos[trozos.length - 1] === 'colombia') trozos.pop();
     if (trozos.length > 1) {
       var pistaTrozo = pista;
       trozos.forEach(function (p) { if (!pistaTrozo && idx.deptos[p] && !candidatos(idx, p).length) pistaTrozo = idx.deptos[p]; });

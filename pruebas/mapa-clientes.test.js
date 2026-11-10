@@ -228,6 +228,36 @@ describe('2 · la ciudad que escribió el cliente', () => {
     assert.equal(donde('Soacha, Antioquia').estado, 'otro-depto');
   });
 
+  /* Del barrido del revisor (10-nov): cualquier ciudad mal escrita seguida
+     de «, Colombia» caía en el municipio Colombia (Huila). */
+  test('«…, Colombia» al final es el país: una ciudad que no casa no se va al Colombia del Huila', () => {
+    for (const t of ['Medelin, Colombia', 'Bogtá, Colombia', 'Narnia, Colombia', 'Huila, Colombia']) {
+      const r = donde(t);
+      assert.equal(r.estado, 'desconocido', t + ' quedó ' + r.estado + (r.codigo ? ' en ' + r.codigo : ''));
+    }
+    assert.equal(donde('Colombia, Huila').codigo, '41206', 'el municipio primero y su departamento sí casa');
+    assert.equal(donde('Neiva, Huila, Colombia').codigo, '41001');
+    assert.equal(donde('Puerto Colombia, Atlántico, Colombia').codigo, '08573');
+  });
+
+  test('«D.C.» o «Distrito Capital» solos: la ficha tiene texto, no está «sin ciudad»', async () => {
+    for (const t of ['D.C.', 'Distrito Capital']) assert.equal(donde(t).estado, 'desconocido', t);
+    const MC = fresco();
+    const caja = cajaFalsa();
+    await MC.abrir({ caja, db: { socios: [cliente('s1', 'D.C.'), cliente('s2', 'Colombia')], prestamos: [] }, puente: P, pedir: pedirMapa });
+    assert.doesNotMatch(caja.innerHTML, /Sin ciudad en la ficha/);
+    assert.match(caja.innerHTML, /escribió «D\.C\.»<div class="muted">No reconozco esa ciudad\./);
+    assert.match(caja.innerHTML, /escribió «Colombia»<div class="muted">Sin ubicar: puede ser el país o Colombia \(Huila\)\./,
+      'con una sola opción no es un «nombre repetido»');
+  });
+
+  test('los apodos que se escriben de verdad: San Juan de Pasto, San Andrés Isla, Fusa, Zipa', () => {
+    const casos = { 'San Juan de Pasto': '52001', 'San Andrés Isla': '88001', 'San Andres Islas': '88001', 'Fusa': '25290', 'Zipa': '25899' };
+    for (const [t, c] of Object.entries(casos)) assert.equal(donde(t).codigo, c, t);
+    assert.equal(donde('San Andrés').estado, 'ambiguo', 'a secas sigue repetido: también hay uno en Santander');
+    assert.equal(donde('Barranca').estado, 'desconocido', '«Barranca» no se adivina');
+  });
+
   test('de la ficha: primero «Ciudad» (la que Joan corrigió), si no la del registro', () => {
     assert.equal(L.lugarDeCliente({ ciudad: 'Soacha', vinculacion: { ciudad: 'Medellín' } }, IDX).codigo, '25754');
     assert.equal(L.lugarDeCliente({ ciudad: '', vinculacion: { ciudad: 'Medellín' } }, IDX).codigo, '05001');
