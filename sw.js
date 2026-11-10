@@ -2141,7 +2141,26 @@
    dicen de las solicitudes que su app puede mostrar (las que quedaron con su celular:
    mi_solicitud busca por ahí). De las que quedaron con la cédula de una ficha (pedidas
    desde una cuenta junta) se dice que su app no las ve, en la bandeja, en la ficha, al
-   proponer y al tratar de desembolsar. */
+   proponer y al tratar de desembolsar.
+   10-nov-2026, v143 (el remate de la propuesta conectada, tras la revisión del 10-nov):
+   UNA SOLICITUD, UN CRÉDITO. Con la app mostrando «Acepto», un crédito registrado a
+   mano dejaba la propuesta abierta, y si ella la aceptaba después salía un segundo
+   crédito por lo mismo. Ahora el CRM, después de un crédito a mano, pregunta si cierra
+   la propuesta. El aviso de antes también encuentra las propuestas por el celular del
+   formulario, aunque no haya ficha todavía. Y la ficha y «Registrar el crédito con lo
+   que aceptó» dicen si ya hay un crédito registrado después de esa propuesta, y para
+   registrar otro piden un sí explícito.
+   LA PROPUESTA VENCIDA. Las propuestas viejas que nadie contestó le habrían salido de
+   golpe con «Acepto», con su fecha de pago ya pasada. En la app, una propuesta cuya
+   fecha de pago (o primera cuota) ya llegó no se acepta: se dice, y se pide una nueva
+   por el chat. En el CRM se marca «Vencida» en la bandeja y en la ficha, y registrarla
+   pide un sí explícito. Ni play/ ni la base lo frenan todavía.
+   Y tres arreglos más en la app: «Aceptaste» va arriba de las condiciones; la cuenta
+   junta sin señal ya no le dice «No pude ver…» a quien nunca pidió nada; y un segundo
+   «Acepto» después de una respuesta perdida le pregunta a la base antes de decir que
+   no quedó. Cambian app/propuesta-en-la-app.js y app/sesion-socio.js, que ya estaban
+   en ?v=143 (en socio.html y en la precarga), y la página app/socio.html
+   (VERSION_APP 2026-11-10). En el CRM solo cambia la página. No hay base nueva. */
 const CACHE = 'tugarantia-v143';
 const BASE = new URL('./', self.location).pathname;
 
