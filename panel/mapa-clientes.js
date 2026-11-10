@@ -243,7 +243,8 @@
   }
   function textoMuni(c) {
     var m = E.res.porMuni[c];
-    var base = (E.res.idx.nombre[c] || c) + ' (' + nombreDepto(c.slice(0, 2)) + ')';
+    var dep = deptoDeMuni(c);
+    var base = (E.res.idx.nombre[c] || c) + (dep ? ' (' + dep + ')' : '');
     if (!m) return base + ' · sin clientes';
     if (E.vista === 'conquistas') {
       return base + ' · ' + clientes(m.clientes) + ' · ' + (m.pagaron >= META ? '🏁 conquistado' : faltan(m.pagaron) + ' para conquistarlo');
@@ -253,6 +254,14 @@
   function nombreDepto(c) {
     var d = lista(E.mapa && E.mapa.departamentos).filter(function (x) { return x.c === c; })[0];
     return d ? (d.corto || d.n) : c;
+  }
+  /* El departamento que va al lado del nombre de un municipio. Bogotá es un
+     departamento de un solo municipio, y salía «Bogotá, D.C. Bogotá D.C.»:
+     ahí el nombre ya lo dice todo. */
+  function deptoDeMuni(c) {
+    var d = lista(E.mapa && E.mapa.departamentos).filter(function (x) { return x.c === c.slice(0, 2); })[0];
+    if (!d) return c.slice(0, 2);
+    return d.m === 1 ? '' : (d.corto || d.n);
   }
 
   function pintar() {
@@ -360,8 +369,9 @@
       return '<path class="mapa-q ' + (estado[x.c] || 'vacio') + '" data-mapa="muni" data-c="' + esc(x.c) + '" d="' + x.d + '"><title>' + esc(textoMuni(x.c)) + '</title></path>';
     }).join('') + m.departamentos.map(function (d) { return '<path class="mapa-borde" d="' + d.d + '"/>'; }).join('');
     var fila = function (x) {
+      var dep = deptoDeMuni(x.c);
       return '<li><button type="button" class="mapa-fila" data-mapa="muni" data-c="' + esc(x.c) + '"><span>' + esc(r.idx.nombre[x.c] || x.c) +
-        ' <small>' + esc(nombreDepto(x.c.slice(0, 2))) + '</small></span><b>' + (x.pagaron >= META ? '🏁' : esc(faltan(x.pagaron))) + '</b></button></li>';
+        (dep ? ' <small>' + esc(dep) + '</small>' : '') + '</span><b>' + (x.pagaron >= META ? '🏁' : esc(faltan(x.pagaron))) + '</b></button></li>';
     };
     var aviso = r.reglaDePago ? '' : '<div class="alerta warn">Este computador tiene una versión vieja de app/puente.js y no sé distinguir un crédito pagado de uno cerrado con pérdida: no cuento ninguna conquista. Recárgalo con Ctrl+Shift+R.</div>';
     return aviso + '<div class="mapa-cuerpo"><div class="mapa-lienzo mapa-laca">' +

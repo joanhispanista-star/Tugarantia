@@ -475,6 +475,22 @@ describe('5 · con uno o dos clientes se dice «1–2»', () => {
     for (const k of Object.keys(a)) { igual(a[k], b[k], k + ' (A contra B)'); igual(a[k], c[k], k + ' (A contra C)'); }
   });
 
+  test('Bogotá, que es departamento de un solo municipio, no repite su nombre', async () => {
+    const MC = fresco();
+    const info = { textContent: '' };
+    const caja = cajaFalsa();
+    caja.querySelector = s => (s === '.mapa-info' ? info : null);
+    const db = carteraCon({ Bogotá: [3, 3], Soacha: [3, 0] });
+    MC._estado.vista = 'conquistas';
+    await MC.abrir({ caja, db, puente: P, pedir: pedirMapa });
+    assert.match(caja.innerHTML, /<span>Bogotá, D\.C\.<\/span><b>🏁<\/b>/, 'la fila de Bogotá en «Conquistados»');
+    assert.match(caja.innerHTML, /<title>Bogotá, D\.C\. · 3 clientes · 🏁 conquistado<\/title>/);
+    assert.match(caja.innerHTML, /<span>Soacha <small>Cundinamarca<\/small><\/span>/, 'los demás siguen con su departamento');
+    caja.oy.click({ target: { closest: () => ({ getAttribute: k => ({ 'data-mapa': 'muni', 'data-c': '11001' }[k]) }) } });
+    assert.equal(info.textContent, 'Bogotá, D.C. · 3 clientes · 🏁 conquistado');
+    assert.doesNotMatch(caja.innerHTML, /Bogotá, D\.C\. (<small>|\()Bogotá/);
+  });
+
   test('los créditos de las fuentes se ven en la pestaña', async () => {
     const MC = fresco();
     const caja = cajaFalsa();
