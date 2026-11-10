@@ -23356,13 +23356,6 @@ function crearDesdeSolicitud(id){
   if(yaTiene.length&&!confirm(textoYaTieneCredito(cli,s,yaTiene)+'\n\n'
     +'Si ese crédito es el de esta propuesta, NO registres otro: toca Cancelar y ciérrala en su ficha («Ya tiene su crédito: cerrar la propuesta») o con ✕ en la bandeja.\n\n'
     +'¿Le registro OTRO crédito además de ese?')) return;
-  /* 10-nov-2026 — LA PROPUESTA VENCIDA (ver la sección del mismo nombre): si la
-     fecha de pago que aceptó ya llegó, registrada hoy nace vencida. Se dice y
-     se pregunta; lo bueno es cambiarle la propuesta. */
-  const venc=s.estado==='aceptada'?vencioLaPropuesta(s):'';
-  if(venc&&!confirm('⚠️ Lo que aceptó '+cli.nombre+' se pagaba el '+fmtFecha(venc)+', y esa fecha ya llegó: si lo registro hoy, el crédito nace VENCIDO (su fecha de pago queda antes del día en que se lo entregas).\n\n'
-    +'Lo bueno: toca Cancelar, cámbiale la propuesta con «✏️ Cambiar propuesta» (con una fecha que venga) y que la vuelva a aceptar.\n\n'
-    +'Regístralo así solo si ya le giraste la plata antes y lo estás anotando tarde.\n\n¿Lo registro igual, vencido?')) return;
   /* 8-oct-2026 (segunda vuelta) — UNA ACEPTACIÓN SIN CONSTANCIA, O QUE NO CASA.
      Aceptó por la puerta vieja (app en caché, o la base sin la migración del
      8-oct) y no quedó lo que leyó; o lo que dice su app no casa con la base.
@@ -23375,6 +23368,15 @@ function crearDesdeSolicitud(id){
   const malosConst=descuadreDeConstancia(s);
   if(malosConst.length&&!confirm('⚠️ Lo que dice la app de '+s.nombre+' no casa con la base en: '+malosConst.join(', ')+'.\n\n'
        +'Confírmale las condiciones por el chat antes de desembolsar.\n\n¿Desembolso igual?')) return;
+  /* 10-nov-2026 — LA PROPUESTA VENCIDA (ver la sección del mismo nombre): si la
+     fecha de pago que aceptó ya llegó, registrada hoy nace vencida. Se dice y
+     se pregunta; lo bueno es cambiarle la propuesta. Va DESPUÉS de las dos de
+     la constancia: esas preguntan si lo que aceptó es lo que la base tiene, y
+     un «no» ahí no debe quedar tapado por esta. */
+  const venc=s.estado==='aceptada'?vencioLaPropuesta(s):'';
+  if(venc&&!confirm('⚠️ Lo que aceptó '+cli.nombre+' se pagaba el '+fmtFecha(venc)+', y esa fecha ya llegó: si lo registro hoy, el crédito nace VENCIDO (su fecha de pago queda antes del día en que se lo entregas).\n\n'
+    +'Lo bueno: toca Cancelar, cámbiale la propuesta con «✏️ Cambiar propuesta» (con una fecha que venga) y que la vuelva a aceptar.\n\n'
+    +'Regístralo así solo si ya le giraste la plata antes y lo estás anotando tarde.\n\n¿Lo registro igual, vencido?')) return;
   /* Cada producto por su puerta. El préstamo con garantía NO se desembolsa
      desde acá: se abre el formulario de siempre, con el monto y el plazo que
      pidió el cliente ya puestos, porque ese es el único que sabe frenar cuando
