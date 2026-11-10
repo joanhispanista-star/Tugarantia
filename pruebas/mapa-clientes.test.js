@@ -354,6 +354,97 @@ describe('5 · con uno o dos clientes se dice «1–2»', () => {
     assert.doesNotMatch(caja.innerHTML, /faltan 1</);
   });
 
+  /* Tapar la cifra en la zona no bastaba. El revisor del 9-nov la despejó de
+     dos maneras: RESTANDO («Huila · 6 clientes», Neiva 3, y las otras dos
+     «1–2»: entre las dos, 3 → una tiene 2 y la otra 1) y por el ORDEN (las
+     listas iban por la cifra exacta, así que de dos «1–2» la de 2 salía
+     primero aunque el abecedario dijera lo contrario). */
+  const CODIGO = n => L.ubicar(n, '', IDX).codigo;
+  /* Una cartera con { ciudad: [clientes, de ellos cuántos pagaron entero] }. */
+  function carteraCon(cuantos) {
+    const socios = [], prestamos = [];
+    let n = 0;
+    for (const [ciudad, [c, p]] of Object.entries(cuantos)) {
+      for (let i = 0; i < c; i++) {
+        n++; socios.push(cliente('s' + n, ciudad));
+        if (i < p) prestamos.push(pagado('p' + n, 's' + n));
+      }
+    }
+    return { socios, prestamos };
+  }
+  /* Huila: Neiva con 3 que no han pagado, La Plata y Pitalito con «1–2».
+     Boyacá (Tunja) y Tolima (Ibagué) con «1–2» cada uno. En A, Pitalito,
+     Ibagué y Tolima van por DELANTE de su vecino del abecedario en la cifra
+     exacta: con el orden viejo salían primero. */
+  const A = { Neiva: [3, 0], 'La Plata': [1, 1], Pitalito: [2, 2], Tunja: [1, 0], Ibagué: [2, 0] };
+  const MUNIS = ['Neiva', 'La Plata', 'Pitalito', 'Tunja', 'Ibagué'];
+  /* Los nombres de una lista, en el orden en que salen. */
+  const filas = (html, desde) => {
+    const i = desde ? html.indexOf(desde) : 0;
+    const ol = html.slice(html.indexOf('<ol class="mapa-lista">', i), html.indexOf('</ol>', html.indexOf('<ol class="mapa-lista">', i)));
+    return [...ol.matchAll(/<span>([^<]+)/g)].map(m => m[1].trim());
+  };
+  /* Todo lo que la pestaña puede enseñar de una cartera: las tres vistas,
+     cada departamento abierto, y la línea de información de cada municipio
+     tocado en las dos vistas (los <title> van dentro del HTML). */
+  async function todoLoQueSeVe(db) {
+    const MC = fresco();
+    const info = { textContent: '' };
+    const caja = cajaFalsa();
+    caja.querySelector = s => (s === '.mapa-info' ? info : null);
+    const toca = (accion, c, v) => caja.oy.click({ target: { closest: () => ({
+      getAttribute: k => ({ 'data-mapa': accion, 'data-c': c, 'data-v': v }[k]) }) } });
+    await MC.abrir({ caja, db, puente: P, pedir: pedirMapa });
+    const vista = { pais: caja.innerHTML };
+    for (const d of ['41', '15', '73']) {
+      toca('depto', d); vista['depto ' + d] = caja.innerHTML;
+      for (const m of MUNIS) { toca('muni', CODIGO(m)); vista['info ' + d + ' ' + m] = info.textContent; }
+    }
+    toca('vista', null, 'conquistas'); vista.conquistas = caja.innerHTML;
+    for (const m of MUNIS) { toca('muni', CODIGO(m)); vista['info conquistas ' + m] = info.textContent; }
+    return vista;
+  }
+  /* assert.equal con 700 KB de SVG no se puede leer: aquí, dónde difieren. */
+  function igual(a, b, que) {
+    if (a === b) return;
+    let i = 0;
+    while (i < a.length && a[i] === b[i]) i++;
+    assert.fail(que + ': la pantalla cambia según la cifra exacta. Una dice «…' + a.slice(Math.max(0, i - 80), i + 60) +
+      '…» y la otra «…' + b.slice(Math.max(0, i - 80), i + 60) + '…»');
+  }
+
+  test('dos zonas con «1–2» salen por el abecedario en las tres listas, tenga cada una 1 o 2', async () => {
+    assert.ok(MUNIS.every(CODIGO), 'precondición: los cinco municipios se ubican');
+    const v = await todoLoQueSeVe(carteraCon(A));
+    assert.deepEqual(filas(v.pais), ['Huila', 'Boyacá', 'Tolima'], 'departamentos');
+    assert.deepEqual(filas(v['depto 41']), ['Neiva', 'La Plata', 'Pitalito'], 'municipios del Huila');
+    assert.deepEqual(filas(v.conquistas, 'Por conquistar'), ['La Plata', 'Pitalito', 'Neiva', 'Ibagué', 'Tunja'],
+      'por conquistar: primero «faltan 1–2», después «faltan 3»; dentro, los que más clientes muestran y el abecedario');
+  });
+
+  test('ningún total deja despejar la cifra restando: si dentro hay un «1–2», el total va en rango', async () => {
+    const v = await todoLoQueSeVe(carteraCon(A));
+    // Exactos: Huila 3+1+2 = 6, Colombia 9. Lo que se ve: Huila 3 + [1,2] + [1,2] = 5–7; Colombia 7–11.
+    assert.match(v.pais, /<b>7–11<\/b> de tus clientes están en el mapa/);
+    assert.match(v.pais, /<span>Huila<\/span><b>5–7<\/b>/);
+    assert.match(v.pais, /<title>Huila · 5–7 clientes<\/title>/);
+    assert.match(v['depto 41'], /<h3 class="mapa-h">Huila<\/h3><div class="mapa-total"><b>5–7<\/b> clientes/);
+    assert.match(v['depto 41'], /Va en rango porque/, 'un «5–7» sin explicar parece un error de la cuenta');
+    for (const [que, html] of Object.entries(v)) {
+      assert.doesNotMatch(html, /\b(6|9) clientes|<b>(6|9)<\/b>/, que + ' dice un total exacto');
+    }
+  });
+
+  test('dos carteras que se ven iguales pintan la MISMA pantalla, títulos y línea de información incluidos', async () => {
+    const a = await todoLoQueSeVe(carteraCon(A));
+    // B: cada «1–2» con la otra cifra (los totales exactos son los mismos: aquí delataba el orden).
+    const b = await todoLoQueSeVe(carteraCon({ Neiva: [3, 0], 'La Plata': [2, 1], Pitalito: [1, 1], Tunja: [2, 0], Ibagué: [1, 0] }));
+    // C: todos los «1–2» con 2 (Huila 7, Colombia 11: aquí delataba la resta), y Pitalito con 1 pagado en vez de 2.
+    const c = await todoLoQueSeVe(carteraCon({ Neiva: [3, 0], 'La Plata': [2, 2], Pitalito: [2, 1], Tunja: [2, 0], Ibagué: [2, 0] }));
+    assert.equal(Object.keys(a).length, 1 + 3 * 6 + 1 + 5);
+    for (const k of Object.keys(a)) { igual(a[k], b[k], k + ' (A contra B)'); igual(a[k], c[k], k + ' (A contra C)'); }
+  });
+
   test('los créditos de las fuentes se ven en la pestaña', async () => {
     const MC = fresco();
     const caja = cajaFalsa();

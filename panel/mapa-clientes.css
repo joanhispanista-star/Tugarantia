@@ -70,6 +70,8 @@
 .mapa-h:first-child{margin-top:0}
 .mapa-total{font-size:13.5px;color:var(--tinta-2);margin-bottom:var(--e3)}
 .mapa-total b{font-family:'JetBrains Mono',monospace;font-size:18px;color:var(--laca)}
+/* La nota de un total en rango («5–7»), pegada a él: es su explicación. */
+.mapa-nota{font-size:12px;line-height:1.4;margin:calc(-1 * var(--e2)) 0 var(--e3)}
 .mapa-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--e2);margin-bottom:var(--e3)}
 .mapa-kpis div{background:var(--laca);color:var(--blanco-laca);border-radius:12px;padding:var(--e3);display:flex;flex-direction:column;gap:2px}
 .mapa-kpis b{font-family:'JetBrains Mono',monospace;font-size:20px;color:var(--amarillo)}

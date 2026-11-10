@@ -487,7 +487,10 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         crédito pagado entero, con la regla del motor:
                         PUENTE.cerroConPerdida). Zonas, nunca puntos: no usa el
                         GPS ni coordenadas del cliente; con 1 o 2 clientes dice
-                        «1–2». Solo LEE la cartera. Hoja: mapa-clientes.css.
+                        «1–2», y para que no se despeje la cifra, un total con
+                        una zona así va en rango («Huila 5–7») y las listas se
+                        ordenan solo por lo que se ve. Solo LEE la cartera.
+                        Hoja: mapa-clientes.css.
   mapa-lugares.js       De la «Ciudad» que escribió el cliente, su municipio
                         (código DIVIPOLA). Un nombre repetido sin departamento
                         («Mosquera») no se adivina: queda sin ubicar, con el

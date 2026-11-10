@@ -18,6 +18,9 @@
  *     en un pantallazo). Vale para TODA cifra de personas de la pestaña:
  *     clientes, clientes que pagaron y lo que falta para conquistar (faltar
  *     «2» diría que hay exactamente uno que pagó). Ver cifra() y faltan().
+ *     Y no basta con taparla en la zona: un total exacto la despejaba
+ *     restando, y una lista ordenada por la cifra exacta la delataba por el
+ *     orden. Ver visible(): todo total, color y orden sale de lo que se ve.
  *   · CONQUISTA = 3 clientes con un crédito PAGADO ENTERO en el municipio. Un
  *     cierre con pérdida («Se lo perdoné» perdiendo capital) no cuenta, y
  *     tampoco un crédito abierto. La regla de pagado no se inventa aquí: es
@@ -67,6 +70,31 @@
     return function (p) { return !!(perdida && p && p.pagado && !perdida(p)); };
   }
 
+  /* LO QUE SE VE DE UNA CIFRA DE PERSONAS, como rango [mín, máx].
+     Tapar la cifra en la zona no basta. Con el total del departamento exacto,
+     restando se despejaba la zona tapada: «Huila 5 · Neiva 3 · Pitalito 1–2»
+     dice que Pitalito tiene 2. Y con las listas ordenadas por la cifra exacta,
+     dos «1–2» fuera del abecedario decían cuál tenía 2 y cuál 1 (el revisor lo
+     sacó de los pantallazos del 9-nov). Por eso, en esta pestaña, todo lo que
+     se muestra, se colorea o se ordena sale de lo VISIBLE de cada municipio:
+     exacto con 0 o con 3 o más, y [1, 2] con 1 o 2. Un total es la suma de
+     esos rangos: si dentro hay alguna zona «1–2» sale en rango («Huila
+     5–7»), y no dice nada que las zonas no digan ya. Las cifras exactas se
+     quedan en resumir() para la cuenta de la conquista y no salen de ahí. */
+  function visible(n) {
+    var k = Number(n) || 0;
+    return k === 1 || k === 2 ? { min: 1, max: 2 } : { min: k, max: k };
+  }
+  function cifraRango(r) {
+    var x = r || { min: 0, max: 0 };
+    if (x.min === x.max) return cifra(x.min);
+    return x.min.toLocaleString('es-CO') + '–' + x.max.toLocaleString('es-CO');
+  }
+  /* Para ordenar y colorear: el punto medio del rango, que solo depende de lo
+     que se ve (con 1 o con 2 da 1,5 en los dos casos). */
+  function medio(r) { var x = r || { min: 0, max: 0 }; return (x.min + x.max) / 2; }
+  function porNombre(a, b) { return String(a).localeCompare(String(b), 'es'); }
+
   function resumir(db, mapa, puente) {
     var idx = L.indice(mapa.municipios, mapa.departamentos);
     var pago = pagoEntero(puente);
@@ -84,11 +112,18 @@
       }
       ubicados++;
       var m = porMuni[l.codigo] || (porMuni[l.codigo] = { clientes: 0, pagaron: 0 });
-      var d = porDepto[l.depto] || (porDepto[l.depto] = { clientes: 0, pagaron: 0 });
+      var d = porDepto[l.depto] || (porDepto[l.depto] = { clientes: 0, pagaron: 0, rango: { min: 0, max: 0 } });
       m.clientes++; d.clientes++;
       if (pagaron[s.id]) { m.pagaron++; d.pagaron++; }
     });
-    return { idx: idx, porMuni: porMuni, porDepto: porDepto, sinUbicar: sinUbicar, ubicados: ubicados,
+    /* Los totales que se muestran: la suma de lo visible de cada municipio. */
+    var rango = { min: 0, max: 0 };
+    Object.keys(porMuni).forEach(function (c) {
+      var v = visible(porMuni[c].clientes), d = porDepto[c.slice(0, 2)];
+      d.rango.min += v.min; d.rango.max += v.max;
+      rango.min += v.min; rango.max += v.max;
+    });
+    return { idx: idx, porMuni: porMuni, porDepto: porDepto, sinUbicar: sinUbicar, ubicados: ubicados, rango: rango,
       total: lista(db && db.socios).length, reglaDePago: !!(puente && typeof puente.cerroConPerdida === 'function') };
   }
 
@@ -99,7 +134,16 @@
       var fila = { c: c, clientes: m.clientes, pagaron: m.pagaron };
       if (m.pagaron >= META) conquistados.push(fila); else porConquistar.push(fila);
     });
-    var orden = function (a, b) { return (b.pagaron - a.pagaron) || (b.clientes - a.clientes) || a.c.localeCompare(b.c); };
+    /* El orden, solo con lo que se ve: primero lo más cerca de conquistarse
+       («faltan 1–2» antes que «faltan 3»), después los que más clientes
+       muestran y, en empate, el abecedario. Nunca la cifra exacta: con ella,
+       el «faltan 1–2» de 2 pagados quedaba encima del de 1. */
+    var clase = function (p) { return p >= META ? 2 : p > 0 ? 1 : 0; };
+    var nombre = function (c) { return (res.idx && res.idx.nombre[c]) || c; };
+    var orden = function (a, b) {
+      return (clase(b.pagaron) - clase(a.pagaron)) || (medio(visible(b.clientes)) - medio(visible(a.clientes))) ||
+        porNombre(nombre(a.c), nombre(b.c)) || porNombre(a.c, b.c);
+    };
     conquistados.sort(orden); porConquistar.sort(orden);
     return { conquistados: conquistados, porConquistar: porConquistar,
       conClientes: Object.keys(res.porMuni).length, total: lista(mapa.municipios).length };
@@ -121,6 +165,9 @@
     var k = Number(n) || 0;
     return k <= 0 ? 0 : k <= 2 ? 1 : k <= 9 ? 2 : k <= 29 ? 3 : k <= 99 ? 4 : 5;
   }
+  /* El de un total en rango: por su punto medio, no por la cifra exacta (un
+     departamento con dos zonas «1–2» tiene 2, 3 o 4: el color no lo dice). */
+  function tramoRango(r) { return tramo(medio(r)); }
   var TRAMOS = ['Sin clientes', '1–2', '3 a 9', '10 a 29', '30 a 99', '100 o más'];
 
   /* ------------------------------------------------------------------------
@@ -191,8 +238,8 @@
     info.textContent = esDepto || (c && c.length === 2) ? textoDepto(c) : textoMuni(c);
   }
   function textoDepto(c) {
-    var d = E.res.porDepto[c] || { clientes: 0 };
-    return nombreDepto(c) + ' · ' + (d.clientes ? clientes(d.clientes) : 'sin clientes');
+    var d = E.res.porDepto[c];
+    return nombreDepto(c) + ' · ' + (d && d.clientes ? cifraRango(d.rango) + ' clientes' : 'sin clientes');
   }
   function textoMuni(c) {
     var m = E.res.porMuni[c];
@@ -249,24 +296,30 @@
     }).join('') + '</div>';
   }
 
+  /* Un total en rango se explica al lado: si no, «5–7 clientes» parecería
+     un error de la cuenta. */
+  function notaRango(r) {
+    if (!r || r.min === r.max) return '';
+    return '<p class="muted mapa-nota">Va en rango porque las zonas con 1 o 2 clientes no dicen su cifra: con el total exacto, restando se sabría.</p>';
+  }
+
   function vistaPais() {
     var m = E.mapa, r = E.res;
     var caminos = m.departamentos.map(function (d) {
-      var k = (r.porDepto[d.c] || {}).clientes || 0;
-      return '<path class="mapa-z t' + tramo(k) + '" data-mapa="depto" data-c="' + esc(d.c) + '" d="' + d.d + '"><title>' + esc(textoDepto(d.c)) + '</title></path>';
+      return '<path class="mapa-z t' + tramoRango((r.porDepto[d.c] || {}).rango) + '" data-mapa="depto" data-c="' + esc(d.c) + '" d="' + d.d + '"><title>' + esc(textoDepto(d.c)) + '</title></path>';
     }).join('');
     var filas = m.departamentos.filter(function (d) { return r.porDepto[d.c]; })
-      .sort(function (a, b) { return r.porDepto[b.c].clientes - r.porDepto[a.c].clientes || a.n.localeCompare(b.n); })
+      .sort(function (a, b) { return medio(r.porDepto[b.c].rango) - medio(r.porDepto[a.c].rango) || porNombre(a.corto || a.n, b.corto || b.n); })
       .map(function (d) {
         return '<li><button type="button" class="mapa-fila" data-mapa="depto" data-c="' + esc(d.c) + '"><span>' + esc(d.corto || d.n) +
-          '</span><b>' + cifra(r.porDepto[d.c].clientes) + '</b></button></li>';
+          '</span><b>' + cifraRango(r.porDepto[d.c].rango) + '</b></button></li>';
       }).join('');
     var sinClientes = m.departamentos.length - Object.keys(r.porDepto).length;
     return '<div class="mapa-cuerpo"><div class="mapa-lienzo">' +
       svg([0, 0].concat(m.caja), recuadro(m.recuadro) + caminos, 'mapa-papel', 'Colombia por departamentos, coloreada por número de clientes') +
       '<div class="mapa-info" aria-live="polite">Toca un departamento para ver sus municipios.</div>' + leyenda('mapa-z') + '</div>' +
-      '<div class="mapa-lado"><div class="mapa-total"><b>' + cifra(r.ubicados) + '</b> de tus clientes están en el mapa' +
-      (r.total - r.ubicados ? ' · ' + (r.total - r.ubicados).toLocaleString('es-CO') + ' sin ubicar (abajo)' : '') + '</div>' +
+      '<div class="mapa-lado"><div class="mapa-total"><b>' + cifraRango(r.rango) + '</b> de tus clientes están en el mapa' +
+      (r.total - r.ubicados ? ' · ' + (r.total - r.ubicados).toLocaleString('es-CO') + ' sin ubicar (abajo)' : '') + '</div>' + notaRango(r.rango) +
       (filas ? '<ol class="mapa-lista">' + filas + '</ol>' : '<p class="muted">Todavía no hay clientes con una ciudad que se pueda ubicar.</p>') +
       (sinClientes ? '<p class="muted">' + sinClientes + ' departamento' + (sinClientes === 1 ? '' : 's') + ' sin clientes.</p>' : '') +
       '</div></div>';
@@ -284,7 +337,8 @@
       return '<path class="mapa-z t' + tramo(k) + '" data-mapa="muni" data-c="' + esc(x.c) + '" d="' + x.d + '"><title>' + esc(textoMuni(x.c)) + '</title></path>';
     }).join('') + '<path class="mapa-borde" d="' + d.d + '"/>';
     var con = munis.filter(function (x) { return r.porMuni[x.c]; })
-      .sort(function (a, b2) { return r.porMuni[b2.c].clientes - r.porMuni[a.c].clientes || a.n.localeCompare(b2.n); });
+      .sort(function (a, b2) { return medio(visible(r.porMuni[b2.c].clientes)) - medio(visible(r.porMuni[a.c].clientes)) || porNombre(a.n, b2.n) || porNombre(a.c, b2.c); });
+    var rangoD = (r.porDepto[c] || {}).rango;
     var filas = con.map(function (x) {
       return '<li><button type="button" class="mapa-fila" data-mapa="muni" data-c="' + esc(x.c) + '"><span>' + esc(x.n) + '</span><b>' + cifra(r.porMuni[x.c].clientes) + '</b></button></li>';
     }).join('');
@@ -292,8 +346,8 @@
       '<button type="button" class="btn btn-ghost btn-sm mapa-volver" data-mapa="pais">← Toda Colombia</button>' +
       svg(caja, caminos, 'mapa-papel', d.n + ' por municipios, coloreado por número de clientes') +
       '<div class="mapa-info" aria-live="polite">' + esc(textoDepto(c)) + ' · toca un municipio.</div>' + leyenda('mapa-z') + '</div>' +
-      '<div class="mapa-lado"><h3 class="mapa-h">' + esc(d.n) + '</h3><div class="mapa-total"><b>' + cifra((r.porDepto[c] || {}).clientes || 0) +
-      '</b> clientes · ' + con.length + ' de ' + d.m + ' municipios con clientes</div>' +
+      '<div class="mapa-lado"><h3 class="mapa-h">' + esc(d.n) + '</h3><div class="mapa-total"><b>' + cifraRango(rangoD) +
+      '</b> clientes · ' + con.length + ' de ' + d.m + ' municipios con clientes</div>' + notaRango(rangoD) +
       (filas ? '<ol class="mapa-lista">' + filas + '</ol>' : '<p class="muted">Ningún cliente ubicado aquí.</p>') + '</div></div>';
   }
 
@@ -351,6 +405,8 @@
     conquistas: conquistas,
     pagoEntero: pagoEntero,
     cifra: cifra,
+    visible: visible,
+    cifraRango: cifraRango,
     faltan: faltan,
     tramo: tramo,
     abrir: abrir,
