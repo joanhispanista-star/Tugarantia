@@ -219,9 +219,9 @@
       var a = t.getAttribute('data-mapa');
       if (a === 'reintentar') { abrir(E.o); return; }
       if (a === 'vista') { E.vista = t.getAttribute('data-v') === 'conquistas' ? 'conquistas' : 'deptos'; E.depto = null; pintar(); return; }
-      if (a === 'depto') { E.vista = 'deptos'; E.depto = t.getAttribute('data-c'); pintar(); return; }
-      if (a === 'pais') { E.depto = null; pintar(); return; }
-      if (a === 'muni') { contar(t.getAttribute('data-c')); return; }
+      if (a === 'depto') { E.vista = 'deptos'; E.depto = t.getAttribute('data-c'); pintar(); verMapa(); return; }
+      if (a === 'pais') { E.depto = null; pintar(); verMapa(); return; }
+      if (a === 'muni') { var c = t.getAttribute('data-c'); contar(c); marcar(c); verLinea(); return; }
       if (a === 'ficha') { var id = t.getAttribute('data-id'); if (E.o && typeof E.o.abrirFicha === 'function') E.o.abrirFicha(id); }
     });
     /* En el computador basta pasar el ratón: la línea de abajo dice qué es. */
@@ -230,6 +230,38 @@
       if (t && t.tagName && t.tagName.toLowerCase() === 'path') contar(t.getAttribute('data-c'), t.getAttribute('data-mapa') === 'depto');
     });
   }
+
+  /* LO QUE SE VE AL TOCAR. En el celular la lista va DEBAJO del mapa: Joan
+     tocaba «Pitalito» en la lista y lo único que cambiaba era la línea de
+     información, que quedaba fuera de la pantalla (el revisor la midió 64 px
+     por encima del borde). Una función que no se ve no existe. Ahora el
+     municipio tocado se marca en el mapa (un borde que se ve aunque mida un
+     punto), y si la línea que lo dice no está en pantalla, la pantalla va
+     hasta ella; al cambiar de departamento, hasta el mapa. En el computador
+     todo eso ya se ve y no se mueve nada. */
+  function marcar(c) {
+    var caja = E.o && E.o.caja;
+    if (!caja || typeof caja.querySelector !== 'function') return;
+    var antes = caja.querySelector('path.mapa-sel');
+    if (antes && antes.classList) antes.classList.remove('mapa-sel');
+    var p = /^\d+$/.test(c || '') ? caja.querySelector('path[data-mapa="muni"][data-c="' + c + '"]') : null;
+    if (!p || !p.classList) return;
+    p.classList.add('mapa-sel');
+    /* Al final de su <svg>: si no, los vecinos pintados después le tapan el borde. */
+    if (p.parentNode && typeof p.parentNode.appendChild === 'function') p.parentNode.appendChild(p);
+  }
+  function llevar(sel, donde, hace) {
+    var el = E.o && E.o.caja && typeof E.o.caja.querySelector === 'function' && E.o.caja.querySelector(sel);
+    if (!el || typeof el.getBoundingClientRect !== 'function' || typeof el.scrollIntoView !== 'function') return;
+    var alto = typeof innerHeight === 'number' ? innerHeight : 0;
+    if (!alto || !hace(el.getBoundingClientRect(), alto)) return;
+    try { el.scrollIntoView({ block: donde, behavior: 'smooth' }); } catch (e) { el.scrollIntoView(donde === 'start'); }
+  }
+  /* La línea, si no se ve entera: abajo de la pantalla, con el mapa encima. */
+  function verLinea() { llevar('.mapa-info', 'end', function (r, alto) { return r.top < 0 || r.bottom > alto; }); }
+  /* El mapa, solo si su borde de arriba quedó por encima: en el computador
+     el mapa mide casi la pantalla y no se puede mover a cada clic. */
+  function verMapa() { llevar('.mapa-lienzo', 'start', function (r) { return r.top < 0; }); }
 
   /* La línea que dice qué es la zona tocada. */
   function contar(c, esDepto) {

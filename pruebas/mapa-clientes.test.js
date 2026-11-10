@@ -545,6 +545,43 @@ describe('6 · la pestaña «🗺️ Mapa» en el CRM', () => {
     assert.deepEqual(abiertas, ['s7']);
   });
 
+  /* En el celular la lista va debajo del mapa: tocar «Pitalito» solo cambiaba
+     una línea fuera de la pantalla (el revisor, 10-nov). */
+  test('tocar en la LISTA no es mudo: marca el municipio en el mapa y lleva la pantalla a lo que cambió', async () => {
+    const MC = fresco();
+    const clases = new Set();
+    let alFinal = null, llevadaA = null, mapaA = null;
+    const camino = { classList: { add: x => clases.add(x), remove: x => clases.delete(x) }, parentNode: { appendChild: n => { alFinal = n; } } };
+    const info = { textContent: '', getBoundingClientRect: () => ({ top: -64, bottom: -20 }), scrollIntoView: o => { llevadaA = o; } };
+    const lienzo = { getBoundingClientRect: () => ({ top: -900, bottom: -300 }), scrollIntoView: o => { mapaA = o; } };
+    const caja = cajaFalsa();
+    caja.querySelector = s => ({ '.mapa-info': info, '.mapa-lienzo': lienzo, 'path[data-mapa="muni"][data-c="41551"]': camino,
+      'path.mapa-sel': clases.has('mapa-sel') ? camino : null }[s] || null);
+    const fila = (accion, c) => ({ tagName: 'BUTTON', getAttribute: k => ({ 'data-mapa': accion, 'data-c': c }[k]) });
+    const antes = globalThis.innerHeight;
+    globalThis.innerHeight = 844;
+    try {
+      await MC.abrir({ caja, db: { socios: [cliente('s1', 'Pitalito')], prestamos: [] }, puente: P, pedir: pedirMapa });
+      caja.oy.click({ target: { closest: () => fila('depto', '41') } });
+      assert.deepEqual(mapaA, { block: 'start', behavior: 'smooth' }, 'al abrir el Huila desde la lista, el mapa quedaba arriba, fuera de la pantalla');
+      caja.oy.click({ target: { closest: () => fila('muni', '41551') } });
+      assert.match(info.textContent, /^Pitalito \(Huila\)/);
+      assert.ok(clases.has('mapa-sel'), 'Pitalito no quedó marcado en el mapa');
+      assert.equal(alFinal, camino, 'el borde quedaba debajo de los vecinos');
+      assert.deepEqual(llevadaA, { block: 'end', behavior: 'smooth' }, 'la línea que cambió quedó fuera de la pantalla');
+      /* En el computador la línea y el mapa ya se ven: nada se mueve. */
+      llevadaA = mapaA = null;
+      info.getBoundingClientRect = () => ({ top: 500, bottom: 540 });
+      lienzo.getBoundingClientRect = () => ({ top: 120, bottom: 960 });
+      caja.oy.click({ target: { closest: () => fila('muni', '41551') } });
+      caja.oy.click({ target: { closest: () => fila('depto', '41') } });
+      assert.equal(llevadaA, null);
+      assert.equal(mapaA, null, 'un mapa que solo se sale por abajo no se mueve a cada clic');
+    } finally {
+      if (antes === undefined) delete globalThis.innerHeight; else globalThis.innerHeight = antes;
+    }
+  });
+
   test('dibuja en menos de 1 s con 1.122 municipios y 2.000 clientes', async () => {
     const MC = fresco();
     const caja = cajaFalsa();
