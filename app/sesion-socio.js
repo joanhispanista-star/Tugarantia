@@ -286,6 +286,10 @@
   var ANTES_DEL_REGISTRO = {
     espera: 'Tu solicitud de crédito llegó y la estamos revisando: la ves arriba. ',
     propuesta: 'Te hicimos una propuesta de crédito: la tienes arriba, esperando tu respuesta. ',
+    /* 10-nov-2026 — su fecha de pago ya llegó: no se acepta (ver vencioEl en
+       app/propuesta-en-la-app.js), y decir «esperando tu respuesta» sería
+       pedirle que conteste lo que ya no puede. */
+    propuesta_vencida: 'La propuesta de crédito que te hicimos ya no se puede aceptar (arriba): escríbenos por este chat y te mandamos una nueva. ',
     aceptada: 'Ya aceptaste tu propuesta de crédito (arriba): te avisamos por este chat cuando te enviemos la plata. '
   };
   function textoSinJuntar(estado, propuesta) {

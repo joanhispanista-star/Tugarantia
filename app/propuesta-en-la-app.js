@@ -90,6 +90,28 @@
   }
 
   /**
+   * 10-nov-2026 — ¿YA LLEGÓ LA FECHA DE PAGO DE ESTA PROPUESTA? Devuelve esa
+   * fecha ('AAAA-MM-DD') si ya llegó, o ''. La de un solo pago, o la PRIMERA
+   * cuota (las mismas que lee CalculadoraSolicitud.condiciones).
+   *
+   * Antes de v143 esta app no mostraba propuestas, y las viejas que nadie
+   * contestó se quedaban abiertas en la bandeja. Al publicarse, todas le
+   * habrían salido de golpe con «Acepto»: «Un solo pago … el sábado 31 de
+   * octubre» leído el 10 de noviembre, y el crédito nacía vencido (lo encontró
+   * la revisión del 10-nov). Una propuesta así no se acepta: se dice, y se
+   * pide una nueva por el chat. Ni la base (aceptar_condiciones) ni play/ lo
+   * frenan todavía: esta es una diferencia con play/, a propósito.
+   */
+  function vencioEl(sol, hoy) {
+    var cp = propuestaDe(sol);
+    var h = String(hoy || '').slice(0, 10);
+    if (!cp || !/^\d{4}-\d{2}-\d{2}$/.test(h)) return '';
+    var cuotas = Array.isArray(cp.cuotas) && cp.cuotas.length > 1 ? cp.cuotas : null;
+    var f = String((cuotas ? cuotas[0] && cuotas[0].fecha : cp.fecha_pago) || '').slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(f) && f <= h ? f : '';
+  }
+
+  /**
    * Qué hay que mostrar de la solicitud que contestó mi_solicitud: 'espera'
    * (pidió y todavía no hay propuesta), 'propuesta' (está esperando su
    * respuesta), 'aceptada', o null (no hay nada abierto: atendida, descartada,
@@ -97,12 +119,14 @@
    * una diferencia: play/ solo pinta la espera de lo pedido en play/
    * (pedido.origen), y aquí también la de lo pedido desde esta app
    * (solicitar_por_sesion, sin `pedido`): es lo mismo, «pediste $X».
+   * 10-nov-2026 — con `hoy`, 'propuesta_vencida': esperando su respuesta, pero
+   * su fecha de pago ya llegó (vencioEl). Sin `hoy`, la lectura de siempre.
    */
-  function queMostrar(sol) {
+  function queMostrar(sol, hoy) {
     if (!sol || typeof sol !== 'object') return null;
     var cp = propuestaDe(sol);
     if (sol.estado === 'nueva' && !cp) return 'espera';
-    if (cp && sol.estado === 'contrapropuesta') return 'propuesta';
+    if (cp && sol.estado === 'contrapropuesta') return hoy && vencioEl(sol, hoy) ? 'propuesta_vencida' : 'propuesta';
     if (cp && sol.estado === 'aceptada') return 'aceptada';
     return null;
   }
@@ -173,7 +197,7 @@
         /* 23-oct-2026 (play/) — LA PROPUESTA QUE YA NO ESTÁ SE SUELTA: si la
            base dice que no hay una esperando, lo elegido deja de frenar la
            recarga sola. Solo con una respuesta de la base. */
-        if (queMostrar(st.sol) !== 'propuesta') SOL = null;
+        if (queMostrar(st.sol, hoy()) !== 'propuesta') SOL = null;
         return st;
       }, function (e) {
         if (t !== turno || q !== quien()) return st;
@@ -183,7 +207,7 @@
       });
     }
     /** Lo que se sabe, para que la página diga lo de al lado. */
-    function que() { return st.estado === 'ok' ? queMostrar(st.sol) : null; }
+    function que() { return st.estado === 'ok' ? queMostrar(st.sol, hoy()) : null; }
 
     /* ---------------------------------------------------------- pintar */
     function avisoArriba() {
@@ -208,10 +232,27 @@
           '</div>';
       }
       if (st.estado !== 'ok') return '';
-      var sol = st.sol, q = queMostrar(sol);
+      var sol = st.sol, q = queMostrar(sol, hoy());
       if (!q) return '';
       if (q === 'espera') return avisoArriba() + tarjetaEspera(sol);
+      if (q === 'propuesta_vencida') return tarjetaVencida(sol);
       return avisoArriba() + tarjetaPropuesta(sol);
+    }
+
+    /* 10-nov-2026 — LA PROPUESTA QUE YA NO SE PUEDE ACEPTAR (ver vencioEl): lo
+       que era, en pesos, y qué hacer. Sin casilla, sin «¿A dónde te
+       consignamos?» y sin botón: no queda nada a medias que frene la recarga. */
+    function tarjetaVencida(sol) {
+      SOL = null;
+      var cp = propuestaDe(sol) || {};
+      var P = CS && CS.pesos ? CS.pesos : function (n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); };
+      var F = CS && CS.fechaLarga ? CS.fechaLarga : function (f) { return f; };
+      return '<div class="card" id="pdaTarjeta"><div class="etq">Tu propuesta</div>' +
+        '<div class="aviso ambar"><b>Esta propuesta ya no se puede aceptar.</b> Te ofrecíamos ' + esc(P(cp.capital)) +
+          ' para devolver ' + esc(P(cp.total)) + (Array.isArray(cp.cuotas) && cp.cuotas.length > 1 ? ' en cuotas, la primera' : '') +
+          ' el ' + esc(F(vencioEl(sol, hoy()))) + ', y esa fecha ya llegó. ' +
+          'Escríbenos por el chat de la app y te mandamos una nueva.</div>' +
+      '</div>';
     }
 
     /* (a) PIDIÓ Y TODAVÍA NO HAY PROPUESTA. Sin promesas: ni una hora (la
@@ -405,6 +446,9 @@
       var err = porId('errAceptar');
       var sol = (SOL && Number(SOL.id) === Number(id)) ? SOL : null;
       if (!CS || !sol) { fallo(err, 'Vuelve a abrir la app para ver tu propuesta y aceptarla.'); return; }
+      /* 10-nov-2026 — si la fecha de pago llegó con la tarjeta abierta (pasó la
+         medianoche), no sale nada: se repinta como vencida (ver vencioEl). */
+      if (vencioEl(sol, hoy())) { SOL = null; pintar(); return; }
       if (!LEIDAS[CS.llaveDeCasilla(sol)]) { fallo(err, 'Marca la casilla «' + CS.TEXTO_CASILLA + '» para seguir.'); return; }
       if (aceptando) return;
       var cond = null;
@@ -482,7 +526,7 @@
         var sol = j && j.ok === true ? j.solicitud : null;
         if (!sol) { fallo(porId('errAceptar'), 'La propuesta cambió mientras la leías. Vuelve a abrir la app para ver la nueva.'); return; }
         st.estado = 'ok'; st.sol = sol; st.de = q; st.nota = nota;
-        if (queMostrar(sol) !== 'propuesta') SOL = null;
+        if (queMostrar(sol, hoy()) !== 'propuesta') SOL = null;
         pintar();
       }, function () {
         if (q !== quien()) return;
@@ -509,9 +553,10 @@
   }
 
   return {
-    VERSION: '2026-11-09',
+    VERSION: '2026-11-10',
     LECTURAS: LECTURAS.slice(),
     queMostrar: queMostrar,
+    vencioEl: vencioEl,
     loPedido: loPedido,
     crear: crear
   };

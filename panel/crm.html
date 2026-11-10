@@ -22817,7 +22817,7 @@ function renderBandeja(){
          Y si ese celular es de alguien de su equipo, se dice: le estaría
          prestando a su propio gerente. Las dos cosas, solo en la vista de Joan. */
       const telSol=CARTERA_EQUIPO?'':telDeSolicitud(s);
-      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${telSol?'<div class="muted mono">📱 '+escHTML(telSol)+'</div>':''}${chipDelEquipo(telSol)}${sinJuntar?'<div class="muted" style="color:var(--ambar)">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. Júntale la cuenta antes de prestarle.</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}${(cp||cpRaw)&&s.estado!=='aceptada'&&!pegada&&!laVeEnSuApp(s)?'<div class="muted" style="color:var(--ambar);white-space:normal;max-width:32ch">⚠️ '+escHTML(NO_LA_VE_EN_SU_APP)+'</div>':''}${condicionesAceptadasDe(s)}${destinoEnLaFila(s)}</td>
+      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${telSol?'<div class="muted mono">📱 '+escHTML(telSol)+'</div>':''}${chipDelEquipo(telSol)}${sinJuntar?'<div class="muted" style="color:var(--ambar)">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. Júntale la cuenta antes de prestarle.</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}${(cp||cpRaw)&&s.estado!=='aceptada'&&!pegada&&!laVeEnSuApp(s)?'<div class="muted" style="color:var(--ambar);white-space:normal;max-width:32ch">⚠️ '+escHTML(NO_LA_VE_EN_SU_APP)+'</div>':''}${avisoPropuestaVencida(s)}${condicionesAceptadasDe(s)}${destinoEnLaFila(s)}</td>
       <td class="num"><b>${COP(resp?s.capital:q.capital)}</b>${aviso}${notaDelCliente(s)}${estimadoEnLaFila(s)}${sinCupo}</td>
       <td>${resp?`<b>Con garantía</b><div class="muted">${(Number(s.tasa)*100).toFixed(0)}% mensual · ${pz} mes${pz!==1?'es':''}</div>`
                 :pcNueva?`<b>Pidió por el chat</b><div class="muted">${pidePct||q.pct}% · ${pideCortes} corte${pideCortes!==1?'s':''} · todavía sin propuesta</div>`
@@ -23355,6 +23355,13 @@ function crearDesdeSolicitud(id){
   if(yaTiene.length&&!confirm(textoYaTieneCredito(cli,s,yaTiene)+'\n\n'
     +'Si ese crédito es el de esta propuesta, NO registres otro: toca Cancelar y ciérrala en su ficha («Ya tiene su crédito: cerrar la propuesta») o con ✕ en la bandeja.\n\n'
     +'¿Le registro OTRO crédito además de ese?')) return;
+  /* 10-nov-2026 — LA PROPUESTA VENCIDA (ver la sección del mismo nombre): si la
+     fecha de pago que aceptó ya llegó, registrada hoy nace vencida. Se dice y
+     se pregunta; lo bueno es cambiarle la propuesta. */
+  const venc=s.estado==='aceptada'?vencioLaPropuesta(s):'';
+  if(venc&&!confirm('⚠️ Lo que aceptó '+cli.nombre+' se pagaba el '+fmtFecha(venc)+', y esa fecha ya llegó: si lo registro hoy, el crédito nace VENCIDO (su fecha de pago queda antes del día en que se lo entregas).\n\n'
+    +'Lo bueno: toca Cancelar, cámbiale la propuesta con «✏️ Cambiar propuesta» (con una fecha que venga) y que la vuelva a aceptar.\n\n'
+    +'Regístralo así solo si ya le giraste la plata antes y lo estás anotando tarde.\n\n¿Lo registro igual, vencido?')) return;
   /* 8-oct-2026 (segunda vuelta) — UNA ACEPTACIÓN SIN CONSTANCIA, O QUE NO CASA.
      Aceptó por la puerta vieja (app en caché, o la base sin la migración del
      8-oct) y no quedó lo que leyó; o lo que dice su app no casa con la base.
@@ -23661,12 +23668,18 @@ function filaLoQuePidio(s, x) {
      crearDesdeSolicitud vuelve a preguntar. */
   const ya = cp && conPropuestaAbierta(sol) ? creditosDespuesDePropuesta(s, sol) : [];
   if (ya.length && sol.estado === 'aceptada') accion = accion.replace('btn btn-rojo btn-sm', 'btn btn-ghost btn-sm');
+  /* 10-nov-2026 — aceptada pero vencida (ver LA PROPUESTA VENCIDA): lo bueno es
+     cambiarle la propuesta, y ese botón va primero. */
+  if (sol.estado === 'aceptada' && conPropuestaAbierta(sol) && vencioLaPropuesta(sol))
+    accion = '<button class="btn btn-rojo btn-sm" onclick="editarContrapropuesta(\'' + id + '\')">✏️ Cambiar propuesta</button> '
+      + accion.replace('btn btn-rojo btn-sm', 'btn btn-ghost btn-sm');
   return '<div class="info-row con-botones"><span class="k">🙋 ' + loQuePidioDe(sol)
     + (sol.pedido_nota ? '<div class="muted" style="font-style:italic">«' + escHTML(String(sol.pedido_nota)) + '»</div>' : '')
     + '<div class="muted">' + (cp ? escHTML(propuestaEnUnaLinea(sol)) : pc && sol.estado === 'nueva' ? 'todavía sin propuesta: el automático le propone si dejas correr la hora' : 'todavía sin propuesta') + '</div>'
     + (chip ? '<div style="margin-top:4px">' + chip + '</div>' : '')
     + condicionesAceptadasDe(sol) + destinoEnLaFila(sol)
     + (noLaVe ? '<div class="muted" style="color:var(--ambar);white-space:normal">⚠️ ' + escHTML(NO_LA_VE_EN_SU_APP) + '</div>' : '')
+    + avisoPropuestaVencida(sol)
     + (ya.length ? '<div class="alerta warn" style="margin-top:6px;white-space:normal">⚠️ <b>' + escHTML(textoYaTieneCredito(s, sol, ya)) + '</b> '
         + 'Si ese crédito es el de esta propuesta, no registres otro: ciérrala' + (laVeEnSuApp(sol) ? ', y su app deja de ofrecérsela.' : '.')
         + '<div style="margin-top:8px"><button class="btn btn-sm" onclick="cerrarPropuestaYaRegistrada(\'' + id + '\',\'' + escHTML(String(s.id)) + '\')">Ya tiene su crédito: cerrar la propuesta</button></div></div>' : '')
@@ -23825,6 +23838,40 @@ function cerrarPropuestaYaRegistrada(id, socioId) {
     + 'Queda como atendida: ' + (laVeEnSuApp(s) ? 'su app deja de ofrecérsela, ' : '') + 'sale de la bandeja y ya no se registra otro crédito con ella.')) return;
   marcarEnNube(s, 'atendida'); quitarSolicitud(id);
   if (document.getElementById('fichaPidio')) pintarLoQuePidio(); else if (socioId) verCliente(socioId);
+}
+
+/* ===========================================================================
+ * LA PROPUESTA VENCIDA — 10 de noviembre de 2026
+ *
+ * Antes de v143 la app instalada no mostraba propuestas, y las que nadie
+ * contestó se quedaron abiertas en la bandeja, algunas con la fecha de pago ya
+ * pasada. La revisión del 10-nov vio que con v143 le salían de golpe con
+ * «Acepto». Decían «Un solo pago … el sábado 31 de octubre» leído el 10 de
+ * noviembre, y «Registrar el crédito con lo que aceptó» lo creaba ya vencido:
+ * paga el 31-oct y se desembolsa el 10-nov. app/propuesta-en-la-app.js ya no
+ * deja aceptar una así. Aquí se marca en la bandeja y en la ficha, y
+ * registrarla pide un sí explícito.
+ * No se prohíbe: puede que la plata ya se haya girado y se esté anotando
+ * tarde. Las pruebas de siempre registran propuestas con fechas que ya
+ * pasaron, por eso mismo.
+ * Ni la base (aceptar_condiciones) ni play/ lo frenan todavía.
+ * ======================================================================== */
+/* La fecha de pago de la propuesta (la de un solo pago o la PRIMERA cuota) si
+   ya llegó; si no, ''. Lee la propuesta, no s.fecha_corte (la del celular). */
+function vencioLaPropuesta(s) {
+  const cp = s && s.contrapropuesta && typeof s.contrapropuesta === 'object' ? s.contrapropuesta : null;
+  if (!cp) return '';
+  const cuotas = Array.isArray(cp.cuotas) && cp.cuotas.length > 1 ? cp.cuotas : null;
+  const f = String((cuotas ? cuotas[0] && cuotas[0].fecha : cp.fecha_pago) || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(f) && f <= hoyISO() ? f : '';
+}
+/* El aviso de la fila (la bandeja y «Lo que pidió»), solo de una abierta. */
+function avisoPropuestaVencida(s) {
+  const f = conPropuestaAbierta(s) ? vencioLaPropuesta(s) : '';
+  if (!f) return '';
+  return '<div class="muted" style="color:var(--ambar);white-space:normal;max-width:40ch">⚠️ <b>Vencida:</b> pagaba el ' + escHTML(fmtFecha(f))
+    + ' y esa fecha ya llegó. Cámbiale la propuesta (✏️)' + (s.estado === 'aceptada' ? ' y que la vuelva a aceptar' : ' antes de que la acepte')
+    + ': registrada así, nacería vencida.</div>';
 }
 
 /* `modo` se recibe y NO se lee de _cpModo, y ahí estaba el defecto: cambiar de
