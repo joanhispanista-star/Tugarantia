@@ -294,9 +294,13 @@
   };
   function textoSinJuntar(estado, propuesta) {
     var t = textoDelRegistro(estado);
-    /* Con el registro descartado o la puerta sin encender no se antepone nada:
-       ahí la app no pregunta por su solicitud (ver cargarCuenta en socio.html),
-       o lo que dice contradiría la tarjeta. */
+    /* Con el registro descartado o la puerta sin encender no se antepone nada.
+       Con 'apagado' la app no pregunta por su solicitud (ver cargarCuenta en
+       socio.html). Con 'descartado' SÍ pregunta (10-nov-2026: este comentario
+       decía que no, y la revisión lo encontró falso). Si Joan descartó el
+       registro pero dejó una propuesta abierta, la tarjeta sale arriba con
+       «Acepto» y este texto dice «no pudimos abrirte la cuenta»: se
+       contradicen. Qué debe pasar ahí lo decide Joan (informe del 10-nov). */
     var antes = (estado === 'descartado' || estado === 'apagado') ? '' : (ANTES_DEL_REGISTRO[propuesta] || '');
     return antes ? { titulo: t.titulo, texto: antes + t.texto } : t;
   }

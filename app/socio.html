@@ -937,8 +937,11 @@ details.plegado>summary{padding:0 var(--e4)}
    9-nov-2026: la propuesta de Joan se ve y se acepta aquí (la cuenta sin juntar y
    la junta), con las condiciones y a dónde se consigna (app/propuesta-en-la-app.js,
    nuevo). Si un cliente dice que «no le llegó la propuesta», esta fecha dice si
-   tiene la versión que se la muestra. Sale con el CACHE v143. */
-var VERSION_APP = '2026-11-09';
+   tiene la versión que se la muestra. Sale con el CACHE v143.
+   10-nov-2026: una propuesta cuya fecha de pago ya llegó no se acepta (se dice y
+   se pide una nueva por el chat); «Aceptaste» va arriba de las condiciones; y en
+   la cuenta junta, sin señal, no se pinta el aviso de «no pude ver». También v143. */
+var VERSION_APP = '2026-11-10';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
@@ -1604,7 +1607,11 @@ var PDA = (function () {
         if (b) b.textContent = t.texto;
       },
       textoVencida: SS.TEXTOS.vencida,
-      volverAMirar: 'cargarCuenta()'
+      volverAMirar: 'cargarCuenta()',
+      /* 10-nov-2026 — en la cuenta junta (S puesto), sin respuesta de la base no
+         se dice nada: el aviso le salía en Inicio a todo cliente, aunque nunca
+         hubiera pedido. En la cuenta sin juntar (S es null) sí se dice. */
+      callarSiNoSabe: function () { return !!S; }
     });
   } catch (e) { return null; }
 })();

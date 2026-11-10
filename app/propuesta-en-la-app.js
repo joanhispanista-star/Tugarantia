@@ -153,7 +153,9 @@
    *   alCambiar()   → cada vez que cambia lo que se sabe (la página repinta
    *                   lo que dice al lado);
    *   textoVencida  → lo que se dice si la sesión ya no vale;
-   *   volverAMirar  → el onclick del botón «Volver a mirar».
+   *   volverAMirar  → el onclick del botón «Volver a mirar»;
+   *   callarSiNoSabe() → true donde, sin respuesta de la base, mejor no decir
+   *                   nada (la cuenta junta: ver html()).
    */
   function crear(o) {
     o = o || {};
@@ -221,6 +223,14 @@
       return '';
     }
     function html() {
+      /* 10-nov-2026 — `callarSiNoSabe`: en la cuenta junta, si no se sabe nada
+         (sin señal, la base sin mi_solicitud), no se dice nada. Inicio le
+         pintaba a TODO cliente, aunque nunca hubiera pedido nada, «No pude ver
+         si tienes una solicitud…» (revisión del 10-nov): honesto, pero ruido
+         para el que no pidió. La cuenta sin juntar sí lo dice, porque es su
+         pantalla de esperar respuesta. */
+      var callar = false; try { callar = !!(o.callarSiNoSabe && o.callarSiNoSabe()); } catch (e) { callar = false; }
+      if (callar && (st.estado === 'apagado' || st.estado === 'error')) return '';
       if (st.estado === 'apagado') {
         return '<div class="card"><p class="muted" style="margin:0">Todavía no podemos mostrarte aquí tus solicitudes de crédito ' +
           '(no es tu teléfono ni tu internet). Si pediste uno, te respondemos por el chat.</p></div>';
@@ -283,23 +293,31 @@
          cuenta que frenen la recarga sola. */
       SOL = aceptada ? null : sol;
       var P = CS ? CS.pesos : function (n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); };
-      var h = '<div class="card" id="pdaTarjeta">' +
-        (aceptada ? '' : '<div class="aviso ambar" style="margin-top:0"><b>Te hicimos una propuesta.</b> Está esperando tu respuesta: léela con calma y decide.</div>') +
-        '<div class="etq" style="margin-top:var(--e3)">' + (aceptada ? 'Tu crédito, aceptado' : 'Tu propuesta') + '</div>' +
-        (cp.texto ? '<p class="sub">' + esc(cp.texto) + '</p>' : '') +
-        (cond ? CS.condicionesHTML(cond) : '');
       if (aceptada) {
         /* Con la cuenta que eligió, si la base la guardó para ESTA propuesta
            (CP.destinoVigente); en pantalla solo el final del número. Sin
-           fecha: el código no sabe cuándo gira Joan. */
+           fecha: el código no sabe cuándo gira Joan.
+           10-nov-2026 — «Aceptaste» va ARRIBA de las condiciones: abajo
+           quedaba a 1.244 px, y en un teléfono de 390×844 al abrir solo se
+           veían el título y las condiciones (revisión del 10-nov). Es lo que
+           vino a mirar: si quedó, y a dónde le llega. */
         var dst = null; try { dst = CP ? CP.destinoVigente(sol) : null; } catch (e) { dst = null; }
-        h += '<div class="aviso info"><b>Aceptaste: ' + esc(P(cp.capital)) + '.</b> ' +
+        return '<div class="card" id="pdaTarjeta">' +
+          '<div class="etq">Tu crédito, aceptado</div>' +
+          '<div class="aviso info"><b>Aceptaste: ' + esc(P(cp.capital)) + '.</b> ' +
           (dst
             ? 'Te la consignamos a <b>' + esc(CP.describirDestino(dst)) + '</b>, a tu nombre. Te avisamos <b>por el chat de la app</b> cuando la enviemos. '
             : 'Te avisamos <b>por el chat de la app</b> cuándo y por dónde recibes la plata. ') +
-          'No tienes que hacer nada más por ahora.</div>';
-        return h + '</div>';
+          'No tienes que hacer nada más por ahora.</div>' +
+          (cp.texto ? '<p class="sub">' + esc(cp.texto) + '</p>' : '') +
+          (cond ? CS.condicionesHTML(cond) : '') +
+        '</div>';
       }
+      var h = '<div class="card" id="pdaTarjeta">' +
+        '<div class="aviso ambar" style="margin-top:0"><b>Te hicimos una propuesta.</b> Está esperando tu respuesta: léela con calma y decide.</div>' +
+        '<div class="etq" style="margin-top:var(--e3)">Tu propuesta</div>' +
+        (cp.texto ? '<p class="sub">' + esc(cp.texto) + '</p>' : '') +
+        (cond ? CS.condicionesHTML(cond) : '');
       if (!cond) {
         /* Sin las condiciones no se acepta: una aceptación sin constancia es
            justo lo que play/ dejó de hacer el 8-oct. */
@@ -502,6 +520,7 @@
           }
           if (!j || j.ok !== true || !j.solicitud) {
             if (j && j.motivo === 'cambio') return recargar('cambio', q);
+            if (j && j.motivo === 'no_esta') return yaQuedo(id, q);
             fallo(err, 'No pudimos registrar tu aceptación. Vuelve a abrir la app: si la propuesta cambió, verás la nueva.');
             return;
           }
@@ -532,6 +551,29 @@
         if (q !== quien()) return;
         fallo(porId('errAceptar'), 'La propuesta cambió mientras la leías. Vuelve a abrir la app para ver la nueva.');
       });
+    }
+
+    /* 10-nov-2026 — 'no_esta' («no hay esa propuesta esperando») es también lo
+       que contesta la base cuando la aceptación YA QUEDÓ y la respuesta se
+       perdió por la red: el segundo toque llega a una aceptada. La app decía
+       «No pudimos registrar tu aceptación», y sí había quedado (revisión del
+       10-nov; en play/ pasa igual). Antes de decirlo, se le pregunta a la
+       base. Si ya está aceptada, se muestra; si no, se dice lo de siempre.
+       El aparato (alAceptar) no se anota: no se sabe desde cuál aceptó. */
+    function yaQuedo(id, q) {
+      var noQuedo = function () {
+        fallo(porId('errAceptar'), 'No pudimos registrar tu aceptación. Vuelve a abrir la app: si la propuesta cambió, verás la nueva.');
+      };
+      var p;
+      try { p = o.rpc('mi_solicitud'); } catch (e) { p = Promise.reject({ causa: 'red' }); }
+      return Promise.resolve(p).then(function (j) {
+        if (q !== quien()) return;
+        var sol = j && j.ok === true ? j.solicitud : null;
+        if (!sol || Number(sol.id) !== Number(id) || queMostrar(sol) !== 'aceptada') return noQuedo();
+        st.estado = 'ok'; st.sol = sol; st.de = q; st.nota = '';
+        SOL = null;
+        pintar();
+      }, function () { if (q === quien()) noQuedo(); });
     }
 
     /** «Salir»: nada de esta cuenta se queda para la siguiente. */
