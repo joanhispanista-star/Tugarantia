@@ -181,6 +181,8 @@ describe('2. si quedó abierta y la acepta: la ficha lo dice, y otro crédito pi
     const { P } = await montar(() => [SOL()], { prestamos: [despues] });
     P.ev("verCliente('C900')");
     assert.match(plano(P.elems.mBody.innerHTML), /A Marta Prueba ya le registraste CR-\d+ el .+, después de esta propuesta/);
+    /* El código entero en un renglón: «CR-» arriba y el número abajo no se lee. */
+    assert.match(P.elems.mBody.innerHTML, /ya le registraste <span style="white-space:nowrap">CR-\d+<\/span> el /);
   });
 
   test('un crédito de ANTES de la propuesta no dispara el aviso', async () => {

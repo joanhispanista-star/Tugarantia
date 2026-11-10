@@ -23683,7 +23683,7 @@ function filaLoQuePidio(s, x) {
     + condicionesAceptadasDe(sol) + destinoEnLaFila(sol)
     + (noLaVe ? '<div class="muted" style="color:var(--ambar);white-space:normal">⚠️ ' + escHTML(NO_LA_VE_EN_SU_APP) + '</div>' : '')
     + avisoPropuestaVencida(sol)
-    + (ya.length ? '<div class="alerta warn" style="margin-top:6px;white-space:normal">⚠️ <b>' + escHTML(textoYaTieneCredito(s, sol, ya)) + '</b> '
+    + (ya.length ? '<div class="alerta warn" style="margin-top:6px;white-space:normal">⚠️ <b>' + textoYaTieneCredito(s, sol, ya, true) + '</b> '
         + 'Si ese crédito es el de esta propuesta, no registres otro: ciérrala' + (laVeEnSuApp(sol) ? ', y su app deja de ofrecérsela.' : '.')
         + '<div style="margin-top:8px"><button class="btn btn-sm" onclick="cerrarPropuestaYaRegistrada(\'' + id + '\',\'' + escHTML(String(s.id)) + '\')">Ya tiene su crédito: cerrar la propuesta</button></div></div>' : '')
     + '</span><span class="vv">' + accion + '</span></div>';
@@ -23842,9 +23842,14 @@ function creditosDespuesDePropuesta(cli, sol) {
   return (DB.prestamos || []).filter(p => p && p.socioId === cli.id && despues(p)).map(p => de(p, codCredito(p)))
     .concat((DB.respaldados || []).filter(r => r && r.socioId === cli.id && despues(r)).map(r => de(r, codRespaldado(r))));
 }
-function textoYaTieneCredito(cli, sol, lista) {
-  return 'A ' + (cli.nombre || 'este cliente') + ' ya le registraste ' + lista.map(c => c.cod + ' el ' + fmtFecha(c.fecha)).join(' y ')
-    + (lista.some(c => c.deEsta) ? ', con esta misma solicitud' : ', después de esta propuesta') + '.';
+/* `html`: para la ficha, escapado y con el código entero en un renglón (el
+   «CR-» quedaba en una línea y el número en la otra). Sin él, texto plano
+   para el confirm. */
+function textoYaTieneCredito(cli, sol, lista, html) {
+  const e = html ? escHTML : (x => x);
+  const cod = c => html ? '<span style="white-space:nowrap">' + escHTML(c.cod) + '</span>' : c.cod;
+  return e('A ' + (cli.nombre || 'este cliente') + ' ya le registraste ') + lista.map(c => cod(c) + e(' el ' + fmtFecha(c.fecha))).join(e(' y '))
+    + e(lista.some(c => c.deEsta) ? ', con esta misma solicitud' : ', después de esta propuesta') + '.';
 }
 /* «Ya tiene su crédito: cerrar la propuesta», en su ficha. 'atendida', como la
    cierra crearDesdeSolicitud: se le registró un crédito. */
