@@ -303,12 +303,16 @@ describe('2. el reloj: 45 s a la vista con todo, 60 s escondido solo las listas,
       for (let k = 0; k < 10; k++) await tic(60000);
       assert.deepEqual([...new Set(N.desde(i))].sort(), ['chat_conversaciones', 'equipo_chat_conversaciones'], 'escondido pidió otra cosa: ' + N.desde(i).join(','));
       assert.equal(globos.length, 0, 'escondido salió un globo por la solicitud: entonces la frase vieja era verdad y esta prueba sobra');
-      assert.equal(el(P,'navSolicitudes').textContent, '', 'escondido se movió «Socios (n)» sin haber preguntado');
+      /* 13-nov-2026 — la solicitud cuenta en «📨 Solicitudes (n)» y el recado en
+         «Socios (n)» (antes los dos en Socios): escondido no se mueve ninguno. */
+      assert.equal(el(P,'navSolicitudes').textContent, '', 'escondido se movió «Solicitudes (n)» sin haber preguntado');
+      assert.equal(el(P,'navRecados').textContent, '', 'escondido se movió «Socios (n)» sin haber preguntado');
       /* Al volver, la vuelta de 45 s a la vista sí las trae, y entonces sale el globo. */
       P.ctx.document.hidden = false;
       await tic(45000);
       assert.ok(globos.some(g => /solicitud\(es\) de crédito/.test(g.body)), 'al volver no avisó de la solicitud: ' + globos.map(g => g.body).join(' | '));
-      assert.equal(el(P,'navSolicitudes').textContent, ' (2)');
+      assert.equal(el(P,'navSolicitudes').textContent, ' (1)');
+      assert.equal(el(P,'navRecados').textContent, ' (1)');
     } finally { cerrar(); }
   });
 

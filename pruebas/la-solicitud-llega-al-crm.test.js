@@ -83,24 +83,29 @@ const bandeja = P => P.elems.bandeja.innerHTML;
 /* ======================================================================== */
 describe('el CRM pregunta por las solicitudes sin esperar al reloj', () => {
 
-  test('AL ENTRAR CON EL PIN pregunta, y el «(n)» de Socios sale de una vez', async () => {
+  /* 13-nov-2026 — la bandeja y su número se fueron a su pestaña, 📨 Solicitudes
+     (#navSolicitudes sigue siendo el número de las solicitudes, ahora en esa
+     entrada del menú). Las pruebas de este bloque abren esa pestaña donde antes
+     abrían Socios; Socios sigue preguntando porque sus recados viajan en la misma
+     vuelta, y eso también se mide aquí. */
+  test('AL ENTRAR CON EL PIN pregunta, y el «(n)» de 📨 Solicitudes sale de una vez', async () => {
     const { P, N } = montar({ solicitudes: [DE_WILLIAN] });
     P.elems.pinInput = P.elems.pinInput || {};
     P.ctx.document.getElementById('pinInput').value = '1234';
     P.ev('entrar()');
     await asentar();
     assert.equal(preguntas(N), 1, 'entrar con el PIN no le preguntó a la nube por las solicitudes');
-    assert.equal(P.elems.navSolicitudes.textContent, ' (1)', 'el contador de Socios no salió al entrar');
+    assert.equal(P.elems.navSolicitudes.textContent, ' (1)', 'el contador de 📨 Solicitudes no salió al entrar');
   });
 
-  test('ABRIR SOCIOS pregunta; y con el freno de 15 s, ir y venir no repite la llamada', async () => {
+  test('ABRIR 📨 SOLICITUDES pregunta; y con el freno de 15 s, ir y venir (Socios incluido) no repite la llamada', async () => {
     const { P, N } = montar({ solicitudes: [DE_WILLIAN] });
-    P.ev("irA('socios')");
+    P.ev("irA('solicitudes')");
     await asentar();
-    assert.equal(preguntas(N), 1, 'abrir Socios no le preguntó a la nube');
+    assert.equal(preguntas(N), 1, 'abrir 📨 Solicitudes no le preguntó a la nube');
     assert.match(plano(bandeja(P)), /Registrado/);
 
-    P.ev("irA('socios')"); P.ev("irA('registrados')"); P.ev("irA('socios')");
+    P.ev("irA('socios')"); P.ev("irA('registrados')"); P.ev("irA('solicitudes')");
     await asentar();
     assert.equal(preguntas(N), 1, 'ir y venir en menos de 15 s volvió a llamar: cada llamada es un intento de clave_ok');
 
@@ -139,7 +144,7 @@ describe('la bandeja no dice «Ninguna» sin haber preguntado', () => {
 
   test('MIENTRAS PREGUNTA dice que está preguntando', async () => {
     const { P } = montar({ solicitudes: 'colgada' });
-    P.ev("irA('socios')");
+    P.ev("irA('solicitudes')");
     await asentar();
     const h = plano(bandeja(P));
     assert.match(h, /Preguntando a la nube/);
@@ -148,7 +153,7 @@ describe('la bandeja no dice «Ninguna» sin haber preguntado', () => {
 
   test('CON LA RESPUESTA VACÍA, entonces sí: «Ninguna», con la hora en que preguntó', async () => {
     const { P } = montar({ solicitudes: [] });
-    P.ev("irA('socios')");
+    P.ev("irA('solicitudes')");
     await asentar();
     const h = plano(bandeja(P));
     assert.match(h, /Ninguna solicitud pendiente/);
@@ -156,10 +161,10 @@ describe('la bandeja no dice «Ninguna» sin haber preguntado', () => {
     assert.match(P.ev('_solHora'), /^\d\d:\d\d$/);
   });
 
-  test('SI LA NUBE FALLA lo dice, no dice «Ninguna», y el contador de Socios queda en (?)', async () => {
+  test('SI LA NUBE FALLA lo dice, no dice «Ninguna», y el contador de 📨 Solicitudes queda en (?)', async () => {
     for (const falla of [500, 'sin_red', 404]) {
       const { P } = montar({ solicitudes: falla });
-      P.ev("irA('socios')");
+      P.ev("irA('solicitudes')");
       await asentar();
       const h = plano(bandeja(P));
       assert.ok(!/Ninguna solicitud/.test(h), String(falla) + ': un error se leyó como «no hay solicitudes»');
@@ -257,7 +262,9 @@ describe('Registrados dice qué pidió cada uno', () => {
     assert.match(plano(P.elems.mBody.innerHTML), /Pidió \$300\.000/);
   });
 
-  test('con propuesta: «Cambiar propuesta»; aceptada: a Socios, que es donde se desembolsa', async () => {
+  /* 13-nov-2026 — aceptada, a 📨 Solicitudes: el botón de desembolsar vive en la
+     bandeja, y la bandeja se fue de Socios. */
+  test('con propuesta: «Cambiar propuesta»; aceptada: a 📨 Solicitudes, que es donde se desembolsa', async () => {
     const cp = { por: 'joan', capital: 300000, total: 360000, costo_pct: 20, dias: 30, fecha_pago: '2026-11-18' };
     const { P } = montar({ solicitudes: [Object.assign({}, DE_WILLIAN, { estado: 'contrapropuesta', contrapropuesta: cp }),
                                           Object.assign({}, DE_OTRA, { estado: 'aceptada', contrapropuesta: cp })] });
@@ -270,7 +277,9 @@ describe('Registrados dice qué pidió cada uno', () => {
     assert.ok(!/>✏️ Proponer</.test(w));
     const m = filaDe(P, 'Marta Cliente');
     assert.match(plano(m), /Aceptó/);
-    assert.match(m, /irA\('socios'\)/);
+    assert.match(m, /irA\('solicitudes'\)/);
+    assert.match(plano(m), /Desembolsar en 📨 Solicitudes/);
+    assert.ok(!/irA\('socios'\)/.test(m), 'la fila manda a desembolsar a Socios, donde ya no está la bandeja');
     assert.ok(!/editarContrapropuesta/.test(m), 'una aceptada se puede volver a proponer desde Registrados');
   });
 

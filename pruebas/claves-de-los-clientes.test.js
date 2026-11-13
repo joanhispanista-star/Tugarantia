@@ -321,13 +321,18 @@ describe('3 · el CRM se entera de los recados y los atiende', () => {
   }
   const avisos = P => (P.ctx._avisos || []).join('\n');
 
+  /* 13-nov-2026 — las solicitudes se fueron a su pestaña (📨 Solicitudes, con
+     #navSolicitudes) y los recados se quedaron en Socios: su número es #navRecados.
+     Lo que se mide es lo mismo de antes, en el número de Socios; y que el de 📨
+     Solicitudes no los cuente, que mandaría a buscarlos donde no están. */
   test('los recados cuentan en el número de Socios', async () => {
     const { P } = montar({ listar_ayudas_clave: [RECADO_NUEVO, RECADO_VIEJO] });
     P.ev('traerAyudas()');
     await asentar();
-    assert.equal(P.elems.navSolicitudes.textContent, ' (2)',
+    assert.equal(P.elems.navRecados.textContent, ' (2)',
       'dos personas no pueden entrar y el número de Socios no se movió');
-    assert.match(P.elems.navSolicitudes.title, /2 recado\(s\)/, 'el número no dice que son recados');
+    assert.match(P.elems.navRecados.title, /2 recado\(s\)/, 'el número no dice que son recados');
+    assert.equal(P.elems.navSolicitudes.textContent, '', 'el número de 📨 Solicitudes cuenta recados, que viven en Socios');
   });
 
   test('si los recados no se pudieron leer, Socios queda en (?), no en el número de la vez pasada', async () => {
@@ -335,14 +340,16 @@ describe('3 · el CRM se entera de los recados y los atiende', () => {
     const { P } = montar({ listar_ayudas_clave: () => (falla ? { __estado: 500, message: 'caída' } : [RECADO_NUEVO]) });
     P.ev('traerAyudas()');
     await asentar();
-    assert.equal(P.elems.navSolicitudes.textContent, ' (1)');
+    assert.equal(P.elems.navRecados.textContent, ' (1)');
     falla = true;
     P.ev('traerAyudas(true)');
     await asentar();
-    assert.equal(P.elems.navSolicitudes.textContent, ' (?)', 'un fallo al leer los recados se pinta como si nada');
+    assert.equal(P.elems.navRecados.textContent, ' (?)', 'un fallo al leer los recados se pinta como si nada');
   });
 
-  test('el globo de un recado (o de una solicitud) lleva a Socios, no a Mensajes', async () => {
+  /* 13-nov-2026 — el recado sigue llevando a Socios; la solicitud, a 📨 Solicitudes,
+     que es donde vive desde hoy. */
+  test('el globo de un recado lleva a Socios, y el de una solicitud a 📨 Solicitudes; ninguno a Mensajes', async () => {
     const { P } = montar();
     const globos = [];
     P.ctx.Notification = class { constructor(t, o) { this.body = o && o.body; globos.push(this); } close() {} };
@@ -358,7 +365,7 @@ describe('3 · el CRM se entera de los recados y los atiende', () => {
     P.ev("_solicitudes = [{ id: 'x', origen: 'nube', estado: 'nueva' }]; pintarAvisos();");
     assert.equal(globos.length, 2);
     globos[1].onclick();
-    assert.equal(P.ev('window._fuiA'), 'socios', 'el globo de una solicitud llevó a ' + P.ev('window._fuiA'));
+    assert.equal(P.ev('window._fuiA'), 'solicitudes', 'el globo de una solicitud llevó a ' + P.ev('window._fuiA'));
   });
 
   test('el texto del globo y del pie dice lo que el reloj hace: escondida revisa solo las listas del chat, cada minuto', async () => {
@@ -445,14 +452,14 @@ describe('3 · el CRM se entera de los recados y los atiende', () => {
     const { P, a } = montar({ clave_temporal_joan: { ok: true, celular: '3001112222', clave: 'k3m9p2xq' },
       marcar_ayuda_clave: { ok: true } });
     P.ev('_ayudas = ' + JSON.stringify([RECADO_NUEVO, RECADO_VIEJO]) + '; renderAyudas(); pintarAvisos();');
-    assert.equal(P.elems.navSolicitudes.textContent, ' (2)');
+    assert.equal(P.elems.navRecados.textContent, ' (2)');
     P.ev('darClaveNueva(1)');
     await asentar();
     assert.equal(a('marcar_ayuda_clave').length, 1, 'la clave quedó dada y el recado sigue pendiente');
     assert.deepEqual(a('marcar_ayuda_clave')[0].cuerpo, { p_clave: CLAVE, p_id: 1, p_estado: 'atendida' });
     assert.equal(P.ev('_ayudas.length'), 1);
     assert.equal(P.ev('_ayudas[0].id'), 2, 'se marcó el recado equivocado');
-    assert.equal(P.elems.navSolicitudes.textContent, ' (1)', 'el número de Socios no bajó');
+    assert.equal(P.elems.navRecados.textContent, ' (1)', 'el número de Socios no bajó');
     assert.match(P.elems.mBody.innerHTML, /k3m9p2xq/, 'la clave se dejó de mostrar');
     assert.match(P.elems.claveNuevaRecado.textContent, /ya salió de la lista/);
     assert.equal(avisos(P), '', 'un alert encima de la clave que se muestra una sola vez');

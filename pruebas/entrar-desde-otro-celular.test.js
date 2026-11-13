@@ -1080,11 +1080,14 @@ describe('F7. Mirar el CRM no crea una cartera', () => {
   const ENTRADAS = [...CRM.matchAll(/<button class="navbtn[^"]*" data-v="([a-z]+)">/g)].map(m => m[1]);
 
   /* 9-nov-2026 — 17: entró «🗺️ Mapa» (panel/mapa-clientes.js). Así las dos
-     pruebas de abajo también tocan el mapa, que solo lee la cartera. */
-  test('control: el menú sigue teniendo sus 17 entradas', () => {
-    assert.equal(ENTRADAS.length, 17, ENTRADAS.join(','));
+     pruebas de abajo también tocan el mapa, que solo lee la cartera.
+     13-nov-2026 — 18: entró «📨 Solicitudes», la bandeja que salió de Socios. Las
+     dos de abajo también la tocan, y con ella su pregunta a la nube. */
+  test('control: el menú sigue teniendo sus 18 entradas', () => {
+    assert.equal(ENTRADAS.length, 18, ENTRADAS.join(','));
     assert.ok(ENTRADAS.includes('ventas'));
     assert.ok(ENTRADAS.includes('mapa'));
+    assert.ok(ENTRADAS.includes('solicitudes'));
   });
 
   test('en un navegador vacío, tocar «Ventas» ya no escribe nada', () => {
@@ -1093,7 +1096,7 @@ describe('F7. Mirar el CRM no crea una cartera', () => {
     assert.equal(P.almacen[LLAVE], undefined, 'con solo mirar nació la llave de la cartera');
   });
 
-  test('ninguna de las 17 entradas del menú la crea', () => {
+  test('ninguna de las 18 entradas del menú la crea', () => {
     const P = abrirPanel({ red: () => Promise.reject(new Error('sin red')) });
     ENTRADAS.forEach(v => {
       P.ev('irA(' + JSON.stringify(v) + ')');
