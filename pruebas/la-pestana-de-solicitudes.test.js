@@ -17,6 +17,8 @@
  *      de siempre y un enlace a la ficha o al registro.
  *   3. «⚠️ Falta su cédula» con la regla de 📥 Registrados (la misma función) o
  *      con lo que sabe la ficha; y el registro que falta se pide UNA vez.
+ *   4. Lo que llega y no has mirado se nota: aviso en el Tablero, número en la
+ *      pestaña del navegador, recordado en ESTE navegador; sin sonido nuevo.
  *
  * Todos los nombres, celulares y cédulas son inventados.
  * ==========================================================================*/
@@ -31,6 +33,7 @@ const RAIZ = path.join(__dirname, '..');
 const CRM = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
 const CLAVE = 'clave-de-prueba-bien-larga';
 const AHORA = '2026-11-13T10:00:00-05:00';
+const LLAVE = 'tg_solicitudes_vistas';
 const sinEtiquetas = h => String(h || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 const plano = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -321,5 +324,148 @@ describe('3. «⚠️ Falta su cédula», con lo que el CRM ya sabe', () => {
     assert.equal(P.ev('faltaCedulaDeSolicitud(' + JSON.stringify(s) + ')'), null);
     assert.equal(P.ev('enlaceDeSolicitud(' + JSON.stringify(s) + ')'), '');
     assert.equal(P.ev('traerRegistrosParaSolicitudes()'), false);
+  });
+});
+
+/* ======================================================================== */
+describe('4. que Joan se entere cuando alguien pide', () => {
+  const PRIMERA = sol(801, { nombre: 'Primera Inventada' });
+  const ANA = sol(802, { nombre: 'Ana Inventada', capital: 250000, pedido_monto: 250000, creada_en: '2026-11-13T14:55:00Z' });
+
+  async function conUnaVieja(o) {
+    let lista = [PRIMERA];
+    const M = montar(Object.assign({ nube: { listar_solicitudes_abiertas: () => lista } }, o || {}));
+    M.P.ev('traerSolicitudes(true)');
+    await asentar();
+    M.llega = async (...nuevas) => { lista = lista.concat(nuevas); M.P.ev('traerSolicitudes(true)'); await asentar(); };
+    return M;
+  }
+
+  test('la primera vez que este navegador pregunta, lo que ya estaba no se anuncia: se anota', async () => {
+    const { P } = await conUnaVieja();
+    assert.equal(P.elems.avisoSolicitudesNuevas.innerHTML, '', 'anunció como nueva una solicitud que ya estaba');
+    assert.deepEqual(JSON.parse(P.almacen[LLAVE]), ['801']);
+    assert.equal(P.ctx.document.title, 'Tu Garantía · Panel');
+  });
+
+  test('llega una: «🔔 Ana pidió $250.000, hace 5 min · Ver» en el Tablero, y «(1)» en la pestaña del navegador', async () => {
+    const M = await conUnaVieja();
+    await M.llega(ANA);
+    const P = M.P, h = P.elems.avisoSolicitudesNuevas.innerHTML;
+    assert.equal(sinEtiquetas(h), '🔔 Ana Inventada pidió $250.000, hace 5 min · Ver');
+    assert.match(h, /onclick="irA\('solicitudes'\)">Ver<\/button>/);
+    assert.equal(P.ctx.document.title, '(1) Tu Garantía · Panel');
+    assert.equal(P.elems.navSolicitudes.textContent, ' (2)');
+    /* El aviso vive en el Tablero, no en el menú: a 880 px se ve igual. */
+    assert.match(seccion('dash'), /<div id="avisoSolicitudesNuevas"><\/div>/);
+  });
+
+  test('abrir 📨 Solicitudes es mirarlas: el aviso y el número del navegador se van, y se recuerda al recargar', async () => {
+    const M = await conUnaVieja();
+    await M.llega(ANA);
+    M.P.ev("irA('solicitudes')");
+    assert.equal(M.P.elems.avisoSolicitudesNuevas.innerHTML, '');
+    assert.equal(M.P.ctx.document.title, 'Tu Garantía · Panel');
+    assert.deepEqual(JSON.parse(M.P.almacen[LLAVE]).sort(), ['801', '802']);
+    /* F5 en el mismo navegador. */
+    const N2 = nube({ listar_solicitudes_abiertas: [PRIMERA, ANA], listar_ayudas_clave: [] });
+    const Q = abrirPanel({ red: N2.red, ahora: AHORA, almacen: M.P.almacen });
+    Q.ev('traerSolicitudes(true)');
+    await asentar();
+    assert.equal(Q.elems.avisoSolicitudesNuevas.innerHTML, '', 'al recargar volvió a anunciar lo que ya miró');
+  });
+
+  test('abrir la pestaña antes de que la nube conteste no borra lo que este navegador recordaba', async () => {
+    /* Un F5 con la lista ya anotada, y Joan entra a 📨 Solicitudes de una: la
+       nube todavía no contesta. Si «mirar» guardara la lista vacía de ese
+       momento, lo que ya había mirado volvería a salir como nuevo. */
+    let soltar;
+    const colgada = new Promise(r => { soltar = r; });
+    const resp = c => ({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(c)) });
+    const red = url => {
+      const fn = (/\/rpc\/([a-z_]+)$/.exec(String(url)) || [])[1];
+      if (fn === 'listar_solicitudes_abiertas') return colgada.then(() => resp([PRIMERA, ANA, sol(831, { nombre: 'Recien Inventada' })]));
+      if (fn === 'listar_ayudas_clave') return Promise.resolve(resp([]));
+      return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('{}') });
+    };
+    const almacen = { [LLAVE]: JSON.stringify(['801', '802']),
+      joan_socios_sb: JSON.stringify({ url: 'https://prueba.supabase.co', anon: 'llave-anon', clave: CLAVE }) };
+    const P = abrirPanel({ red, ahora: AHORA, almacen });
+    P.ev("irA('solicitudes')");
+    await asentar();
+    assert.deepEqual(JSON.parse(P.almacen[LLAVE]), ['801', '802'], 'abrir la pestaña sin respuesta borró lo recordado');
+    /* Joan se va al Tablero antes de que conteste; cuando contesta, solo la recién llegada es nueva. */
+    P.ev("irA('dash')");
+    soltar();
+    await asentar();
+    const t = sinEtiquetas(P.elems.avisoSolicitudesNuevas.innerHTML);
+    assert.match(t, /^🔔 Recien Inventada pidió/);
+    assert.doesNotMatch(t, /Ana Inventada|Primera Inventada/);
+  });
+
+  test('con 📨 Solicitudes a la vista, lo que llega ya se está mirando; con el navegador escondido, no', async () => {
+    const M = await conUnaVieja();
+    M.P.ev("irA('solicitudes')");
+    await M.llega(ANA);
+    assert.equal(M.P.elems.avisoSolicitudesNuevas.innerHTML, '');
+    M.P.ctx.document.hidden = true;
+    await M.llega(sol(803, { nombre: 'Escondida Inventada' }));
+    assert.match(sinEtiquetas(M.P.elems.avisoSolicitudesNuevas.innerHTML), /Escondida Inventada pidió/);
+  });
+
+  test('varias: el número, las tres más recientes y «y N más»; las pegadas nunca', async () => {
+    const M = await conUnaVieja();
+    await M.llega(sol(811, { nombre: 'Uno', creada_en: '2026-11-13T14:10:00Z' }), sol(812, { nombre: 'Dos', creada_en: '2026-11-13T14:20:00Z' }),
+      sol(813, { nombre: 'Tres', creada_en: '2026-11-13T14:30:00Z' }), sol(814, { nombre: 'Cuatro', creada_en: '2026-11-13T14:40:00Z' }));
+    M.P.ev('_solicitudes.push({ origen: "pegada", id: "peg-9", nombre: "Pegada", capital: 1 }); pintarAvisos();');
+    const t = sinEtiquetas(M.P.elems.avisoSolicitudesNuevas.innerHTML);
+    assert.match(t, /^🔔 4 solicitudes nuevas · Ver/);
+    assert.ok(t.indexOf('Cuatro pidió') < t.indexOf('Tres pidió') && t.indexOf('Tres pidió') < t.indexOf('Dos pidió'), 'no van de la más reciente a la más vieja: ' + t);
+    assert.doesNotMatch(t, /Uno pidió/);
+    assert.match(t, /y 1 más$/);
+    assert.doesNotMatch(t, /Pegada/);
+    assert.equal(M.P.ctx.document.title, '(4) Tu Garantía · Panel');
+  });
+
+  test('si le falta la cédula, el aviso lo dice', async () => {
+    const M = await conUnaVieja();
+    M.P.ev('_registros = ' + JSON.stringify([REG_SIN]));
+    await M.llega(sol(821, { nombre: 'Sin Cedula Inventada', registro_id: 41 }));
+    assert.match(sinEtiquetas(M.P.elems.avisoSolicitudesNuevas.innerHTML), /Sin Cedula Inventada pidió \$250\.000, hace 5 min · ⚠️ falta su cédula/);
+  });
+
+  test('si el navegador no deja guardar, avisa igual en esta sesión y no se cae', async () => {
+    let lista = [PRIMERA];
+    const N = nube({ listar_solicitudes_abiertas: () => lista, listar_ayudas_clave: [] });
+    const P = abrirPanel({ red: N.red, ahora: AHORA });
+    P.almacen.joan_socios_sb = JSON.stringify({ url: 'https://prueba.supabase.co', anon: 'llave-anon', clave: CLAVE });
+    P.cargarCartera({ socios: [], prestamos: [], config: {}, equipo: [] });
+    const ls = P.ctx.localStorage, get = ls.getItem, set = ls.setItem;
+    ls.getItem = k => { if (k === LLAVE) throw new Error('bloqueado'); return get(k); };
+    ls.setItem = (k, v) => { if (k === LLAVE) throw new Error('bloqueado'); return set(k, v); };
+    P.ev('traerSolicitudes(true)');
+    await asentar();
+    assert.equal(P.elems.avisoSolicitudesNuevas.innerHTML, '');
+    lista = lista.concat([ANA]);
+    P.ev('traerSolicitudes(true)');
+    await asentar();
+    assert.match(sinEtiquetas(P.elems.avisoSolicitudesNuevas.innerHTML), /Ana Inventada pidió/);
+  });
+
+  test('sin sonido: el aviso no crea audio', async () => {
+    const M = await conUnaVieja();
+    let sonidos = 0;
+    M.P.ctx.AudioContext = class { constructor() { sonidos++; } };
+    M.P.ev('_solicitudes.push(' + JSON.stringify(Object.assign({ origen: 'nube' }, ANA)) + '); pintarAvisoSolicitudesNuevas();');
+    assert.match(sinEtiquetas(M.P.elems.avisoSolicitudesNuevas.innerHTML), /Ana Inventada/);
+    assert.equal(sonidos, 0);
+  });
+
+  test('en modo #equipo, nada de esto', async () => {
+    const M = await conUnaVieja();
+    M.P.ev('_solicitudes.push(' + JSON.stringify(Object.assign({ origen: 'nube' }, ANA)) + ')');
+    M.P.ev('CARTERA_EQUIPO = { yo: { celular: "3000000000" } }; pintarAvisoSolicitudesNuevas();');
+    assert.equal(M.P.elems.avisoSolicitudesNuevas.innerHTML, '');
+    assert.equal(M.P.ev('solicitudesSinVer().length'), 0);
   });
 });

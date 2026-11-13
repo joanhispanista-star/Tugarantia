@@ -743,6 +743,9 @@
     <section class="view on" id="v-dash">
       <div class="ph"><div><h1>Tablero<span class="dot">.</span></h1><div class="sub">Tu negocio y la gestión del día</div></div>
         <button class="btn btn-rojo" onclick="nuevoCredito()">＋ Nuevo crédito</button></div>
+      <!-- 13-nov-2026 — «🔔 Ana pidió $300.000, hace 5 min · Ver»: las solicitudes que
+           llegaron y todavía no has mirado en 📨 Solicitudes (pintarAvisoSolicitudesNuevas). -->
+      <div id="avisoSolicitudesNuevas"></div>
       <!-- 9-nov-2026 — lo que sobra de un cierre, por decidir (avisoSobrantesPorDecidir). -->
       <div id="avisoSobrantes"></div>
       <div class="kpis" id="kpis"></div>
@@ -9868,6 +9871,9 @@ function pintarAvisos(){
   const nr=document.getElementById('navRecados');
   if(nr&&!(falla||fallaAyu)&&c.ayudas)
     nr.title=c.ayudas+' recado(s) de «Olvidé mi contraseña»';
+  /* 13-nov-2026 — «🔔 Ana pidió $300.000, hace 5 min · Ver», arriba en el Tablero.
+     Con red, como contarPendientes: un aviso de menos no puede tumbar render(). */
+  try{ pintarAvisoSolicitudesNuevas(); }catch(e){}
   const pie=document.getElementById('avisoPie');
   if(pie){
     /* 22-oct-2026 — «a la vista», no «abierta»: el reloj se para con la
@@ -9900,10 +9906,21 @@ function pintarAvisos(){
    Garantía · Panel». Es lo que se ve desde otra pestaña sin globo ni sonido.
    Con la nube fallando no se deja un número viejo: se quita. */
 const TITULO_CRM='Tu Garantía · Panel';
+/* 13-nov-2026 — Y LAS SOLICITUDES QUE NO HAS MIRADO: «(1) Tu Garantía · Panel» cuando
+   alguien pide y estás en otra pestaña del navegador. Cuentan aparte del chat: si la
+   nube del chat falla, el número del chat se quita, pero una solicitud que llegó
+   sigue siendo una solicitud que llegó. Sin app/chat-vivo.js el título no se tocaba
+   y sigue sin tocarse, salvo para decir eso. */
 function pintarTituloChat(c,falla){
-  if(!window.ChatVivo||!ChatVivo.titulo) return;
-  try{ document.title=ChatVivo.titulo(TITULO_CRM, falla?0:(Number(c.mensajes||0)+Number(c.equipo||0))); }catch(e){}
+  let sinVer=0; try{ sinVer=solicitudesSinVer().length; }catch(e){}
+  const n=(falla?0:(Number(c.mensajes||0)+Number(c.equipo||0)))+sinVer;
+  if(!window.ChatVivo||!ChatVivo.titulo){
+    if(sinVer||_tituloConSolicitudes){ _tituloConSolicitudes=!!sinVer; try{ document.title=sinVer?'('+sinVer+') '+TITULO_CRM:TITULO_CRM; }catch(e){} }
+    return;
+  }
+  try{ document.title=ChatVivo.titulo(TITULO_CRM, n); }catch(e){}
 }
+var _tituloConSolicitudes=false;
 
 /* 26-oct-2026 — «Clientes (n) · Equipo (n)» y el orden de las tarjetas
    (chat-1). Primero la que tiene algo sin leer; si las dos (o ninguna), los
@@ -22790,7 +22807,9 @@ function traerSolicitudes(callado){
     const nube=(JSON.parse(r.t)||[]).map(x=>Object.assign({origen:'nube'},x));
     _solicitudes=nube.concat(_solicitudes.filter(x=>x.origen==='pegada'));
     _solEstado='ok'; _solHora=horaCorta(); _solErrorHTML='';
-    /* 13-nov-2026 — y de quién es lo que llegó sin ficha (traerRegistrosParaSolicitudes). */
+    /* 13-nov-2026 — antes de pintar: qué de esto es nuevo para ESTE navegador
+       (alLlegarSolicitudes), y de quién es lo que llegó sin ficha. */
+    try{ alLlegarSolicitudes(); }catch(e){}
     try{ traerRegistrosParaSolicitudes(); }catch(e){}
     renderBandeja(); pintarAvisos();
     /* Registrados dice qué pidió cada uno (pedidoEnRegistro): con la lista
@@ -23030,6 +23049,90 @@ function estadoDeLaBandeja(hayLista){
   /* 'sin_preguntar' */
   return hayLista?'<div class="muted" style="font-size:12.5px;margin-bottom:8px">Todavía no le he preguntado a la nube: estas son solo las que pegaste.</div>'
     :`<div class="empty"><div class="ic">☁️</div><p>Todavía no le he preguntado a la nube.<br><span class="muted">Si alguien pidió desde la app, aparece cuando le pregunte.</span></p>${boton}</div>`;
+}
+
+/* ===========================================================================
+ * LAS QUE TODAVÍA NO HAS MIRADO — 13 de noviembre de 2026
+ *
+ * Joan: «quiero que desde el admin se vea cuando un cliente realiza una
+ * solicitud». El CRM ya le preguntaba a la nube solo (cada 45 s con la pestaña a
+ * la vista y al volver a ella: vigilarPendientes), y el número del menú subía;
+ * lo que faltaba era que se NOTARA. Desde hoy, lo que llegó y no has mirado en
+ * 📨 Solicitudes sale arriba en el Tablero («🔔 Ana pidió $300.000, hace 5 min ·
+ * Ver») y en el título de la pestaña del navegador. Sin sonido: el único toque
+ * es el que ya existía, con su interruptor (botonSonidoChat).
+ *
+ * «Mirado» es haber abierto 📨 Solicitudes con eso en la lista. Se recuerda en
+ * ESTE navegador (una lista de ids, LLAVE_SOL_VISTAS), nunca en la cartera ni en
+ * la nube: es una comodidad de esta pantalla, no un dato del negocio, y el
+ * celular de Joan lleva la suya. Si el navegador no deja guardar, vale para
+ * esta sesión.
+ *
+ * La PRIMERA vez que un navegador pregunta no hay nada «nuevo»: lo que ya estaba
+ * abierto no llegó ahora, y anunciarlo todo de golpe enseña a no leer el aviso.
+ * Siguen en su pestaña, con su número.
+ * ======================================================================== */
+const LLAVE_SOL_VISTAS='tg_solicitudes_vistas';
+const TOPE_SOL_VISTAS=500;
+let _solVistas;   // undefined: sin leer · null: este navegador nunca anotó · [ids]
+function idsSolicitudesVistas(){
+  if(_solVistas===undefined){
+    _solVistas=null;
+    try{ const t=localStorage.getItem(LLAVE_SOL_VISTAS); const l=t?JSON.parse(t):null; if(Array.isArray(l)) _solVistas=l.map(String); }catch(e){}
+  }
+  return _solVistas;
+}
+function guardarSolicitudesVistas(ids){
+  _solVistas=ids.map(String).slice(-TOPE_SOL_VISTAS);
+  try{ localStorage.setItem(LLAVE_SOL_VISTAS,JSON.stringify(_solVistas)); }catch(e){}
+}
+const idsDeLaNube=()=>_solicitudes.filter(s=>s&&s.origen==='nube').map(s=>String(s.id));
+/* Las de la nube que este navegador no ha visto, la más reciente primero. Las
+   pegadas no: esas las pegó Joan con su mano. */
+function solicitudesSinVer(){
+  const v=idsSolicitudesVistas();
+  if(!v||CARTERA_EQUIPO) return [];
+  return _solicitudes.filter(s=>s&&s.origen==='nube'&&v.indexOf(String(s.id))<0)
+    .sort((a,b)=>String(b.creada_en||'').localeCompare(String(a.creada_en||'')));
+}
+/* Abrir 📨 Solicitudes es mirarlas. Se guardan las que están abiertas: las que
+   se cerraron no vuelven, y así la lista no crece sin fin. Antes de la primera
+   respuesta buena de la nube (_solHora vacía) lo que hay en pantalla no es la
+   lista, y guardarla borraría lo que este navegador ya recordaba: no se marca
+   nada, y lo marca alLlegarSolicitudes si la pestaña sigue a la vista. */
+function marcarSolicitudesVistas(){
+  if(!_solHora) return;
+  guardarSolicitudesVistas(idsDeLaNube());
+}
+/* Cada respuesta buena de la nube: la primera de este navegador anota todo sin
+   avisar; con 📨 Solicitudes a la vista, lo que llega ya se está mirando. */
+var _vistaCRM='dash';
+function alLlegarSolicitudes(){
+  if(CARTERA_EQUIPO) return;
+  if(idsSolicitudesVistas()===null){ guardarSolicitudesVistas(idsDeLaNube()); return; }
+  if(_vistaCRM==='solicitudes'&&!document.hidden) marcarSolicitudesVistas();
+}
+/* El aviso del Tablero. Cuánto pidió es lo que pidió (pedido_monto), no lo que
+   se le propuso; «hace cuánto» con el reloj de los recados (antiguedadRecado). */
+function pintarAvisoSolicitudesNuevas(){
+  const e=document.getElementById('avisoSolicitudesNuevas'); if(!e) return;
+  const nuevas=solicitudesSinVer();
+  if(!nuevas.length){ e.innerHTML=''; return; }
+  const linea=s=>{
+    const nom=String(s.nombre||'').trim(), tel=telDeSolicitud(s);
+    const quien=(nom&&nom!=='Registrado'?escHTML(nom):'Alguien sin ficha')+((!nom||nom==='Registrado')&&tel?' ('+escHTML(tel)+')':'');
+    const monto=Math.round(Number(s.pedido_monto)||Number(s.capital)||0);
+    const edad=antiguedadRecado(s.creada_en).texto;
+    const sinCedula=faltaCedulaDeSolicitud(s)?' · ⚠️ falta su cédula':'';
+    return '<b>'+quien+'</b> pidió '+(monto?'<b>'+COP(monto)+'</b>':'un crédito')+(edad?', '+escHTML(edad):'')+sinCedula;
+  };
+  const ver='<button class="btn btn-ghost btn-sm" onclick="irA(\'solicitudes\')">Ver</button>';
+  e.innerHTML='<div class="alerta info" role="status">'+(nuevas.length===1
+    ? '🔔 '+linea(nuevas[0])+' · '+ver
+    : '🔔 <b>'+nuevas.length+' solicitudes nuevas</b> · '+ver
+      +nuevas.slice(0,3).map(s=>'<div style="margin-top:4px">'+linea(s)+'</div>').join('')
+      +(nuevas.length>3?'<div class="muted" style="margin-top:4px">y '+(nuevas.length-3)+' más</div>':''))
+    +'</div>';
 }
 
 /* 19-oct-2026 — EL CELULAR DE UNA SOLICITUD, por el mismo camino que la base
@@ -24793,7 +24896,8 @@ modal.addEventListener('click',e=>{ if(e.target===modal)cerrarModal(); });
    Salió al fusionar crm-asignar con crm-sesion
    (pruebas/asignar-bajo-la-puerta-de-24-horas.test.js, 3). */
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&modal.classList.contains('on')&&!_candado)cerrarModal(); });
-function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
+function irA(v){ _vistaCRM=v;   // 13-nov-2026 — ver alLlegarSolicitudes
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
   if(v==='cfg'){pintarCfg();pintarAvisoRespaldo();} if(v==='plantillas')renderPlantillas(); if(v==='cal')renderCalendario();
   if(v==='equipo')renderEquipo();
   if(v==='bases')renderBases();
@@ -24809,9 +24913,11 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
      porque desde hoy dice qué pidió cada uno. Las dos con el freno de 15 s
      (traerSolicitudesSiToca). */
   /* 13-nov-2026 — LA BANDEJA SE FUE A 📨 SOLICITUDES, y pregunta al abrirse con el
-     mismo freno. Socios sigue preguntando porque sus recados viajan en la misma
-     vuelta (traerSolicitudes → traerAyudas), con el mismo freno de 15 s. */
-  if(v==='solicitudes'){ renderBandeja(); traerSolicitudesSiToca(); traerRegistrosParaSolicitudes(); }
+     mismo freno. Abrirla es mirar lo que hay: el aviso del Tablero y el número de
+     la pestaña del navegador se apagan (marcarSolicitudesVistas). Socios sigue
+     preguntando porque sus recados viajan en la misma vuelta (traerSolicitudes →
+     traerAyudas), con el mismo freno de 15 s. */
+  if(v==='solicitudes'){ renderBandeja(); traerSolicitudesSiToca(); marcarSolicitudesVistas(); pintarAvisos(); traerRegistrosParaSolicitudes(); }
   if(v==='socios'){ traerSolicitudesSiToca(); }
   /* Mensajes, igual que Registrados: una petición por visita a la pestaña, no
      una por cada render(). */
