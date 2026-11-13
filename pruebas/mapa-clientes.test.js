@@ -1039,6 +1039,16 @@ describe('8 · que se vean los municipios (13-nov-2026)', () => {
     assert.ok(E.z.vb[2] < E.z.base[2]);
   });
 
+  test('el buscador no deja ver cuál «1–2» tiene 2: con dos «1–2», va el abecedario', async () => {
+    /* Sopó tiene 2 y Soacha 1: por la cifra exacta, Sopó saldría primero y se
+       sabría cuál tiene más. Con el punto medio de lo visible, empatan. */
+    const db = carteraCon({ Sopó: [2], Soacha: [1] });
+    const { MC, M } = await abrirCon(db);
+    assert.deepEqual(MC.buscar('so').slice(0, 2), ['25754', '25758']);
+    M.entrada.value = 'so'; M.caja.oy.input({ target: M.entrada });
+    assert.match(M.sug.innerHTML, /data-c="25754"><span>Soacha <small>Cundinamarca<\/small><\/span><b>1–2<\/b>[\s\S]*data-c="25758"><span>Sopó <small>Cundinamarca<\/small><\/span><b>1–2<\/b>/);
+  });
+
   /* ------------------------------------------------- 2 · el contraste medido */
   describe('el contraste, medido con los tokens de crm.html', () => {
     const CRM_HTML = leer('panel/crm.html');
