@@ -1170,10 +1170,18 @@
     var retirar = function () {
       var preguntar = o.confirmar || function (t) { return typeof confirm === 'function' ? confirm(t) : true; };
       if (!preguntar('Vamos a borrar tus extractos y a quitar tu autorización. ¿Seguimos?')) return;
-      llamar('extracto_retirar', {}, true).then(function () { vm.vistas = {}; vm.pegado = null; return soltarLaCola(); })
+      /* 13-nov-2026 (remate) — la respuesta se MIRA. Antes, un {ok:false}
+         (la sesión vencida: 'sin_sesion') seguía como si hubiera salido:
+         soltaba la cola de este teléfono sin que la base hubiera borrado
+         nada, y el aviso decía «No hay conexión», porque deError de un error
+         sin status siempre da sin_red y se miraba antes que e.motivo. */
+      llamar('extracto_retirar', {}, true).then(function (j) {
+        if (!(j && j.ok === true)) throw { motivo: (j && j.motivo) || 'sin_red' };
+        vm.vistas = {}; vm.pegado = null; return soltarLaCola();
+      })
         .then(function () { return leer(); })
         .then(function () { vm.aviso = 'Listo: borramos tus extractos y quitamos tu autorización.'; vm.avisoClase = 'verde'; pintarTarjeta(); },
-              function (e) { vm.aviso = motivoEnPalabras(deError(e).motivo || (e && e.motivo)); vm.avisoClase = 'ambar'; pintarTarjeta(); });
+              function (e) { vm.aviso = motivoEnPalabras((e && e.motivo) || deError(e).motivo); vm.avisoClase = 'ambar'; pintarTarjeta(); });
     };
     var h = {
       leer: function () { return leer().then(function () { pintarLinea(); }); },

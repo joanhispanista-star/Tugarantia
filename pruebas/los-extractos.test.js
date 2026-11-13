@@ -313,6 +313,26 @@ describe('4 · la cola sobrevive a salir a Nequi; los archivos del registro sigu
     assert.equal(tarde.ev('guardaderoExtractos().hayArchivosGuardados(REGISTRO.intento, REGISTRO.celular)'), false);
     if (B.pasoActual(tarde) === 'extractos') assert.match(plano(exCaja(tarde)), /se borraron de este teléfono/);
   });
+  /* 13-nov-2026 (remate) — «la cola sobrevive a salir a Nequi» se probaba sobre
+     el guardadero, con el arranque imitado a mano: un arranque de play/ que
+     borrara la cola no hacía fallar nada (la mutación M20 del revisor). Aquí,
+     el arranque de verdad, pasado el rato de la cámara. */
+  test('en play/: el arranque de verdad, 40 minutos después, deja la cola de la cuenta (la que sube al volver a entrar)', async () => {
+    const almacen = {}, sesion = {}, indexedDB = idbDeMentira();
+    const P = enElPaso({ almacen, sesion, indexedDB });
+    escoger(P, [UN_PDF]);
+    await asentar(10);
+    P.ev('window.__enc = null; guardaderoExtractos().encolar(REGISTRO.intento, REGISTRO.celular).then(function (r) { window.__enc = r; })');
+    await asentar(20);
+    assert.equal(P.ev('window.__enc'), true, 'la prueba no pudo encolar');
+    const D0 = Date, d = 40 * 60e3;
+    class Luego extends D0 { constructor(...a) { if (a.length) super(...a); else super(D0.now() + d); } static now() { return D0.now() + d; } }
+    const Q = B.abrir({ almacen, sesion, indexedDB, Date: Luego });
+    await asentar(30);
+    Q.ev('window.__c = "?"; guardaderoExtractos().cola(' + JSON.stringify(B.CEL_MARIA) + ').then(function (c) { window.__c = c ? c.archivos.length : 0; })');
+    await asentar(10);
+    assert.equal(Q.ev('window.__c'), 1, 'el arranque de play/ se llevó la cola de la cuenta');
+  });
   test('«Lo hago después» dice dónde queda el después y lo que va a pasar con lo escogido', async () => {
     const P = enElPaso();
     escoger(P, [UN_PDF]);
@@ -401,6 +421,7 @@ describe('6 · la tarjeta de la app: el «Lo hago después» de verdad', () => {
         return { status: 200, cuerpo: { ok: true, id, tipo: 'pdf', bytes: n } };
       }
       if (/rpc\/extracto_retirar$/.test(url)) {
+        if (o.sinSesionAlRetirar) return { status: 200, cuerpo: { ok: false, motivo: 'sin_sesion' } };
         const n = mia.archivos.length; mia.archivos = [];
         if (mia.autorizacion) mia.autorizacion.revocada_en = '2026-11-19T15:05:00Z';
         return { status: 200, cuerpo: { ok: true, borrados: n } };
@@ -468,6 +489,44 @@ describe('6 · la tarjeta de la app: el «Lo hago después» de verdad', () => {
     await asentar(20);
     assert.ok(ex(A).some(l => /extracto_retirar$/.test(l.url)), 'retirar no llamó a la base');
   });
+  /* 13-nov-2026 (remate) — dos cosas que la revisión no vio cazadas: retirar
+     sin preguntar (M25), y la respuesta de retirar sin mirar: con la sesión
+     vencida (la base contesta {ok:false, motivo:'sin_sesion'}) decía «No hay
+     conexión» y soltaba la cola del teléfono sin que la base borrara nada. */
+  test('«Retirar»: si dice que no, no se llama a la base; con la sesión vencida dice eso, y no suelta lo que esperaba en el teléfono', async () => {
+    const AUT = { version: PUBLICACION, recibida_en: '2026-11-19T15:00:00Z', revocada_en: null };
+    const ARCH = [{ id: 7, tipo: 'pdf', bytes: 2048, creado_en: '2026-11-19T15:01:00Z' }];
+    const A = abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, indexedDB: idbDeMentira(),
+      red: nube({ autorizacion: AUT, archivos: ARCH, sinSesionAlRetirar: true }) });
+    await asentar(30);
+    A.elem('exAbrir')._oyentes.click[0]();
+    await asentar(5);
+    A.ev('confirm = function () { return false; }');
+    A.elem('exRetirar')._oyentes.click[0]();
+    await asentar(20);
+    assert.equal(ex(A).some(l => /extracto_retirar$/.test(l.url)), false, 'retiró sin que la persona dijera que sí');
+    /* Lo que esperaba en este teléfono: la cola de su registro, que no alcanzó a subir. */
+    const cola = { celular: '3001112222', intento: 'i1', autorizada: false, aut: { version: PUBLICACION },
+                   archivos: [{ id: 'a1', tipo: 'pdf', bytes: 38, base64: PDF64, sha256: 'x1' }] };
+    A.ev('window.__q = null; guardaderoEX().guardarCola("3001112222", Object.assign(' + JSON.stringify(cola) + ', { t: Date.now() }))' +
+         '.then(function () { window.__q = 1; }, function (e) { window.__q = String(e); })');
+    await asentar(10);
+    const quedaLaCola = async () => {
+      A.ev('window.__c = "?"; guardaderoEX().cola("3001112222").then(function (c) { window.__c = c ? "sigue" : "se fue"; })');
+      await asentar(10);
+      return A.ev('window.__c');
+    };
+    assert.equal(A.ev('window.__q'), 1, 'la prueba no pudo dejar la cola en el teléfono');
+    assert.equal(await quedaLaCola(), 'sigue', 'la prueba no pudo dejar la cola en el teléfono');
+    A.ev('confirm = function () { return true; }');
+    A.elem('exRetirar')._oyentes.click[0]();
+    await asentar(30);
+    assert.ok(ex(A).some(l => /extracto_retirar$/.test(l.url)));
+    const tarjeta = () => plano(A.elem('exCuenta').innerHTML + ' ' + A.elem('exCuerpo').innerHTML);
+    assert.match(tarjeta(), /Se cerró tu sesión\. Entra otra vez y vuelve a intentar\./);
+    assert.equal(/Listo: borramos tus extractos|No hay conexión/.test(tarjeta()), false);
+    assert.equal(await quedaLaCola(), 'sigue', 'la base no borró nada y el teléfono soltó la cola');
+  });
 });
 
 /* ======================================================================== */
@@ -516,6 +575,10 @@ describe('7 · el CRM los ve, con la clave de Joan; el equipo no', () => {
     /* Quien no subió nada: sin chip. */
     P.ev('telDeSolicitud = function () { return "3009998877"; };');
     assert.equal(/Subió extractos/.test(P.ev('filaDeSolicitud(' + JSON.stringify(s) + ')')), false);
+    /* Ni quien solo marcó la autorización (13-nov, remate: la mutación M23 del
+       revisor, el chip sin mirar si subió algo, no la cazaba nada). */
+    assert.equal(XC.chipSolicitud(Object.assign({}, PERSONA, { pdf: 0, imagenes: 0 })), '', 'el chip dice «Subió extractos» de quien no subió ninguno');
+    assert.match(XC.chipSolicitud(Object.assign({}, PERSONA, { pdf: 0, imagenes: 1 })), /📄 Subió extractos/);
   });
   test('la ficha (que viene de un registro): los archivos con «📄 Ver y descargar», y el resumen de Joan se guarda EN LA FICHA', async () => {
     const P = abrirPanel({});
