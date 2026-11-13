@@ -166,7 +166,7 @@ describe('2 y 3. el toque, mirando, y el crédito en la misma pantalla', () => {
     assert.equal(P.ev("_solicitudes.some(x=>x.id==='s1')"), false, 'la solicitud siguió en la bandeja');
     assert.ok(llamadasA(N, 'marcar_solicitud').some(v => v.c.p_estado === 'atendida'), 'no quedó atendida en la nube');
     assert.ok(preguntas.some(m => /^Crear el crédito de Jorge Antiguo/.test(m)), 'no preguntó antes de registrar');
-    assert.match(avisos(P), /quedó junta con CL-0007[\s\S]*Ahora te muestro el crédito que aceptó/);
+    assert.match(avisos(P), /quedó junta con CL-0007[\s\S]*Sigo con el crédito que aceptó/);
     /* «me avisas para poder desembolsar»: el final dice cuánto girar y a dónde. */
     const fin = preguntas.find(m => /registrado para Jorge Antiguo/.test(m));
     assert.ok(fin, 'no dijo que quedó registrado');
@@ -246,7 +246,7 @@ describe('5. encontrar la ficha y el registro', () => {
     const { P } = montar({ registros: false });
     P.ev("juntarYDesembolsar('s1')");
     await asentar();
-    assert.match(avisos(P), /No encontré el registro de la cuenta del 300 111 2222/);
+    assert.match(avisos(P), /la pidió la cuenta del registro 41, y la nube no me lo devolvió[\s\S]*No la junto con otro registro de ese celular/);
     assert.equal(creditos(P).length, 0);
   });
 
@@ -313,5 +313,160 @@ describe('el aviso de girar, también en el desembolso de siempre', () => {
     P.ev("crearDesdeSolicitud('s1')");
     await asentar();
     assert.ok(preguntas.some(m => /💸 Ya puedes girarle \$1\.200\.000, pero no eligió a qué cuenta: pregúntale por el chat/.test(m)));
+  });
+});
+
+/* ============================================================================
+ * LA REVISIÓN ADVERSARIA DEL 13-NOV (17 hallazgos verificados). Cada prueba es
+ * uno: falla con el código de antes del arreglo.
+ * ==========================================================================*/
+describe('revisión: el registro de ESTA cuenta, y solo ese', () => {
+  test('la nube le quitó el registro_id (el registro es de antes de abrir la cuenta): se dice arriba, no se cruza, y hay clave nueva', async () => {
+    const VIEJO = Object.assign({}, REG, { creado_en: '2026-09-01T10:00:00Z' });
+    const s = ACEPTADA({ registro_id: null });
+    const { P, N } = montar({ solicitudes: [s], registros: [VIEJO],
+      nube: { cuentas_de_registros: [Object.assign({}, CUENTA, { cuenta_creada_en: '2026-11-12T10:00:00Z', minutos_antes_del_registro: -103920 })] } });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    const h = plano(P.elems.mBody.innerHTML);
+    assert.match(h, /Esta cuenta no tiene registro propio\. La nube le quitó el registro a esta solicitud: el registro de ese celular, el del 0?1 de sept de 2026, se hizo ANTES de abrir la cuenta/);
+    /* La cuenta se pinta aparte (#juntarCuenta), cuando contesta la nube. */
+    const cuenta = plano(P.elems.juntarCuenta.innerHTML);
+    assert.match(cuenta, /La cuenta se abrió \d+ días DESPUÉS de este registro/, 'la señal seguía diciendo «es lo normal»');
+    assert.doesNotMatch(cuenta, /es lo normal/);
+    const b = P.elems.juntarBoton.innerHTML;
+    assert.match(b, /juntarConUnToque\('41','C1',true\)/, 'cruzaría en la ficha un registro que no es de esta cuenta');
+    assert.match(b, /claveNuevaYJuntar\('41','C1',true\)">🔑 No estoy seguro: clave nueva al número de su ficha/);
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 0);
+  });
+
+  test('arriba del toque, qué preguntarle por teléfono: qué pidió y a qué cuenta, sin dictárselo', async () => {
+    const { P } = montar();
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    const h = plano(P.elems.mBody.innerHTML);
+    assert.match(h, /📞 Antes de tocar «Sí»: llama al número de su FICHA \(300 111 2222\) y pregúntale qué pidió y a qué cuenta le consignas\. No le digas tú las cifras\. Debe decirte que recibe \$1\.200\.000, y que le consignes a Nequi 300 111 2233\. Si no sabe de qué le hablas, NO la juntes/);
+  });
+
+  test('la solicitud nombra el 50 y este computador tiene el 41 del mismo celular: no usa el 41, le pide el 50 a la nube', async () => {
+    const R50 = Object.assign({}, REG, { id: 50, estado: 'atendido', creado_en: '2026-11-12T10:00:00Z' });
+    const { P, N } = montar({ solicitudes: [ACEPTADA({ registro_id: 50 })], registros: [REG],
+      nube: { listar_registros: c => c.p_estado === 'atendido' ? [R50] : [REG],
+              cuentas_de_registros: c => [Object.assign({}, CUENTA, { registro_id: c.p_ids[0] })] } });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    assert.equal(llamadasA(N, 'listar_registros').length, 2, 'no le preguntó a la nube por el registro que nombra');
+    assert.deepEqual(llamadasA(N, 'cuentas_de_registros')[0].c.p_ids, [50]);
+  });
+
+  test('sin registro_id y sin ningún registro de ese celular: se dice, sin toque', async () => {
+    const { P } = montar({ solicitudes: [ACEPTADA({ registro_id: null })], registros: false });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    assert.match(avisos(P), /no tiene registro, y la nube no junta una cuenta sin registro[\s\S]*que se registre en la app con ese mismo celular/);
+    assert.notEqual((P.elems.mTitle || {}).textContent, '¿Es la misma persona?');
+  });
+});
+
+describe('revisión: «compararlos», lo pendiente y la clave nueva', () => {
+  test('el registro traído por 📨 Solicitudes (no está en la bandeja de nuevos): «compararlos» abre la mesa', async () => {
+    const { P } = montar({ registros: false });
+    P.ev('_registrosDeSolicitudes = ' + JSON.stringify([REG]));
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    assert.match(P.elems.juntarBoton.innerHTML, /mesaDeCruce\('41','C1',true\)/);
+    P.ev("mesaDeCruce('41','C1',true)");
+    await asentar();
+    assert.match(P.elems.mTitle.textContent, /^Cruzar · /, '«No estoy seguro: compararlos» no hizo nada');
+    assert.ok(P.ev('!!_trasJuntar'), 'la mesa desde el toque perdió lo pendiente');
+  });
+
+  test('cerrado el toque sin juntar, juntar desde 📥 Registrados solo junta: ni crédito', async () => {
+    const { P } = montar();
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    P.ev('cerrarModal()');
+    P.ev("abrirJuntarCuenta('41','C1')");
+    await asentar();
+    P.ev("juntarConUnToque('41','C1',false)");
+    await asentar(16);
+    assert.equal(creditos(P).length, 0, 'un toque dado solo para juntar registró el crédito');
+    assert.doesNotMatch(avisos(P), /Sigo con el crédito/);
+  });
+
+  test('la mesa abierta desde 📥 Registrados también olvida lo pendiente', async () => {
+    const { P } = montar();
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    P.ev("mesaDeCruce('41','C1')");
+    assert.equal(P.ev('_trasJuntar'), null);
+  });
+
+  test('con la clave nueva desde el toque, el crédito no sigue solo, y se dice que lo aceptó quien estaba adentro', async () => {
+    const { P } = montar({ nube: { clave_temporal_joan: { ok: true, clave: 'PRUEBA-123' } } });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    P.ev("claveNuevaYJuntar('41','C1',false)");
+    await asentar(16);
+    assert.match(plano(P.elems.mBody.innerHTML), /El crédito NO lo registré\. Lo que aceptó, y la cuenta a la que pidió que le consignes, lo eligió quien estaba en esa cuenta ANTES de la clave nueva/);
+    assert.equal(P.ev('_trasJuntar'), null);
+    assert.equal(creditos(P).length, 0);
+  });
+
+  test('juntada tras una clave nueva, una aceptación de ANTES pregunta antes de desembolsar; con el no, nada', async () => {
+    const FICHA = Object.assign({}, JORGE, { cuentaJunta: { celular: CEL, fecha: '2026-11-13', registro_id: 41, por: 'crm', seguraDesde: '2026-11-13T20:00:00Z' } });
+    const { P, preguntas } = montar({ socios: [FICHA], responde: m => !/ANTES de que la clave nueva/.test(m) });
+    P.ev("crearDesdeSolicitud('s1')");
+    await asentar();
+    assert.ok(preguntas.some(m => /aceptó esta propuesta el .*ANTES de que la clave nueva que le diste dejara afuera a quien estuviera en su cuenta/.test(m)), preguntas.join('\n---\n'));
+    assert.equal(creditos(P).length, 0);
+  });
+
+  test('juntarCuentaEnLaNube anota desde cuándo la cuenta es segura cuando se junta tras una clave nueva', async () => {
+    const FICHA = Object.assign({}, JORGE, { cuentaPorJuntar: { registro_id: 41, desde: '2026-11-13', por: 'crm', noAntesDe: '2026-11-13T20:00:00Z' } });
+    const { P } = montar({ socios: [FICHA] });
+    P.ev("juntarCuentaEnLaNube({id:41},DB.socios[0],PUENTE.llaveEnLaNube(DB.socios[0]),'crm',{})");
+    await asentar(8);
+    assert.equal(P.ev('DB.socios[0].cuentaJunta.seguraDesde'), '2026-11-13T20:00:00Z');
+  });
+});
+
+describe('revisión: los avisos dicen lo que pasó', () => {
+  test('la ficha ya junta con OTRA cuenta: no dice «Quedó anotada», manda a mirar esa unión', async () => {
+    const { P } = montar({ nube: { vincular_cuenta_joan: { ok: false, motivo: 'ficha_con_otra_cuenta' } } });
+    P.ev('DB.socios[0].cuentaJunta = ' + JSON.stringify({ celular: '3009990000', fecha: '2026-11-01', registro_id: 9 }));
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    P.ev("mesaDeCruce('41','C1',true)");
+    await asentar();
+    P.ev("aplicarCruce('41','C1')");
+    await asentar(16);
+    assert.match(avisos(P), /NO registré nada[\s\S]*ya está junta con OTRA cuenta[\s\S]*«🔗 Ver en la nube»/);
+    assert.doesNotMatch(avisos(P), /Quedó anotada/);
+  });
+
+  test('sin propuesta todavía: al juntar dice que le proponga, no «cuando acepte»', async () => {
+    const s = SOL({ estado: 'nueva', contrapropuesta: null });
+    const { P } = montar({ solicitudes: [s] });
+    await tocarYJuntar(P);
+    assert.match(avisos(P), /Ahora propónle con «✏️ Proponer»/);
+    assert.doesNotMatch(avisos(P), /Cuando acepte/);
+  });
+
+  test('ya junta, la fila dice su ficha y no «nuevo · la ficha se crea al desembolsar»', async () => {
+    const s = ACEPTADA({ datos: { nombres: 'Jorge', apellidos: 'Antiguo', celular: CEL } });
+    const { P } = montar({ solicitudes: [s], responde: m => !/^Crear el crédito/.test(m) });
+    await tocarYJuntar(P);
+    const h = plano(fila(P));
+    assert.match(h, /Jorge Antiguo CL-0007/);
+    assert.doesNotMatch(h, /la ficha se crea al desembolsar/);
+  });
+
+  test('con garantía: el aviso de la fila nombra el mismo botón que tiene la fila', () => {
+    const s = ACEPTADA({ producto: 'respaldado', tasa: 0.1, plazo_meses: 3, total: 1500000 });
+    const { P } = montar({ solicitudes: [s] });
+    const h = fila(P);
+    assert.match(h, />🔗 Juntar y revisar préstamo</);
+    assert.match(plano(h), /«🔗 Juntar y revisar préstamo» te deja compararlas/);
   });
 });

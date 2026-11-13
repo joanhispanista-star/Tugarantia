@@ -29,6 +29,13 @@
  * Pruebas: pruebas/una-puerta-crm.test.js, pruebas/una-puerta-celular.test.js
  * y pruebas/una-puerta-cierres-crm.test.js.
  * ==========================================================================*/
+/* 13-nov-2026 — la firma de llegada, como cada .js que una página pide con
+   ?v= (desde v145 este también: ver la nota de v145 en sw.js). Va PRIMERO a
+   propósito: firma que llegó ESTE archivo; si más abajo algo revienta en algún
+   teléfono, eso no es mezclar versiones. En Node no hay document y no hace
+   nada. Ver «¿LLEGÓ LO QUE PEDÍ?» en las páginas y la nota de v139 en sw.js. */
+(function () { try { var s = document.currentScript; if (s && s.src) (window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();
+
 (function (raiz, fabrica) {
   'use strict';
   if (typeof module === 'object' && module.exports) module.exports = fabrica();
@@ -179,6 +186,13 @@
       if (min > 60) {
         out.push({ ojo: true, texto: 'La cuenta se abrió ' + horas(min) + ' ANTES de este registro. Lo normal es que se abra segundos después: ' +
           'puede ser que alguien la abriera con este número antes que su dueño.' });
+      } else if (min < -60) {
+        /* 13-nov-2026 (revisión) — antes esto caía en «es lo normal». Una cuenta
+           abierta días DESPUÉS del registro puede ser de otra persona con el
+           número de tu cliente: el registro es de tu cliente (y él dirá que sí
+           es suyo), la cuenta no se sabe. */
+        out.push({ ojo: true, texto: 'La cuenta se abrió ' + horas(-min) + ' DESPUÉS de este registro. Lo normal es que se abra segundos después: ' +
+          'el registro puede ser de tu cliente y la cuenta de otra persona que usa su número. Al llamarlo, pregúntale si abrió él una cuenta en la app y qué hizo con ella.' });
       } else {
         out.push({ ojo: false, texto: 'La cuenta se abrió con el registro (es lo normal).' });
       }

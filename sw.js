@@ -2280,8 +2280,18 @@
      nunca solo), y si la nube junta sigue con el crédito que aceptó en la misma
      pantalla. Volverla a mandar sobraba: juntada la cuenta, socioDeSolicitud ya pega la
      misma solicitud a la ficha. Si la nube no junta, o pide la clave nueva, no se
-     registra nada. Y el final de todo desembolso desde una solicitud dice cuánto girar y
-     a dónde («💸 Ya puedes girarle…»).
+     registra nada. Y el final del desembolso quincenal desde una solicitud (de un pago o
+     a cuotas; el con garantía no) dice cuánto girar y a dónde («💸 Ya puedes girarle…»).
+     La revisión adversaria (17 hallazgos verificados) dejó: el toque usa SOLO el registro
+     que la solicitud nombra (lo pide a la nube si no está traído); una cuenta sin
+     registro propio (la nube le quitó el registro_id) lo dice arriba, no se cruza y
+     ofrece la clave nueva; arriba del toque, qué preguntarle por teléfono (qué pidió y a
+     qué cuenta, sin dictárselo); panel/una-puerta.js ya no llama «lo normal» a una
+     cuenta abierta días DESPUÉS del registro (y por eso pasa a ?v=145 en crm.html,
+     espejo.html y la precarga, con la firma de llegada que lleva todo .js versionado); la mesa de cruce encuentra el registro
+     traído de 📨 Solicitudes; un toque abierto por otra puerta olvida lo pendiente;
+     aceptada antes de una clave nueva se pregunta antes de desembolsar; y los avisos
+     dicen lo que pasó de verdad (anotada o no, propuesta o no, con garantía).
    CACHE y VERSION_SITIO suben a v145 en las cinco páginas que se actualizan solas. Ni
    app/socio.html ni play/ ni PlataChat cambian más que su VERSION_SITIO: VERSION_APP y
    VERSION_PLAY se quedan en 2026-11-13. NO HAY BASE NUEVA. Queda un hueco de SQL sin
@@ -2356,8 +2366,11 @@ const ARCHIVOS = [
   'panel/nube-crm.js?v=143',   // 4-nov-2026 — ?v=143: una nota sobre la pestaña vieja; la regla mira el texto (ver la nota de v143)
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
   'panel/historiales-auto.js?v=139',
-  /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132. */
-  'panel/una-puerta.js',
+  /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132.
+     13-nov-2026 — ?v=145: v145 le cambió una señal (la cuenta abierta días DESPUÉS
+     del registro ya no es «lo normal»), y sin la versión en la dirección una
+     caché vieja le daría al CRM nuevo las palabras de antes. */
+  'panel/una-puerta.js?v=145',
   /* 15-oct-2026 — las reglas de la venta del gerente. Ver la nota de v136. */
   'panel/gerente-vende.js',
   /* 19-oct-2026 — «🔑 Mi contraseña» del equipo: crm.html la carga con <script src>. Ver la nota de v138. */
