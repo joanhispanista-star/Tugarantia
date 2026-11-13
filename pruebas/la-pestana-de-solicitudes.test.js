@@ -607,6 +607,23 @@ describe('4. que Joan se entere cuando alguien pide', () => {
     assert.match(sinEtiquetas(P.elems.avisoSolicitudesNuevas.innerHTML), /Ana Inventada pidió/);
   });
 
+  /* 13-nov-2026 (remate) — la revisión: con dos pestañas del CRM abiertas, la que no
+     se miró seguía con el aviso y el «(n)» hasta un F5 (_solVistas se lee una vez). */
+  test('con dos pestañas del CRM, lo que miró la otra se le quita a esta, sin olvidar lo que esta ya miró', async () => {
+    const M = await conUnaVieja();
+    await M.llega(ANA);
+    assert.match(sinEtiquetas(M.P.elems.avisoSolicitudesNuevas.innerHTML), /Ana Inventada pidió/);
+    assert.equal(M.P.ctx.document.title, '(1) Tu Garantía · Panel');
+    /* El oyente es el de la cartera, que se pone después del PIN (window, 'storage'). */
+    assert.match(CRM, /window\.addEventListener\('storage', alEscribirOtraPagina\)/);
+    /* La otra pestaña abrió 📨 Solicitudes: guardó solo las que tiene abiertas (la 801 ya se cerró allá). */
+    M.P.almacen[LLAVE] = JSON.stringify(['802']);
+    M.P.ev("alEscribirOtraPagina({ key: '" + LLAVE + "' })");
+    assert.equal(M.P.elems.avisoSolicitudesNuevas.innerHTML, '', 'la otra pestaña ya la miró, y esta la sigue anunciando');
+    assert.equal(M.P.ctx.document.title, 'Tu Garantía · Panel');
+    assert.deepEqual(JSON.parse(M.P.ev('JSON.stringify(_solVistas)')).sort(), ['801', '802'], 'olvidó lo que esta pestaña ya había mirado');
+  });
+
   test('sin sonido: el aviso no crea audio', async () => {
     const M = await conUnaVieja();
     let sonidos = 0;

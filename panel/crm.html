@@ -9914,11 +9914,14 @@ function pintarAvisos(){
    Garantía · Panel». Es lo que se ve desde otra pestaña sin globo ni sonido.
    Con la nube fallando no se deja un número viejo: se quita. */
 const TITULO_CRM='Tu Garantía · Panel';
-/* 13-nov-2026 — Y LAS SOLICITUDES QUE NO HAS MIRADO: «(1) Tu Garantía · Panel» cuando
-   alguien pide y estás en otra pestaña del navegador. Cuentan aparte del chat: si la
-   nube del chat falla, el número del chat se quita, pero una solicitud que llegó
-   sigue siendo una solicitud que llegó. Sin app/chat-vivo.js el título no se tocaba
-   y sigue sin tocarse, salvo para decir eso. */
+/* 13-nov-2026 — Y LAS SOLICITUDES QUE NO HAS MIRADO: «(1) Tu Garantía · Panel», que
+   se ve desde otra pestaña del navegador. OJO, que no promete más: con el CRM
+   escondido el reloj pregunta SOLO por el chat (vueltaDelReloj), así que una
+   solicitud que llega mientras Joan está en WhatsApp Web no mueve este número hasta
+   que vuelve al CRM. Lo que sí hace es quedarse puesto mientras no la mire. Cuentan
+   aparte del chat: si la nube del chat falla, el número del chat se quita, pero una
+   solicitud que llegó sigue siendo una solicitud que llegó. Sin app/chat-vivo.js el
+   título no se tocaba y sigue sin tocarse, salvo para decir eso. */
 function pintarTituloChat(c,falla){
   let sinVer=0; try{ sinVer=solicitudesSinVer().length; }catch(e){}
   const n=(falla?0:(Number(c.mensajes||0)+Number(c.equipo||0)))+sinVer;
@@ -25143,6 +25146,18 @@ function entrar(){ const retomada=_retomandoDueno===true, campoPin=document.getE
 var _oyendoCartera=false, _recargaPendiente=false;
 function alEscribirOtraPagina(ev){
   try{
+    /* 13-nov-2026 (remate) — y lo que OTRA pestaña del CRM ya miró en 📨 Solicitudes.
+       _solVistas se lee una vez; sin esto, con dos pestañas abiertas, la que no se
+       miró seguía con el 🔔 y el «(n)» hasta un F5. Se vuelve a leer, sumándole lo
+       que ESTA ya había mirado (la otra guarda solo las que tiene abiertas), y se
+       repinta; los números no suben, así que no hay globo ni sonido (avisarSiHayNuevo). */
+    if(ev && ev.key===LLAVE_SOL_VISTAS){
+      const antes=_solVistas; _solVistas=undefined;
+      const ahora=idsSolicitudesVistas();
+      if(Array.isArray(antes)&&Array.isArray(ahora)) antes.forEach(id=>{ if(ahora.indexOf(id)<0) ahora.push(id); });
+      else if(Array.isArray(antes)) _solVistas=antes;
+      pintarAvisos(); return;
+    }
     if(!ev || ev.key!==KEY || CARTERA_EQUIPO || !_carteraAjena()) return;
     if(estoyOcupado()){ esperarParaRecargar(); return; }
     recargarSinReclamar();
