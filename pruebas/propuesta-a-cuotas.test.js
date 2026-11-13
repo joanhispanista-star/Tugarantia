@@ -71,6 +71,7 @@ function crm(o) {
     let cuerpo = null; try { cuerpo = cfg && cfg.body ? JSON.parse(cfg.body) : null; } catch (e) { cuerpo = null; }
     vistas.push({ fn, cuerpo });
     if (o.sinFuncion && fn === o.sinFuncion) return Promise.resolve(resp(404, { message: 'no existe' }));
+    if (o.rpc && o.rpc[fn] !== undefined) return Promise.resolve(resp(200, o.rpc[fn]));
     if (/^listar_/.test(fn || '')) return Promise.resolve(resp(200, []));
     return Promise.resolve(resp(200, { ok: true }));
   };
@@ -755,6 +756,33 @@ describe('5. Desembolsarla: el mismo crédito que el registro a cuotas, con lo a
     P.ev("crearDesdeSolicitud('77')");
     assert.equal(P.ev('DB.prestamos.length'), 0);
     assert.ok(preguntas.some(t => /^ALERT ⚠️ Lo que aceptó Ana Prueba tenía la primera cuota/.test(t)), preguntas.join('\n'));
+  });
+
+  /* 13-nov-2026 — el caso que trajo «🔗 Juntar y desembolsar»: la pidió una
+     cuenta sin juntar con el celular de la ficha (ver pruebas/juntar-y-desembolsar.test.js). */
+  test('pedida por una cuenta sin juntar: «🔗 Juntar y desembolsar» junta y registra el MISMO crédito a cuotas', async () => {
+    const { sol } = solicitudAceptada();
+    sol.cuenta_sin_juntar = true;
+    const { P, vistas, preguntas } = crm({ solicitudes: [sol], rpc: {
+      cuentas_de_registros: [{ registro_id: 66, celular: CEL, cuenta: true }],
+      vincular_cuenta_joan: { ok: true, ya_estaba: false, nombre: 'Ana Prueba', celular: CEL } } });
+    P.ev('_registros = ' + JSON.stringify([{ id: 66, nombre: 'Ana Prueba', cedula: '', telefono: CEL, estado: 'nuevo',
+      creado_en: '2026-11-10T10:00:00Z', datos: {} }]));
+    P.ev('renderBandeja()');
+    assert.match(P.elems.bandeja.innerHTML, /onclick="juntarYDesembolsar\('77'\)"[^>]*>🔗 Juntar y desembolsar/);
+    P.ev("juntarYDesembolsar('77')");
+    await asentar();
+    assert.equal(P.ev('DB.prestamos.length'), 0, 'registró antes del toque');
+    P.ev("juntarConUnToque('66','C700',false)");
+    await asentar(16);
+    assert.ok(vistas.some(v => v.fn === 'vincular_cuenta_joan' && Number(v.cuerpo.p_registro_id) === 66), 'no juntó');
+    const ps = JSON.parse(P.ev('JSON.stringify(DB.prestamos)'));
+    assert.equal(ps.length, 1, preguntas.join('\n---\n'));
+    assert.equal(ps[0].socioId, 'C700');
+    const plan = M.construirPlanACuotas(2000000, ENTRADAS, { fechaDesembolso: HOY });
+    assert.deepEqual(ps[0].planPagos, JSON.parse(JSON.stringify(PU.planPagosDeAlta(plan))));
+    assert.ok(preguntas.some(m => /^Crear el crédito A CUOTAS de Ana Prueba/.test(m)), preguntas.join('\n---\n'));
+    assert.ok(preguntas.some(m => /registrado para Ana Prueba\.\n\n💸 Ya puedes girarle \$2\.000\.000 a Nequi/.test(m)), preguntas.join('\n---\n'));
   });
 });
 

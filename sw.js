@@ -2272,6 +2272,16 @@
      El JSON de panel/mapa/ se regeneró con nombre NUEVO (lleva una «b»; ~600 KB) y
      sigue sin ir en la precarga; el de v144 se queda en el repo para un CRM v144 que
      siga abierto y se puede borrar cuando v145 lleve unos días publicado.
+   · «🔗 JUNTAR Y DESEMBOLSAR» (panel/crm.html, rama juntar-y-desembolsar). Joan: «no
+     quiero ir a otra página para registrar el crédito ya que el cliente aceptó». La fila
+     de una solicitud de cuenta sin juntar ya no avisa «júntale la cuenta en 📥
+     Registrados y pídele que la vuelva a mandar»: abre «¿Es la misma persona?» con la
+     ficha de ese celular y el registro de la cuenta (el MISMO toque de siempre, mirando,
+     nunca solo), y si la nube junta sigue con el crédito que aceptó en la misma
+     pantalla. Volverla a mandar sobraba: juntada la cuenta, socioDeSolicitud ya pega la
+     misma solicitud a la ficha. Si la nube no junta, o pide la clave nueva, no se
+     registra nada. Y el final de todo desembolso desde una solicitud dice cuánto girar y
+     a dónde («💸 Ya puedes girarle…»).
    CACHE y VERSION_SITIO suben a v145 en las cinco páginas que se actualizan solas. Ni
    app/socio.html ni play/ ni PlataChat cambian más que su VERSION_SITIO: VERSION_APP y
    VERSION_PLAY se quedan en 2026-11-13. NO HAY BASE NUEVA. Queda un hueco de SQL sin
