@@ -1,0 +1,114 @@
+/* ===========================================================================
+ * MAPA-CLIENTES — la hoja de la pestaña «🗺️ Mapa» del CRM (9-nov-2026).
+ *
+ * Sin un color a mano: todo sale de los tokens de panel/crm.html («LA LEY DE
+ * LA PALETA DEL PANEL»), y por las mismas razones que esa ley dice:
+ *   · Departamentos va sobre PAPEL y en AZUL, que es «lo que informa». Un
+ *     tramo por intensidad del mismo azul; el 1 y el 2 comparten tramo, para
+ *     que ni el color diga cuál de los dos es.
+ *   · Conquistas va sobre LACA y en AMARILLO: lo conquistado es lo que se
+ *     construyó, y el amarillo solo existe sobre la laca.
+ *   · Nada en rojo: el rojo nunca es un estado ni una cifra.
+ * Los trazos llevan vector-effect:non-scaling-stroke: el SVG cambia de escala
+ * (toda Colombia o un departamento) y el borde tiene que medir lo mismo.
+ * ===========================================================================*/
+.mapa-vistas{display:inline-flex;gap:var(--e1);background:var(--neutro-1);border-radius:12px;padding:var(--e1);margin-bottom:var(--e3)}
+.mapa-vista{border:0;background:transparent;color:var(--tinta-2);font:inherit;font-weight:700;font-size:13.5px;
+  padding:9px 14px;border-radius:9px;min-height:40px;cursor:pointer}
+.mapa-vista.on{background:var(--papel);color:var(--laca);box-shadow:0 1px 3px rgba(var(--laca-rgb),.12)}
+.mapa-cargando{padding:var(--e4);color:var(--gris);font-size:14px}
+
+.mapa-cuerpo{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:var(--e4);align-items:start}
+.mapa-lienzo{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);padding:var(--e3);position:relative}
+.mapa-lienzo.mapa-laca{background:var(--laca);border-color:var(--laca)}
+.mapa-svg{display:block;width:100%;height:auto;max-height:72vh;margin:0 auto}
+.mapa-volver{margin-bottom:var(--e2)}
+
+/* Departamentos (papel, azul). */
+.mapa-z{stroke:var(--papel);stroke-width:.7px;vector-effect:non-scaling-stroke;stroke-linejoin:round;cursor:pointer}
+.mapa-z.t0{fill:var(--neutro-1)}
+.mapa-z.t1{fill:rgba(var(--azul-rgb),.16)}
+.mapa-z.t2{fill:rgba(var(--azul-rgb),.34)}
+.mapa-z.t3{fill:rgba(var(--azul-rgb),.56)}
+.mapa-z.t4{fill:rgba(var(--azul-rgb),.80)}
+.mapa-z.t5{fill:var(--azul-osc)}
+.mapa-papel .mapa-z:hover{stroke:var(--laca);stroke-width:1.6px}
+.mapa-papel .mapa-borde{fill:none;stroke:var(--tinta-2);stroke-width:1.4px;vector-effect:non-scaling-stroke;pointer-events:none}
+
+/* Conquistas (laca, amarillo). */
+.mapa-q{stroke:var(--laca);stroke-width:.4px;vector-effect:non-scaling-stroke;cursor:pointer}
+/* 10-nov: «Con clientes» iba al 32 % y casi no se distinguía de «Sin
+   clientes»; ahora al 50 %, que sigue lejos del amarillo entero. Y lo
+   conquistado lleva borde de su mismo amarillo: 2 px que se ven aunque el
+   municipio mida un punto (mapa-clientes.js lo pinta al final). */
+.mapa-q.vacio{fill:var(--laca-3)}
+.mapa-q.con{fill:rgba(var(--amarillo-rgb),.5)}
+.mapa-q.conq{fill:var(--amarillo);stroke:var(--amarillo);stroke-width:2px}
+.mapa-oscuro .mapa-q:hover{stroke:var(--blanco-laca);stroke-width:1.2px}
+.mapa-oscuro .mapa-borde{fill:none;stroke:rgba(var(--blanco-laca-rgb),.38);stroke-width:.8px;vector-effect:non-scaling-stroke;pointer-events:none}
+
+/* El municipio tocado (marcar() en mapa-clientes.js): un borde grueso, que
+   se ve aunque a escala de país el municipio mida un punto. Va después del
+   :hover para que pasar el ratón no se lo adelgace. */
+.mapa-papel .mapa-z.mapa-sel{stroke:var(--laca);stroke-width:2.5px}
+.mapa-oscuro .mapa-q.mapa-sel{stroke:var(--blanco-laca);stroke-width:2.5px}
+
+.mapa-recuadro{fill:none;stroke:var(--linea);stroke-width:1px;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
+.mapa-recuadro-t{font-size:120px;fill:var(--gris);font-family:'Inter',system-ui,sans-serif}
+.mapa-oscuro .mapa-recuadro{stroke:rgba(var(--blanco-laca-rgb),.25)}
+.mapa-oscuro .mapa-recuadro-t{fill:rgba(var(--blanco-laca-rgb),.55)}
+
+.mapa-info{font-size:13px;color:var(--tinta-2);margin-top:var(--e2);min-height:2.6em;line-height:1.4}
+.mapa-laca .mapa-info{color:rgba(var(--blanco-laca-rgb),.78)}
+.mapa-leyenda{display:flex;flex-wrap:wrap;gap:var(--e2) var(--e3);font-size:12px;color:var(--gris);margin-top:var(--e1)}
+.mapa-laca .mapa-leyenda{color:rgba(var(--blanco-laca-rgb),.7)}
+.mapa-leyenda span{display:inline-flex;align-items:center;gap:6px}
+.mapa-leyenda i{display:inline-block;width:14px;height:14px;border-radius:4px;border:1px solid var(--linea)}
+.mapa-leyenda .mapa-z.t0{background:var(--neutro-1)}
+.mapa-leyenda .mapa-z.t1{background:rgba(var(--azul-rgb),.16)}
+.mapa-leyenda .mapa-z.t2{background:rgba(var(--azul-rgb),.34)}
+.mapa-leyenda .mapa-z.t3{background:rgba(var(--azul-rgb),.56)}
+.mapa-leyenda .mapa-z.t4{background:rgba(var(--azul-rgb),.80)}
+.mapa-leyenda .mapa-z.t5{background:var(--azul-osc)}
+.mapa-leyenda-q i{border-color:rgba(var(--blanco-laca-rgb),.2)}
+.mapa-leyenda .mapa-q.vacio{background:var(--laca-3)}
+.mapa-leyenda .mapa-q.con{background:rgba(var(--amarillo-rgb),.5)}
+.mapa-leyenda .mapa-q.conq{background:var(--amarillo)}
+
+.mapa-lado{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);padding:var(--e3) var(--e4)}
+.mapa-h{font-size:15px;font-weight:800;margin:var(--e3) 0 var(--e2)}
+.mapa-h:first-child{margin-top:0}
+.mapa-total{font-size:13.5px;color:var(--tinta-2);margin-bottom:var(--e3)}
+.mapa-total b{font-family:'JetBrains Mono',monospace;font-size:18px;color:var(--laca)}
+/* La nota de un total en rango («5–7»), pegada a él: es su explicación. */
+.mapa-nota{font-size:12px;line-height:1.4;margin:calc(-1 * var(--e2)) 0 var(--e3)}
+.mapa-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--e2);margin-bottom:var(--e3)}
+.mapa-kpis div{background:var(--laca);color:var(--blanco-laca);border-radius:12px;padding:var(--e3);display:flex;flex-direction:column;gap:2px}
+.mapa-kpis b{font-family:'JetBrains Mono',monospace;font-size:20px;color:var(--amarillo)}
+.mapa-kpis span{font-size:11.5px;color:rgba(var(--blanco-laca-rgb),.7)}
+.mapa-lista{list-style:none;margin:0;padding:0;max-height:52vh;overflow-y:auto}
+.mapa-lista li+li{border-top:1px solid var(--linea-2)}
+.mapa-fila{display:flex;justify-content:space-between;align-items:center;gap:var(--e3);width:100%;border:0;background:transparent;
+  font:inherit;font-size:14px;color:var(--tinta);text-align:left;padding:10px 4px;min-height:44px;cursor:pointer}
+.mapa-fila:hover{background:var(--papel-2)}
+.mapa-fila small{color:var(--gris);font-size:12px;font-weight:500}
+.mapa-fila b{font-family:'JetBrains Mono',monospace;font-size:13.5px;white-space:nowrap;color:var(--laca)}
+
+.mapa-sin{background:var(--ambar-tinte);border:1px solid var(--ambar-medio);border-radius:var(--r);padding:var(--e3) var(--e4);margin-top:var(--e4);color:var(--tinta-2)}
+.mapa-sin summary{cursor:pointer;font-weight:700;color:var(--ambar);min-height:28px}
+.mapa-sin ol{list-style:none;margin:var(--e2) 0 0;padding:0}
+.mapa-sin li{display:flex;justify-content:space-between;align-items:center;gap:var(--e3);padding:var(--e2) 0;border-top:1px solid var(--ambar-medio);font-size:13.5px}
+.mapa-sin li .btn{flex:none}
+.mapa-creditos{font-size:11.5px;color:var(--gris-claro);margin-top:var(--e3);line-height:1.5}
+
+/* A 880 px o menos (la misma cifra del menú del CRM): el mapa arriba y la
+   lista debajo, y la lista sin su propio desplazamiento, que en un celular
+   atrapa el dedo. */
+@media (max-width:880px){
+  .mapa-cuerpo{grid-template-columns:minmax(0,1fr)}
+  .mapa-svg{max-height:none}
+  .mapa-lista{max-height:none;overflow:visible}
+  .mapa-vista{min-height:44px}
+  .mapa-sin li{flex-direction:column;align-items:stretch}
+  .mapa-sin li .btn{min-height:44px;justify-content:center}
+}

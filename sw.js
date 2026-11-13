@@ -2372,7 +2372,14 @@ const ARCHIVOS = [
      aparecen). Tienen que llegar JUNTO con las páginas que los llaman. */
   'app/fondos-pension.js',
   'app/historia-laboral.js',
-  'panel/historia-laboral-crm.js'
+  'panel/historia-laboral-crm.js',
+  /* 10-nov-2026 — la pestaña «🗺️ Mapa»: sus dos guiones y su hoja los pide crm.html, así que
+     llegan JUNTO con él (sin señal, la pestaña dice que el mapa no cargó en vez de romper).
+     El mapa en sí (el JSON de panel/mapa/, ~570 KB) NO va aquí: se pide al abrir
+     la pestaña y queda guardado esa vez. */
+  'panel/mapa-lugares.js?v=143',
+  'panel/mapa-clientes.js?v=143',
+  'panel/mapa-clientes.css?v=143'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {

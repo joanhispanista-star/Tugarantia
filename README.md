@@ -480,6 +480,25 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         lateral y en Ajustes; lo que falla sale en rojo y se
                         reintenta solo con espera creciente. Si falta
                         app/etapas.js no se puede publicar y la línea lo dice.
+  mapa-clientes.js      La pestaña «🗺️ Mapa» del CRM (9-nov-2026, decisión de Joan
+                        con maquetas): «Departamentos» (Colombia pintada por
+                        clientes; al tocar uno, sus municipios) y «Conquistas»
+                        (un municipio se conquista con 3 clientes con un
+                        crédito pagado entero, con la regla del motor:
+                        PUENTE.cerroConPerdida). Zonas, nunca puntos: no usa el
+                        GPS ni coordenadas del cliente; con 1 o 2 clientes dice
+                        «1–2», y para que no se despeje la cifra, un total con
+                        una zona así va en rango («Huila 5–7») y las listas se
+                        ordenan solo por lo que se ve. Solo LEE la cartera.
+                        Hoja: mapa-clientes.css.
+  mapa-lugares.js       De la «Ciudad» que escribió el cliente, su municipio
+                        (código DIVIPOLA). Un nombre repetido sin departamento
+                        («Mosquera») no se adivina: queda sin ubicar, con el
+                        enlace a su ficha.
+  mapa/                 colombia-2026-11.json, el mapa (1.122 municipios, 570 KB):
+                        se baja al abrir la pestaña, NO va en la precarga del
+                        service worker. De dónde sale y su licencia: FUENTES.md.
+                        Pruebas: pruebas/mapa-clientes.test.js.
   subir.html            Ajustes → Avanzado (plegado). Lo que todavía es a mano:
                         entrar con el correo la primera vez, traer lo hecho en el
                         celular, decidir choques y subir plantillas y configuración
@@ -845,6 +864,9 @@ descargas/
 herramientas/
   ficha-play.js         Genera PLAY-FICHA.md desde el código. No editar la ficha
                         a mano: se regenera.
+  mapa-colombia.js      Arma panel/mapa/colombia-2026-11.json con las descargas de
+                        geoBoundaries y OCHA/HDX (que no viven en el repo; se
+                        pasan por argumento). Ver panel/mapa/FUENTES.md.
   marca/                Las fuentes de la marca de oro (23-oct-2026): icono.svg (el
                         ícono maestro, a sangre), logo.svg (la G sola) y marca.svg.
                         Los PNG de app/ salieron de icono.svg con Chrome sin ventana
