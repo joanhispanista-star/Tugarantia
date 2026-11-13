@@ -6750,18 +6750,32 @@ function fechasPropuestasAlta(f,actuales,n){
   }
   return fs;
 }
+/* 13-nov-2026 — LAS FILAS DE LAS CUOTAS, UNA SOLA VEZ. Las usan el registro
+   a cuotas (prefijo 'qa') y la propuesta quincenal a cuotas de ✏️ Proponer
+   (prefijo 'pq'): la misma fecha, el mismo % y el mismo capital por cuota, con
+   el mismo techo. Si cada pantalla armara las suyas, el día que una cambie el
+   techo o el rótulo la otra se quedaría con el de antes. `enFecha` y `enOtro`
+   son lo que corre al escribir: en la fecha, además, anotar que Joan la tocó. */
+function filasDeCuotasHTML(pre,n,enFecha,enOtro){
+  return Array.from({length:n},(_,i)=>`<div style="display:grid;grid-template-columns:1.3fr .6fr 1fr;gap:8px;align-items:end">
+      <div class="field"><label>Cuota ${i+1} · fecha</label><input id="${pre}F${i+1}" type="date" oninput="${enFecha}"></div>
+      <div class="field"><label>%</label><input id="${pre}P${i+1}" type="number" inputmode="numeric" min="1" max="${TASA_TECHO_PCT}" step="1" oninput="${enOtro}"></div>
+      <div class="field"><label>Capital</label><input id="${pre}K${i+1}" type="number" inputmode="numeric" placeholder="partes iguales" oninput="${enOtro}"></div>
+    </div>`).join('');
+}
+/* Lo que hay escrito en las filas, de la 1 a la 6, aunque se vean menos. */
+function filasEscritas(pre){
+  const antes=[];
+  for(let i=1;i<=MotorReglas.CUOTAS_ALTA_MAX;i++) antes.push({f:gv(pre+'F'+i),p:gv(pre+'P'+i),k:gv(pre+'K'+i)});
+  return antes;
+}
 /* Las filas se rehacen al cambiar cuántas cuotas son, y lo escrito se
    conserva: se lee ANTES de repintar y se vuelve a poner DESPUÉS, porque el
    innerHTML de un navegador nace con los campos vacíos. */
 function filasAlta(){
   const caja=document.getElementById('qaFilas'); if(!caja) return;
-  const n=cuantasCuotasAlta(), antes=[];
-  for(let i=1;i<=MotorReglas.CUOTAS_ALTA_MAX;i++) antes.push({f:gv('qaF'+i),p:gv('qaP'+i),k:gv('qaK'+i)});
-  caja.innerHTML=Array.from({length:n},(_,i)=>`<div style="display:grid;grid-template-columns:1.3fr .6fr 1fr;gap:8px;align-items:end">
-      <div class="field"><label>Cuota ${i+1} · fecha</label><input id="qaF${i+1}" type="date" oninput="_alta.tocadas=true;calcAltaCuotas()"></div>
-      <div class="field"><label>%</label><input id="qaP${i+1}" type="number" inputmode="numeric" min="1" max="${TASA_TECHO_PCT}" step="1" oninput="calcAltaCuotas()"></div>
-      <div class="field"><label>Capital</label><input id="qaK${i+1}" type="number" inputmode="numeric" placeholder="partes iguales" oninput="calcAltaCuotas()"></div>
-    </div>`).join('');
+  const n=cuantasCuotasAlta(), antes=filasEscritas('qa');
+  caja.innerHTML=filasDeCuotasHTML('qa',n,'_alta.tocadas=true;calcAltaCuotas()','calcAltaCuotas()');
   const fechas=fechasPropuestasAlta(gv('qFecha'),_alta.tocadas?antes.map(x=>x.f):[],n);
   for(let i=1;i<=n;i++){
     const ef=document.getElementById('qaF'+i), ep=document.getElementById('qaP'+i), ek=document.getElementById('qaK'+i);
@@ -6785,11 +6799,16 @@ function fraseDelMotorAlta(e){
     .replace(/^cuotas:\s*/,'').replace(/^capital:\s*/,'Capital: ');
 }
 /* EL plan, tal como lo arma el motor con lo que hay en el formulario.
-   {ok, plan} o {ok:false, error}. Nunca lanza. */
-function planDelAlta(cap,f){
-  const n=cuantasCuotasAlta(), entrada=[];
+   {ok, plan} o {ok:false, error}. Nunca lanza.
+   13-nov-2026 — `pre` y `n` dicen de qué filas: sin ellos, las del registro
+   ('qa', cuantasCuotasAlta), exactamente como antes. La propuesta quincenal a
+   cuotas pasa las suyas ('pq') y su desembolso, que es hoy: así la propuesta y
+   el registro no pueden calcular distinto (pruebas/propuesta-a-cuotas.test.js). */
+function planDelAlta(cap,f,pre,n){
+  pre=pre||'qa'; n=n||cuantasCuotasAlta();
+  const entrada=[];
   for(let i=1;i<=n;i++){
-    const fe=gv('qaF'+i), pc=gv('qaP'+i), k=gv('qaK'+i);
+    const fe=gv(pre+'F'+i), pc=gv(pre+'P'+i), k=gv(pre+'K'+i);
     if(!fe) return {ok:false,error:'Pon la fecha de la cuota '+i+'.'};
     if(pc==='') return {ok:false,error:'Pon el % de la cuota '+i+'. El estándar es '+TASA_FIJA_PCT+'.'};
     entrada.push({fecha:fe,pct:Number(pc),capital:k===''?null:Number(k)});
@@ -23867,8 +23886,15 @@ function socioDesdeDatos(s,a,ident){
  * Y LA EFECTIVA ANUAL SE COMPRUEBA CONTRA EL TECHO DEL MES, acá, antes de
  * mandar. El botón se apaga si se pasa. El artículo 305 no distingue entre una
  * tasa alta puesta a propósito y una puesta por error.
+ *
+ * 13-nov-2026 — Y UNA TERCERA: «A CUOTAS», el crédito QUINCENAL partido en
+ * pagos, con la fecha y el % de cada cuota (ver LA TERCERA FORMA, más abajo).
+ * El botón del préstamo con garantía se llamaba «A cuotas · con garantía» y
+ * pasa a «Con garantía · mensual», para que no se confundan: los dos van en
+ * cuotas, pero uno es mensual, desde $1.000.000 y con techo en efectiva anual,
+ * y el otro es el quincenal de siempre.
  * ------------------------------------------------------------------------ */
-let _cpModo = 'unico';   // unico | cuotas
+let _cpModo = 'unico';   // unico | quincenal (a cuotas) | cuotas (con garantía)
 /* Cuál solicitud se está editando. Vive fuera del modal porque cambiar de forma
    —de un pago a cuotas— lo vuelve a abrir, y sin esto la segunda apertura no
    sabría de quién es la propuesta. */
@@ -24301,8 +24327,11 @@ function editarContrapropuesta(id, modo) {
     : MotorReglas.POLITICA_NUEVOS_DEF);
   /* Sin forma escogida, se abre en la que ya tiene la propuesta: si Joan ya le
      mandó cuotas, verlas convertidas en un pago único sería perder su trabajo
-     sin avisar. */
-  _cpModo = modo || ((cp && cp.cuotas && cp.cuotas.length) ? 'cuotas' : 'unico');
+     sin avisar. 13-nov-2026 — y las cuotas quincenales se abren en «A cuotas»,
+     no en «Con garantía»: las dos traen `cuotas`, y lo que las separa es el
+     producto que guardó la base. */
+  _cpModo = modo || (esQuincenalACuotas(cp) ? 'quincenal'
+    : (cp && cp.cuotas && cp.cuotas.length) ? 'cuotas' : 'unico');
   const cli = socioDeSolicitud(s);
   const max = cli ? maxRespaldadoDe(cli) : 0;
   const pidio = Math.round(Number(s.capital) || Number(cp.capital) || 0);
@@ -24327,11 +24356,16 @@ function editarContrapropuesta(id, modo) {
     <div style="display:flex;gap:6px;margin:14px 0 4px;flex-wrap:wrap">
       <button class="btn ${_cpModo === 'unico' ? 'btn-negro' : 'btn-ghost'} btn-sm"
         onclick="cambiarModoCp('unico','${s.id}')">Un solo pago</button>
+      <button class="btn ${_cpModo === 'quincenal' ? 'btn-negro' : 'btn-ghost'} btn-sm" id="cpModoQuincenal"
+        onclick="cambiarModoCp('quincenal','${s.id}')">A cuotas</button>
       <button class="btn ${_cpModo === 'cuotas' ? 'btn-negro' : 'btn-ghost'} btn-sm"
-        onclick="cambiarModoCp('cuotas','${s.id}')">A cuotas · con garantía</button>
+        onclick="cambiarModoCp('cuotas','${s.id}')">Con garantía · mensual</button>
     </div>
-    <div id="cpCuerpo">${_cpModo === 'cuotas' ? formCuotas(s, cp) : formUnico(cp)}</div>`);
-  if (_cpModo === 'cuotas') previsualizarCuotas(); else previsualizarContrapropuesta();
+    <div id="cpCuerpo">${_cpModo === 'cuotas' ? formCuotas(s, cp)
+      : _cpModo === 'quincenal' ? formQuincenalACuotas(s, cp) : formUnico(cp)}</div>`);
+  if (_cpModo === 'cuotas') previsualizarCuotas();
+  else if (_cpModo === 'quincenal') filasQuincenalACuotas(esQuincenalACuotas(cp) ? cp.cuotas : null);
+  else previsualizarContrapropuesta();
 }
 
 function cambiarModoCp(m, id) {
@@ -24508,6 +24542,216 @@ function guardarContrapropuestaCuotas(id) {
       cerrarModal(); traerSolicitudes();
     })
     .catch(e => alert(errNube(e)));
+}
+
+/* ===========================================================================
+ * LA TERCERA FORMA: EL CRÉDITO QUINCENAL A CUOTAS — 13 de noviembre de 2026
+ *
+ * Joan, con el pantallazo de un cliente nuevo que pidió $2.000.000 a 79 días:
+ * «al momento de hacer la contrapropuesta no me permite la opción de cuotas y
+ * elegir el número de cuotas y las fechas, solo me lo permite con créditos con
+ * garantía; habilita esta opción lo antes posible para enviar una
+ * contrapropuesta del crédito a cuotas y con los porcentajes que yo quiera».
+ *
+ * NO ES UN PRODUCTO NUEVO. Es el crédito a cuotas que Joan ya registra al
+ * desembolsar desde 📊 Créditos → «A cuotas» (16-oct-2026), ahora PROPUESTO
+ * antes, para que el cliente lo lea en pesos y lo acepte en su app. Las reglas
+ * son las de Joan del 16-17 oct y viven en el motor (construirPlanACuotas): de
+ * 2 a 6 cuotas, la última a no más de 186 días, la fecha y el % de cada cuota
+ * libres, el costo de cada una su % sobre lo que se debe al empezarla, el
+ * techo del % el mismo de los quincenales, y las fechas no se corren: si caen
+ * en domingo o festivo se avisa con la cifra.
+ *
+ * EL FORMULARIO Y LA CUENTA SON LOS DEL REGISTRO: las mismas filas
+ * (filasDeCuotasHTML), las mismas fechas de partida (fechasPropuestasAlta), el
+ * mismo plan (planDelAlta, que llama al motor) y los mismos avisos
+ * (avisosInhabilesCuotas, que pregunta al puente). Lo único distinto es el
+ * desembolso: aquí es HOY, porque se propone para entregarse cuando acepte. Al
+ * desembolsar (crearDesdeSolicitud) se rehace con el motor de ese día y tiene
+ * que dar peso por peso lo aceptado; si no, no se registra.
+ *
+ * Lo guarda la base con contrapropuesta_quincenal_a_cuotas
+ * (base/20261113b_propuesta_quincenal_a_cuotas.sql), que vuelve a revisar cada
+ * cuota con la misma cuenta y el mismo redondeo del motor. Al cliente solo le
+ * llegan pesos y fechas (app/calculadora-solicitud.js, condiciones).
+ * ======================================================================== */
+let _pq = { tocadas: false };
+/* ¿Esta propuesta es quincenal a cuotas? La base la guarda con producto
+   'quincenal' y sus cuotas; la del préstamo con garantía, con 'respaldado'. */
+function esQuincenalACuotas(cp) {
+  return !!(cp && typeof cp === 'object' && String(cp.producto || '') === 'quincenal'
+    && Array.isArray(cp.cuotas) && cp.cuotas.length > 1);
+}
+/* Lo que Joan escribió en «¿Cuántas cuotas?», tal cual (para decirle que 7 no
+   se puede), y cuántas filas se pintan (de 2 a 6). */
+function cuotasPedidasPropuesta() { return Math.round(Number(gv('pqN')) || 0); }
+function cuantasCuotasPropuesta() {
+  const v = cuotasPedidasPropuesta() || MotorReglas.CUOTAS_ALTA_MIN;
+  return Math.max(MotorReglas.CUOTAS_ALTA_MIN, Math.min(MotorReglas.CUOTAS_ALTA_MAX, v));
+}
+/* Las fechas de partida: las del registro a cuotas, encadenadas desde hoy
+   (fechasPropuestasAlta). Si el cliente pidió una fecha de pago, la ÚLTIMA
+   cuota arranca en esa fecha —es lo que pidió—, siempre que quepa: después de
+   la penúltima y a no más de 186 días. Si no cabe, se queda la del registro y
+   el aviso de arriba dice lo que pidió. Lo que Joan escribe, manda. */
+function fechasDeQuincenalACuotas(n, actuales) {
+  const fs = fechasPropuestasAlta(hoyISO(), actuales, n);
+  const s = _solicitudes.find(x => String(x.id) === String(_cpSolId));
+  const pz = s ? plazoPedido(s) : null;
+  if (!actuales[n - 1] && pz && pz.dias > 0 && pz.dias <= MotorReglas.DIAS_ALTA_MAX
+      && (!fs[n - 2] || pz.fecha > fs[n - 2])) fs[n - 1] = pz.fecha;
+  return fs;
+}
+function formQuincenalACuotas(s, cp) {
+  const ya = esQuincenalACuotas(cp) ? cp : null;
+  const monto = Math.round(Number(ya ? ya.capital : (Number(s.pedido_monto) || Number(s.capital) || Number(cp && cp.capital))) || 0);
+  const n = ya ? ya.cuotas.length : MotorReglas.CUOTAS_ALTA_MIN;
+  _pq = { tocadas: !!ya };
+  return `<div class="field"><label>Cuánto le prestas</label>
+      <input id="pqCap" type="number" inputmode="numeric" min="10000" max="20000000" step="1000"
+        value="${monto || ''}" oninput="previsualizarQuincenalACuotas()"></div>
+    <div class="field"><label>¿Cuántas cuotas?</label>
+      <input id="pqN" type="number" inputmode="numeric" min="${MotorReglas.CUOTAS_ALTA_MIN}" max="${MotorReglas.CUOTAS_ALTA_MAX}"
+        step="1" value="${n}" oninput="filasQuincenalACuotas()">
+      <div class="help">De ${MotorReglas.CUOTAS_ALTA_MIN} a ${MotorReglas.CUOTAS_ALTA_MAX}, la última a no más de
+        ${MotorReglas.DIAS_ALTA_MAX} días. Cada cuota lleva su fecha y su %, y el % se cobra sobre lo que todavía
+        debe al empezar esa cuota. La fecha se respeta aunque caiga domingo o festivo: te aviso cuánta mora le
+        correría. Al cliente solo se le muestran pesos y fechas.</div></div>
+    <div id="pqFilas"></div>
+    <button class="btn btn-ghost btn-sm" onclick="repartirQuincenalIguales()">Repartir en partes iguales</button>
+    <div class="field" style="margin-top:12px"><label>Lo que el cliente lee</label>
+      <textarea id="pqTexto" rows="3" maxlength="400">${escHTML((cp && cp.texto) || '')}</textarea></div>
+    <div id="pqCalc" class="calc"></div>
+    <button class="btn btn-rojo" id="pqBtn" onclick="guardarQuincenalACuotas('${_cpSolId}')">Mandarle esta propuesta</button>`;
+}
+/* Las filas, como filasAlta: lo escrito se conserva al cambiar cuántas son.
+   `inicial` son las cuotas de la propuesta que ya tiene (al reabrirla): sus
+   fechas, sus % y, si no son partes iguales, sus capitales. */
+function filasQuincenalACuotas(inicial) {
+  const caja = document.getElementById('pqFilas'); if (!caja) return;
+  const n = cuantasCuotasPropuesta();
+  let antes = filasEscritas('pq');
+  if (Array.isArray(inicial)) {
+    const cap = Math.round(Number(gv('pqCap')) || 0), m = inicial.length;
+    const parte = m ? Math.floor(cap / m) : 0;
+    const iguales = inicial.every((q, i) => Number(q && q.capital) === (i === m - 1 ? cap - parte * (m - 1) : parte));
+    antes = antes.map((x, i) => {
+      const q = inicial[i];
+      return q ? { f: String(q.fecha || '').slice(0, 10), p: q.pct != null ? String(q.pct) : '',
+                   k: iguales ? '' : String(Number(q.capital) || '') } : x;
+    });
+    _pq.tocadas = true;
+  }
+  caja.innerHTML = filasDeCuotasHTML('pq', n, '_pq.tocadas=true;previsualizarQuincenalACuotas()', 'previsualizarQuincenalACuotas()');
+  const fechas = fechasDeQuincenalACuotas(n, _pq.tocadas ? antes.map(x => x.f) : []);
+  for (let i = 1; i <= n; i++) {
+    const ef = document.getElementById('pqF' + i), ep = document.getElementById('pqP' + i), ek = document.getElementById('pqK' + i);
+    if (ef) ef.value = fechas[i - 1] || '';
+    if (ep) ep.value = antes[i - 1].p || String(TASA_FIJA_PCT);
+    if (ek) ek.value = antes[i - 1].k || '';
+  }
+  previsualizarQuincenalACuotas();
+}
+function repartirQuincenalIguales() {
+  for (let i = 1; i <= MotorReglas.CUOTAS_ALTA_MAX; i++) { const el = document.getElementById('pqK' + i); if (el) el.value = ''; }
+  previsualizarQuincenalACuotas();
+}
+/* EL plan de la propuesta: el del registro a cuotas (planDelAlta, el motor)
+   con desembolso HOY. Las dos rejas de antes del motor son las de la base: el
+   monto, el mismo de un solo pago (contrapropuesta_solicitud: de 10.000 a
+   20.000.000), y cuántas cuotas, que el campo no recorta en silencio. */
+function planDeQuincenalACuotas() {
+  const cap = Math.round(Number(gv('pqCap')) || 0), f = hoyISO();
+  if (!cap) return { ok: false, error: 'Escribe cuánto le prestas.' };
+  if (cap < 10000 || cap > 20000000) return { ok: false, error: 'El monto va de $10.000 a $20.000.000, como en un solo pago.' };
+  const pedidas = cuotasPedidasPropuesta();
+  if (pedidas < MotorReglas.CUOTAS_ALTA_MIN || pedidas > MotorReglas.CUOTAS_ALTA_MAX) {
+    return { ok: false, error: 'Las cuotas van de ' + MotorReglas.CUOTAS_ALTA_MIN + ' a ' + MotorReglas.CUOTAS_ALTA_MAX
+      + (pedidas ? ', y pusiste ' + pedidas : '') + '. Para un solo pago usa «Un solo pago».' };
+  }
+  const a = planDelAlta(cap, f, 'pq', pedidas);
+  return a.ok ? { ok: true, plan: a.plan, cap, f } : a;
+}
+/* El crédito tal como quedaría al desembolsarlo hoy, para preguntarle al
+   puente la mora de una cuota en domingo o festivo. Con el techo del recargo
+   de hoy (topeMoraEA): es el que se le pone al crédito cuando lo acepta, y sin
+   él el aviso diría la mora del 1% que el crédito nunca va a cobrar. */
+function creditoProvisionalPropuesta(a) {
+  const prov = creditoProvisionalAlta(a.cap, a.f, a.plan);
+  const C = window.CreditosPublicables;
+  try { const t = C && C.topeDeReferencia ? C.topeDeReferencia(a.f) : null; if (t && Number(t.tope) > 0) prov.topeMoraEA = Number(t.tope); } catch (e) {}
+  return prov;
+}
+function previsualizarQuincenalACuotas() {
+  const c = document.getElementById('pqCalc'); if (!c) return;
+  const btn = document.getElementById('pqBtn');
+  const apagar = m => { if (btn) { btn.disabled = true; btn.title = m; } };
+  const a = planDeQuincenalACuotas();
+  if (!a.ok) {
+    c.innerHTML = `<span style="color:var(--ambar);font-size:12.5px">${escHTML(a.error)}</span>`;
+    return apagar(a.error);
+  }
+  const plan = a.plan;
+  /* Lo que el motor repartió se ve en el campo, sin escribirlo (como en el registro). */
+  plan.cuotas.forEach((q, i) => { const el = document.getElementById('pqK' + (i + 1)); if (el) el.placeholder = COP(q.capital); });
+  const ea = eaDelPlanAlta(a.f, a.cap, plan), usura = DB.config.tasaUsuraEA, sobreUsura = ea != null && usura > 0 && ea > usura;
+  const avisos = avisosInhabilesCuotas(plan.inhabiles, creditoProvisionalPropuesta(a));
+  const s = _solicitudes.find(x => String(x.id) === String(_cpSolId));
+  const cli = s ? socioDeSolicitud(s) : null, r = cli ? revisarCupo(cli, a.cap) : null;
+  const td = 'style="padding:4px 6px;text-align:right"';
+  c.innerHTML = (r ? `<div class="calc-row"><span>Su cupo${r.comprometida ? ' <span class="muted">(sin lo comprometido)</span>' : ''}</span><span class="v">${COP(r.cupo)}</span></div>`
+      + (r.pasa || r.pasaSumando ? `<div class="alerta warn" style="margin-bottom:8px">Le estás proponiendo más de lo que respalda su cupo. <b>Puedes hacerlo</b>, pero esa parte no tiene garantía que la respalde.</div>` : '') : '')
+    + `<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin:4px 0 8px">
+      <thead><tr><th style="text-align:left;padding:4px 6px">Cuota</th><th style="text-align:left;padding:4px 6px">Fecha</th><th ${td}>%</th><th ${td}>Capital</th><th ${td}>Costo</th><th ${td}>Total</th></tr></thead>
+      <tbody>${plan.cuotas.map(q => `<tr><td style="padding:4px 6px">${q.numero}</td><td style="padding:4px 6px">${fechaCortaCuota(q.fecha_corte, true)}${q.habil ? '' : ' ⚠️'}</td><td ${td}>${q.pct}%</td><td ${td}>${COP(q.capital)}</td><td ${td} class="gano">${COP(q.costo)}</td><td ${td}><b>${COP(q.total)}</b></td></tr>`).join('')}</tbody>
+    </table>
+    <div class="calc-row"><span>El cliente ve</span><span class="v">recibe <b>${COP(a.cap)}</b> · ${plan.cuotas.length} cuotas, la primera el ${fmtFecha(plan.cuotas[0].fecha_corte)}</span></div>
+    <div class="calc-row"><span>Tu costo (lo que ganas)</span><span class="v gano">${COP(plan.total_costo)}</span></div>
+    <div class="calc-row"><span>Devuelve en total</span><span class="v">${COP(plan.total_a_pagar)}</span></div>
+    <div class="calc-row"><span>Garantía que le deja <span class="muted">(si paga en fecha)</span></span><span class="v">${COP(plan.total_garantia)}</span></div>
+    <div class="calc-row"><span>E.A. real, con estas fechas</span><span class="v ${sobreUsura ? 'ea-bad' : ''}">${ea == null ? '<span class="muted">no pude calcularla (falta creditos.js)</span>' : fmtEA(ea)}</span></div>
+    ${sobreUsura ? `<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ Supera la usura de referencia (${usura}%).</div>` : ''}
+    ${plan.sobre_estandar ? `<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ Hay cuotas por encima del estándar del ${TASA_FIJA_PCT}%.</div>` : ''}
+    ${avisos.map(t => `<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ ${escHTML(t)} La fecha se queda como la pusiste.</div>`).join('')}
+    ${avisoEstimadoHTML(plan.total_costo)}
+    <div class="muted" style="font-size:12px;margin-top:6px">Un crédito a cuotas no se prorroga. Al cliente nunca se le muestra el %: solo pesos y fechas. Si la acepta, al desembolsar se registra con estas mismas fechas y estos mismos %.</div>`;
+  if (btn) { btn.disabled = false; btn.title = ''; }
+}
+/* Lo que viaja a la base: las cifras del motor, cuota por cuota, con su %.
+   La base las vuelve a revisar con la misma cuenta y las guarda tal cual. */
+function cuerpoDeQuincenalACuotas(plan, texto) {
+  return { capital: plan.total_capital, costo: plan.total_costo, total: plan.total_a_pagar,
+    cuotas: plan.cuotas.map(q => ({ numero: q.numero, fecha: q.fecha_corte, pct: q.pct,
+      capital: q.capital, costo: q.costo, total: q.total })),
+    texto: texto || '' };
+}
+function guardarQuincenalACuotas(id) {
+  const s = _solicitudes.find(x => String(x.id) === String(id)); if (!s) return;
+  const a = planDeQuincenalACuotas();
+  if (!a.ok) return alert('No mandé nada: el plan de cuotas no cuadra.\n\n' + a.error);
+  const plan = a.plan;
+  const avisos = avisosInhabilesCuotas(plan.inhabiles, creditoProvisionalPropuesta(a));
+  const ae = avisoContraEstimado(s, plan.total_costo);
+  if (!confirm('Mandarle a ' + s.nombre + ':\n\n'
+    + '• Recibe ' + COP(a.cap) + '\n'
+    + plan.cuotas.map(q => '• Cuota ' + q.numero + ': ' + COP(q.total) + ' el ' + fechaCortaCuota(q.fecha_corte, true)
+      + ' (capital ' + COP(q.capital) + ' + costo ' + COP(q.costo) + ') · ' + q.pct + '%').join('\n') + '\n'
+    + '• Devuelve en total ' + COP(plan.total_a_pagar) + ' (tu costo: ' + COP(plan.total_costo) + ')\n'
+    + '• Le deja de garantía, si paga en fecha: ' + COP(plan.total_garantia) + '\n'
+    + (avisos.length ? '\n⚠️ ' + avisos.join('\n⚠️ ') + '\nLas fechas se quedan como las pusiste.\n' : '')
+    + (ae && ae.supera ? '\n⚠️ ' + ae.aviso + '\n' : '')
+    + '\nLa propuesta vuelve a «esperando que acepte». ¿La mando?')) return;
+  rpc('contrapropuesta_quincenal_a_cuotas', { p_clave: sbCfg().clave, p_id: Number(s.id),
+    p_cuerpo: cuerpoDeQuincenalACuotas(plan, gv('pqTexto')) })
+    .then(j => {
+      if (!j || j.ok !== true) return alert('La nube no aceptó la propuesta: ' + ((j && j.motivo) || 'sin motivo'));
+      cerrarModal(); traerSolicitudes();
+    })
+    /* Un 404 aquí es la migración sin correr, y se dice cuál: «vuelve a correr
+       supabase.sql» mandaría a buscar donde no está. */
+    .catch(e => alert(/todavía no tiene «contrapropuesta_quincenal_a_cuotas»/.test(errNube(e))
+      ? 'Tu base todavía no sabe guardar propuestas a cuotas: falta correr base/20261113b_propuesta_quincenal_a_cuotas.sql en el SQL Editor de Supabase. No se mandó nada.'
+      : errNube(e)));
 }
 
 function politicaDelFormulario(pre){
