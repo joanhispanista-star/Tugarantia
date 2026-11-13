@@ -18,7 +18,8 @@ process.env.TZ = 'America/Bogota';
  *      pegada sin cuenta dice «Sin chat» y deja WhatsApp; nada en modo #equipo.
  *   2. Abre la conversación de QUIEN PIDIÓ, la que dice la base (la llave de
  *      la solicitud): sin juntar, '0' + celular y nunca la ficha dueña del
- *      número; junta, la de su ficha; PlataChat, la suya con su nota. Encima
+ *      número, también cuando la solicitud no trae celular y su «cédula» es
+ *      el celular (las de antes del 8-oct); junta, la de su ficha; PlataChat, la suya con su nota. Encima
  *      de la pestaña, sin irse a 💬 Chat. Y en «Créditos nuevos», salvo que
  *      haya algo sin leer en otra.
  *   3. Después de «Mandarle esta propuesta», «💬 Avisarle por el chat» deja
@@ -74,6 +75,17 @@ const TODAS = [NUEVO, SIN_JUNTAR, PLATA, DE_SOCIO, JUNTA_PLAY, ESPERANDO, ACEPTO
 /* Lo que contesta llave_de_sesion por celular, como la base: la ficha si la
    cuenta está junta, '0' + celular si el número es de una ficha sin juntar. */
 const HILOS = { '3100000022': '03100000022', '3100000011': '1000000011' };
+
+/* Una solicitud SIN columna celular, con la «cédula» igual al celular: así la
+   escribe solicitar_primer_credito y así quedaron las de play/ de antes del
+   8-oct. La base la marcó sin juntar porque el número es de una ficha ANTIGUA
+   sin cédula, cuya llave en la nube es ese mismo celular. Quien pidió lee en
+   '0' + celular; la ficha antigua, en el celular a secas. */
+const VIEJA = { id: 'F4', nombre: 'Vieja Inventada', cedula: '', telefono: '3100000044', whatsappIgual: true };
+const SIN_COLUMNA = sol(601, { nombre: 'Impostor Inventado', cedula: '3100000044', celular: null, cuenta_sin_juntar: true,
+  estado: 'contrapropuesta', contrapropuesta: CP('2026-11-28', { por: 'automatica' }), pedido: null });
+const CON_VIEJA = { socios: [MARTA, DUENA, PEGO, VIEJA], solicitudes: [SIN_COLUMNA],
+  hilos: Object.assign({}, HILOS, { '3100000044': '03100000044' }) };
 
 function nube(o) {
   const vistas = [];
@@ -188,6 +200,18 @@ describe('2. abre la conversación de quien pidió, encima de la pestaña', () =
     assert.ok(!pedidos.includes('1000000022'), 'abrió el hilo de la ficha de otra persona');
     assert.doesNotMatch(titulo(P), /Quien Dice Ser/, 'el título le pone el nombre de quien no está verificado');
     assert.match(titulo(P), /sin juntar/);
+  }));
+
+  test('sin columna celular y con la cédula igual al celular: le pregunta a la nube, nunca abre la ficha antigua de ese número', con(CON_VIEJA, async ({ P, N }) => {
+    await tocar(P, 601);
+    assert.equal(N.de('chat_hilo_de_celular')[0].cuerpo.p_celular, '3100000044', 'no le preguntó a la nube');
+    assert.equal(P.ev('_chatAbierta'), '03100000044', 'abrió el hilo de la ficha antigua (' + titulo(P) + ')');
+    assert.ok(!N.de('chat_de').some(v => v.cuerpo.p_cedula === '3100000044'), 'leyó el hilo de la ficha antigua');
+    /* El título dice de quién es la ficha dueña del NÚMERO, con la advertencia;
+       nunca la presenta como quien escribe, ni el nombre que escribió. */
+    assert.notEqual(titulo(P), 'Vieja Inventada', 'tituló el hilo como si fuera la clienta antigua');
+    assert.match(titulo(P), /sin juntar/);
+    assert.doesNotMatch(titulo(P), /Impostor/, 'el título le pone el nombre que escribió, sin verificar');
   }));
 
   test('junta: desde socio.html (sin celular) abre la llave de su ficha sin preguntar; desde play/, la que diga la nube', con({}, async ({ P, N }) => {
@@ -327,6 +351,19 @@ describe('3. «💬 Avisarle por el chat», después de mandar la propuesta', ()
     assert.doesNotMatch(P.elems.chResp.value, /Quien|Dice|Duena/);
   }));
 
+  test('sin columna celular: el aviso queda en el hilo de quien pidió, sin el nombre de la ficha antigua', con(CON_VIEJA, async ({ P, N }) => {
+    P.ev("editarContrapropuesta('601','unico')");
+    poner(P, 'cpCap', 300000); poner(P, 'cpPct', 20); poner(P, 'cpDias', 15); poner(P, 'cpTexto', '');
+    P.ev("guardarContrapropuesta('601')");
+    await asentar();
+    P.ev('avisarPropuestaPorElChat()');
+    await asentar();
+    assert.equal(P.ev('_chatAbierta'), '03100000044', 'la propuesta quedó escrita en el hilo de la ficha antigua');
+    assert.match(P.elems.chResp.value, /^Hola, ya te enviamos la propuesta/);
+    assert.doesNotMatch(P.elems.chResp.value, /Vieja|Impostor/);
+    assert.equal(N.de('chat_responder').length, 0);
+  }));
+
   test('si su app no la muestra (pidió desde socio.html), no lo manda a buscarla allá', con({}, async ({ P }) => {
     P.ev("editarContrapropuesta('504','unico')");
     poner(P, 'cpCap', 300000); poner(P, 'cpPct', 20); poner(P, 'cpDias', 15);
@@ -367,6 +404,13 @@ describe('4. lo que escribió y no has leído, en su fila', () => {
     assert.match(plano(filaDe(P, 504)), /💬 Escribirle · 3 sin leer/);
     assert.match(plano(filaDe(P, 505)), /💬 Escribirle · 3 sin leer/, 'la de play/ con la cuenta junta aquí no cuenta el hilo de su ficha');
     assert.doesNotMatch(plano(filaDe(P, 503)), /sin leer/, 'inventó un número donde no hay mensajes');
+  }));
+
+  test('sin columna celular: cuenta el hilo \'0\' + celular, no los sin leer de la ficha antigua de ese número', con(Object.assign({}, CON_VIEJA, {
+    convs: [conv('3100000044', 3), conv('03100000044', 1)]
+  }), ({ P }) => {
+    assert.doesNotMatch(plano(filaDe(P, 601)), /3 sin leer/, 'le pintó lo de la ficha antigua');
+    assert.match(plano(filaDe(P, 601)), /💬 Escribirle · 1 sin leer/);
   }));
 
   test('se repinta solo con la vuelta del chat, y después de abrirla sigue el hilo que dijo la nube', async () => {

@@ -2246,8 +2246,10 @@
      abre el MISMO cuadro de 💬 Chat encima de la pestaña, sin cambiar de pestaña, con el
      hilo que la base usa para esa solicitud: con celular (play/, PlataChat) se le
      pregunta a la nube (chat_hilo_de_celular), como en 📥 Registrados, y una cuenta sin
-     juntar abre su hilo '0'+celular, nunca el de la ficha dueña del número; sin celular
-     (socio.html), la llave con que nació; la pegada de un WhatsApp con ficha, el hilo de
+     juntar abre su hilo '0'+celular, nunca el de la ficha dueña del número (también la
+     que llega sin columna celular y con la «cédula» igual al celular, como las de play/
+     de antes del 8-oct: esa también se le pregunta a la nube); sin celular (socio.html),
+     la llave con que nació; la pegada de un WhatsApp con ficha, el hilo de
      la ficha; sin ficha no hay chat y el botón lo dice y deja WhatsApp. La fila dice
      «· N sin leer» con la lista que ya trae 💬 Chat. El mismo botón sale en «Lo que
      pidió» de la ficha y en el 🔔 del Tablero; no sale en modo #equipo. Después de

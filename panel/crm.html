@@ -10959,6 +10959,14 @@ function chatDeSolicitud(s){
   const cel=telDiez(s.celular);
   if(/^3\d{9}$/.test(cel)) return {via:'celular',cel};
   const llave=String(s.cedula||'').replace(/\D/g,'');
+  /* Sin columna celular y con la «cédula» de 3 + nueve: es un celular (ninguna
+     cédula de diez dígitos empieza por 3). Así escribe solicitar_primer_credito
+     y así quedaron las de play/ de antes del 8-oct. Tomarla como llave abría el
+     hilo de la FICHA ANTIGUA que tiene ese número como llave (las fichas sin
+     cédula), con su nombre y sus sin leer, aunque la base marcara la cuenta sin
+     juntar: a quien pidió se le contesta en '0' + celular. Se le pregunta a la
+     nube, como a las que traen celular. */
+  if(/^3\d{9}$/.test(llave)) return {via:'celular',cel:llave};
   if(llave) return {via:'llave',llave};
   return {via:null,tel:'',corto:'no trae celular ni cédula',
     porque:'Esta solicitud no trae celular ni cédula: no sé en qué conversación lee quien la pidió.'};
