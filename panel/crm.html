@@ -2973,8 +2973,12 @@ function juntarConUnToque(idReg,idSocio,soloJuntar){
   const b=document.getElementById('btnJuntar'); if(b) b.disabled=true;
   juntarCuentaEnLaNube(r,s,PUENTE.llaveEnLaNube(s),'crm',_juntarRev).then(res=>{
     if(b) b.disabled=false;
-    if(!res.ok) return alert('No la junté.\n\n'+res.texto);
-    if(soloJuntar){ cerrarModal(); alert('Listo. '+res.texto); render(); verCliente(s.id); return; }
+    /* 13-nov-2026 — si el toque vino de «🔗 Juntar y desembolsar», sigue con el
+       crédito (seguirTrasJuntar) en vez de abrir la ficha. Si la nube no junta,
+       el modal se queda para volver a intentarlo, y se dice que el crédito
+       tampoco quedó. */
+    if(!res.ok) return alert('No la junté.\n\n'+res.texto+(esperaTrasJuntar(idReg,s.id)?'\n\nY sin juntarla no registro el crédito.':''));
+    if(soloJuntar){ cerrarModal(); if(seguirTrasJuntar(idReg,s.id,res)) return; alert('Listo. '+res.texto); render(); verCliente(s.id); return; }
     aplicarCruce(idReg,idSocio,{junta:res.texto});
   });
 }
@@ -22679,7 +22683,9 @@ function aplicarCruce(idReg,idSocio,op){
   /* 7-oct-2026 — Y SU CUENTA. «Es la misma persona» en la mesa es el mismo
      toque que en el modal corto: se junta la cuenta en la nube y se dice si
      quedó o por qué no. Desde el modal corto ya viene junta (op.junta). */
-  if(op.junta){ alert(resumen+'\n\n'+op.junta); verCliente(s.id); return; }
+  /* 13-nov-2026 — y si vino de «🔗 Juntar y desembolsar», sigue con el crédito
+     (seguirTrasJuntar) en vez de abrir la ficha. */
+  if(op.junta){ if(seguirTrasJuntar(idReg,s.id,{ok:true,texto:op.junta})) return; alert(resumen+'\n\n'+op.junta); verCliente(s.id); return; }
   /* 7-oct-2026 (segunda vuelta) — SI NO SE JUNTA AHORA, QUEDA ANOTADO EN LA
      FICHA. El registro sale de la bandeja (atendido) apenas llegan las fotos,
      así que «vuelve a tocar» no tenía dónde: la ficha quedaba diciendo que no
@@ -22694,7 +22700,7 @@ function aplicarCruce(idReg,idSocio,op){
   if(!UP||!sbListo()){
     quedaPorJuntar(null);
     alert(resumen+'\n\nSu cuenta en la app NO quedó junta: '+(UP?'no hay conexión con la nube.':'falta panel/una-puerta.js (recarga con Ctrl+Shift+R).')
-      +' Quedó anotada en su ficha: «🔗 Juntar su cuenta».');
+      +' Quedó anotada en su ficha: «🔗 Juntar su cuenta».'+sinCreditoTrasJuntar(idReg,s.id));
     verCliente(s.id); return;
   }
   /* 7-oct-2026 (segunda vuelta) — EL CRUCE QUE LE CAMBIA LA FILA. Si el cruce
@@ -22710,11 +22716,12 @@ function aplicarCruce(idReg,idSocio,op){
     quedaPorJuntar(null);
     alert(resumen+'\n\nSu cuenta en la app se junta sola cuando su historial suba a la nube con los datos nuevos '
       +'(unos minutos, con este computador abierto). Juntarla ahora la dejaría pegada a la fila de antes, que ya no se actualiza. '
-      +'Si la nube ve algo raro, su ficha te lo dice.');
+      +'Si la nube ve algo raro, su ficha te lo dice.'+sinCreditoTrasJuntar(idReg,s.id));
     verCliente(s.id); return;
   }
   juntarCuentaEnLaNube(r,s,llaveAntes,'crm',_juntarRev,nombreAntes).then(res=>{
     if(!res.ok) quedaPorJuntar(res);
+    if(seguirTrasJuntar(idReg,s.id,res)) return;
     alert(resumen+'\n\n'+(res.ok?res.texto:'Su cuenta en la app NO quedó junta: '+res.texto+'\n\nQuedó anotada en su ficha: «🔗 Juntar su cuenta» la vuelve a intentar.'));
     verCliente(s.id);
   });
@@ -23431,7 +23438,7 @@ function filaDeSolicitud(s){
          Y si ese celular es de alguien de su equipo, se dice: le estaría
          prestando a su propio gerente. Las dos cosas, solo en la vista de Joan. */
       const telSol=CARTERA_EQUIPO?'':telDeSolicitud(s);
-      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${telSol?'<div class="muted mono">📱 '+escHTML(telSol)+'</div>':''}${chipDelEquipo(telSol)}${chipFaltaCedulaSolicitud(s)}${sinJuntar?'<div class="muted" style="color:var(--ambar)">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. Júntale la cuenta antes de prestarle.</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}${(cp||cpRaw)&&s.estado!=='aceptada'&&!pegada&&!laVeEnSuApp(s)?'<div class="muted" style="color:var(--ambar);white-space:normal;max-width:32ch">⚠️ '+escHTML(NO_LA_VE_EN_SU_APP)+'</div>':''}${avisoPropuestaVencida(s)}${condicionesAceptadasDe(s)}${destinoEnLaFila(s)}</td>
+      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${telSol?'<div class="muted mono">📱 '+escHTML(telSol)+'</div>':''}${chipDelEquipo(telSol)}${chipFaltaCedulaSolicitud(s)}${sinJuntar?'<div class="muted" style="color:var(--ambar);white-space:normal;max-width:34ch">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. '+(s.estado==='aceptada'?'«🔗 Juntar y desembolsar» te muestra la ficha y la cuenta lado a lado: si es la misma persona, la juntas y sigue con el crédito que aceptó, sin salir de aquí.':'«🔗 Juntar su cuenta» te muestra la ficha y la cuenta lado a lado, sin salir de aquí. No le prestes hasta juntarla.')+'</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}${(cp||cpRaw)&&s.estado!=='aceptada'&&!pegada&&!laVeEnSuApp(s)?'<div class="muted" style="color:var(--ambar);white-space:normal;max-width:32ch">⚠️ '+escHTML(NO_LA_VE_EN_SU_APP)+'</div>':''}${avisoPropuestaVencida(s)}${condicionesAceptadasDe(s)}${destinoEnLaFila(s)}</td>
       <td class="num"><b>${COP(resp?s.capital:q.capital)}</b>${aviso}${notaDelCliente(s)}${estimadoEnLaFila(s)}${sinCupo}</td>
       <td>${resp?`<b>Con garantía</b><div class="muted">${(Number(s.tasa)*100).toFixed(0)}% mensual · ${pz} mes${pz!==1?'es':''}</div>`
                 :pcNueva?`<b>Pidió por el chat</b><div class="muted">${pidePct||q.pct}% · ${pideCortes} corte${pideCortes!==1?'s':''} · todavía sin propuesta</div>`
@@ -23441,7 +23448,7 @@ function filaDeSolicitud(s){
       <td class="num">${espera?'<span class="muted">sin proponer</span>':COP(resp?s.total:q.total)+descuadre}</td>
       <td>${resp||espera?(s.fecha_corte?fmtFecha(s.fecha_corte):'—'):fmtFecha(q.corte)}${resp?'<div class="muted">última cuota</div>':espera?'<div class="muted">la que pidió</div>':q&&q.aCuotas?'<div class="muted">la primera de '+q.cuotas+'</div>':''}</td>
       <td style="text-align:right">
-        ${cp||cpRaw||espera||proponerPrimero?`<button class="btn ${espera||proponerPrimero?'btn-rojo':'btn-ghost'} btn-sm" onclick="editarContrapropuesta('${s.id}')">✏️ ${espera||proponerPrimero?'Proponer':'Cambiar propuesta'}</button> `:''}${espera||proponerPrimero||((cp||cpRaw)&&s.estado!=='aceptada')?'':`<button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="crearDesdeSolicitud('${s.id}')">✓ ${resp?'Revisar préstamo':(cp||cpRaw)?'Desembolsar':'Crear crédito'}</button>`}
+        ${cp||cpRaw||espera||proponerPrimero?`<button class="btn ${espera||proponerPrimero?'btn-rojo':'btn-ghost'} btn-sm" onclick="editarContrapropuesta('${s.id}')">✏️ ${espera||proponerPrimero?'Proponer':'Cambiar propuesta'}</button> `:''}${espera||proponerPrimero||((cp||cpRaw)&&s.estado!=='aceptada')?(sinJuntar&&!CARTERA_EQUIPO?`<button class="btn btn-ghost btn-sm" onclick="juntarYDesembolsar('${s.id}')" title="Te muestra su ficha y la cuenta que pidió lado a lado. Si es la misma persona, la juntas aquí mismo.">🔗 Juntar su cuenta</button> `:''):sinJuntar&&!CARTERA_EQUIPO?`<button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="juntarYDesembolsar('${s.id}')" title="Te muestra su ficha y la cuenta que pidió lado a lado. Si es la misma persona, la juntas y sigue con el crédito que aceptó.">🔗 Juntar y ${resp?'revisar préstamo':'desembolsar'}</button>`:`<button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="crearDesdeSolicitud('${s.id}')">✓ ${resp?'Revisar préstamo':(cp||cpRaw)?'Desembolsar':'Crear crédito'}</button>`}
         ${botonEscribirleSolicitud(s)}${enlaceDeSolicitud(s)}<button class="btn btn-ghost btn-sm" onclick="verAparatosDeSolicitud('${s.id}')" title="Desde qué celular pidió (19-oct-2026)">📱</button>
         <button class="btn btn-ghost btn-sm" onclick="descartarSolicitud('${s.id}')">✕</button></td></tr>`;
 }
@@ -24021,7 +24028,136 @@ function cuentasDeLaFicha(){
            bancoTipo:gv('fBancoTipo'), bancoNumero:gv('fBancoNumero').replace(/[\s.\-]/g,'') };
 }
 
-function crearDesdeSolicitud(id){
+/* ===========================================================================
+ * JUNTAR Y DESEMBOLSAR, EN LA MISMA FILA — 13 de noviembre de 2026
+ *
+ * Un cliente con ficha pidió desde una cuenta que nadie había juntado; Joan le
+ * propuso a cuotas y él aceptó. «✓ Desembolsar» contestaba: «júntale la cuenta
+ * (📥 Registrados → 🔗 ¿Es la misma persona?) y pídele que la vuelva a
+ * mandar». Otra pestaña, y molestar al cliente para que repitiera lo que ya
+ * había aceptado. Joan: «no quiero ir a otra página para registrar el crédito
+ * ya que el cliente aceptó».
+ *
+ * Lo de volverla a mandar sobraba: socioDeSolicitud pega una solicitud sin
+ * juntar a la ficha que ESTE computador juntó con ese celular (cuentaJunta).
+ * Juntada la cuenta, la MISMA solicitud ya es de esa ficha.
+ *
+ * Ahora el botón de la fila es «🔗 Juntar y desembolsar». Abre «¿Es la misma
+ * persona?» con la ficha de ese celular y el registro de la cuenta. Es el mismo
+ * toque de siempre, con sus señales: juntar sigue siendo decisión de Joan,
+ * mirando (7-oct), nunca solo; un desconocido con el número de un cliente se
+ * llevaría la plata. Si la nube junta, sigue sin cambiar de pantalla con el
+ * crédito que aceptó (crearDesdeSolicitud, con todas sus rejas: la constancia,
+ * la vencida, el motor a cuotas). Si la nube no junta, o pide la clave nueva,
+ * no se registra nada y se dice por qué.
+ * ======================================================================== */
+/* Lo que sigue cuando ESE toque junte: {sol, socio, reg, en}. Se compara la
+   ficha Y el registro, y caduca en 30 minutos: un modal cerrado sin juntar no
+   puede disparar un desembolso la próxima vez que Joan junte otra cosa. */
+let _trasJuntar=null;
+function fichasDelCelular(tel){
+  return tel?DB.socios.filter(x=>celularesDeFicha(x).indexOf(tel)>=0):[];
+}
+/* De los registros traídos, el de la cuenta que pidió: primero el que la
+   solicitud nombra (registro_id), después el de su celular, el más nuevo. */
+function registroParaJuntar(s,lista){
+  const l=(lista||[]).filter(Boolean);
+  if(s.registro_id!=null){ const r=l.find(x=>String(x.id)===String(s.registro_id)); if(r) return r; }
+  const tel=telDeSolicitud(s);
+  return l.filter(x=>tel&&telDiez(x.telefono)===tel)
+    .sort((a,b)=>String(b.creado_en||'').localeCompare(String(a.creado_en||'')))[0]||null;
+}
+function juntarYDesembolsar(idSol,idFicha){
+  if(!unaPuertaLista()) return;
+  const s=_solicitudes.find(x=>String(x.id)===String(idSol)); if(!s) return;
+  if(CARTERA_EQUIPO) return alert('Juntar la cuenta de un cliente con su ficha lo hace Joan, desde su CRM.');
+  const tel=telDeSolicitud(s), bonito=tel?UP.bonito(tel):'su celular';
+  const fichas=idFicha?DB.socios.filter(x=>x.id===idFicha):fichasDelCelular(tel);
+  if(!fichas.length) return alert('La nube dice que el '+bonito+' es el celular de una de tus fichas, pero en este computador no la encuentro.\n\n'
+    +'Búscala en 👥 Clientes (puede tener ese número como WhatsApp o en otro campo) y, en su ficha, «🔗 Buscar su registro». '
+    +'Cuando la cuenta quede junta, «✓ Desembolsar» aquí registra lo que aceptó: no hace falta que te la vuelva a mandar.');
+  if(fichas.length>1){
+    return openModal('¿De cuál de tus fichas es?',
+      '<div class="help" style="margin-bottom:10px">El '+escHTML(bonito)+' está en '+fichas.length+' de tus fichas. Escoge la de quien pidió: '
+      +'antes de juntar te muestro la ficha y la cuenta lado a lado.</div>'
+      +fichas.map(f=>`<div class="info-row con-botones"><span class="k"><b>${escHTML(codCliente(f))} · ${escHTML(f.nombre||'')}</b>${f.cedula?'<div class="muted">CC '+escHTML(f.cedula)+'</div>':''}</span>
+        <span class="vv"><button class="btn btn-ghost btn-sm" onclick="juntarYDesembolsar('${escHTML(String(s.id))}','${escHTML(f.id)}')">Es esta ficha</button></span></div>`).join(''));
+  }
+  const cli=fichas[0];
+  if(!sbListo()) return alert('Esto pregunta a la nube por la cuenta. Conéctala en Ajustes → 📲 Compartir con mis clientes.');
+  const abrir=r=>{
+    /* Si la ficha ya se cruzó con ese registro, solo se junta: volver a
+       cruzarlo duplicaría el hecho (lo mismo que hace «🔗 Buscar su registro»). */
+    const cruzado=(Array.isArray(cli.cruces)?cli.cruces:[]).some(c=>c&&!c.deshecho&&String(c.registro_id)===String(r.id));
+    _trasJuntar={sol:String(s.id),socio:cli.id,reg:String(r.id),en:Date.now()};
+    abrirJuntarCuenta(String(r.id),cli.id,r.estado!=='nuevo'||cruzado);
+  };
+  const ya=registroParaJuntar(s,[].concat(_registros,_registrosExtra,_registrosDelChat,_registrosDeSolicitudes));
+  if(ya) return abrir(ya);
+  /* El registro de la cuenta puede estar ya «atendido» (no viene en la bandeja
+     de nuevos): se traen los dos, como «🔗 Buscar su registro». */
+  Promise.all([rpc('listar_registros',{p_clave:sbCfg().clave,p_estado:'nuevo'}),
+               rpc('listar_registros',{p_clave:sbCfg().clave,p_estado:'atendido'})])
+    .then(([n,a])=>{
+      const r=registroParaJuntar(s,[].concat(Array.isArray(n)?n:[],Array.isArray(a)?a:[]));
+      if(!r) return alert('No encontré el registro de la cuenta del '+bonito+' que pidió este crédito, y sin él la nube no junta nada.\n\n'
+        +'Pregúntale por el chat si se registró con otro número. No le registres el crédito a la ficha de ese número sin juntar: no sabemos si es la misma persona.');
+      if(!registroPorId(r.id)) _registrosExtra.push(r);
+      abrir(r);
+    })
+    .catch(e=>alert('No pude traer los registros. '+errNube(e)));
+}
+/* Saca lo pendiente si es de ESTE toque (ficha y registro), y no caducó. */
+function tomarTrasJuntar(idReg,idSocio){
+  const t=_trasJuntar;
+  if(!t||t.socio!==idSocio||t.reg!==String(idReg)) return null;
+  _trasJuntar=null;
+  return Date.now()-t.en>30*60000?null:t;
+}
+/* ¿Hay un desembolso esperando este toque? Sin sacarlo: para decir, cuando la
+   nube no junta, que el crédito tampoco se registró, y dejar que Joan lo
+   intente otra vez desde el mismo modal. */
+function esperaTrasJuntar(idReg,idSocio){
+  const t=_trasJuntar;
+  return !!(t&&t.socio===idSocio&&t.reg===String(idReg)&&Date.now()-t.en<=30*60000);
+}
+/* Lo que sigue después del toque. `res`: {ok, texto} de la nube. Devuelve true
+   si se encargó (y quien llama no abre la ficha: Joan se queda donde estaba). */
+function seguirTrasJuntar(idReg,idSocio,res){
+  const t=tomarTrasJuntar(idReg,idSocio); if(!t) return false;
+  render();
+  if(!res||!res.ok){
+    alert('Su cuenta en la app NO quedó junta, así que NO registré el crédito: sin juntarla no sabemos si quien aceptó es tu cliente.\n\n'
+      +String((res&&res.texto)||'')+'\n\nQuedó anotada en su ficha: «🔗 Juntar su cuenta» la vuelve a intentar. '
+      +'Cuando quede junta, «✓ Desembolsar» en 📨 Solicitudes registra lo que aceptó, sin que tenga que volver a mandarla.');
+    return true;
+  }
+  const s=_solicitudes.find(x=>String(x.id)===t.sol);
+  if(!s){ alert('Listo. '+res.texto+'\n\nEsa solicitud ya no está en la bandeja (la atendieron o la descartaron): no registré nada.'); return true; }
+  if(s.estado!=='aceptada'){ alert('Listo. '+res.texto+'\n\nCuando acepte la propuesta, en su fila de 📨 Solicitudes te sale «✓ Desembolsar».'); return true; }
+  alert('✓ '+res.texto+'\n\nAhora te muestro el crédito que aceptó, para registrarlo.');
+  crearDesdeSolicitud(t.sol);
+  return true;
+}
+/* Para los avisos del cruce que NO junta en el momento (sin nube, o un cruce
+   que le cambia la llave y junta cuando suba): que se sepa que el crédito
+   tampoco quedó. */
+function sinCreditoTrasJuntar(idReg,idSocio){
+  return tomarTrasJuntar(idReg,idSocio)
+    ?'\n\nEl crédito NO lo registré todavía: cuando su cuenta quede junta, «✓ Desembolsar» en 📨 Solicitudes registra lo que aceptó, sin que tenga que volver a mandarla.'
+    :'';
+}
+/* 13-nov-2026 — «me avisas para poder desembolsar»: el registro termina
+   diciendo cuánto girar y a dónde, que es lo que Joan hace después. */
+function textoParaGirar(cap,dst,cli,s){
+  const nom=(cli&&cli.nombre)||'el cliente';
+  if(dst) return '💸 Ya puedes girarle '+COP(cap)+' a '+destinoEnPalabras(dst)+', a nombre de '+nom
+    +'. Al girar, tu banco te muestra el titular: compáralo con su cédula.';
+  if(s&&s.origen==='pegada') return '💸 Ya puedes girarle '+COP(cap)+'.';
+  return '💸 Ya puedes girarle '+COP(cap)+', pero no eligió a qué cuenta: pregúntale por el chat a cuál a su nombre.';
+}
+
+function crearDesdeSolicitud(id,idFicha){
   const s=_solicitudes.find(x=>String(x.id)===String(id)); if(!s)return;
   const dig=v=>String(v||'').replace(/\D/g,'');
   /* 20-ago-2026: la solicitud puede venir identificada por cédula O por
@@ -24033,11 +24169,10 @@ function crearDesdeSolicitud(id){
      ficha nueva con lo que traiga: sería una segunda ficha con el número de un
      cliente tuyo. Se junta primero (o se le abre su ficha desde Registrados). */
   let cli=socioDeSolicitud(s);
-  if(!cli&&esSolicitudSinJuntar(s)) return alert('Esta solicitud la pidió una cuenta que todavía no está junta con ninguna ficha, '
-    +'y su celular ('+(String(s.cedula||'').replace(/\D/g,'').slice(-10))+') es el de una de tus fichas.\n\n'
-    +'No sé si es tu cliente o alguien usando su número, así que no la pego a esa ficha ni le abro otra.\n\n'
-    +'Si es tu cliente: júntale la cuenta (📥 Registrados → 🔗 ¿Es la misma persona?, o «🔗 Buscar su registro» en su ficha) y pídele que la vuelva a mandar. '
-    +'Si no lo es, descártala.');
+  /* 13-nov-2026 — y en vez de mandar a Joan a 📥 Registrados y al cliente a
+     volverla a mandar, el toque se abre aquí mismo (ver JUNTAR Y DESEMBOLSAR).
+     `idFicha`: la ficha desde la que se tocó, si se tocó desde una. */
+  if(!cli&&esSolicitudSinJuntar(s)) return juntarYDesembolsar(id,idFicha);
   /* 8-sep-2026 — EL PRIMER CRÉDITO DEL NUEVO. Aceptar no crea nada: solo se
      desembolsa lo ACEPTADO, y lo que el cliente aceptó es exactamente lo que se
      registra. Si todavía no tiene ficha, nace acá con todo lo que declaró al
@@ -24179,7 +24314,7 @@ function crearDesdeSolicitud(id){
   if(!quedoEnDisco()){ render(); return; }
   marcarEnNube(s,'atendida'); quitarSolicitud(id);
   render();
-  if(confirmarExito('✓ Crédito '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
+  if(confirmarExito('✓ Crédito '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n'+textoParaGirar(q.capital,dst,cli,s)+'\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
 }
 
 /* 13-nov-2026 — LA QUINCENAL A CUOTAS, OTRA VEZ CON EL MOTOR. Lo que el cliente
@@ -24255,7 +24390,7 @@ function desembolsarQuincenalACuotas(s,cli){
   if(!quedoEnDisco()){ render(); return; }
   marcarEnNube(s,'atendida'); quitarSolicitud(String(s.id));
   render();
-  if(confirmarExito('✓ Crédito a cuotas '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
+  if(confirmarExito('✓ Crédito a cuotas '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n'+textoParaGirar(cap,dst,cli,s)+'\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
 }
 
 /* La ficha de un cliente nuevo, con TODO lo que declaró al registrarse — el
@@ -24505,7 +24640,10 @@ function filaLoQuePidio(s, x) {
   } else if (sol.estado === 'aceptada') {
     chip = conConst || sol.origen === 'pegada' ? '<span class="chip pagado">✅ Aceptó</span>'
       : '<span class="chip mora" title="Aceptó por una puerta que no guarda lo que leyó. Confírmale las condiciones por el chat antes de desembolsar.">⚠️ Aceptó SIN constancia de condiciones</span>';
-    accion = '<button class="btn btn-rojo btn-sm" onclick="cerrarModal();crearDesdeSolicitud(\'' + id + '\')">Registrar el crédito con lo que aceptó</button>';
+    /* 13-nov-2026 — la de una cuenta sin juntar lleva la ficha: el toque de
+       «¿Es la misma persona?» se abre con ESTA ficha (ver JUNTAR Y DESEMBOLSAR). */
+    accion = '<button class="btn btn-rojo btn-sm" onclick="cerrarModal();crearDesdeSolicitud(\'' + id + '\''
+      + (esSolicitudSinJuntar(sol) && !socioDeSolicitud(sol) ? ',\'' + escHTML(String(s.id)) + '\'' : '') + ')">Registrar el crédito con lo que aceptó</button>';
   } else {
     chip = '<span class="chip al-dia">📨 Esperando que acepte</span>';
     accion = '<button class="btn btn-ghost btn-sm" onclick="editarContrapropuesta(\'' + id + '\')">✏️ Cambiar propuesta</button>';

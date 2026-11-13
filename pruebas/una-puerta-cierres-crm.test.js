@@ -381,7 +381,9 @@ describe('la solicitud de una cuenta sin juntar no se pega a la ficha de su núm
     P.ev("crearDesdeSolicitud('s1')");
     assert.equal(P.ev('DB.prestamos.length'), antes, 'desembolsó a nombre de la ficha');
     assert.equal(P.ev('DB.socios.length'), 2, 'le abrió una segunda ficha con el número de un cliente');
-    assert.match(avisos(P), /no está junta con ninguna ficha/);
+    /* 13-nov-2026 — en vez del aviso «júntale la cuenta y pídele que la vuelva
+       a mandar», el toque se abre aquí mismo, mirando (juntar-y-desembolsar). */
+    assert.equal(P.elems.mTitle.textContent, '¿Es la misma persona?', 'no abrió el toque para juntarla');
     P.ev('renderBandeja()');
     assert.match(plano(P.elems.bandeja.innerHTML), /Sin juntar: su celular es el de una de tus fichas/);
   });
