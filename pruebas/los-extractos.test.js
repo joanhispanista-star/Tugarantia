@@ -368,6 +368,19 @@ describe('5 · con la base sin el SQL (404), el registro no se rompe: se dice y 
   const con404 = P => P.ev("(function () { var f = fetch; fetch = function (u, op) { if (/rpc\\/extracto_/.test(String(u))) {" +
     " window.__llamadas.push({ url: String(u) }); return Promise.resolve({ ok: false, status: 404, json: function () { return Promise.resolve({}); }," +
     " text: function () { return Promise.resolve('{}'); } }); } return f(u, op); }; })()");
+  /* 13-nov-2026 (remate) — «Lo volvemos a intentar cuando entres a tu cuenta en
+     este teléfono» solo era verdad entrando por play/: la app solo barre la
+     cola, no la sube. */
+  test('el aviso de lo que se quedó en el teléfono promete el reintento donde de verdad ocurre: entrando desde esta página (play/)', () => {
+    ['sin_red', 'freno', 'lleno', 'sesion', 'apagado'].forEach(estado => {
+      const h = plano(EX.avisoDeLaCola({ estado, pendientes: 1 }).html);
+      assert.match(h, /Lo volvemos a intentar cuando vuelvas a entrar a tu cuenta desde esta página, en este teléfono, hasta mañana/, estado);
+      assert.equal(/cuando entres a tu cuenta en este teléfono/.test(h), false, estado);
+    });
+    assert.match(leer('play/index.html'), /return X\.subirCola\(g, cel,/, 'play/ ya no sube la cola: el aviso promete algo que no pasa');
+    assert.equal(/\bEX\.subirCola\(|\.subirCola\(guardaderoEX/.test(leer('app/socio.html')), false,
+      'la app ya sube la cola: el aviso puede decir «cuando entres a tu cuenta»');
+  });
   /* 13-nov-2026 (remate) — la carrera: «Lo hago después» espera al guardadero,
      y si el 404 llegaba en ese rato, el paso de la plata se saltaba. */
   test('si el 404 llega mientras «Lo hago después» espera, no se salta «¿Dónde te enviamos la plata?»', async () => {

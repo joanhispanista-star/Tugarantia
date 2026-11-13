@@ -664,7 +664,15 @@
   /** Lo que la pantalla dice después de subir la cola: {clase, html} (html '' si no hay nada que decir). */
   function avisoDeLaCola(r) {
     if (!r || r.estado === 'nada') return { clase: '', html: '' };
-    var quedan = 'Lo volvemos a intentar cuando entres a tu cuenta en este teléfono, hasta mañana. Si no, súbelos desde tu cuenta en la app.';
+    /* 13-nov-2026 (remate) — decía «cuando entres a tu cuenta en este
+       teléfono», y solo es verdad si entra por ESTA página (play/: «Ir a mi
+       cuenta» llama a subirLosExtractosYDecirlo). La app (app/socio.html)
+       solo barre lo vencido de la cola; no la sube. Este aviso solo sale en
+       play/, así que «desde esta página» es la página que la persona tiene
+       delante. (La historia laboral dice lo mismo que decía esto: no se toca
+       aquí.) */
+    var otraVez = 'Lo volvemos a intentar cuando vuelvas a entrar a tu cuenta desde esta página, en este teléfono, hasta mañana';
+    var quedan = otraVez + '. Si no, súbelos desde tu cuenta en la app.';
     if (r.estado === 'ok') {
       var tarde = r.noLlegaron || [], fuera = r.rechazados.concat(tarde);
       var malos = fuera.length
@@ -677,7 +685,7 @@
     /* Sin «súbelos desde tu cuenta»: con la base así, la tarjeta tampoco
        aparece. Se dice lo que de verdad pasa con lo que espera. */
     if (r.estado === 'apagado') return { clase: 'ambar', html: '<b>Tus extractos se quedaron en este teléfono:</b> esta parte todavía no está encendida en nuestro sistema. ' +
-      'Lo volvemos a intentar cuando entres a tu cuenta en este teléfono, hasta mañana; después se borran de este teléfono. Tu cuenta quedó igual.' };
+      otraVez + '; después se borran de este teléfono. Tu cuenta quedó igual.' };
     if (r.estado === 'freno') return { clase: 'ambar', html: '<b>Tus extractos no alcanzaron a subir</b> por demasiados intentos seguidos. ' + quedan };
     if (r.estado === 'lleno') return { clase: 'ambar', html: '<b>Tus extractos se quedaron en este teléfono:</b> ahora mismo no podemos recibir más extractos. Es opcional: tu cuenta sigue igual. ' + quedan };
     if (r.estado === 'retirada') return { clase: 'ambar', html: '<b>No subimos tus extractos:</b> tu autorización ya no está vigente. Los borramos de este teléfono.' };
