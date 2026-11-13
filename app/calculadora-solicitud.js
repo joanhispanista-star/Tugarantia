@@ -138,6 +138,10 @@
    * a doce meses era ofrecer en pantalla algo que nadie puede contestar como
    * se pidió, sin decirlo. La base sigue aceptando hasta un año (no se toca
    * una función ya escrita): la reja que el cliente ve es esta.
+   * 13-nov-2026 — Y el quincenal a cuotas (contrapropuesta_quincenal_a_cuotas,
+   * de 2 a 6 cuotas con la última a no más de 186 días), que es la que
+   * contesta como se pidió a quien pide más de 60 días sin garantía: los 180
+   * siguen cabiendo.
    * ======================================================================== */
   var MONTO_MIN = 50000;
   var MONTO_MAX_DESLIZADOR = 5000000;
@@ -857,8 +861,9 @@
    * LAS CONDICIONES DE ESTE CRÉDITO
    *
    * Lo que Joan propuso, dicho entero y en pesos. Sale de la propuesta tal como
-   * la guardó la base (contrapropuesta_de, contrapropuesta_a_cuotas o la de
-   * PlataChat): aquí no se recalcula ninguna cifra que la base ya dijo, porque
+   * la guardó la base (contrapropuesta_de, contrapropuesta_a_cuotas, desde el
+   * 13-nov-2026 contrapropuesta_quincenal_a_cuotas, o la de PlataChat): aquí
+   * no se recalcula ninguna cifra que la base ya dijo, porque
    * lo que el cliente acepta es lo que la base le va a cobrar.
    *
    * La única cuenta propia es la garantía que deja, y no es propia: la hace el
@@ -903,6 +908,32 @@
     var diaria = Math.floor((Math.pow(1 + ea, 1 / 365) - 1) * 1e5) / 1e5;
     return { ea: ea, diaria: diaria, por_dia: Math.ceil(Math.max(0, entero(base)) * diaria - 1e-6), base: entero(base) };
   }
+  /* 13-nov-2026 — EL CRÉDITO QUINCENAL A CUOTAS. Joan ya puede proponerlo desde
+     el CRM («A cuotas», contrapropuesta_quincenal_a_cuotas): la base lo guarda
+     con producto 'quincenal' y sus cuotas, cada una con su fecha, su capital,
+     su costo y su total (y su %, que aquí no se lee: el cliente ve pesos).
+     Hasta hoy toda propuesta con cuotas era la del préstamo con garantía, y
+     así se leía. Lo que cambia para la quincenal, y por qué:
+       · LA GARANTÍA QUE DEJA es la del quincenal, CUOTA POR CUOTA: lo que
+         suma cada una al pagarse (MotorReglas.acumularGarantia sobre su costo,
+         como puente.js, piezasDeCuota y garantiaGanadaCuotaPlan), sumado. No la
+         del préstamo con garantía, que es otro factor, ni la del costo total
+         redondeado una sola vez: cada cuota redondea la suya.
+       · SI TE ATRASAS, el recargo corre sobre el CAPITAL de la cuota que falte
+         (puente.js, moraCausadaDeCuota), no sobre la cuota entera como en el
+         préstamo con garantía. El techo se dice sobre el capital más grande de
+         las cuotas, que es el «hasta» que vale para todas. */
+  function esQuincenalACuotas(cp) {
+    return !!(cp && String(cp.producto || '') === 'quincenal' && Array.isArray(cp.cuotas) && cp.cuotas.length > 1);
+  }
+  function garantiaDeCuotas(cuotas, o) {
+    if (o && o.garantia !== undefined) return garantiaQueDeja(0, true, o);
+    var M = motor();
+    if (!M || !M.acumularGarantia) return null;
+    try {
+      return cuotas.reduce(function (t, q) { return t + M.acumularGarantia(Math.max(0, entero(q && q.costo)), true); }, 0);
+    } catch (e) { return null; }
+  }
   function condiciones(sol, opciones) {
     var o = opciones || {};
     var cp = (sol && sol.contrapropuesta && typeof sol.contrapropuesta === 'object') ? sol.contrapropuesta : null;
@@ -912,6 +943,7 @@
     var costo = entero(cp.costo != null ? cp.costo : sol.costo);
     var total = entero(cp.total != null ? cp.total : capital + costo);
     var cuotas = Array.isArray(cp.cuotas) && cp.cuotas.length > 1 ? cp.cuotas : null;
+    var quincenal = esQuincenalACuotas(cp);
     var fecha = String(cp.fecha_pago || (sol && sol.fecha_corte) || '').slice(0, 10);
     var lineas = [];
     var agregar = function (clave, k, v) { lineas.push({ clave: clave, k: k, v: v }); };
@@ -937,18 +969,30 @@
     agregar('costo', 'Lo que cuesta', pesos(costo) + ', ya sumado en el total. No hay cuotas de manejo, ' +
       'seguros, estudio de crédito ni otros cargos.');
 
-    var gana = garantiaQueDeja(costo, !!cuotas, o);
+    var gana = quincenal ? garantiaDeCuotas(cuotas, o) : garantiaQueDeja(costo, !!cuotas, o);
     if (gana !== null) {
-      agregar('garantia', 'La garantía que te deja', cuotas
+      agregar('garantia', 'La garantía que te deja', quincenal
+        ? 'Si pagas cada cuota en su fecha, te suma ' + pesos(gana) + ' de garantía. La garantía no es plata ' +
+          'que te devolvamos: es tu historial, y es lo que te deja pedir más.'
+        : cuotas
         ? 'Si pagas cada cuota en su fecha, te suma ' + pesos(gana) + ' de garantía.'
         : 'Al pagarlo te suma ' + pesos(gana) + ' de garantía, en la fecha o después. La garantía no es plata ' +
           'que te devolvamos: es tu historial, y es lo que te deja pedir más.');
     }
-    var baseMora = cuotas ? entero(cuotas[0] && (cuotas[0].total != null ? cuotas[0].total
+    /* La quincenal: el capital más grande de sus cuotas (ver arriba). */
+    var capitales = quincenal ? cuotas.map(function (q) { return entero(q && q.capital); }) : null;
+    var baseMora = quincenal ? Math.max.apply(null, capitales)
+                 : cuotas ? entero(cuotas[0] && (cuotas[0].total != null ? cuotas[0].total
                                    : entero(cuotas[0].capital) + entero(cuotas[0].costo))) : capital;
     var tope = topeDeMora(baseMora, hoy);
+    var iguales = quincenal && capitales.every(function (k) { return k === capitales[0]; });
     agregar('atraso', 'Si te atrasas', (tope
-      ? (cuotas
+      ? (quincenal
+        ? 'Por cada día que una cuota pase de su fecha se suma un recargo sobre el capital de esa cuota que te ' +
+          'falte por pagar: hasta ' + pesos(tope.por_dia) + ' por día sobre los ' + pesos(tope.base) +
+          (iguales ? ' de capital de cada cuota' : ' de capital de la cuota más grande, y menos en las otras') +
+          '; si abonas, baja con lo que quede.'
+        : cuotas
         ? 'Por cada día que una cuota pase de su fecha se suma un recargo de hasta ' + pesos(tope.por_dia) +
           ' (sobre una cuota de ' + pesos(tope.base) + ').'
         : 'Por cada día de atraso se suma un recargo de hasta ' + pesos(tope.por_dia) + ' sobre los ' +
@@ -956,7 +1000,13 @@
         ' Es lo más que permite la ley por mora, y si la ley baja ese tope, el recargo baja con él.'
       : 'Por cada día de atraso se suma un recargo sobre lo que debas, nunca por encima de lo que permite la ley por mora.') +
       ' Ese recargo se puede negociar: si ves que no llegas a la fecha, escríbenos por el chat antes y buscamos ' +
-      'juntos una salida —una prórroga, un plan de pagos o un acuerdo sobre el recargo—. Estamos para darte soluciones.');
+      /* La quincenal a cuotas no se prorroga (el registro a cuotas lo dice al
+         guardarla); lo que el CRM sí hace con ella es mover la fecha de una
+         cuota que no ha vencido (reprogramarPlan). Se ofrece eso y no otra cosa. */
+      (quincenal
+        ? 'juntos una salida —mover la fecha de una cuota antes de que venza, o un acuerdo sobre el recargo—. '
+        : 'juntos una salida —una prórroga, un plan de pagos o un acuerdo sobre el recargo—. ') +
+      'Estamos para darte soluciones.');
     agregar('como', 'Cómo pagas', o.comoPagas ||
       'Por Nequi o transferencia, a la cuenta que te indiquemos por el chat de la app. Paga solo a cuentas ' +
       'que te demos por ese chat.');

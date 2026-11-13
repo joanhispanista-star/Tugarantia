@@ -174,8 +174,13 @@
 
    31-oct-2026 (sale con el CACHE v142) — sube porque «Tus créditos» dice
    «Cerrado», y no «Pagado en fecha», del crédito que Joan cerró con «Se lo
-   perdoné» sin que el cliente devolviera el capital. */
-var VERSION_APP = '2026-10-31';
+   perdoné» sin que el cliente devolviera el capital.
+
+   13-nov-2026 (sale con el CACHE v144) — sube porque las condiciones de una
+   propuesta quincenal a cuotas se leen con la garantía del quincenal, cuota
+   por cuota, y el recargo sobre el capital de la cuota
+   (app/calculadora-solicitud.js, ahora con ?v=144). */
+var VERSION_APP = '2026-11-13';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja. Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no
@@ -338,7 +343,9 @@ setTimeout(function () {
      condiciones sacan el techo legal del recargo por atraso en pesos por día
      (sin ella dicen el techo en palabras, sin cifra). -->
 <script src="../app/creditos.js"></script>
-<script src="../app/calculadora-solicitud.js?v=139"></script>
+<!-- 13-nov-2026 — ?v=144: las condiciones de la propuesta quincenal a cuotas
+     (ver la nota de v144 en sw.js). -->
+<script src="../app/calculadora-solicitud.js?v=144"></script>
 <script src="../app/chat.js"></script>
 <script src="../app/platachat-reglas.js"></script>
 <script src="../app/pagos-proveedor.js"></script>

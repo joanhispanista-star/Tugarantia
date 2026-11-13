@@ -2194,14 +2194,39 @@
      las dos páginas. app/propuesta-en-la-app.js, que sale en v143 con ?v=143, cambia
      (extraPropuesta) y pasa a ?v=144 en socio.html y en la precarga. VERSION_APP y
      VERSION_PLAY quedan en 2026-11-13.
+   · LA PROPUESTA QUINCENAL A CUOTAS (rama propuesta-a-cuotas, 13-nov). Joan: «al momento
+     de hacer la contrapropuesta no me permite la opción de cuotas y elegir el número de
+     cuotas y las fechas, solo me lo permite con créditos con garantía». En el CRM,
+     «✏️ Proponer» tiene tres formas: «Un solo pago», «A cuotas» (la nueva: el crédito
+     quincenal a cuotas, de 2 a 6, la última a no más de 186 días, con la fecha y el % de
+     cada cuota, con el mismo formulario y el mismo motor del registro a cuotas de
+     📊 Créditos) y «Con garantía · mensual» (el préstamo con garantía, que se llamaba
+     «A cuotas · con garantía»). Desembolsarla registra el mismo crédito que el registro a
+     cuotas, con las fechas y los % aceptados, o no registra nada si el motor de ese día
+     no da peso por peso lo aceptado. La ficha y 📨 Solicitudes la dicen en una línea. El
+     cliente la lee en pesos (app/calculadora-solicitud.js, condiciones): la garantía del
+     quincenal cuota por cuota y el recargo sobre el capital de la cuota. Cambia un .js
+     ya publicado, app/calculadora-solicitud.js, que pasa de ?v=139 a ?v=144 en las cinco
+     páginas que lo piden (app/socio.html, play/, platachat/, index.html y el CRM) y en la
+     precarga; PlataChat sube su VERSION_APP a 2026-11-13 (socio.html y play/ ya estaban
+     en esa fecha). CACHE y VERSION_SITIO no cambian: ya dicen v144.
    CACHE y VERSION_SITIO suben a v144 en las cinco páginas que se actualizan solas.
    HAY BASE NUEVA, SIN APLICAR: base/20261113_falta_tu_cedula.sql (la función de sesión
    mis_fotos_del_registro). Joan la pega entera en el SQL Editor y le da Run; se puede
    correr dos veces y termina con una tabla de 6 filas en true. Después: Settings → API →
    Reload schema. Para comprobarla otro día: base/comprobar_20261113_falta_tu_cedula.sql
    (solo mira). Sin ella la app no muestra la tarjeta (no dice nada falso); lo demás de
-   v144 no la necesita. La regla de los ?v= se mide contra lo que estará publicado
-   antes: TG_PUBLICADO=propuesta-conectada. */
+   v144 no la necesita.
+   Y OTRA, TAMBIÉN SIN APLICAR, que va DESPUÉS de esa: base/20261113b_propuesta_quincenal_
+   a_cuotas.sql (contrapropuesta_quincenal_a_cuotas, la que guarda la propuesta a cuotas,
+   y la revisión de sus cifras). Joan la pega entera en el SQL Editor y le da Run; se
+   puede correr dos veces, no toca ninguna función que ya exista ni ninguna fila, y
+   termina con una tabla de 8 filas en true. Después: Settings → API → Reload schema.
+   Para comprobarla otro día: base/comprobar_20261113b_propuesta_quincenal_a_cuotas.sql
+   (solo mira). Sin ella, «Mandarle esta propuesta» de «A cuotas» dice que falta ese
+   archivo y no manda nada; «Un solo pago» y «Con garantía · mensual» siguen como siempre.
+   La regla de los ?v= se mide contra lo que estará publicado antes:
+   TG_PUBLICADO=propuesta-conectada. */
 const CACHE = 'tugarantia-v144';
 const BASE = new URL('./', self.location).pathname;
 
@@ -2390,7 +2415,7 @@ const ARCHIVOS = [
   /* 8-oct-2026 — la calculadora del pedido y las condiciones de cada propuesta
      (play/, platachat/ e index.html), y la selfie que se toma sola (play/, al
      llegar al paso). Ver la nota de v136. */
-  'app/calculadora-solicitud.js?v=139',
+  'app/calculadora-solicitud.js?v=144',   // 13-nov-2026 — ?v=144: las condiciones de la propuesta quincenal a cuotas (ver la nota de v144)
   'app/rostro-en-vivo.js?v=139',
   /* 21-oct-2026 — se actualiza sola: play/, app/socio.html, platachat/, el
      CRM y el espejo lo cargan con un <script src>. Sin el en la cache, la app
