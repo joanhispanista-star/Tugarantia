@@ -23438,6 +23438,19 @@ function descuadreDeConstancia(s){
      módulo que lo escribió (CSOL.pesos y CSOL.fechaLarga). Así no hay descuadre
      falso por cómo se escribe una fecha, y uno de verdad —otra cifra u otro
      día— sale con su número de cuota. Sin el módulo, se comparan los pesos. */
+  /* 13-nov-2026 (revisión) — LA QUINCENAL A CUOTAS LEÍDA CON EL TEXTO DE ANTES.
+     Una página que todavía tenía app/calculadora-solicitud.js ?v=139 la lee
+     como la del préstamo con garantía: le dice otra garantía, el recargo
+     «sobre una cuota de» la cuota entera y le ofrece una prórroga que este
+     crédito no tiene. Las cuotas le salen bien, así que el cotejo de abajo no
+     lo ve; la versión sí: el texto de la quincenal a cuotas nació con la
+     '2026-11-13' (VERSION_CONDICIONES). La fecha va fija aquí y no se lee del
+     módulo: si la versión sube otra vez por otra razón, una aceptación del
+     13-nov sigue siendo buena. Solo de esta forma: las de un solo pago y con
+     garantía no cambiaron de texto, y la versión vieja les vale. */
+  if(esQuincenalACuotas(cp)&&String(c.version||'')<'2026-11-13')
+    malos.push('lo que leyó (su app tenía las condiciones de antes, versión '+(c.version||'sin versión')
+      +': otra garantía y una prórroga que este crédito no tiene)');
   const cs=Array.isArray(cp.cuotas)&&cp.cuotas.length>1?cp.cuotas:null;
   if(cs){
     const lineasCuota=(Array.isArray(c.lineas)?c.lineas:[]).filter(l=>l&&/^cuota\d+$/.test(String(l.clave||'')));

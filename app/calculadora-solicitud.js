@@ -151,8 +151,16 @@
   var LLAVE = 'tg_pedido_calc';
   var DIAS_GUARDADO = 7;   // un pedido de hace una semana ya no es lo que la persona quiere hoy
   /* 22-oct-2026 — sube porque cambió el renglón «Cuándo recibes la plata»: la
-     cuenta se elige al aceptar. La constancia guarda qué versión leyó cada uno. */
-  var VERSION_CONDICIONES = '2026-10-22';
+     cuenta se elige al aceptar. La constancia guarda qué versión leyó cada uno.
+     13-nov-2026 — sube porque cambió el texto de la quincenal a cuotas: la
+     garantía del quincenal cuota por cuota, el recargo sobre el capital de la
+     cuota y «mover la fecha de una cuota» en vez de una prórroga. Una página
+     vieja (con este archivo en ?v=139) la lee como la del préstamo con garantía
+     y manda '2026-10-22': así el CRM sabe que leyó el texto de antes
+     (descuadreDeConstancia). Nadie compara la versión para dejar aceptar
+     —aceptar_condiciones la guarda tal cual—, así que una propuesta abierta
+     con la versión vieja se sigue aceptando igual. */
+  var VERSION_CONDICIONES = '2026-11-13';
 
   /* Los montos del deslizador NO son un rango parejo, y es por el pulgar: de
      50.000 a 5.000.000 en pasos de 50.000 son cien posiciones, y la gente que

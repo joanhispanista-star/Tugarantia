@@ -422,8 +422,9 @@ describe('las condiciones de este crédito', () => {
        techo del recargo que se le mostró. */
     assert.deepEqual(Object.keys(p).sort(), ['capital', 'creada_en', 'fecha_pago', 'lineas', 'texto', 'tope_mora', 'total', 'version']);
     /* 22-oct-2026 — la versión sube con el renglón «Cuándo recibes la plata»
-       (la cuenta se elige al aceptar). */
-    assert.equal(p.version, '2026-10-22');
+       (la cuenta se elige al aceptar). 13-nov-2026 — y con el texto de la
+       quincenal a cuotas (pruebas/propuesta-a-cuotas.test.js, §4). */
+    assert.equal(p.version, '2026-11-13');
     assert.equal(p.creada_en, '2026-10-08T15:00:00Z');
   });
 

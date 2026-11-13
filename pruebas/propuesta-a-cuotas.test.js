@@ -599,6 +599,50 @@ describe('4. La constancia lleva las cuotas, y el CRM las coteja sin descuadres 
     assert.match(R.ev('descuadreDeConstancia(_solicitudes[0]).join()'), /las cuotas \(su app mostró 0 y la propuesta tiene 3\)/);
   });
 
+  /* 13-nov-2026 (revisión) — LA CONSTANCIA DISTINGUE EL TEXTO VIEJO. Una
+     página con la calculadora de antes (?v=139) lee la quincenal a cuotas como
+     la del préstamo con garantía (otra garantía, el recargo sobre la cuota
+     entera, una prórroga) y la acepta con la versión '2026-10-22'; sus cuotas
+     salen bien, así que el cotejo de las cuotas no lo veía. La versión sube a
+     '2026-11-13' y el CRM marca la vieja, SOLO en esta forma: aceptar_condiciones
+     no compara la versión, y las de un solo pago y con garantía que están
+     abiertas con la vieja no cambian de texto ni se marcan. */
+  test('la versión sube a 2026-11-13, y una quincenal a cuotas aceptada con la vieja es un descuadre', () => {
+    assert.equal(CS.VERSION_CONDICIONES, '2026-11-13');
+    const { sol, vio } = solicitudAceptada();
+    assert.equal(vio.version, '2026-11-13', 'lo que viaja con la aceptación no dice la versión nueva');
+    assert.equal(sol.contrapropuesta.condiciones.version, '2026-11-13');
+    const { P } = crm({ solicitudes: [sol] });
+    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(descuadreDeConstancia(_solicitudes[0]))')), []);
+    /* La misma, aceptada desde una página vieja. */
+    P.ev("_solicitudes[0].contrapropuesta.condiciones.version='2026-10-22'");
+    const malos = JSON.parse(P.ev('JSON.stringify(descuadreDeConstancia(_solicitudes[0]))'));
+    assert.deepEqual(malos, ['lo que leyó (su app tenía las condiciones de antes, versión 2026-10-22: otra garantía y una prórroga que este crédito no tiene)']);
+    /* Sin versión, también. */
+    P.ev('delete _solicitudes[0].contrapropuesta.condiciones.version');
+    assert.match(P.ev('descuadreDeConstancia(_solicitudes[0]).join()'), /versión sin versión/);
+    /* Y se dice donde Joan lo ve: en la fila y antes de desembolsar. */
+    P.ev("_solicitudes[0].contrapropuesta.condiciones.version='2026-10-22'; renderBandeja()");
+    assert.match(plano(P.elems.bandeja.innerHTML), /no casa con la base: lo que leyó \(su app tenía las condiciones de antes/);
+
+    /* Las otras dos formas, abiertas y aceptadas con la versión vieja: sin descuadre. */
+    const unico = Object.assign(PIDE(), { estado: 'contrapropuesta',
+      contrapropuesta: { capital: 600000, costo_pct: 20, dias: 15, costo: 120000, total: 720000, fecha_pago: '2026-11-28',
+        texto: '', por: 'joan', creada_en: '2026-11-12T15:00:00.123456+00:00' } });
+    const garantia = Object.assign(PIDE(), { estado: 'contrapropuesta', producto: 'respaldado',
+      contrapropuesta: { capital: 2000000, costo: 80000, total: 2080000, meses: 2, producto: 'respaldado', fecha_pago: '2027-01-15',
+        creada_en: '2026-11-12T15:00:00.123456+00:00',
+        cuotas: [{ numero: 1, fecha: '2026-12-15', capital: 1000000, costo: 40000, total: 1040000 },
+                 { numero: 2, fecha: '2027-01-15', capital: 1000000, costo: 40000, total: 1040000 }] } });
+    [unico, garantia].forEach(s => {
+      const v = CS.paraAceptar(CS.condiciones(s, { hoy: HOY }));
+      const acept = aceptadaCon(s, Object.assign({}, v, { version: '2026-10-22' }));
+      const Q = crm({ solicitudes: [acept] }).P;
+      assert.deepEqual(JSON.parse(Q.ev('JSON.stringify(descuadreDeConstancia(_solicitudes[0]))')), [],
+        'una ' + (s.producto === 'respaldado' ? 'con garantía' : 'de un solo pago') + ' aceptada con la versión vieja salió como descuadre');
+    });
+  });
+
   test('«Lo que aceptó» enseña las cuotas según la base', () => {
     const { sol } = solicitudAceptada();
     const { P } = crm({ solicitudes: [sol] });
