@@ -195,12 +195,26 @@
    * la misma de play/. `general` NO se afirma aquí: se copia de la que ya
    * tiene la cuenta (la dio al abrirla), porque en esta pantalla solo marcó la
    * de los datos sensibles.
+   *
+   * 13-nov-2026 (remate) — Y SOLO SI ES DE LA MISMA VERSIÓN. La revisión lo
+   * encontró: la constancia nueva lleva la versión vigente (armarAutorizacion),
+   * y copiarle `general: true` de una cuenta que aceptó la política de agosto o
+   * la del 8-oct dejaba escrito «aceptó la política general 2026-10-19 el
+   * 13-nov», que en esta pantalla no pasó, y autorizacionAlDia() la daba por al
+   * día. Esa constancia es la prueba ante la SIC (Ley 1581, Decreto 1377): no
+   * puede afirmar una aceptación que no ocurrió. Si la general es de otra
+   * versión, la nueva dice `general: false` y anota cuál aceptó
+   * (`general_version`); la aceptación vieja sigue entera en el historial.
+   * Los registros entre el 9-sep (la cámara) y el 19-oct son justo los que ven
+   * esta tarjeta.
    */
   function constancia(meta, U, momento) {
     var m = (meta && typeof meta === 'object') ? meta : {};
     var prev = (m.autorizacion && typeof m.autorizacion === 'object') ? m.autorizacion : null;
     var aut = U.armarAutorizacion(momento, true);
-    aut.general = !!(prev && prev.general === true);
+    var dioLaGeneral = !!(prev && prev.general === true);
+    aut.general = dioLaGeneral && prev.version === aut.version;
+    if (dioLaGeneral && !aut.general) aut.general_version = typeof prev.version === 'string' ? prev.version : null;
     var antes = Array.isArray(m.autorizaciones) ? m.autorizaciones.slice() : [];
     if (prev && !antes.some(function (x) { return x && x.momento === prev.momento; })) antes.push(prev);
     return { autorizacion: aut, autorizaciones: antes.concat([aut]) };

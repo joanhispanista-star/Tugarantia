@@ -253,6 +253,44 @@ describe('2 · la cuenta sin juntar', () => {
     assert.ok(orden.indexOf('GET user') >= 0 && orden.indexOf('GET user') < orden.indexOf('PUT user'));
   });
 
+  /* 13-nov-2026 (remate) — la revisión: copiar `general: true` de una política
+     vieja dejaba escrito que aceptó HOY la general vigente, y en esta pantalla
+     solo marcó la de datos sensibles. Esa constancia es la prueba ante la SIC. */
+  test('la general de una política vieja no se copia como aceptada hoy: se anota cuál fue, y el historial la guarda', async () => {
+    const VIEJA = { version: '2026-08-20', momento: '2026-08-21T10:00:00Z', general: true, sensibles: false };
+    assert.notEqual(VIEJA.version, U.VERSION_AUTORIZACION);
+    const c = FLC.constancia({ autorizacion: VIEJA }, U, '2026-11-13T15:00:00Z');
+    assert.equal(c.autorizacion.version, U.VERSION_AUTORIZACION);
+    assert.equal(c.autorizacion.sensibles, true);
+    assert.equal(c.autorizacion.general, false, 'quedó escrito que hoy aceptó la política general vigente');
+    assert.equal(c.autorizacion.general_version, '2026-08-20');
+    assert.equal(U.autorizacionAlDia(c.autorizacion), false, 'la cuenta pasa por aceptada al día');
+    assert.deepEqual(c.autorizaciones, [VIEJA, c.autorizacion], 'se perdió la aceptación vieja del historial');
+    /* La de la misma versión sí (el registro del 8-nov), y sin autorización previa no hay nada que copiar. */
+    const MISMA = { version: U.VERSION_AUTORIZACION, momento: '2026-11-08T15:20:00Z', general: true, sensibles: false };
+    const c2 = FLC.constancia({ autorizacion: MISMA }, U, '2026-11-13T15:00:00Z');
+    assert.equal(c2.autorizacion.general, true);
+    assert.equal(c2.autorizacion.general_version, undefined);
+    assert.equal(U.autorizacionAlDia(c2.autorizacion), true);
+    const c3 = FLC.constancia({}, U, '2026-11-13T15:00:00Z');
+    assert.equal(c3.autorizacion.general, false);
+    assert.equal(c3.autorizacion.general_version, undefined);
+    /* Y por la pantalla de verdad: lo que viaja en el PUT de la cuenta. */
+    const puts = [];
+    const { A } = await entrar({ mis_fotos_del_registro: SIN_CEDULA({ sensibles: false }),
+      'auth:GET': { status: 200, cuerpo: { email: CORREO, user_metadata: { autorizacion: VIEJA } } },
+      'auth:PUT': c => { puts.push(c); return { status: 200, cuerpo: { email: CORREO } }; },
+      registro_archivos_guardar: c => ({ status: 200, cuerpo: GUARDADA(Object.keys(c.p_archivos)[0]) }) });
+    A.ev('FLC.abrir()');
+    A.ev('FLC.marcarPermiso(true); FLC.guardarPermiso()'); await asentar(12);
+    assert.equal(puts.length, 1);
+    assert.equal(puts[0].data.autorizacion.general, false);
+    assert.equal(puts[0].data.autorizacion.general_version, '2026-08-20');
+    assert.equal(puts[0].data.autorizacion.sensibles, true);
+    /* La subida no depende de la general: la base mira solo `sensibles`. */
+    assert.match(tarjeta(A), /La foto de tu cédula/);
+  });
+
   test('si el permiso no se puede guardar, no sube nada y lo dice', async () => {
     for (const [r, texto] of [[{ status: 500, cuerpo: {} }, /No pudimos guardar tu permiso/], [null, /No pude confirmar que tu permiso quedó guardado/],
                               [{ status: 401, cuerpo: {} }, /sesión/i]]) {
