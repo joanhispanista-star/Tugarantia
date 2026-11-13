@@ -458,6 +458,21 @@ describe('4. lo que escribió y no has leído, en su fila', () => {
     assert.match(plano(filaDe(P, 601)), /💬 Escribirle · 1 sin leer/);
   }));
 
+  test('sin la marca de la base y con el número de una ficha sin cédula: no cuenta nada hasta preguntarle a la nube', async () => {
+    /* Las del 5 al 7 de oct, de antes del disparador: cuenta_sin_juntar en false. */
+    const ANTES = sol(602, { nombre: 'Antes Inventado', cedula: '3100000044', celular: '3100000044', cuenta_sin_juntar: false });
+    const M = montar({ socios: [MARTA, DUENA, PEGO, VIEJA], solicitudes: [ANTES],
+      hilos: { '3100000044': '03100000044' }, convs: [conv('3100000044', 7), conv('03100000044', 1)] });
+    try {
+      assert.doesNotMatch(plano(filaDe(M.P, 602)), /7 sin leer/, 'le pintó lo de la ficha antigua');
+      assert.doesNotMatch(plano(filaDe(M.P, 602)), /sin leer/, 'adivinó un hilo sin preguntar');
+      await tocar(M.P, 602);
+      assert.equal(M.P.ev('_chatAbierta'), '03100000044');
+      M.P.ev('cerrarModal(); renderBandeja()');
+      assert.match(plano(filaDe(M.P, 602)), /💬 Escribirle · 1 sin leer/, 'después de preguntar, cuenta el hilo que dijo la nube');
+    } finally { M.cerrar(); }
+  });
+
   test('se repinta solo con la vuelta del chat, y después de abrirla sigue el hilo que dijo la nube', async () => {
     let lista = [];
     const M = montar({ nube: { chat_conversaciones: () => lista }, hilos: { '3200000501': '1000000099' } });

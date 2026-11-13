@@ -10993,7 +10993,14 @@ function hiloSabidoDeSolicitud(s){
   const junta=(DB.socios||[]).find(x=>x&&x.cuentaJunta&&diez(x.cuentaJunta.celular)===d.cel);
   if(junta) return PUENTE.llaveEnLaNube(junta);
   if(s.cuenta_sin_juntar===true) return '0'+d.cel;
-  return String(s.cedula||'').replace(/\D/g,'')||d.cel;
+  const h=String(s.cedula||'').replace(/\D/g,'')||d.cel;
+  /* Sin la marca de la base (las del 5 al 7 de oct, de antes del disparador, o
+     una ficha creada después) y con el número que hoy es la llave de una ficha
+     sin cédula: ese hilo es el de la FICHA, y quien pidió puede leer en el suyo
+     ('0' + celular). Sin preguntarle a la nube no se sabe: cero antes que
+     contar lo de otro. Al tocar «💬 Escribirle», _hiloDeCelular lo resuelve. */
+  if(/^3\d{9}$/.test(h)&&(DB.socios||[]).some(x=>x&&PUENTE.llaveEnLaNube(x)===h)) return '';
+  return h;
 }
 /* Lo que el cliente escribió y Joan no ha leído, con lo que trajo la última
    vuelta de 💬 Chat (traerConversaciones). Sin esa lista, cero: no se inventa. */
