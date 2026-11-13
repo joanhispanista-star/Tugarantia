@@ -22773,6 +22773,23 @@ function quincenalDeSolicitud(s){
      y el costo lo vuelve a hacer el motor con ese porcentaje. Sin contrapropuesta
      es la solicitud de siempre: solo cuánto pide; lo demás sale de acá. */
   const cp=s&&s.contrapropuesta&&typeof s.contrapropuesta==='object'?s.contrapropuesta:null;
+  /* 13-nov-2026 — LA QUINCENAL A CUOTAS (ver LA TERCERA FORMA). No tiene un %
+     ni una fecha: tiene cuotas, cada una con los suyos. Lo que la fila enseña
+     es lo que la base guardó; el cinturón es el mismo de un solo pago, con la
+     cuenta del registro a cuotas (revisarQuincenalACuotas): si el motor de hoy
+     no da lo que él aceptó, la fila lo dice. Una propuesta cuya primera cuota
+     ya llegó no se compara aquí (el motor no la acepta con desembolso hoy):
+     de esa habla avisoPropuestaVencida. */
+  if(esQuincenalACuotas(cp)){
+    const rv=revisarQuincenalACuotas(s,hoyISO());
+    const dicho=Math.round(Number(cp.total)||0);
+    return { capital:Math.round(Number(cp.capital)||0), costo:Math.round(Number(cp.costo)||0),
+      total:rv.plan?rv.plan.total_a_pagar:dicho,
+      pct:Math.round(Number(cp.cuotas[0].pct)||0), cortes:1,
+      descuadre:(rv.plan&&!rv.ok)?dicho:0,
+      cuotas:cp.cuotas.length, primera:String(cp.cuotas[0].fecha||'').slice(0,10),
+      corte:String(cp.cuotas[0].fecha||'').slice(0,10), contrapropuesta:true, aCuotas:true };
+  }
   if(cp&&Number(cp.capital)>0){
     const capital=Math.round(Number(cp.capital)), pct=Math.max(1,Math.min(TASA_TECHO_PCT,Math.round(Number(cp.costo_pct)||TASA_FIJA_PCT)));
     /* 26-sep-2026 — LOS CORTES (PlataChat). La propuesta puede ser a dos o tres
@@ -23121,7 +23138,8 @@ function filaDeSolicitud(s){
       /* Si su cupo no alcanza, el automático NO le va a proponer al vencer la
          hora: esa la contesta una persona o no la contesta nadie. */
       const sinCupo=pc&&ped.automatica==='sin_cupo'?'<div class="muted" style="color:var(--ambar)">su cupo no alcanza: el automático no va a proponer</div>':'';
-      const descuadre=q&&q.descuadre?'<div class="muted" style="color:var(--ambar)">él aceptó '+COP(q.descuadre)+'</div>':'';
+      const descuadre=q&&q.descuadre?'<div class="muted" style="color:var(--ambar)">él aceptó '+COP(q.descuadre)
+        +(q.aCuotas?' en otras cuotas: revísala antes de desembolsar':'')+'</div>':'';
       const sinFicha=!cli&&s.datos&&Object.keys(s.datos).length>0;
       /* 7-oct-2026 (segunda vuelta) — la de una cuenta sin juntar se dice: su
          celular es el de una ficha, pero no se sabe si es esa persona (ver
@@ -23138,9 +23156,10 @@ function filaDeSolicitud(s){
       <td>${resp?`<b>Con garantía</b><div class="muted">${(Number(s.tasa)*100).toFixed(0)}% mensual · ${pz} mes${pz!==1?'es':''}</div>`
                 :pcNueva?`<b>Pidió por el chat</b><div class="muted">${pidePct||q.pct}% · ${pideCortes} corte${pideCortes!==1?'s':''} · todavía sin propuesta</div>`
                 :pideNueva?`<b>Pidió desde la app</b><div class="muted">${escHTML((plazoPedido(s)||{}).corto||'')} · todavía sin propuesta</div>`
+                :cp&&q.aCuotas?`<b>A cuotas</b><div class="muted">${escHTML(cuotasEnUnaLinea(cp))}</div>`
                 :cp?`<b>Primer crédito</b><div class="muted">${q.pct}% · ${Number(cp.dias)} días${q.cortes>1?' · '+q.cortes+' cortes':''}</div>`:`<b>Quincenal</b><div class="muted">${q.pct}% la quincena</div>`}</td>
       <td class="num">${espera?'<span class="muted">sin proponer</span>':COP(resp?s.total:q.total)+descuadre}</td>
-      <td>${resp||espera?(s.fecha_corte?fmtFecha(s.fecha_corte):'—'):fmtFecha(q.corte)}${resp?'<div class="muted">última cuota</div>':espera?'<div class="muted">la que pidió</div>':''}</td>
+      <td>${resp||espera?(s.fecha_corte?fmtFecha(s.fecha_corte):'—'):fmtFecha(q.corte)}${resp?'<div class="muted">última cuota</div>':espera?'<div class="muted">la que pidió</div>':q&&q.aCuotas?'<div class="muted">la primera de '+q.cuotas+'</div>':''}</td>
       <td style="text-align:right">
         ${cp||cpRaw||espera||proponerPrimero?`<button class="btn ${espera||proponerPrimero?'btn-rojo':'btn-ghost'} btn-sm" onclick="editarContrapropuesta('${s.id}')">✏️ ${espera||proponerPrimero?'Proponer':'Cambiar propuesta'}</button> `:''}${espera||proponerPrimero||((cp||cpRaw)&&s.estado!=='aceptada')?'':`<button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="crearDesdeSolicitud('${s.id}')">✓ ${resp?'Revisar préstamo':(cp||cpRaw)?'Desembolsar':'Crear crédito'}</button>`}
         ${enlaceDeSolicitud(s)}<button class="btn btn-ghost btn-sm" onclick="verAparatosDeSolicitud('${s.id}')" title="Desde qué celular pidió (19-oct-2026)">📱</button>
@@ -23385,6 +23404,30 @@ function descuadreDeConstancia(s){
   if(digitosDe(lin('recibes'))&&digitosDe(lin('recibes'))!==digitosDe(b.capital)) malos.push('recibe');
   if(digitosDe(lin('total'))&&digitosDe(lin('total'))!==digitosDe(b.total)) malos.push('total');
   if(digitosDe(cp.capital)&&digitosDe(cp.capital)!==digitosDe(b.capital)) malos.push('la propuesta cambió después');
+  /* 13-nov-2026 — Y CADA CUOTA, si la propuesta va en cuotas. Su app escribe
+     «Cuota 2: $390.000 el domingo 15 de noviembre de 2026»; aquí se arma el
+     mismo renglón con las cuotas de LA BASE (las de esta propuesta: si Joan la
+     cambia, la constancia se va con la vieja) y con las mismas funciones del
+     módulo que lo escribió (CSOL.pesos y CSOL.fechaLarga). Así no hay descuadre
+     falso por cómo se escribe una fecha, y uno de verdad —otra cifra u otro
+     día— sale con su número de cuota. Sin el módulo, se comparan los pesos. */
+  const cs=Array.isArray(cp.cuotas)&&cp.cuotas.length>1?cp.cuotas:null;
+  if(cs){
+    const lineasCuota=(Array.isArray(c.lineas)?c.lineas:[]).filter(l=>l&&/^cuota\d+$/.test(String(l.clave||'')));
+    /* Una del préstamo con garantía sin renglones de cuota no se coteja aquí
+       (no hay qué): así era antes de esto. Una quincenal a cuotas sin ellos sí
+       es un descuadre: él no vio las fechas que se le van a cobrar. */
+    if(!lineasCuota.length&&!esQuincenalACuotas(cp)){ /* nada que cotejar */ }
+    else if(lineasCuota.length!==cs.length) malos.push('las cuotas (su app mostró '+lineasCuota.length+' y la propuesta tiene '+cs.length+')');
+    else cs.forEach((q,i)=>{
+      const v=String(lin('cuota'+(i+1))), t=q&&q.total!=null?Number(q.total):(Number(q&&q.capital)||0)+(Number(q&&q.costo)||0);
+      const f=String((q&&q.fecha)||'').slice(0,10);
+      const igual=CSOL&&CSOL.pesos&&CSOL.fechaLarga
+        ?v===CSOL.pesos(t)+' el '+CSOL.fechaLarga(f)
+        :digitosDe((/^\s*\$?\s*[\d.]+/.exec(v)||[''])[0])===digitosDe(t);
+      if(!igual) malos.push('la cuota '+(i+1));
+    });
+  }
   return malos;
 }
 /* El techo del recargo que aceptó, calculado AQUÍ con la tabla de usura del
@@ -23435,6 +23478,7 @@ function verCondicionesAceptadas(id){
   if(!c) return;
   const lineas=Array.isArray(c.lineas)?c.lineas:[];
   const b=(c.base&&typeof c.base==='object')?c.base:null;
+  const cuotasB=Array.isArray(s.contrapropuesta.cuotas)&&s.contrapropuesta.cuotas.length>1?s.contrapropuesta.cuotas:null;
   const malos=descuadreDeConstancia(s);
   const tm=topeMoraDeAceptacion(s);
   const correo=correoDeSolicitud(s);
@@ -23457,8 +23501,12 @@ function verCondicionesAceptadas(id){
     '<div class="sub-h">Según la base</div>'+
     (b?'<div class="info-row"><span class="k">Recibe</span><span class="vv">'+COP(Number(b.capital)||0)+'</span></div>'+
        '<div class="info-row"><span class="k">Total a pagar</span><span class="vv">'+COP(Number(b.total)||0)+'</span></div>'+
-       '<div class="info-row"><span class="k">Fecha de pago</span><span class="vv">'+escHTML(b.fecha_pago?fmtFecha(String(b.fecha_pago).slice(0,10)):'—')+'</span></div>'
+       '<div class="info-row"><span class="k">'+(cuotasB?'Última cuota':'Fecha de pago')+'</span><span class="vv">'+escHTML(b.fecha_pago?fmtFecha(String(b.fecha_pago).slice(0,10)):'—')+'</span></div>'
       :'<div class="muted">Esta constancia no trae las cifras de la base (se aceptó con una versión anterior del archivo SQL).</div>')+
+    /* 13-nov-2026 — y cada cuota, de la propuesta que guardó la base: es con
+       lo que descuadreDeConstancia coteja los renglones de su app. */
+    (cuotasB?cuotasB.map((q,i)=>'<div class="info-row"><span class="k">Cuota '+(i+1)+' · '+escHTML(fmtFecha(String((q&&q.fecha)||'').slice(0,10)))
+      +'</span><span class="vv">'+COP(q&&q.total!=null?Number(q.total):(Number(q&&q.capital)||0)+(Number(q&&q.costo)||0))+'</span></div>').join(''):'')+
     (tm?'<div class="info-row"><span class="k">Techo del recargo</span><span class="vv">'+escHTML((tm.ea*100).toLocaleString('es-CO',{maximumFractionDigits:2}))+
        '% efectivo anual (la tasa de usura del día en que aceptó)'+(tm.dijo&&Math.abs(tm.dijo-tm.ea)>1e-9?' · su app le mostró '+escHTML((tm.dijo*100).toLocaleString('es-CO',{maximumFractionDigits:2}))+'%':'')+
        '. Al desembolsar se le pone al crédito.</span></div>':'')+
@@ -23775,6 +23823,12 @@ function crearDesdeSolicitud(id){
      la constancia: esas preguntan si lo que aceptó es lo que la base tiene, y
      un «no» ahí no debe quedar tapado por esta. */
   const venc=s.estado==='aceptada'?vencioLaPropuesta(s):'';
+  /* 13-nov-2026 — a cuotas no hay «anotarlo tarde»: el registro a cuotas no
+     acepta una primera cuota que no sea después del desembolso (el motor), así
+     que se dice de una vez en vez de preguntar algo que después no se puede. */
+  if(venc&&esQuincenalACuotas(s.contrapropuesta)) return alert('⚠️ Lo que aceptó '+cli.nombre+' tenía la primera cuota el '+fmtFecha(venc)
+    +', y esa fecha ya llegó: un crédito a cuotas no se registra con una cuota vencida desde el primer día.\n\n'
+    +'Cámbiale la propuesta con «✏️ Cambiar propuesta» (con fechas que vengan) y que la vuelva a aceptar.');
   if(venc&&!confirm('⚠️ Lo que aceptó '+cli.nombre+' se pagaba el '+fmtFecha(venc)+', y esa fecha ya llegó: si lo registro hoy, el crédito nace VENCIDO (su fecha de pago queda antes del día en que se lo entregas).\n\n'
     +'Lo bueno: toca Cancelar, cámbiale la propuesta con «✏️ Cambiar propuesta» (con una fecha que venga) y que la vuelva a aceptar.\n\n'
     +'Regístralo así solo si ya le giraste la plata antes y lo estás anotando tarde.\n\n¿Lo registro igual, vencido?')) return;
@@ -23783,6 +23837,9 @@ function crearDesdeSolicitud(id){
      pidió el cliente ya puestos, porque ese es el único que sabe frenar cuando
      la garantía ganada no alcanza. Desde la bandeja se revisa, no se dispara. */
   if(productoSolicitud(s)==='respaldado') return nuevoRespaldado(cli.id,s);
+  /* 13-nov-2026 — Y LA QUINCENAL A CUOTAS ACEPTADA, por la suya: se registra
+     como el registro a cuotas, con lo que aceptó (desembolsarQuincenalACuotas). */
+  if(esQuincenalACuotas(s.contrapropuesta)) return desembolsarQuincenalACuotas(s,cli);
   /* El cupo, el costo, el total y la fecha se vuelven a sacar acá, con tus datos
      de hoy. Lo único que pone la solicitud es cuánto pide. */
   const q=quincenalDeSolicitud(s);
@@ -23828,6 +23885,82 @@ function crearDesdeSolicitud(id){
   marcarEnNube(s,'atendida'); quitarSolicitud(id);
   render();
   if(confirmarExito('✓ Crédito '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
+}
+
+/* 13-nov-2026 — LA QUINCENAL A CUOTAS, OTRA VEZ CON EL MOTOR. Lo que el cliente
+   aceptó (las fechas, los % y los capitales de cada cuota) se le vuelve a dar al
+   motor con desembolso `f`, y tiene que dar PESO POR PESO lo mismo: cada cuota
+   su fecha, su capital, su costo y su total, y el total del crédito. Es el
+   cinturón de un solo pago (quincenalDeSolicitud) con la cuenta del registro a
+   cuotas: nunca se registra una cifra que él no vio.
+   {ok, plan, cap} o {ok:false, error[, plan]} (plan, si el motor lo armó pero
+   no casa). Nunca lanza. */
+function revisarQuincenalACuotas(s,f){
+  const cp=s&&s.contrapropuesta;
+  if(!esQuincenalACuotas(cp)) return {ok:false,error:'no es una propuesta a cuotas'};
+  const cap=Math.round(Number(cp.capital)||0);
+  const entrada=cp.cuotas.map(q=>({fecha:String((q&&q.fecha)||'').slice(0,10),pct:Number(q&&q.pct),
+    capital:Number(q&&q.capital)}));
+  let plan;
+  try{ plan=MotorReglas.construirPlanACuotas(cap,entrada,{fechaDesembolso:f}); }
+  catch(e){ return {ok:false,error:'el motor de hoy no la acepta: '+fraseDelMotorAlta(e)}; }
+  const malas=[];
+  plan.cuotas.forEach((q,i)=>{ const a=cp.cuotas[i]||{};
+    if(q.fecha_corte!==String(a.fecha||'').slice(0,10)||q.capital!==Number(a.capital)||q.costo!==Number(a.costo)||q.total!==Number(a.total))
+      malas.push('la cuota '+(i+1)+' (aceptó '+COP(Number(a.total)||0)+' el '+fmtFecha(String(a.fecha||'').slice(0,10))
+        +'; el motor da '+COP(q.total)+' el '+fmtFecha(q.fecha_corte)+')'); });
+  if(plan.total_a_pagar!==Math.round(Number(cp.total)||0))
+    malas.push('el total (aceptó '+COP(Number(cp.total)||0)+'; el motor da '+COP(plan.total_a_pagar)+')');
+  return malas.length?{ok:false,error:'lo que aceptó no es lo que da el motor hoy en '+malas.join(', ')+'.',plan}
+    :{ok:true,plan,cap};
+}
+/* EL DESEMBOLSO DE UNA QUINCENAL A CUOTAS ACEPTADA. Lo llama crearDesdeSolicitud
+   cuando ya pasaron sus rejas (la ficha, que aceptó, la constancia, la vencida).
+   Registra el MISMO crédito que guardarRapidoACuotas —el planPagos del puente,
+   con origen 'alta'— con las fechas y los % que aceptó, más lo que lleva todo
+   crédito que nace de una solicitud: a dónde consignar, el techo del recargo
+   que aceptó (topeMoraEA) y la solicitud cerrada como atendida. Si el motor de
+   hoy no da lo aceptado, no registra nada y manda a cambiar la propuesta. */
+function desembolsarQuincenalACuotas(s,cli){
+  const f=hoyISO();
+  const rv=revisarQuincenalACuotas(s,f);
+  if(!rv.ok) return alert('No registré nada: '+rv.error+'\n\n'
+    +'Revísala con «✏️ Cambiar propuesta», mándasela otra vez y que la vuelva a aceptar: solo se desembolsa lo que el cliente vio.');
+  const plan=rv.plan, cap=rv.cap;
+  const r=revisarCupo(cli,cap);
+  const tm=topeMoraDeAceptacion(s);
+  const dst=destinoDeSolicitud(s);
+  /* La mora de una cuota en domingo o festivo, con el techo que aceptó: es la
+     que el crédito va a cobrar (tasaMoraDe). */
+  const prov=creditoProvisionalAlta(cap,f,plan); if(tm) prov.topeMoraEA=tm.ea;
+  const avisos=avisosInhabilesCuotas(plan.inhabiles,prov);
+  if(!confirm('Crear el crédito A CUOTAS de '+cli.nombre+', con lo que aceptó:\n\n'
+    +'• Capital: '+COP(cap)+(cap%1000!==0?'   ⚠️ OJO: NO ES UNA CIFRA REDONDA':'')+'\n'
+    +plan.cuotas.map(q=>'• Cuota '+q.numero+': '+COP(q.total)+' el '+fechaCortaCuota(q.fecha_corte,true)
+      +' (capital '+COP(q.capital)+' + costo '+COP(q.costo)+') · '+q.pct+'%').join('\n')+'\n'
+    +'• Total a devolver: '+COP(plan.total_a_pagar)+' (tu ganancia: '+COP(plan.total_costo)+')\n'
+    +'• Le deja de garantía, si paga en fecha: '+COP(plan.total_garantia)+'\n'
+    +(dst?'• Consignar a: '+destinoEnPalabras(dst)+' (a nombre de '+cli.nombre+': compara el titular con su cédula)\n'
+      :s.origen==='pegada'?'':'• ⚠️ No eligió a qué cuenta: pregúntale por el chat (a su nombre) antes de girar\n')
+    +(tm?'• Recargo por atraso: con el techo legal que aceptó ('+(tm.ea*100).toLocaleString('es-CO',{maximumFractionDigits:2})+'% efectivo anual)\n':'')
+    +(avisos.length?'\n⚠️ '+avisos.join('\n⚠️ ')+'\nLas fechas se quedan como las aceptó.\n':'')
+    +((r&&(r.pasa||r.pasaSumando))?'\n'+textoCupo(r):'')
+    +'\nUn crédito a cuotas no se prorroga.\n\n¿Lo registro?'))return;
+  /* Los mismos campos que guardarRapidoACuotas (costoPct y cicloActual de la
+     cuota 1, el planPagos del puente) y los de crearDesdeSolicitud. */
+  const p={ id:'P'+Date.now(), numero:nextNumCredito(), socioId:cli.id, socioNombre:cli.nombre,
+    telefono:cli.telefono, capital:cap, costoPct:plan.cuotas[0].pct,
+    fechaDesembolso:f, cicloActual:plan.cuotas[0].fecha_corte,
+    prorrogas:[], abonosCapital:[], comprobantes:[], pagado:false,
+    fechaCreacion:new Date().toISOString(), origen:'solicitud', planPagos:PUENTE.planPagosDeAlta(plan) };
+  if(tm){ p.topeMoraEA=tm.ea; p.condicionesDe=String(s.id); }
+  if(dst) p.consignarA=JSON.parse(JSON.stringify(dst));
+  DB.prestamos.push(p);
+  /* Primero el disco, después la nube (ver quedoEnDisco), como en crearDesdeSolicitud. */
+  if(!quedoEnDisco()){ render(); return; }
+  marcarEnNube(s,'atendida'); quitarSolicitud(String(s.id));
+  render();
+  if(confirmarExito('✓ Crédito a cuotas '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
 }
 
 /* La ficha de un cliente nuevo, con TODO lo que declaró al registrarse — el
@@ -24000,10 +24133,20 @@ function conPropuestaAbierta(sol) {
 function solicitudesConPropuesta(s) {
   return solicitudesDeLaFicha(s).filter(x => conPropuestaAbierta(x.sol));
 }
+/* 13-nov-2026 — la quincenal a cuotas, en una línea: «3 cuotas, la primera el
+   30 nov 2026, total $2.570.000». La usan la ficha («Lo que pidió»), la fila
+   de 📨 Solicitudes y los avisos que la nombran. */
+function cuotasEnUnaLinea(cp) {
+  const cs = cp && Array.isArray(cp.cuotas) ? cp.cuotas : [];
+  if (!cs.length) return '';
+  return cs.length + ' cuotas, la primera el ' + fmtFecha(String((cs[0] && cs[0].fecha) || '').slice(0, 10))
+    + ', total ' + COP(Number(cp.total) || 0);
+}
 /* Lo propuesto, en una línea: lo mismo que el cliente ve en pesos. */
 function propuestaEnUnaLinea(sol) {
   const cp = sol && sol.contrapropuesta;
   if (!cp || typeof cp !== 'object') return '';
+  if (esQuincenalACuotas(cp)) return 'le propusiste ' + COP(Number(cp.capital) || 0) + ' en ' + cuotasEnUnaLinea(cp);
   const cuotas = Array.isArray(cp.cuotas) && cp.cuotas.length > 1 ? cp.cuotas : null;
   return 'le propusiste ' + COP(Number(cp.capital) || 0) + ' y devuelve ' + COP(Number(cp.total) || 0)
     + (cuotas ? ' en ' + cuotas.length + ' cuotas' : cp.fecha_pago ? ' el ' + fmtFecha(String(cp.fecha_pago).slice(0, 10)) : '');
