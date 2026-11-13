@@ -541,3 +541,61 @@ describe('6 · la cuenta de play/, con la misma tarjeta', () => {
     assert.match(leer('play/index.html'), /<script src="\.\.\/app\/falta-la-cedula\.js\?v=144"><\/script>/);
   });
 });
+
+/* ---- el CRM: la cédula que llegó días después, de punta a punta --------- */
+const { abrirPanel } = require('./banco-panel.js');
+
+describe('7 · el CRM se entera: la foto subida días después aparece con lo que ya existe', () => {
+  /* La «base» de mentira que comparten la app y el CRM: lo que la app sube
+     por registro_archivos_guardar es lo que el CRM trae por
+     archivos_de_registro (la misma tabla, sin borrar nada al leer). */
+  async function subirDesdeLaApp() {
+    const TABLA = { selfie: 'data:image/jpeg;base64,' + 'S'.repeat(40) };
+    const { A } = await entrar({
+      mis_fotos_del_registro: () => ({ status: 200, cuerpo: SIN_CEDULA({ fotos: {
+        cedula_frente: !!TABLA.cedula_frente, cedula_reverso: !!TABLA.cedula_reverso, selfie: !!TABLA.selfie } }) }),
+      registro_archivos_guardar: c => { Object.assign(TABLA, c.p_archivos); return { status: 200, cuerpo: GUARDADA(Object.keys(c.p_archivos)[0]) }; } });
+    A.ev(CAMARA); A.ev('FLC.abrir()');
+    elegirFoto(A, 'cedula_frente'); await asentar(12);
+    elegirFoto(A, 'cedula_reverso'); await asentar(12);
+    return TABLA;
+  }
+  /* Como la deja «＋ Abrirle la ficha» desde 📥 Registrados el 8-nov: con la
+     selfie y sin la cédula, que no había llegado. */
+  const FICHA = () => ({ id: 's1', numero: 1, nombre: 'Ficha Inventada', cedula: '52000111', telefono: '3001112222',
+    origen: 'registro_abierto', selfieFoto: 'foto:reg:3001112222/selfie', cedulaFrenteFoto: null, cedulaReversoFoto: null, gestiones: [] });
+  const DB = s => ({ socios: [s], prestamos: [], respaldados: [], config: { negocio: 'Tu Garantía' },
+    contadores: { cliente: 1, credito: 0, respaldado: 0 }, plantillas: {} });
+
+  test('la ficha que nació sin la cédula la anota al abrirse (traerFotosTardias)', async () => {
+    const TABLA = await subirDesdeLaApp();
+    assert.ok(TABLA.cedula_frente && TABLA.cedula_reverso, 'la app no subió la cédula');
+    const C = abrirPanel();
+    C.cargarCartera(DB(FICHA()));
+    C.ctx.__tabla = TABLA;
+    C.ev("sbListo = function () { return true; }; verCliente = function () { window.__repinto = true; }; _fichaVista = 's1';" +
+         ' archivosDe = function (cel) { window.__pidio = cel; return Promise.resolve({ fotos: Object.assign({}, __tabla), huella: {} }); };');
+    await C.ev('traerFotosTardias(DB.socios[0])');
+    assert.equal(C.ev('window.__pidio'), '3001112222');
+    assert.equal(C.ev('DB.socios[0].cedulaFrenteFoto'), 'foto:reg:3001112222/cedula_frente');
+    assert.equal(C.ev('DB.socios[0].cedulaReversoFoto'), 'foto:reg:3001112222/cedula_reverso');
+    assert.equal(C.ev('window.__repinto'), true, 'la ficha no se volvió a pintar con ellas');
+  });
+
+  test('«👁 Ver datos» de 📥 Registrados la muestra, y ya no dice que falta', async () => {
+    const TABLA = await subirDesdeLaApp();
+    const C = abrirPanel();
+    C.ctx.__tabla = TABLA;
+    C.ev("sbListo = function () { return true; };" +
+         ' archivosDe = function () { return Promise.resolve({ fotos: Object.assign({}, __tabla), huella: { momento: "2026-11-12T10:00:00Z" } }); };');
+    const r = { id: 25, nombre: 'Prueba', telefono: '3001112222', app: 'tugarantia', estado: 'atendido', creado_en: '2026-11-08T15:20:00Z',
+      datos: { documento: '52000111', fotos_tomadas: 'selfie' }, huella: {} };
+    C.ctx.__r = r;
+    C.ev("pintarFotosRegistro('3001112222', 'regFotos', __r)");
+    await asentar(8);
+    const h = C.ev("document.getElementById('regFotos').innerHTML");
+    assert.match(h, /Cédula \(frente\)/);
+    assert.match(h, /Cédula \(reverso\)/);
+    assert.doesNotMatch(plano(h), /Falta la cédula|Pídeselas/, 'dice que falta una cédula que ya llegó');
+  });
+});
