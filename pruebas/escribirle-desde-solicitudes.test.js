@@ -296,6 +296,24 @@ describe('3. «💬 Avisarle por el chat», después de mandar la propuesta', ()
     assert.deepEqual(env[0].cuerpo, { p_clave: CLAVE, p_cedula: '3200000501', p_texto: texto, p_canal: 'creditos' });
   }));
 
+  test('con algo sin leer en Cobranzas, el aviso igual sale por «Créditos nuevos» (no por donde aplica la Ley 2300)', con({
+    convs: [{ cedula: '3200000501', nombre: '', celular: '', sin_leer: 2, ultimo: 'hola', ultimo_de: 'socio',
+      ultimo_en: '2026-11-13T14:00:00Z', ultimo_canal: 'cobranza', sin_leer_canal: { cobranza: 2 } }]
+  }, async ({ P, N }) => {
+    P.ev("editarContrapropuesta('501','unico')");
+    poner(P, 'cpCap', 300000); poner(P, 'cpPct', 20); poner(P, 'cpDias', 15); poner(P, 'cpTexto', '');
+    P.ev("guardarContrapropuesta('501')");
+    await asentar();
+    P.ev('avisarPropuestaPorElChat()');
+    await asentar();
+    assert.equal(P.ev('_chatCanal'), 'creditos', 'abrió la oferta de crédito en ' + P.ev('_chatCanal'));
+    /* Lo de Cobranzas no se esconde: su pestaña dice cuántos hay. */
+    assert.match(plano(cuadro(P)), /Cobranzas \(2\)/);
+    P.ev('responderChat()');
+    await asentar();
+    assert.equal(N.de('chat_responder')[0].cuerpo.p_canal, 'creditos');
+  }));
+
   test('a cuotas: cada cuota en pesos y con su fecha, sin %', con({}, async ({ P, N }) => {
     P.ev("editarContrapropuesta('501','quincenal')");
     poner(P, 'pqCap', 2000000); poner(P, 'pqN', 3);

@@ -10563,11 +10563,17 @@ function canalDeEntrada(c){
    «Créditos nuevos»: abrir donde fue el último mensaje podía dejar a Joan
    escribiendo de una propuesta en Cobranzas (con el candado de la Ley 2300
    encima) o en Servicio. Lo sin leer sigue mandando, por lo mismo de arriba:
-   lo que el cliente escribió no se esconde detrás de otra pestaña. */
-function canalAlAbrir(c,pedido){
+   lo que el cliente escribió no se esconde detrás de otra pestaña.
+   Salvo con un mensaje YA ESCRITO (`conBorrador`: «💬 Avisarle por el chat»):
+   ahí la pestaña la pone lo que dice el mensaje. Si no, con algo sin leer en
+   Cobranzas, la oferta de crédito salía por Cobranzas, con el candado de la
+   Ley 2300 encima. Lo sin leer no se esconde: su pestaña muestra su número. */
+function canalAlAbrir(c,pedido,conBorrador){
   const s=(c&&c.sin_leer_canal)||{};
   const canales=(CHAT.CANALES||[]).map(x=>x[0]);
-  if(!pedido||canales.indexOf(pedido)<0||canales.some(k=>Number(s[k]||0)>0)) return canalDeEntrada(c);
+  if(!pedido||canales.indexOf(pedido)<0) return canalDeEntrada(c);
+  if(conBorrador) return pedido;
+  if(canales.some(k=>Number(s[k]||0)>0)) return canalDeEntrada(c);
   return pedido;
 }
 /* Las tres pestañas del Panel son LAS MISMAS que las del cliente, para que lo
@@ -10620,7 +10626,7 @@ function abrirConversacion(ident,extra){
      no puede volver a escribir algo que Joan ya mandó o borró. */
   const {borrador,...sinBorrador}=x;
   _chatExtra={ident:_chatAbierta,extra:sinBorrador};
-  _chatCanal=canalAlAbrir(c,x.canal);
+  _chatCanal=canalAlAbrir(c,x.canal,!!borrador);
   const sinJuntar=/^0\d{10}$/.test(_chatAbierta);
   const regla=CHAT.quienEs?CHAT.quienEs(c):(c.nombre||'Socio');
   /* 26-oct-2026 — y lo que este computador sabe (quienEscribeLocal): el mismo
