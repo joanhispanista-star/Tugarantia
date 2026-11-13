@@ -3773,7 +3773,12 @@ function extractosDespues() {
   if (viajando()) return;
   var g = guardaderoExtractos(), i = PASO;
   var seguir = function (n) {
-    if (VISTA !== 'registro' || PASO !== i) return;
+    /* 13-nov-2026 (remate) — y que el paso i SIGA siendo el de los extractos:
+       si el 404 de probarExtractosEnLaBase llegaba mientras se esperaba al
+       guardadero, apagarPasoExtractos quitaba el paso y ya pintaba el
+       siguiente en el mismo índice («¿Dónde te enviamos la plata?»), y este
+       i + 1 se lo saltaba. */
+    if (VISTA !== 'registro' || PASO !== i || !PASOS[i] || PASOS[i].id !== 'extractos') return;
     PISTA_EXTRACTOS = loEscogidoEnExtractos(n);
     pintarRegistro(i + 1);
   };

@@ -368,6 +368,18 @@ describe('5 · con la base sin el SQL (404), el registro no se rompe: se dice y 
   const con404 = P => P.ev("(function () { var f = fetch; fetch = function (u, op) { if (/rpc\\/extracto_/.test(String(u))) {" +
     " window.__llamadas.push({ url: String(u) }); return Promise.resolve({ ok: false, status: 404, json: function () { return Promise.resolve({}); }," +
     " text: function () { return Promise.resolve('{}'); } }); } return f(u, op); }; })()");
+  /* 13-nov-2026 (remate) — la carrera: «Lo hago después» espera al guardadero,
+     y si el 404 llegaba en ese rato, el paso de la plata se saltaba. */
+  test('si el 404 llega mientras «Lo hago después» espera, no se salta «¿Dónde te enviamos la plata?»', async () => {
+    const P = enElPaso();
+    escoger(P, [UN_PDF]);
+    await asentar(5);
+    P.ev("pintarRegistro(indiceDe('extractos'))");
+    P.ev('extractosDespues(); apagarPasoExtractos();');
+    await asentar(10);
+    assert.equal(ids(P).indexOf('extractos'), -1);
+    assert.equal(B.pasoActual(P), 'cobro', 'se saltó el paso de la plata: está en ' + B.pasoActual(P));
+  });
   test('la pregunta a la base quita el paso; quien estaba en él pasa al siguiente y se le dice por qué', async () => {
     const P = independiente();
     B.nube(P);
