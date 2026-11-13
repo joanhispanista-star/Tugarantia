@@ -635,6 +635,13 @@ Después de construir, otra sesión intentó romperlo. Lo que se cayó y cómo q
   cliente pero **no escribe el mensaje en el hilo** ni marca la solicitud como
   resuelta. Va en la migración de la fase 2 (receta, paso 14). Mientras tanto,
   sobre PlataChat se usa «Cambiar propuesta», que sí escribe.
+  *13-nov-2026:* ese botón se llama ahora «Con garantía · mensual», y «A
+  cuotas» es otra cosa: el crédito QUINCENAL a cuotas
+  (`contrapropuesta_quincenal_a_cuotas`, `base/20261113b`), que sí escribe el
+  mensaje en el hilo de Créditos y marca `resuelta_en`, como «Un solo pago».
+  Lo que todavía no dice bien es el «Acepto» que escribe la base al aceptar
+  (`aceptar_propuesta_platachat`): «devuelvo $total el <última cuota>», sin
+  las cuotas.
 - **Fase 2 — el CRM** (`panel/platachat.html` en modos DUEÑO y EQUIPO,
   `app/cobranza-reglas.js`): la bandeja por app, las dos apps lado a lado, la
   cobranza por el chat (el horario ya está en la base; falta quien lo llame),
