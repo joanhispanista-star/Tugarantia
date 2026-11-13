@@ -121,8 +121,11 @@ function generar(fecha) {
      una vez si se autoriza, y desde el lote del fondo de pensiones recibe los
      archivos que la persona escoge (la historia laboral), que esta misma
      ficha declara más abajo («Archivos y documentos», «Pantallazos»). Dice
-     ahora lo mismo que el paso «Tu autorización» de play/. */
-  w('No accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a las fotos de tu galería. Solo usa la cámara en el momento de tomar una foto, tu ubicación una sola vez si la autorizas, y los archivos que tú mismo escojas si nos das tu historia laboral del fondo de pensiones.');
+     ahora lo mismo que el paso «Tu autorización» de play/.
+     13-nov-2026 — y los extractos (app/extractos.js): también archivos que la
+     persona escoge, con el mismo selector. Va como frase aparte para que lo de
+     la historia laboral siga diciéndose igual. */
+  w('No accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a las fotos de tu galería. Solo usa la cámara en el momento de tomar una foto, tu ubicación una sola vez si la autorizas, y los archivos que tú mismo escojas si nos das tu historia laboral del fondo de pensiones. Con tus extractos, igual: solo los que tú escojas, y nunca la clave de tu cuenta.');
   w('');
   w('TUS DATOS SON TUYOS');
   w('Puedes pedirnos que te digamos qué tenemos tuyo, que lo corrijamos o que lo borremos, cuando quieras y desde la misma app. Ley 1581 de 2012.');

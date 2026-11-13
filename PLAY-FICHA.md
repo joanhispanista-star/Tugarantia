@@ -56,7 +56,7 @@ DIVULGACIÓN DEL CRÉDITO
 Crédito de libre inversión en cuotas mensuales. Plazo mínimo: 3 meses. Plazo máximo: 6 meses. Tasa efectiva anual máxima: 23,99%. Ejemplo: por $500.000 a 6 meses pagas 6 cuotas de $88.683, para un total de $532.100 ($500.000 de capital y $32.100 de costo). Sin cuotas de manejo, sin seguros y sin cargos adicionales: el costo mostrado es el costo total. Tasa máxima legal vigente en Colombia: 28,34%.
 
 LO QUE ESTA APP NO TE PIDE
-No accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a las fotos de tu galería. Solo usa la cámara en el momento de tomar una foto, tu ubicación una sola vez si la autorizas, y los archivos que tú mismo escojas si nos das tu historia laboral del fondo de pensiones.
+No accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a las fotos de tu galería. Solo usa la cámara en el momento de tomar una foto, tu ubicación una sola vez si la autorizas, y los archivos que tú mismo escojas si nos das tu historia laboral del fondo de pensiones. Con tus extractos, igual: solo los que tú escojas, y nunca la clave de tu cuenta.
 
 TUS DATOS SON TUYOS
 Puedes pedirnos que te digamos qué tenemos tuyo, que lo corrijamos o que lo borremos, cuando quieras y desde la misma app. Ley 1581 de 2012.
@@ -104,6 +104,7 @@ del dispositivo.
 |---|---|---|
 | Foto de tu rostro | No | Confirmar que la cédula es tuya. *Se guarda la FOTO y nada más. En el teléfono no se genera ninguna plantilla biométrica: el óvalo es un asistente de encuadre, y para tomarla sola un detector de caras corre dentro del teléfono; dónde ve la cara no se guarda ni sale de él. Después, en el computador de quien revisa el registro, se saca de la foto una plantilla para medir el parecido con la cédula, y se descarta al terminar: no se guarda en ningún lado.* |
 | Pantallazos de tu historia laboral del fondo de pensiones | No | Mirar dónde trabajas y cuánto cotizas cuando evaluamos tus solicitudes. *Lo mismo que el PDF, si la persona prefiere pantallazos (hasta cinco) o pegarlos: solo los que escoge. Si pesan mucho, el teléfono los achica antes de enviarlos.* |
+| Pantallazos de los movimientos de tus cuentas | No | Lo mismo que el extracto en PDF, si la persona prefiere pantallazos. *Hasta cinco, o pegados: solo los que escoge. Si pesan mucho, el teléfono los achica antes de enviarlos, y salen sin los datos ocultos de la imagen.* |
 
 ### Información de la app y rendimiento · Otros datos de la app
 
@@ -133,6 +134,7 @@ del dispositivo.
 | Cuánto ganas al mes | Sí | Es la mitad de la cuenta de cuánto puedes pagar sin ahogarte. |
 | Cuánto se te va fijo al mes | Sí | La otra mitad. Sin esto, el ingreso solo no dice nada. |
 | Qué día te pagan | Sí | Para que la fecha de tu cuota caiga después de que te paguen, y no antes. |
+| Los extractos de tus cuentas (Nequi, Daviplata o banco), en PDF | No | Mirar cuánto te entra y con qué regularidad cuando evaluamos tus solicitudes, si no eres empleado. *Opcional y con su propia autorización, aparte de la general. Solo los archivos que la persona escoge con el selector del teléfono: la app no pide permiso de almacenamiento, no lee los mensajes del banco y nunca pide la clave de ninguna cuenta. Los ve solo quien dirige el negocio, se guardan mientras la persona tenga cuenta y los puede quitar desde la app.* |
 
 ### Información personal · Credenciales de usuario
 
@@ -227,6 +229,7 @@ Plazo: máximo 15 días.
 - Tus referencias personales.
 - Las fotos de tu cédula y tu selfie, si las diste.
 - Tu historia laboral del fondo de pensiones y el fondo que nos dijiste, si nos los diste.
+- Los extractos de tus cuentas que nos subiste, si nos los diste.
 
 **Se conserva, y por qué:**
 

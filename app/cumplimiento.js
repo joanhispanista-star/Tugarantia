@@ -174,6 +174,21 @@
       categoria: 'Información personal · Otra información',
       obligatorio: false, proposito: 'Saber a qué fondo pedirle tu historia laboral, y mirarla cuando evaluamos tus solicitudes.',
       nota: 'Con la misma autorización aparte de la historia laboral.' },
+    /* 13-nov-2026 — LOS EXTRACTOS (el paso opcional del registro para quien no
+       es empleado y la tarjeta de la app, app/extractos.js): el PDF o los
+       pantallazos de sus cuentas que la persona ESCOGE con el selector del
+       teléfono. Es información financiera aunque llegue como archivo: lo que
+       Google pregunta es qué dato es, no en qué viene. Lo que sigue siendo
+       verdad (no pide permiso de almacenamiento, no lee mensajes del banco, no
+       pide claves) lo dice la nota. Opcional, con su propia autorización. */
+    { id: 'extractos', etiqueta: 'Los extractos de tus cuentas (Nequi, Daviplata o banco), en PDF',
+      categoria: 'Información financiera · Otra información financiera',
+      obligatorio: false, proposito: 'Mirar cuánto te entra y con qué regularidad cuando evaluamos tus solicitudes, si no eres empleado.',
+      nota: 'Opcional y con su propia autorización, aparte de la general. Solo los archivos que la persona escoge con el selector del teléfono: la app no pide permiso de almacenamiento, no lee los mensajes del banco y nunca pide la clave de ninguna cuenta. Los ve solo quien dirige el negocio, se guardan mientras la persona tenga cuenta y los puede quitar desde la app.' },
+    { id: 'extractos_pantallazos', etiqueta: 'Pantallazos de los movimientos de tus cuentas',
+      categoria: 'Fotos y videos · Fotos',
+      obligatorio: false, proposito: 'Lo mismo que el extracto en PDF, si la persona prefiere pantallazos.',
+      nota: 'Hasta cinco, o pegados: solo los que escoge. Si pesan mucho, el teléfono los achica antes de enviarlos, y salen sin los datos ocultos de la imagen.' },
     { id: 'historial_credito', etiqueta: 'Tus créditos y tus pagos',
       categoria: 'Información financiera · Historial de compras',
       obligatorio: true, proposito: 'Es tu historial: lo que pediste, lo que pagaste y cuándo.',
@@ -582,7 +597,10 @@
       'Las fotos de tu cédula y tu selfie, si las diste.',
       /* 28-oct-2026 — y la historia laboral: se borra con la cuenta (el
          disparador de base/20261103_el_fondo_de_pensiones.sql). */
-      'Tu historia laboral del fondo de pensiones y el fondo que nos dijiste, si nos los diste.'
+      'Tu historia laboral del fondo de pensiones y el fondo que nos dijiste, si nos los diste.',
+      /* 13-nov-2026 — y los extractos: se borran con la cuenta (el disparador
+         de base/20261113c_los_extractos.sql). */
+      'Los extractos de tus cuentas que nos subiste, si nos los diste.'
     ],
     se_conserva: [
       { que: 'Los créditos que ya te desembolsamos y sus pagos',

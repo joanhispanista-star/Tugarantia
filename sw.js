@@ -2238,6 +2238,38 @@
    archivo y no manda nada; «Un solo pago» y «Con garantía · mensual» siguen como siempre.
    La regla de los ?v= se mide contra lo que estará publicado antes:
    TG_PUBLICADO=propuesta-conectada. */
+/* 13-nov-2026 — TUS EXTRACTOS (rama v145-extractos; sale con lote-v145, que es quien
+   sube CACHE y VERSION_SITIO: esta nota no trae número propio). Joan: «quiero validar
+   si el cliente no es empleado que pueda subir los estractos bancarios». Lo que trae:
+   · EL PASO «Tus extractos» en play/ (después de «De qué vives» y del fondo de
+     pensiones), solo si la ocupación no es «Empleado», opcional y con «Lo hago
+     después»: la autorización aparte y sin marcar, los extractos de los últimos 3
+     meses de Nequi, Daviplata o el banco en PDF (hasta 3), pantallazos (hasta 5) o
+     «📋 Pegar», y nunca la clave. Lo escogido espera en el teléfono y sube con la
+     sesión al abrir la cuenta; la cola sobrevive a salir a la app del banco.
+   · LA TARJETA «Sube tus extractos» en el Perfil de play/ y en Inicio de
+     app/socio.html: el «después» de verdad, para ver lo que subió y quitarlo.
+   · EN EL CRM: un bloque en 📥 Registrados, el chip «📄 Subió extractos» en 📨
+     Solicitudes y, en la ficha que viene de un registro, los archivos y el resumen
+     de Joan (cuánto le entra al mes y si es regular, guardado en la ficha). Solo
+     Joan, con su clave.
+   · LA POLÍTICA (sección «extractos», y «no hacemos perfiles» dicho como es) y los
+     términos (los extractos tampoco suben la garantía prestada), con la fecha de
+     publicación 19-nov-2026, que es también la versión de la autorización
+     (app/extractos.js, VERSION_AUTORIZACION). Si el lote sale otro día, se mueven las
+     tres juntas: pruebas/los-extractos.test.js lo dice.
+   Entran dos .js NUEVOS con ?v=145 (firman al llegar), en la precarga de abajo:
+   app/extractos.js (lo piden play/ y app/socio.html, después de historia-laboral.js,
+   del que toma lo puro) y panel/extractos-crm.js (lo pide crm.html, después del
+   bloque grande). Cambia un .js ya publicado, app/cumplimiento.js (las filas de los
+   extractos en lo que se le declararía a Google Play): pasa de ?v=141 a ?v=145 en
+   play/ y en la precarga. VERSION_PLAY y VERSION_APP siguen en 2026-11-13 (la fecha
+   del cambio). HAY BASE NUEVA, SIN APLICAR: base/20261113c_los_extractos.sql, que va
+   después de todo lo de base/; termina en una tabla de 12 filas en true; después,
+   Settings → API → Reload schema; para mirarla otro día,
+   base/comprobar_20261113c_los_extractos.sql. Sin ella el paso no aparece (play/ le
+   pregunta a la base y con un 404 lo quita, y lo dice), la tarjeta tampoco, y el CRM
+   dice que falta el archivo: nada se rompe. */
 const CACHE = 'tugarantia-v144';
 const BASE = new URL('./', self.location).pathname;
 
@@ -2372,8 +2404,9 @@ const ARCHIVOS = [
   'app/escaner-captura.js',
   'app/creditos.js',
   /* 28-oct-2026 — ?v=141: cambió lo que la app recoge y lo que se borra con
-     la cuenta (la historia laboral). */
-  'app/cumplimiento.js?v=141',
+     la cuenta (la historia laboral).
+     13-nov-2026 — ?v=145: y otra vez, con los extractos (ver su nota). */
+  'app/cumplimiento.js?v=145',
   /* 14-sep-2026 — lo que play/ carga desde que es la puerta unica. ficha.js lee
      el paquete del socio y motor.js cotiza el credito con garantia; los dos ya
      estaban arriba o entran aqui, y ninguno se duplica en la lista porque el
@@ -2457,6 +2490,13 @@ const ARCHIVOS = [
   'app/fondos-pension.js',
   'app/historia-laboral.js',
   'panel/historia-laboral-crm.js',
+  /* 13-nov-2026 — «Tus extractos»: el paso del registro y la tarjeta de la cuenta
+     (app/extractos.js, que piden play/ y app/socio.html) y lo del CRM
+     (panel/extractos-crm.js). NUEVOS, con ?v=145 en la dirección, como los piden
+     las páginas: firman al llegar. Salen con el CACHE de lote-v145 (ver la nota
+     de los extractos). */
+  'app/extractos.js?v=145',
+  'panel/extractos-crm.js?v=145',
   /* 10-nov-2026 — la pestaña «🗺️ Mapa»: sus dos guiones y su hoja los pide crm.html, así que
      llegan JUNTO con él (sin señal, la pestaña dice que el mapa no cargó en vez de romper).
      El mapa en sí (el JSON de panel/mapa/, ~570 KB) NO va aquí: se pide al abrir
