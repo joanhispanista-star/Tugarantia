@@ -221,6 +221,9 @@ function abrirPanel(opciones) {
     ctx.FondosPension = require(path.join(RAIZ, 'app', 'fondos-pension.js'));
     ctx.HistoriaLaboralCRM = require(path.join(RAIZ, 'panel', 'historia-laboral-crm.js'));
   }
+  /* 13-nov-2026 — 📄 Los extractos: el <script src> nuevo de crm.html (va después
+     del bloque grande). `sinExtractos: true` simula que no llegó. */
+  if (!o.sinExtractos) ctx.ExtractosCRM = require(path.join(RAIZ, 'panel', 'extractos-crm.js'));
   /* 22-oct-2026 — la lista de bancos y las reglas de la cuenta, los <script
      src> nuevos de crm.html («💸 Consignar a: …»). `sinCuentas: true` simula
      que no llegaron. */
