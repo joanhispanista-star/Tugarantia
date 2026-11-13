@@ -281,7 +281,9 @@
      eso. Una etiqueta «siempre» (las de un departamento abierto) se pone
      aunque choque: prueba primero en su sitio, después encima y debajo, y si
      no hay hueco se queda en su sitio. Las demás solo salen si no tapan a una
-     ya puesta. Lo que queda fuera de la ventana no cuenta. */
+     ya puesta. Lo que queda fuera de la ventana no cuenta. Y la que se sale
+     por un lado de la ventana (su punto adentro, el texto afuera) se corre
+     hacia adentro (`dx`): sin eso, en Cundinamarca se leía «irardot 1–2». */
   function colocarEtiquetas(ets, vb, s) {
     var puestas = [], r = [];
     var choca = function (b) {
@@ -295,16 +297,22 @@
       var w = e.w * s, h = e.h * s;
       var x0 = e.x - w / 2, x1 = e.x + w / 2;
       if (x1 < vb[0] || x0 > vb[0] + vb[2] || e.y + h < vb[1] || e.y - h > vb[1] + vb[3]) {
-        r.push({ ver: !!e.siempre, dy: 0 });
+        r.push({ ver: !!e.siempre, dy: 0, dx: 0 });
         return;
       }
+      var dx = 0;
+      if (w < vb[2] && e.x >= vb[0] && e.x <= vb[0] + vb[2]) {
+        if (x0 < vb[0]) dx = vb[0] - x0;
+        else if (x1 > vb[0] + vb[2]) dx = vb[0] + vb[2] - x1;
+      }
+      x0 += dx; x1 += dx;
       var opciones = e.siempre ? [0, -h, h] : [0];
       for (var i = 0; i < opciones.length; i++) {
         var b = [x0, e.y + opciones[i] - h / 2, x1, e.y + opciones[i] + h / 2];
-        if (!choca(b)) { puestas.push(b); r.push({ ver: true, dy: opciones[i] }); return; }
+        if (!choca(b)) { puestas.push(b); r.push({ ver: true, dy: opciones[i], dx: dx }); return; }
       }
-      if (e.siempre) { puestas.push([x0, e.y - h / 2, x1, e.y + h / 2]); r.push({ ver: true, dy: 0 }); return; }
-      r.push({ ver: false, dy: 0 });
+      if (e.siempre) { puestas.push([x0, e.y - h / 2, x1, e.y + h / 2]); r.push({ ver: true, dy: 0, dx: dx }); return; }
+      r.push({ ver: false, dy: 0, dx: 0 });
     });
     return r;
   }
@@ -488,6 +496,9 @@
       if (r[i].ver !== e.ver) { clase(el, 'oculta', !r[i].ver); e.ver = r[i].ver; }
       if (r[i].dy !== e.dy && typeof el.setAttribute === 'function') {
         el.setAttribute('y', String(Math.round((e.y + r[i].dy) * 10) / 10)); e.dy = r[i].dy;
+      }
+      if ((r[i].dx || 0) !== (e.dx || 0) && typeof el.setAttribute === 'function') {
+        el.setAttribute('x', String(Math.round((e.x + r[i].dx) * 10) / 10)); e.dx = r[i].dx;
       }
     }
   }
@@ -908,7 +919,7 @@
      caben. `filas` llega en orden de prioridad. */
   function etiquetas(filas, siempre) {
     E.ets = filas.map(function (f) {
-      return { c: f.c, x: f.x, y: f.y, w: anchoEtiqueta(f.nombre + ' ' + f.cifra), h: Math.round(TAM * 1.3), siempre: siempre, ver: siempre, dy: 0 };
+      return { c: f.c, x: f.x, y: f.y, w: anchoEtiqueta(f.nombre + ' ' + f.cifra), h: Math.round(TAM * 1.3), siempre: siempre, ver: siempre, dy: 0, dx: 0 };
     });
     return '<g class="mapa-ets" aria-hidden="true">' + filas.map(function (f) {
       return '<text class="mapa-et' + (siempre ? ' siempre' : ' oculta') + (f.clase ? ' ' + f.clase : '') + '" x="' + f.x + '" y="' + f.y +

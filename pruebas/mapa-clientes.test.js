@@ -859,6 +859,23 @@ describe('8 · que se vean los municipios (13-nov-2026)', () => {
     assert.equal(siempre[0].dy, 0); assert.notEqual(siempre[1].dy, 0, 'la segunda se corrió para no tapar a la primera');
   });
 
+  test('la etiqueta que se sale por un lado de la ventana se corre hacia adentro («irardot 1–2»)', async () => {
+    const MC = fresco();
+    const vb = [0, 0, 1000, 1000];
+    const [izq, der, centro] = MC.colocarEtiquetas([{ x: 10, y: 100, w: 100, h: 16, siempre: true },
+      { x: 990, y: 300, w: 100, h: 16, siempre: true }, { x: 500, y: 500, w: 100, h: 16, siempre: true }], vb, 1);
+    assert.equal(10 + izq.dx - 50, 0, 'por la izquierda, el texto empieza en el borde');
+    assert.equal(990 + der.dx + 50, 1000, 'por la derecha, termina en el borde');
+    assert.equal(centro.dx, 0, 'la que cabe no se mueve');
+    /* En Cundinamarca abierta, Girardot (en el borde de la ventana) se lee entero. */
+    const db = carteraCon({ Girardot: [1], Soacha: [4] });
+    const { M, E } = await abrirCon(db, { estado: { depto: '25' } });
+    const i = E.ets.findIndex(e => e.c === '25307');
+    assert.ok(i >= 0, 'Girardot no tiene etiqueta');
+    const e = E.ets[i], x = Number(M.textos[i].attrs.x === undefined ? e.x : M.textos[i].attrs.x);
+    assert.ok(x - e.w * E.z.s / 2 >= E.z.vb[0] - 0.1, 'el nombre de Girardot se sale por la izquierda: ' + (x - e.w * E.z.s / 2) + ' < ' + E.z.vb[0]);
+  });
+
   /* ------------------------------------- 3 · los municipios con clientes */
   test('en Colombia, los municipios con clientes se marcan encima de los departamentos, sin taparlos', async () => {
     const db = carteraCon({ Soacha: [4], Neiva: [1] });
