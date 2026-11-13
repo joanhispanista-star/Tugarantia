@@ -480,6 +480,33 @@ describe('5 · se actualiza sola, y lo que se pinta', () => {
     assert.equal(B.ev('momentoSeguroSocio()'), true, '«Ahora no» no lo soltó');
   });
 
+  /* 13-nov-2026 (remate) — la revisión: abrir el paso de las fotos e irse a otra
+     pestaña de la app sin tocar «Ahora no» dejaba SE ACTUALIZA SOLA frenada todo el
+     rato. Ahora frena 10 minutos desde lo último que hizo ahí; una foto subiendo,
+     siempre. El reloj del banco se corre a mano (Date.now del banco, no el de Node). */
+  test('el paso de las fotos abierto y olvidado deja de frenar a los 10 minutos; una foto subiendo, nunca', async () => {
+    let soltar;
+    const { A } = await entrar({ mis_fotos_del_registro: SIN_CEDULA(),
+      registro_archivos_guardar: () => new Promise(r => { soltar = () => r({ status: 200, cuerpo: GUARDADA('cedula_frente') }); }) });
+    A.ev(CAMARA);
+    A.ev('var __real = Date.now, __corrido = 0; Date.now = function () { return __real() + __corrido; }');
+    A.ev('FLC.abrir()');
+    assert.equal(A.ev('momentoSeguroSocio()'), false, 'con la cámara abierta, recargaría');
+    A.ev('__corrido = 9 * 60e3');
+    assert.equal(A.ev('momentoSeguroSocio()'), false, 'a los 9 minutos dejó de frenar, y la galería puede tardar eso');
+    A.ev('__corrido = 10 * 60e3 + 1');
+    assert.equal(A.ev('momentoSeguroSocio()'), true, 'el paso abierto y olvidado frena SE ACTUALIZA SOLA para siempre');
+    /* Elegir una foto lo vuelve a contar desde ahí, y mientras sube frena aunque pase el tiempo. */
+    elegirFoto(A, 'cedula_frente'); await asentar(6);
+    A.ev('__corrido += 60 * 60e3');
+    assert.equal(A.ev('momentoSeguroSocio()'), false, 'la recarga cortaría la foto subiendo');
+    soltar(); await asentar(12);
+    assert.match(tarjeta(A), /Recibimos el frente/);
+    assert.equal(A.ev('momentoSeguroSocio()'), false, 'recién respondió la base: falta el respaldo y el paso sigue en uso');
+    A.ev('__corrido += 10 * 60e3 + 1');
+    assert.equal(A.ev('momentoSeguroSocio()'), true);
+  });
+
   test('sin porcentajes ni imágenes en lo que ve el cliente', async () => {
     const { A } = await entrar({ mis_fotos_del_registro: SIN_CEDULA({ sensibles: false }) });
     const vistas = [A.elem('faltaCedula').innerHTML];

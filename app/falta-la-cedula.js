@@ -75,6 +75,8 @@
   /* La compresión de play/ para la cédula (tomarFoto: [[900, 0.6]]).
      pruebas/falta-la-cedula.test.js las compara con las de play/. */
   var LADO_MAXIMO = 900, CALIDAD = 0.6;
+  /* Cuánto frena la recarga el paso de las fotos abierto y quieto (ver aMedias). */
+  var QUIETO_MS = 10 * 60 * 1000;
   var FUNCION = 'mis_fotos_del_registro';
   var SUBIDA = 'registro_archivos_guardar';
   /* La de preguntar solo lee: no frena la recarga sola (play/ la pone en
@@ -293,7 +295,7 @@
     var ui = nuevaUi();
     var HECHAS = {}, POR_CHAT = {}, turno = 0;
     function nuevaUi() {
-      return { modo: 'aviso', ctx: '', permiso: false, guardando: false, error: '', subiendo: {}, notas: {}, hecho: '' };
+      return { modo: 'aviso', ctx: '', permiso: false, guardando: false, error: '', subiendo: {}, notas: {}, hecho: '', tocado: 0 };
     }
 
     function avisarCambio() { if (o.alCambiar) { try { o.alCambiar(); } catch (e) { /* lo de al lado se queda */ } } }
@@ -458,7 +460,7 @@
       var p = planActual();
       if (p.conCodigo) return alChat();
       ui.modo = p.sensibles ? 'fotos' : 'permiso';
-      ui.error = '';
+      ui.error = ''; ui.tocado = Date.now();
       pintar();
       var c = null; try { c = o.caja ? o.caja() : null; } catch (e) { c = null; }
       try { if (c && c.scrollIntoView) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { /* nada */ }
@@ -533,7 +535,7 @@
         ui.guardando = false;
         if (q !== quien()) return;
         if (st.j) st.j.sensibles = true;
-        ui.modo = 'fotos'; ui.permiso = false; ui.error = '';
+        ui.modo = 'fotos'; ui.permiso = false; ui.error = ''; ui.tocado = Date.now();
         pintar();
       }, function (e) {
         ui.guardando = false;
@@ -559,7 +561,7 @@
       var p = planActual();
       if (!p.mostrar || p.faltan.indexOf(tipo) < 0) return;
       var q = quien();
-      ui.subiendo[tipo] = true; ui.notas[tipo] = '';
+      ui.subiendo[tipo] = true; ui.notas[tipo] = ''; ui.tocado = Date.now();
       decirEnLaFila(tipo, '', true);
       var comprimir = o.comprimir || comprimirEnElNavegador;
       var cadena = Promise.resolve().then(function () { return comprimir(archivo); })
@@ -574,7 +576,7 @@
           return o.rpc(SUBIDA, { p_archivos: arch, p_huella: {} });
         });
       escritura(cadena).then(function (j) {
-        ui.subiendo[tipo] = false;
+        ui.subiendo[tipo] = false; ui.tocado = Date.now();
         if (q !== quien()) return;
         var r = resultadoDe(j, tipo);
         if (r === 'ok') {
@@ -607,11 +609,19 @@
      *  guardar, una foto subiendo, y también el paso de las fotos abierto: con
      *  la cámara del sistema la página queda oculta, que es justo cuando SE
      *  ACTUALIZA SOLA recarga, y la foto se perdería al volver. «Ahora no» lo
-     *  suelta. */
+     *  suelta.
+     *  13-nov-2026 (remate) — EL PASO DE LAS FOTOS, SOLO MIENTRAS SE USA. La
+     *  revisión: quien abría el paso y se iba a otra pestaña de la app sin tocar
+     *  «Ahora no» dejaba SE ACTUALIZA SOLA frenada todo el rato, porque el modo se
+     *  quedaba en 'fotos' con la tarjeta fuera de la pantalla. Ahora frena 10
+     *  minutos desde lo último que hizo ahí (abrirlo, el permiso, elegir una foto,
+     *  la respuesta de la base): de sobra para la cámara del sistema o la galería,
+     *  y una recarga después no se lleva nada (lo subido ya está en la base). Una
+     *  foto subiendo frena siempre, arriba. */
     function aMedias() {
       if (ui.guardando) return true;
       if (Object.keys(ui.subiendo).some(function (k) { return ui.subiendo[k]; })) return true;
-      if (ui.modo === 'fotos' && debeAvisar()) return true;
+      if (ui.modo === 'fotos' && debeAvisar() && Date.now() - ui.tocado < QUIETO_MS) return true;
       return ui.modo === 'permiso' && ui.permiso;
     }
     /** «Salir»: nada de esta cuenta se queda para la siguiente. */
