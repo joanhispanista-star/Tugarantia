@@ -624,6 +624,13 @@
     .cal-day{min-height:60px}.cal-ev{display:none}.cal-day .dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:2px}
     .card>div{overflow-x:auto;-webkit-overflow-scrolling:touch}
     table{min-width:560px}
+    /* 13-nov-2026 (remate) — LA FRASE DE CADA GRUPO DE 📨 SOLICITUDES, A LA VISTA. La
+       fila del título ocupa todo el ancho de la tabla (712 px a 390), y la frase se
+       partía a ese ancho: lo que pasaba de la caja quedaba cortado hasta deslizar.
+       Pegada al borde de la caja (sticky) y del ancho de la pantalla, se lee entera
+       y se queda quieta mientras la tabla se desliza. 72 px: los 16 del .main a
+       cada lado, más los 18 del td a cada lado y uno de holgura. */
+    .sol-grupo-txt{position:sticky;left:18px;max-width:calc(100vw - 72px)}
   }
   /* 6-nov-2026 — SOLO EN PANTALLA, porque el bloque de arriba también aplica al imprimir
      (A4 y carta miden menos de 880) y esto sacaba una hoja en blanco de más desde el PC.
@@ -22881,7 +22888,7 @@ function renderBandeja(){
   _solicitudes.forEach(s=>{ grupos[grupoDeSolicitud(s)].push(filaDeSolicitud(s)); });
   b.innerHTML=estadoDeLaBandeja(true)+`<table><thead><tr><th>Cliente</th><th>Pide</th><th>Producto</th><th>Total a devolver</th><th>Última fecha</th><th></th></tr></thead><tbody>${
     GRUPOS_SOLICITUD.filter(g=>grupos[g.k].length).map(g=>
-      `<tr class="sol-grupo" data-grupo="${g.k}"><td colspan="6"><b>${g.titulo}</b> <span class="muted">(${grupos[g.k].length})</span><div class="muted">${g.que}</div></td></tr>`
+      `<tr class="sol-grupo" data-grupo="${g.k}"><td colspan="6"><div class="sol-grupo-txt"><b>${g.titulo}</b> <span class="muted">(${grupos[g.k].length})</span><div class="muted">${g.que}</div></div></td></tr>`
       +grupos[g.k].join('')).join('')}</tbody></table>`;
 }
 /* Los grupos, en el orden en que Joan los atiende: lo que espera una respuesta

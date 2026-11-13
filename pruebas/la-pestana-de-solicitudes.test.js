@@ -232,6 +232,21 @@ describe('2. agrupada por lo que te toca hacer, con los botones de siempre', () 
     [201, 202, 203, 204].forEach(id => assert.match(filaDe(P, id), new RegExp("verAparatosDeSolicitud\\('" + id + "'\\)")));
   });
 
+  /* 13-nov-2026 (remate) — la revisión, a 390 px: la tabla mide 712 dentro de una caja
+     de 356, y la frase de cada grupo se partía a 712: la mitad quedaba fuera de la
+     vista hasta deslizar. La captura (crm-solicitudes-390-remate.png) es la que mira;
+     esto amarra las dos piezas para que nadie las suelte por separado. */
+  test('a 880 px o menos, el título y la frase de cada grupo se quedan a la vista al deslizar la tabla', () => {
+    const P = todas(), h = bandeja(P);
+    const filas = h.match(/<tr class="sol-grupo"[^>]*><td colspan="6">[\s\S]*?<\/td><\/tr>/g) || [];
+    assert.equal(filas.length, 5);
+    filas.forEach(f => assert.match(f, /^<tr[^>]*><td colspan="6"><div class="sol-grupo-txt"><b>[\s\S]*<div class="muted">[^<]+<\/div><\/div><\/td><\/tr>$/,
+      'el título y la frase no van juntos en la caja que se queda quieta: ' + f.slice(0, 120)));
+    const m = /@media\(max-width:880px\)\{([\s\S]*?)\n  \}/.exec(CRM);
+    assert.ok(m, 'no encontré el bloque de 880 px');
+    assert.match(m[1], /\.sol-grupo-txt\{position:sticky;left:18px;max-width:calc\(100vw - 72px\)\}/);
+  });
+
   /* 13-nov-2026 (remate) — la revisión: el número contaba las nuevas y las aceptadas,
      y no las «⏰ Vencidas» que siguen en 'contrapropuesta', que también le tocan. */
   test('el número del menú cuenta lo que te toca: nuevas, aceptadas y vencidas; no las que solo esperan', async () => {
