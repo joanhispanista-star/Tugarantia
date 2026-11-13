@@ -1082,12 +1082,15 @@ describe('F7. Mirar el CRM no crea una cartera', () => {
   /* 9-nov-2026 — 17: entró «🗺️ Mapa» (panel/mapa-clientes.js). Así las dos
      pruebas de abajo también tocan el mapa, que solo lee la cartera.
      13-nov-2026 — 18: entró «📨 Solicitudes», la bandeja que salió de Socios. Las
-     dos de abajo también la tocan, y con ella su pregunta a la nube. */
-  test('control: el menú sigue teniendo sus 18 entradas', () => {
-    assert.equal(ENTRADAS.length, 18, ENTRADAS.join(','));
+     dos de abajo también la tocan, y con ella su pregunta a la nube. Y el mismo
+     día, 17: «🚀 Comercial» se fue a Ventas. Las de abajo tocan además
+     irA('comercial'), que lleva a Ventas: un enlace viejo tampoco escribe. */
+  test('control: el menú sigue teniendo sus 17 entradas', () => {
+    assert.equal(ENTRADAS.length, 17, ENTRADAS.join(','));
     assert.ok(ENTRADAS.includes('ventas'));
     assert.ok(ENTRADAS.includes('mapa'));
     assert.ok(ENTRADAS.includes('solicitudes'));
+    assert.ok(!ENTRADAS.includes('comercial'));
   });
 
   test('en un navegador vacío, tocar «Ventas» ya no escribe nada', () => {
@@ -1096,9 +1099,9 @@ describe('F7. Mirar el CRM no crea una cartera', () => {
     assert.equal(P.almacen[LLAVE], undefined, 'con solo mirar nació la llave de la cartera');
   });
 
-  test('ninguna de las 18 entradas del menú la crea', () => {
+  test('ninguna de las 17 entradas del menú la crea', () => {
     const P = abrirPanel({ red: () => Promise.reject(new Error('sin red')) });
-    ENTRADAS.forEach(v => {
+    ENTRADAS.concat(['comercial']).forEach(v => {
       P.ev('irA(' + JSON.stringify(v) + ')');
       assert.equal(P.almacen[LLAVE], undefined, '«' + v + '» creó la cartera');
     });
@@ -1107,7 +1110,7 @@ describe('F7. Mirar el CRM no crea una cartera', () => {
   test('con una cartera dañada, tocar todo el menú no la pisa', () => {
     const roto = '{"socios":[{"id":"C1","nombre":"Cliente Inventado"';
     const P = abrirPanel({ red: () => Promise.reject(new Error('sin red')), almacen: { [LLAVE]: roto } });
-    ENTRADAS.forEach(v => {
+    ENTRADAS.concat(['comercial']).forEach(v => {
       P.ev('irA(' + JSON.stringify(v) + ')');
       assert.equal(P.almacen[LLAVE], roto, '«' + v + '» pisó lo que traer.html habría respaldado');
     });

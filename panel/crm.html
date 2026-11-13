@@ -298,6 +298,9 @@
   .ph{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin-bottom:22px}
   .ph h1{font-family:'Archivo Black';font-size:26px}
   .ph h1 .dot{color:var(--rojo)}
+  /* 13-nov-2026 — el título de una sección dentro de una vista (🚀 Invitar a la app,
+     en Ventas): la misma letra del h1, un escalón más chica. */
+  .ph h2{font-family:'Archivo Black';font-size:20px}.ph h2 .dot{color:var(--rojo)}
   .ph .sub{color:var(--gris);font-size:14px;margin-top:4px;font-weight:500}
   .btn{display:inline-flex;align-items:center;gap:7px;border:none;font-weight:700;font-size:14px;padding:11px 18px;border-radius:10px;transition:.13s}
   .btn-rojo{background:var(--rojo);color:var(--papel)}.btn-rojo:hover{background:var(--rojo-osc)}
@@ -701,8 +704,10 @@
     <!-- 9-nov-2026 — dónde están tus clientes, por zonas (panel/mapa-clientes.js). -->
     <button class="navbtn" data-v="mapa"><span class="ic">🗺️</span> Mapa</button>
     <button class="navbtn" data-v="cobranzas"><span class="ic">📣</span> Cobranzas</button>
+    <!-- 13-nov-2026 — aquí estaba «🚀 Comercial». Joan: «ventas y comercial es lo
+         mismo». Su contenido vive en Ventas, debajo del embudo y de la lista
+         (#ventasComercial), y irA('comercial') lleva ahí. -->
     <button class="navbtn" data-v="ventas"><span class="ic">📈</span> Ventas</button>
-    <button class="navbtn" data-v="comercial"><span class="ic">🚀</span> Comercial</button>
     <!-- 26-oct-2026 — «Mensajes» se llama «Chat» (chat-1): es la palabra que
          usa Joan, y desde el 4-nov el CRM tendrá los SMS de Cocom, que sí son
          «mensajes». Dos botones «Mensajes» para dos cosas serían otra función
@@ -887,21 +892,22 @@
     </section>
 
     <!-- ===================================================================
-         COMERCIAL — «una pestaña de comercial en el que pueda invitar a los
-         prospectos a unirse al aplicativo».
-         ================================================================== -->
-    <!-- ===================================================================
          VENTAS — 16 de septiembre de 2026
          Joan: «quiero que crees una pestaña de ventas y que agregues las bases
          y las herramientas».
          Casi todo esto ya existía y estaba repartido: las listas en Bases, la
          invitación en Comercial, el embudo en etapas.js SIN pantalla propia, y
          las herramientas de gestión solo visibles en modo asesor. Acá se juntan.
+         13-nov-2026 — Y COMERCIAL TAMBIÉN. Joan: «ventas y comercial es lo
+         mismo, así que unifica esa pestaña en ventas». Lo de Comercial vive
+         debajo del embudo y de la lista (#ventasComercial), sin rehacer nada:
+         los mismos ids y el mismo renderComercial. «↻ Recalcular» recalcula
+         las dos cosas, y irA('comercial') lleva a esta sección.
          ================================================================= -->
     <section class="view" id="v-ventas">
       <div class="ph"><div><h1>Ventas<span class="dot">.</span></h1>
-        <div class="sub">De dónde sale un cliente nuevo, y en qué paso va cada uno</div></div>
-        <button class="btn btn-ghost" onclick="renderVentas()">↻ Recalcular</button></div>
+        <div class="sub">De dónde sale un cliente nuevo, en qué paso va cada uno, y a quién puedes invitar a la app</div></div>
+        <button class="btn btn-ghost" onclick="renderVentas();renderComercial()">↻ Recalcular</button></div>
       <div class="kpis" id="kpiVentas"></div>
       <div class="card"><div class="card-h"><h3>📈 El embudo</h3>
         <span class="tag">Toca un paso para ver quién está ahí</span></div>
@@ -909,11 +915,13 @@
       <div class="card"><div class="card-h"><h3 id="tituloListaVentas">Tu lista</h3>
         <span class="tag">Llama, escribe, anota lo que pasó</span></div>
         <div id="tblVentas"></div></div>
-    </section>
 
-    <section class="view" id="v-comercial">
-      <div class="ph"><div><h1>Comercial<span class="dot">.</span></h1><div class="sub">Invitar a los prospectos a abrir su cuenta en la app</div></div>
-        <button class="btn btn-ghost" onclick="renderComercial()">↻ Recalcular</button></div>
+      <!-- ===================================================================
+           LO QUE ERA COMERCIAL — «una pestaña de comercial en el que pueda
+           invitar a los prospectos a unirse al aplicativo» (15-sep-2026).
+           ================================================================== -->
+      <div class="ph" id="ventasComercial" style="margin-top:34px"><div><h2>🚀 Invitar a la app<span class="dot">.</span></h2>
+        <div class="sub">A los prospectos que autorizaron que les escribas, para que abran su cuenta · lo que antes estaba en «Comercial»</div></div></div>
       <div class="kpis" id="kpiComercial"></div>
       <div class="card"><div class="card-h"><h3>🚀 A quién se puede invitar</h3>
         <span class="tag">Solo quien autorizó que le escribamos</span></div>
@@ -21844,7 +21852,7 @@ function agregarProspecto() {
       <select id="apAutoriza"><option value="">— Elige una —</option>
         <option value="si">Sí, me autorizó que le escribamos</option>
         <option value="no">No, o no lo sé</option></select>
-      <div class="help">Marca «Sí» solo si es verdad: queda escrito con la fecha de hoy y es lo que te defiende si reclama. Con «No» entra igual, pero no le llegan las invitaciones de Comercial (sale en «🚫 Quién no, y por qué»): invitar sin permiso es lo que sanciona la SIC.</div></div>
+      <div class="help">Marca «Sí» solo si es verdad: queda escrito con la fecha de hoy y es lo que te defiende si reclama. Con «No» entra igual, pero no le llegan las invitaciones de 📈 Ventas (sale en «🚫 Quién no, y por qué»): invitar sin permiso es lo que sanciona la SIC.</div></div>
     ${gente.length ? `<div class="field"><label>Se lo asigno a <span class="opc">(opcional)</span></label>
       <select id="apAsignarA"><option value="">— Nadie por ahora —</option>${opcionesDestino('')}</select>
       <div class="help">${textoPublicarAsignar('Si se lo asignas, al agregarlo', 'prospecto')}</div>
@@ -21905,7 +21913,7 @@ function guardarProspectoSuelto() {
   const nuevo = r.nuevos[0];
   if (!nuevo.nombre) return alert('Ese nombre no tiene letras. Escríbelo como se llama.');
   if (!origen) return alert('Escribe de dónde sale.\n\nNo es un trámite: es lo único que te permite contestar el día que pregunte de dónde sacaste su teléfono.');
-  if (autoriza !== 'si' && autoriza !== 'no') return alert('Contesta si autorizó que lo contactemos: sí o no.\n\nCon «No» entra igual, pero no le llegan las invitaciones de Comercial.');
+  if (autoriza !== 'si' && autoriza !== 'no') return alert('Contesta si autorizó que lo contactemos: sí o no.\n\nCon «No» entra igual, pero no le llegan las invitaciones de 📈 Ventas.');
   if (destino && !personaDeEquipo(destino)) return alert('Elige a quién se lo asignas.');
   const hoy = hoyISO(), sello = Date.now();
   /* 27-oct-2026 — EL GERENTE AGREGA: la nota, solo al crear (como el origen):
@@ -21928,7 +21936,7 @@ function guardarProspectoSuelto() {
     guardar(); cerrarModal(); render(); irA('bases');
     publicarCelularesDeJoan();
     const listo = 'Listo: ' + p.nombre + ' entró a tus prospectos (lo ves arriba en la tabla de Bases).' +
-      (p.autorizaInvitacion ? '' : '\n\nComo no autorizó (o no lo sabes), no le llegan las invitaciones de Comercial.') +
+      (p.autorizaInvitacion ? '' : '\n\nComo no autorizó (o no lo sabes), no le llegan las invitaciones de 📈 Ventas.') +
       (sinMirar ? '\n\n(No pude mirar si tu equipo ya lo tenía. Antes de mandárselo a alguien lo vuelvo a mirar.)' : '');
     if (asignadoA === null) { alert(listo); return Promise.resolve('agregado'); }
     return publicarTrasAsignar(listo + '\n\n' + fraseAsignado(p.nombre, asignadoA).replace(/^Listo: /, ''));
@@ -24896,14 +24904,24 @@ modal.addEventListener('click',e=>{ if(e.target===modal)cerrarModal(); });
    Salió al fusionar crm-asignar con crm-sesion
    (pruebas/asignar-bajo-la-puerta-de-24-horas.test.js, 3). */
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&modal.classList.contains('on')&&!_candado)cerrarModal(); });
-function irA(v){ _vistaCRM=v;   // 13-nov-2026 — ver alLlegarSolicitudes
+function irA(v){
+  /* 13-nov-2026 — «🚀 Comercial» ya no es una pestaña: vive en 📈 Ventas, debajo del
+     embudo. Quien siga llamando irA('comercial') —un enlace, una prueba, la
+     costumbre— llega a esa sección, no a una vista que no existe. irATarjetaChat
+     no es solo del chat: baja hasta cualquier elemento por su id. */
+  if(v==='comercial'){ irA('ventas'); irATarjetaChat('ventasComercial'); return; }
+  _vistaCRM=v;   // 13-nov-2026 — ver alLlegarSolicitudes
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
   if(v==='cfg'){pintarCfg();pintarAvisoRespaldo();} if(v==='plantillas')renderPlantillas(); if(v==='cal')renderCalendario();
   if(v==='equipo')renderEquipo();
   if(v==='bases')renderBases();
   if(v==='cobranzas')renderCobranzas();
-  if(v==='ventas')renderVentas();
-  if(v==='comercial')renderComercial();
+  /* 13-nov-2026 — Ventas pinta también lo que era Comercial. Aquí y en su
+     «↻ Recalcular», no dentro de renderVentas: renderComercial vuelve a marcar a
+     todos los invitables, y renderVentas corre también al mover el embudo —
+     metido ahí, cada toque en la lista le borraría a Joan su selección de a
+     quién invitar. */
+  if(v==='ventas'){ renderVentas(); renderComercial(); }
   /* Registrados trae de la nube SOLO al entrar a la pestaña, no en cada
      render(): una petición por visita, no una por teclazo. */
   if(v==='registrados'){ renderRegistros(); traerRegistros(); traerSolicitudesSiToca(); }
