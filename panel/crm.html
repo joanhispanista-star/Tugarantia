@@ -9832,6 +9832,11 @@ function contarPendientes(){
        el número de 📨 Solicitudes, no en el globo (un globo de «te llegó una
        solicitud» por alguien que solo aceptó diría lo que no pasó). */
     aceptadas: leer(()=>_solicitudes.filter(s=>s.origen==='nube'&&s.estado==='aceptada').length, 0),
+    /* 13-nov-2026 (remate) — y las de «⏰ Vencidas» que siguen en 'contrapropuesta': la
+       fecha de pago de la propuesta ya llegó y el cliente no la aceptó, así que le toca
+       a Joan cambiársela (GRUPOS_SOLICITUD). Las aceptadas vencidas ya cuentan arriba.
+       Tampoco van al globo: no llegó nada nuevo. */
+    vencidas: leer(()=>_solicitudes.filter(s=>s.origen==='nube'&&s.estado==='contrapropuesta'&&grupoDeSolicitud(s)==='vencidas').length, 0),
     ayudas: leer(()=>_ayudas.length, 0)
   };
 }
@@ -9871,10 +9876,11 @@ function pintarAvisos(){
      Solicitudes) y los recados se quedaron en Socios: cada número va donde vive
      lo que cuenta, que es la regla de arriba. Sumarlos en uno solo volvería a
      mandar a Joan a buscar un recado donde no está. */
-  poner('navSolicitudes', c.solicitudes+c.aceptadas, falla||fallaSol);
+  poner('navSolicitudes', c.solicitudes+c.aceptadas+c.vencidas, falla||fallaSol);
   const ns=document.getElementById('navSolicitudes');
-  if(ns&&!(falla||fallaSol)&&(c.solicitudes||c.aceptadas))
-    ns.title=c.solicitudes+' nueva(s) por proponer y '+c.aceptadas+' que aceptaron, por desembolsar';
+  if(ns&&!(falla||fallaSol)&&(c.solicitudes||c.aceptadas||c.vencidas))
+    ns.title=c.solicitudes+' nueva(s) por proponer y '+c.aceptadas+' que aceptaron, por desembolsar'
+      +(c.vencidas?'; y '+c.vencidas+' con la propuesta vencida, por cambiar':'');
   poner('navRecados', c.ayudas, falla||fallaAyu);
   const nr=document.getElementById('navRecados');
   if(nr&&!(falla||fallaAyu)&&c.ayudas)

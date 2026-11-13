@@ -232,6 +232,18 @@ describe('2. agrupada por lo que te toca hacer, con los botones de siempre', () 
     [201, 202, 203, 204].forEach(id => assert.match(filaDe(P, id), new RegExp("verAparatosDeSolicitud\\('" + id + "'\\)")));
   });
 
+  /* 13-nov-2026 (remate) — la revisión: el número contaba las nuevas y las aceptadas,
+     y no las «⏰ Vencidas» que siguen en 'contrapropuesta', que también le tocan. */
+  test('el número del menú cuenta lo que te toca: nuevas, aceptadas y vencidas; no las que solo esperan', async () => {
+    const VENCIDA_ACEPTADA = sol(205, { estado: 'aceptada', contrapropuesta: CP('2026-11-10') });
+    const { P } = montar({ nube: { listar_solicitudes_abiertas: [NUEVA, VENCIDA, ACEPTADA, ESPERANDO, VENCIDA_ACEPTADA] } });
+    P.ev('traerSolicitudes()');
+    await asentar();
+    /* 201 nueva + 203 y 205 aceptadas + 202 vencida sin aceptar; 204 solo espera. */
+    assert.equal(P.elems.navSolicitudes.textContent, ' (4)', 'la vencida que sigue en contrapropuesta no cuenta');
+    assert.match(P.elems.navSolicitudes.title, /1 nueva\(s\) por proponer y 2 que aceptaron, por desembolsar; y 1 con la propuesta vencida, por cambiar/);
+  });
+
   test('un grupo vacío no se pinta, y sin solicitudes la bandeja dice lo de siempre', async () => {
     const { P } = montar({ nube: { listar_solicitudes_abiertas: [NUEVA] } });
     P.ev('traerSolicitudes()');
