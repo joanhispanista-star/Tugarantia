@@ -11024,10 +11024,11 @@ function botonEscribirleSolicitud(s,desdeFicha){
    ofrecerAvisarPorElChat). Sin ella, el cuadro sale vacío. */
 function escribirleDesdeSolicitud(id,propuesta){
   /* La de recién mandada, si la vuelta de traerSolicitudes todavía no la trajo
-     de nuevo (la lista se reemplaza entera cuando contesta la nube). */
+     de nuevo (la lista se reemplaza entera cuando contesta la nube). También
+     sin `propuesta`: «💬 Ver su chat» de PlataChat (ofrecerAvisarPorElChat). */
   const r=_propuestaRecienMandada;
   const s=_solicitudes.find(x=>String(x.id)===String(id))
-    ||(propuesta&&r&&r.id===String(id)?r.s:null);
+    ||(r&&r.id===String(id)?r.s:null);
   const d=chatDeSolicitud(s);
   if(!d.via) return alert(d.porque);
   if(!chatListo()) return alert('No cargó ../app/chat.js. Recarga con Ctrl+F5, y si sigue igual, Ajustes → 🧹 Soltar la copia guardada.');
@@ -11074,13 +11075,30 @@ function avisoDePropuestaParaElChat(s,cp,hilo,ficha){
     :hola+', te escribimos con la propuesta de tu crédito: '+que+' ¿Estás de acuerdo? Respóndenos por aquí y te confirmamos los pasos.';
 }
 let _propuestaRecienMandada=null;
-function ofrecerAvisarPorElChat(id,cp){
+/* Las RPC que, para PlataChat, YA dejan la propuesta escrita en su chat, en
+   «Créditos nuevos»: contrapropuesta_solicitud (base/20261005) y
+   contrapropuesta_quincenal_a_cuotas (base/20261113b). La de garantía
+   (contrapropuesta_a_cuotas, base/20260916) no escribe nada en el chat. */
+const RPC_QUE_LA_ESCRIBEN_EN_PLATACHAT=['contrapropuesta_solicitud','contrapropuesta_quincenal_a_cuotas'];
+/* `rpcUsada`: con cuál salió. A PlataChat, si la base ya se la escribió, no se
+   le ofrece un segundo mensaje con lo mismo, y no se dice «si quieres que se
+   entere ya», que da a entender que el chat no la tiene. */
+function ofrecerAvisarPorElChat(id,cp,rpcUsada){
   if(CARTERA_EQUIPO) return;
   const s=_solicitudes.find(x=>String(x.id)===String(id)); if(!s) return;
   _propuestaRecienMandada={id:String(id),cp,s};
   const nom=String(s.nombre||'').replace(/\s+/g,' ').trim();
   const quien=nom&&!/^registrado$/i.test(nom)?nom:'Quien pidió';
   const ve=laVeEnSuApp(s), d=chatDeSolicitud(s);
+  if(String(s.app||'')==='platachat'&&RPC_QUE_LA_ESCRIBEN_EN_PLATACHAT.indexOf(rpcUsada)>=0){
+    return openModal('✓ Propuesta enviada',
+      '<div class="alerta info" style="margin-bottom:10px"><b>'+escHTML(quien)+'</b> ya la tiene escrita en su chat de PlataChat («Créditos nuevos»), en pesos. '
+        +'No le llega aviso al celular: la ve cuando abra PlataChat.</div>'
+      +'<div class="help">No hace falta avisarle: otro mensaje le repetiría lo mismo. Si quieres decirle algo más, abre su chat aquí; no sale nada solo.</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'
+      +(d.via?'<button class="btn btn-ghost" onclick="verChatDeLaPropuesta()">💬 Ver su chat</button>':'')
+      +'<button class="btn btn-ghost" onclick="cerrarModal()">Listo</button></div>');
+  }
   openModal('✓ Propuesta enviada',
     '<div class="alerta info" style="margin-bottom:10px"><b>'+escHTML(quien)+'</b> '
       +(ve?'la ve cuando abra su app. No le llega aviso al celular.':'no la va a ver en su app.')+'</div>'
@@ -11096,6 +11114,12 @@ function avisarPropuestaPorElChat(){
   const p=_propuestaRecienMandada; if(!p) return;
   cerrarModal();
   escribirleDesdeSolicitud(p.id,p.cp);
+}
+/* El chat de quien pidió, con el cuadro VACÍO: la propuesta ya está en el hilo. */
+function verChatDeLaPropuesta(){
+  const p=_propuestaRecienMandada; if(!p) return;
+  cerrarModal();
+  escribirleDesdeSolicitud(p.id);
 }
 
 /* ==========================================================================
@@ -24959,7 +24983,7 @@ function guardarContrapropuestaCuotas(id) {
          Con red: la propuesta YA salió, y un fallo aquí no puede caer en el catch
          de abajo y decir «no pude hablar con la nube» (Joan la mandaría otra vez). */
       try { ofrecerAvisarPorElChat(s.id, { capital: p.capital, total: p.total,
-        cuotas: p.cuotas.map(q => ({ fecha: q.fecha, total: q.total })) }); } catch (e) { console.error(e); }
+        cuotas: p.cuotas.map(q => ({ fecha: q.fecha, total: q.total })) }, 'contrapropuesta_a_cuotas'); } catch (e) { console.error(e); }
     })
     .catch(e => alert(errNube(e)));
 }
@@ -25168,7 +25192,7 @@ function guardarQuincenalACuotas(id) {
       /* 13-nov-2026 — y en el mismo paso, el aviso por el chat (escrito, sin mandar),
          con red por lo mismo que en guardarContrapropuestaCuotas. */
       try { ofrecerAvisarPorElChat(s.id, { capital: plan.total_capital, total: plan.total_a_pagar,
-        cuotas: plan.cuotas.map(q => ({ fecha: q.fecha_corte, total: q.total })) }); } catch (e) { console.error(e); }
+        cuotas: plan.cuotas.map(q => ({ fecha: q.fecha_corte, total: q.total })) }, 'contrapropuesta_quincenal_a_cuotas'); } catch (e) { console.error(e); }
     })
     /* Un 404 aquí es la migración sin correr, y se dice cuál: «vuelve a correr
        supabase.sql» mandaría a buscar donde no está. */
@@ -25201,7 +25225,7 @@ function guardarContrapropuesta(id){
     .then(j=>{ if(!j||j.ok!==true) return alert('La nube no aceptó la propuesta: '+((j&&j.motivo)||'sin motivo')); cerrarModal(); traerSolicitudes();
       /* 13-nov-2026 — y en el mismo paso, el aviso por el chat (escrito, sin mandar),
          con red por lo mismo que en guardarContrapropuestaCuotas. */
-      try{ ofrecerAvisarPorElChat(s.id,{capital:r.capital,total:r.total,fecha_pago:r.fecha_pago}); }catch(e){ console.error(e); } })
+      try{ ofrecerAvisarPorElChat(s.id,{capital:r.capital,total:r.total,fecha_pago:r.fecha_pago},'contrapropuesta_solicitud'); }catch(e){ console.error(e); } })
     .catch(e=>alert(errNube(e)));
 }
 /* La política del primer crédito, en Ajustes: lo que la base le ofrece a TODO

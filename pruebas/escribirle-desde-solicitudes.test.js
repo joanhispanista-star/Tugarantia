@@ -314,6 +314,33 @@ describe('3. «💬 Avisarle por el chat», después de mandar la propuesta', ()
     assert.equal(N.de('chat_responder')[0].cuerpo.p_canal, 'creditos');
   }));
 
+  test('PlataChat: la base ya le escribió la propuesta en su chat, así que no se ofrece un segundo mensaje con lo mismo', con({}, async ({ P, N }) => {
+    P.ev("editarContrapropuesta('503','unico')");
+    poner(P, 'cpCap', 300000); poner(P, 'cpPct', 20); poner(P, 'cpDias', 15); poner(P, 'cpTexto', '');
+    P.ev("guardarContrapropuesta('503')");
+    await asentar();
+    assert.equal(N.de('contrapropuesta_solicitud').length, 1);
+    assert.equal(titulo(P), '✓ Propuesta enviada');
+    const h = cuadro(P);
+    assert.doesNotMatch(h, /avisarPropuestaPorElChat/, 'ofrece repetirle lo que la base ya le escribió');
+    assert.doesNotMatch(plano(h), /Si quieres que se entere ya/, 'da a entender que el chat no la tiene');
+    assert.match(plano(h), /ya la tiene escrita en su chat de PlataChat/);
+    /* «💬 Ver su chat» abre su hilo con el cuadro vacío. */
+    assert.match(h, /onclick="verChatDeLaPropuesta\(\)">💬 Ver su chat<\/button>/);
+    P.ev('verChatDeLaPropuesta()');
+    await asentar();
+    assert.equal(P.ev('_chatAbierta'), '3200000503');
+    /* El banco crea el cuadro solo si la página lo toca: sin borrador, ni lo toca. */
+    assert.match(cuadro(P), /<textarea id="chResp"[^>]*><\/textarea>/);
+    assert.equal((P.elems.chResp || { value: '' }).value, '', 'le dejó escrito un mensaje');
+    assert.equal(N.de('chat_responder').length, 0);
+    /* La de A cuotas también la escribe la base (20261113b); la de garantía no (20260916). */
+    P.ev("ofrecerAvisarPorElChat('503', { capital: 300000, total: 360000, cuotas: [] }, 'contrapropuesta_quincenal_a_cuotas')");
+    assert.doesNotMatch(cuadro(P), /avisarPropuestaPorElChat/);
+    P.ev("ofrecerAvisarPorElChat('503', { capital: 300000, total: 360000, cuotas: [] }, 'contrapropuesta_a_cuotas')");
+    assert.match(cuadro(P), /onclick="avisarPropuestaPorElChat\(\)">💬 Avisarle por el chat<\/button>/);
+  }));
+
   test('a cuotas: cada cuota en pesos y con su fecha, sin %', con({}, async ({ P, N }) => {
     P.ev("editarContrapropuesta('501','quincenal')");
     poner(P, 'pqCap', 2000000); poner(P, 'pqN', 3);

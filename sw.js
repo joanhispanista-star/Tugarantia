@@ -2255,8 +2255,11 @@
      pidió» de la ficha y en el 🔔 del Tablero; no sale en modo #equipo. Después de
      «Mandarle esta propuesta» (un solo pago, a cuotas y con garantía) sale «💬 Avisarle
      por el chat» con el mensaje ESCRITO en pesos y fechas, sin %: no se manda nada hasta
-     que Joan toca «Enviar». Al celular del cliente no le llega aviso: lo ve al abrir la
-     app, y la pantalla lo dice.
+     que Joan toca «Enviar», y se abre en «Créditos nuevos» aunque haya algo sin leer en
+     Cobranzas (una oferta de crédito no sale por donde aplica la Ley 2300). A PlataChat,
+     con un solo pago o a cuotas, no: la base ya le escribe la propuesta en su chat, y
+     sale «💬 Ver su chat» con el cuadro vacío. Al celular del cliente no le llega aviso:
+     lo ve al abrir la app, y la pantalla lo dice.
    · EL MAPA DEJA VER LOS MUNICIPIOS (rama v145-mapa): nombre y cifra de cada municipio
      con clientes al abrir un departamento; en Colombia y en Conquistas, los nombres que
      caben y un globito al pasar o tocar; los municipios con clientes marcados encima de
