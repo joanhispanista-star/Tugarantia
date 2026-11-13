@@ -2238,7 +2238,42 @@
    archivo y no manda nada; «Un solo pago» y «Con garantía · mensual» siguen como siempre.
    La regla de los ?v= se mide contra lo que estará publicado antes:
    TG_PUBLICADO=propuesta-conectada. */
-const CACHE = 'tugarantia-v144';
+/* 13-nov-2026, v145 — SALE DESPUÉS DE v144 (main = 431f488). Es lote-v145: v145-chat y
+   v145-mapa. Joan: «quiero que desde la pestaña de solicitudes yo le pueda escribir al
+   cliente y no tenga que recurrir a whatsapp, y quiero que se mejore el mapa ya que no
+   se ven los municipios». Lo que trae:
+   · «💬 ESCRIBIRLE» DESDE «📨 SOLICITUDES» (panel/crm.html, rama v145-chat): cada fila
+     abre el MISMO cuadro de 💬 Chat encima de la pestaña, sin cambiar de pestaña, con el
+     hilo que la base usa para esa solicitud: con celular (play/, PlataChat) se le
+     pregunta a la nube (chat_hilo_de_celular), como en 📥 Registrados, y una cuenta sin
+     juntar abre su hilo '0'+celular, nunca el de la ficha dueña del número; sin celular
+     (socio.html), la llave con que nació; la pegada de un WhatsApp con ficha, el hilo de
+     la ficha; sin ficha no hay chat y el botón lo dice y deja WhatsApp. La fila dice
+     «· N sin leer» con la lista que ya trae 💬 Chat. El mismo botón sale en «Lo que
+     pidió» de la ficha y en el 🔔 del Tablero; no sale en modo #equipo. Después de
+     «Mandarle esta propuesta» (un solo pago, a cuotas y con garantía) sale «💬 Avisarle
+     por el chat» con el mensaje ESCRITO en pesos y fechas, sin %: no se manda nada hasta
+     que Joan toca «Enviar». Al celular del cliente no le llega aviso: lo ve al abrir la
+     app, y la pantalla lo dice.
+   · EL MAPA DEJA VER LOS MUNICIPIOS (rama v145-mapa): nombre y cifra de cada municipio
+     con clientes al abrir un departamento; en Colombia y en Conquistas, los nombres que
+     caben y un globito al pasar o tocar; los municipios con clientes marcados encima de
+     los departamentos; bordes y escala de color medidos (3:1 o más); Bogotá dentro de
+     Cundinamarca (y otros 5 huecos), sin sumar al total; zoom con ＋/－, rueda,
+     pellizco y arrastre que no roba el scroll de la página; y «Buscar municipio…».
+     Siempre el «1–2», nunca puntos de personas. panel/mapa-clientes.js y
+     panel/mapa-clientes.css cambian después de salir en v144 con ?v=143: pasan a ?v=145
+     en crm.html y en la precarga. panel/mapa-lugares.js no cambió y sigue en ?v=143.
+     El JSON de panel/mapa/ se regeneró con nombre NUEVO (lleva una «b»; ~600 KB) y
+     sigue sin ir en la precarga; el de v144 se queda en el repo para un CRM v144 que
+     siga abierto y se puede borrar cuando v145 lleve unos días publicado.
+   CACHE y VERSION_SITIO suben a v145 en las cinco páginas que se actualizan solas. Ni
+   app/socio.html ni play/ ni PlataChat cambian más que su VERSION_SITIO: VERSION_APP y
+   VERSION_PLAY se quedan en 2026-11-13. NO HAY BASE NUEVA. Queda un hueco de SQL sin
+   escribir: borrar_cuenta_de_pruebas no borra las solicitudes ni los mensajes de una
+   cuenta de PlataChat sin juntar (la llave '0'+celular). La regla de los ?v= se mide
+   contra lo publicado: TG_PUBLICADO=main. */
+const CACHE = 'tugarantia-v145';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -2459,8 +2494,9 @@ const ARCHIVOS = [
   'panel/historia-laboral-crm.js',
   /* 10-nov-2026 — la pestaña «🗺️ Mapa»: sus dos guiones y su hoja los pide crm.html, así que
      llegan JUNTO con él (sin señal, la pestaña dice que el mapa no cargó en vez de romper).
-     El mapa en sí (el JSON de panel/mapa/, ~570 KB) NO va aquí: se pide al abrir
-     la pestaña y queda guardado esa vez. */
+     El mapa en sí (el JSON de panel/mapa/, ~600 KB desde v145) NO va aquí: se pide al abrir
+     la pestaña y queda guardado esa vez. 13-nov — mapa-clientes.js y .css a ?v=145: cambiaron
+     después de salir en v144 (ver la nota de v145). */
   'panel/mapa-lugares.js?v=143',
   'panel/mapa-clientes.js?v=145',
   'panel/mapa-clientes.css?v=145'
