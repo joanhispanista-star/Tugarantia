@@ -667,12 +667,18 @@ describe('las dos pestañas nuevas (15-sep-2026)', () => {
     return CRM.slice(i, j > -1 ? j : i + 4000);
   };
 
+  /* 13-nov-2026 — Comercial dejó de ser pestaña: Joan, «ventas y comercial es lo
+     mismo». Lo que esta prueba vigila sigue igual de vigilado: que se llegue a
+     cada una. Cobranzas por su botón y su sección; lo de Comercial, dentro de
+     Ventas, con irA('comercial') llevando allá. La prueba fina está en
+     pruebas/ventas-con-comercial.test.js. */
   test('las pestañas existen y el enrutador las conoce', () => {
-    for (const v of ['cobranzas', 'comercial']) {
-      assert.ok(CRM.indexOf('data-v="' + v + '"') > -1, 'falta el botón de ' + v);
-      assert.ok(CRM.indexOf('id="v-' + v + '"') > -1, 'falta la sección de ' + v);
-      assert.ok(CRM.indexOf("if(v==='" + v + "')") > -1, 'el enrutador no conoce ' + v);
-    }
+    assert.ok(CRM.indexOf('data-v="cobranzas"') > -1, 'falta el botón de cobranzas');
+    assert.ok(CRM.indexOf('id="v-cobranzas"') > -1, 'falta la sección de cobranzas');
+    assert.ok(CRM.indexOf("if(v==='cobranzas')") > -1, 'el enrutador no conoce cobranzas');
+    const ventas = CRM.slice(CRM.indexOf('id="v-ventas"'), CRM.indexOf('</section>', CRM.indexOf('id="v-ventas"')));
+    assert.ok(ventas.indexOf('id="tblComercial"') > -1, 'lo de Comercial no está en Ventas');
+    assert.ok(CRM.indexOf("if(v==='comercial')") > -1, "el enrutador no conoce comercial: un irA('comercial') viejo no llega a ninguna parte");
   });
 
   test('COBRANZAS suma los créditos por PERSONA antes de armar los casos', () => {

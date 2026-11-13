@@ -373,7 +373,8 @@ describe('4 · «＋ Agregar prospecto», uno suelto, con las reglas de una base
     assert.equal(de(P, p.id), 'g1');
     const viajo = (enviados(P)[0].p_gente || []).find(x => x.id === p.id);
     assert.ok(viajo && viajo.tipo === 'prospecto', 'no le llegó a Willian');
-    assert.match(ultimo(P), /Pedro Pérez entró a tus prospectos[\s\S]*no le llegan las invitaciones de Comercial[\s\S]*Pedro Pérez queda con WILLIAN[\s\S]*Ya se lo publiqué/);
+    /* 13-nov-2026 — «de 📈 Ventas»: Comercial ya no es una pestaña, vive en Ventas. */
+    assert.match(ultimo(P), /Pedro Pérez entró a tus prospectos[\s\S]*no le llegan las invitaciones de 📈 Ventas[\s\S]*Pedro Pérez queda con WILLIAN[\s\S]*Ya se lo publiqué/);
     const r = P.ev('prospectosParaInvitar()');
     assert.ok(r.no.some(x => x.fila.id === p.id && /habeas data/.test(x.motivo)), 'sin autorización quedó para invitar');
     P.ev('renderBases()');

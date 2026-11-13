@@ -298,6 +298,9 @@
   .ph{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin-bottom:22px}
   .ph h1{font-family:'Archivo Black';font-size:26px}
   .ph h1 .dot{color:var(--rojo)}
+  /* 13-nov-2026 — el título de una sección dentro de una vista (🚀 Invitar a la app,
+     en Ventas): la misma letra del h1, un escalón más chica. */
+  .ph h2{font-family:'Archivo Black';font-size:20px}.ph h2 .dot{color:var(--rojo)}
   .ph .sub{color:var(--gris);font-size:14px;margin-top:4px;font-weight:500}
   .btn{display:inline-flex;align-items:center;gap:7px;border:none;font-weight:700;font-size:14px;padding:11px 18px;border-radius:10px;transition:.13s}
   .btn-rojo{background:var(--rojo);color:var(--papel)}.btn-rojo:hover{background:var(--rojo-osc)}
@@ -337,6 +340,10 @@
   th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gris);font-weight:700;padding:10px 18px;border-bottom:1px solid var(--linea)}
   td{padding:11px 18px;border-bottom:1px solid var(--linea-2);font-size:14px;vertical-align:middle}
   tr:last-child td{border-bottom:none}tr:hover td{background:var(--fondo)}
+  /* 13-nov-2026 — el título de cada grupo de 📨 Solicitudes («🙋 Nuevas: proponer»…):
+     una fila de la MISMA tabla, no una tabla por grupo, para que las columnas de
+     todos los grupos caigan una debajo de otra. No se resalta al pasar: no se toca. */
+  tr.sol-grupo td,tr.sol-grupo:hover td{background:var(--papel-2);border-bottom:1px solid var(--linea);padding-top:16px;white-space:normal}
   .num{font-family:'JetBrains Mono';font-weight:700;font-variant-numeric:tabular-nums}.muted{color:var(--gris);font-size:12.5px}
   .gano{color:var(--amarillo-tinta);font-family:'JetBrains Mono';font-weight:700}
   /* 22-oct-2026 — la ganancia NEGATIVA, en el rojo de la casa (la excepción de
@@ -683,21 +690,31 @@
       <div class="busca-res" id="buscaRes"></div>
     </div>
     <button class="navbtn on" data-v="dash"><span class="ic">📊</span> Tablero</button>
+    <!-- 13-nov-2026 — LAS SOLICITUDES, CON PESTAÑA PROPIA Y ARRIBA. Joan: «quiero que
+         desde el admin se vea cuando un cliente realiza una solicitud, y que tenga
+         una pestaña especial para eso». Vivían en una tarjeta de 📋 Socios, la
+         undécima entrada del menú, debajo de nueve tarjetas que no tienen nada que
+         ver. El número cuenta lo que te toca: nuevas por proponer y aceptadas por
+         desembolsar (pintarAvisos). Los recados de «Olvidé mi contraseña» se quedan
+         en Socios y cuentan allá (#navRecados). -->
+    <button class="navbtn" data-v="solicitudes"><span class="ic">📨</span> Solicitudes<span id="navSolicitudes"></span></button>
     <button class="navbtn" data-v="cred"><span class="ic">💵</span> Créditos</button>
     <button class="navbtn" data-v="resp"><span class="ic">🛡️</span> Con garantía</button>
     <button class="navbtn" data-v="clientes"><span class="ic">🧑‍🤝‍🧑</span> Clientes</button>
     <!-- 9-nov-2026 — dónde están tus clientes, por zonas (panel/mapa-clientes.js). -->
     <button class="navbtn" data-v="mapa"><span class="ic">🗺️</span> Mapa</button>
     <button class="navbtn" data-v="cobranzas"><span class="ic">📣</span> Cobranzas</button>
+    <!-- 13-nov-2026 — aquí estaba «🚀 Comercial». Joan: «ventas y comercial es lo
+         mismo». Su contenido vive en Ventas, debajo del embudo y de la lista
+         (#ventasComercial), y irA('comercial') lleva ahí. -->
     <button class="navbtn" data-v="ventas"><span class="ic">📈</span> Ventas</button>
-    <button class="navbtn" data-v="comercial"><span class="ic">🚀</span> Comercial</button>
     <!-- 26-oct-2026 — «Mensajes» se llama «Chat» (chat-1): es la palabra que
          usa Joan, y desde el 4-nov el CRM tendrá los SMS de Cocom, que sí son
          «mensajes». Dos botones «Mensajes» para dos cosas serían otra función
          escondida. El número suma clientes y equipo (pintarAvisos). -->
     <button class="navbtn" data-v="mensajes"><span class="ic">💬</span> Chat<span id="navSinLeer"></span></button>
     <button class="navbtn" data-v="registrados"><span class="ic">📥</span> Registrados</button>
-    <button class="navbtn" data-v="socios"><span class="ic">📋</span> Socios<span id="navSolicitudes"></span></button>
+    <button class="navbtn" data-v="socios"><span class="ic">📋</span> Socios<span id="navRecados"></span></button>
     <button class="navbtn" data-v="ciclos"><span class="ic">📈</span> Ciclos</button>
     <button class="navbtn" data-v="cal"><span class="ic">📅</span> Calendario</button>
     <button class="navbtn" data-v="plantillas"><span class="ic">💬</span> Plantillas</button>
@@ -731,6 +748,9 @@
     <section class="view on" id="v-dash">
       <div class="ph"><div><h1>Tablero<span class="dot">.</span></h1><div class="sub">Tu negocio y la gestión del día</div></div>
         <button class="btn btn-rojo" onclick="nuevoCredito()">＋ Nuevo crédito</button></div>
+      <!-- 13-nov-2026 — «🔔 Ana pidió $300.000, hace 5 min · Ver»: las solicitudes que
+           llegaron y todavía no has mirado en 📨 Solicitudes (pintarAvisoSolicitudesNuevas). -->
+      <div id="avisoSolicitudesNuevas"></div>
       <!-- 9-nov-2026 — lo que sobra de un cierre, por decidir (avisoSobrantesPorDecidir). -->
       <div id="avisoSobrantes"></div>
       <div class="kpis" id="kpis"></div>
@@ -738,6 +758,22 @@
       <div class="kpis2" id="kpis2"></div>
       <div class="card"><div class="card-h"><h3>Cola de gestión de hoy</h3><span class="tag">A quién contactar por WhatsApp</span>
         <button class="btn btn-ghost btn-sm" onclick="pantallaEnvioMasivo()">📤 Bajar base para SMS / voz</button></div><div id="cola"></div></div>
+    </section>
+
+    <!-- 13-nov-2026 — 📨 SOLICITUDES. La MISMA tarjeta que vivía en 📋 Socios, con su
+         #bandeja y sus dos botones: renderBandeja, traerSolicitudes y pegarSolicitud
+         no cambiaron de dueño, solo de pestaña. Lo nuevo es el orden: la lista sale
+         agrupada por lo que te toca hacer (GRUPOS_SOLICITUD), cada fila trae un
+         enlace a su ficha o a su registro, y «⚠️ Falta su cédula» cuando lo que el
+         CRM sabe de sus fotos lo dice (faltaCedulaDeSolicitud). -->
+    <section class="view" id="v-solicitudes">
+      <div class="ph"><div><h1>Solicitudes<span class="dot">.</span></h1><div class="sub">Lo que te piden desde la app, ordenado por lo que te toca hacer</div></div></div>
+      <div class="card"><div class="card-h"><h3>📥 Solicitudes</h3><span class="tag">Lo que te piden desde la app</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+          <button class="btn btn-negro btn-sm" onclick="traerSolicitudes()">↻ Buscar en la nube</button>
+          <button class="btn btn-ghost btn-sm" onclick="pegarSolicitud()">📋 Pegar el WhatsApp</button>
+        </div>
+        <div id="bandeja"></div></div>
     </section>
 
     <section class="view" id="v-cred">
@@ -856,21 +892,22 @@
     </section>
 
     <!-- ===================================================================
-         COMERCIAL — «una pestaña de comercial en el que pueda invitar a los
-         prospectos a unirse al aplicativo».
-         ================================================================== -->
-    <!-- ===================================================================
          VENTAS — 16 de septiembre de 2026
          Joan: «quiero que crees una pestaña de ventas y que agregues las bases
          y las herramientas».
          Casi todo esto ya existía y estaba repartido: las listas en Bases, la
          invitación en Comercial, el embudo en etapas.js SIN pantalla propia, y
          las herramientas de gestión solo visibles en modo asesor. Acá se juntan.
+         13-nov-2026 — Y COMERCIAL TAMBIÉN. Joan: «ventas y comercial es lo
+         mismo, así que unifica esa pestaña en ventas». Lo de Comercial vive
+         debajo del embudo y de la lista (#ventasComercial), sin rehacer nada:
+         los mismos ids y el mismo renderComercial. «↻ Recalcular» recalcula
+         las dos cosas, y irA('comercial') lleva a esta sección.
          ================================================================= -->
     <section class="view" id="v-ventas">
       <div class="ph"><div><h1>Ventas<span class="dot">.</span></h1>
-        <div class="sub">De dónde sale un cliente nuevo, y en qué paso va cada uno</div></div>
-        <button class="btn btn-ghost" onclick="renderVentas()">↻ Recalcular</button></div>
+        <div class="sub">De dónde sale un cliente nuevo, en qué paso va cada uno, y a quién puedes invitar a la app</div></div>
+        <button class="btn btn-ghost" onclick="renderVentas();renderComercial()">↻ Recalcular</button></div>
       <div class="kpis" id="kpiVentas"></div>
       <div class="card"><div class="card-h"><h3>📈 El embudo</h3>
         <span class="tag">Toca un paso para ver quién está ahí</span></div>
@@ -878,11 +915,13 @@
       <div class="card"><div class="card-h"><h3 id="tituloListaVentas">Tu lista</h3>
         <span class="tag">Llama, escribe, anota lo que pasó</span></div>
         <div id="tblVentas"></div></div>
-    </section>
 
-    <section class="view" id="v-comercial">
-      <div class="ph"><div><h1>Comercial<span class="dot">.</span></h1><div class="sub">Invitar a los prospectos a abrir su cuenta en la app</div></div>
-        <button class="btn btn-ghost" onclick="renderComercial()">↻ Recalcular</button></div>
+      <!-- ===================================================================
+           LO QUE ERA COMERCIAL — «una pestaña de comercial en el que pueda
+           invitar a los prospectos a unirse al aplicativo» (15-sep-2026).
+           ================================================================== -->
+      <div class="ph" id="ventasComercial" style="margin-top:34px"><div><h2>🚀 Invitar a la app<span class="dot">.</span></h2>
+        <div class="sub">A los prospectos que autorizaron que les escribas, para que abran su cuenta · lo que antes estaba en «Comercial»</div></div></div>
       <div class="kpis" id="kpiComercial"></div>
       <div class="card"><div class="card-h"><h3>🚀 A quién se puede invitar</h3>
         <span class="tag">Solo quien autorizó que le escribamos</span></div>
@@ -974,12 +1013,10 @@
     <section class="view" id="v-socios">
       <div class="ph"><div><h1>Socios<span class="dot">.</span></h1><div class="sub">La garantía que has emitido, quién puede pedir más y a quién le falta qué</div></div>
         <button class="btn btn-ghost btn-sm" onclick="exportarSocios()">⬇ Excel</button></div>
-      <div class="card"><div class="card-h"><h3>📥 Solicitudes</h3><span class="tag">Lo que te piden desde la app</span></div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-          <button class="btn btn-negro btn-sm" onclick="traerSolicitudes()">↻ Buscar en la nube</button>
-          <button class="btn btn-ghost btn-sm" onclick="pegarSolicitud()">📋 Pegar el WhatsApp</button>
-        </div>
-        <div id="bandeja"></div></div>
+      <!-- 13-nov-2026 — la tarjeta «📥 Solicitudes» se fue a su pestaña. Esta línea
+           se queda para quien la venga a buscar aquí, donde estuvo dos meses. -->
+      <div class="alerta info" id="solicitudesSeFueron">Las solicitudes ahora están en
+        <button class="btn btn-ghost btn-sm" onclick="irA('solicitudes')">📨 Solicitudes</button></div>
       <!-- 22-sep-2026 — LOS RECADOS DE «OLVIDÉ MI CONTRASEÑA». Desde hoy la app
            no reparte el WhatsApp de Joan, así que el que no puede entrar deja
            un recado acá. No puede usar el chat: el chat exige sesión y él
@@ -2730,8 +2767,12 @@ let _registrosExtra=[];
    escribe (traerRegistrosParaElChat), aparte por la misma razón: no son la
    bandeja de nuevos y no deben pintarse como si alguien estuviera esperando. */
 let _registrosDelChat=[];
+/* 13-nov-2026 — y los que pidió 📨 Solicitudes para saber de quién es cada
+   solicitud sin ficha (traerRegistrosParaSolicitudes), aparte por lo mismo. */
+let _registrosDeSolicitudes=[];
 function registroPorId(id){
-  return _registros.find(x=>String(x.id)===String(id))||_registrosExtra.find(x=>String(x.id)===String(id))||_registrosDelChat.find(x=>String(x.id)===String(id))||null;
+  return _registros.find(x=>String(x.id)===String(id))||_registrosExtra.find(x=>String(x.id)===String(id))||_registrosDelChat.find(x=>String(x.id)===String(id))
+    ||_registrosDeSolicitudes.find(x=>String(x.id)===String(id))||null;
 }
 /* `soloJuntar`: el registro ya lo atendió Joan (lo cruzó, o le abrió la
    ficha). El toque solo junta la cuenta: volver a cruzarlo duplicaría el
@@ -9787,6 +9828,10 @@ function contarPendientes(){
        'ok'): antes de preguntar, un cero no es un dato. */
     equipo: leer(()=>(_eqEstado==='ok'&&chatListo()&&CHAT.totalSinLeer)?CHAT.totalSinLeer(_eqConvs):0, 0),
     solicitudes: leer(()=>_solicitudes.filter(s=>s.origen==='nube'&&s.estado==='nueva').length, 0),
+    /* 13-nov-2026 — las que ACEPTARON, que esperan que Joan desembolse: cuentan en
+       el número de 📨 Solicitudes, no en el globo (un globo de «te llegó una
+       solicitud» por alguien que solo aceptó diría lo que no pasó). */
+    aceptadas: leer(()=>_solicitudes.filter(s=>s.origen==='nube'&&s.estado==='aceptada').length, 0),
     ayudas: leer(()=>_ayudas.length, 0)
   };
 }
@@ -9822,10 +9867,21 @@ function pintarAvisos(){
      cliente que no puede entrar no tiene otro camino que ese recado (el chat
      exige sesión). Viven en la misma vista (la tarjeta 🔑 de Socios), así
      que suman ahí; el title dice qué es cada cosa. */
-  poner('navSolicitudes', c.solicitudes+c.ayudas, falla||fallaSol||fallaAyu);
+  /* 13-nov-2026 — Y SE SEPARAN. Las solicitudes se fueron a su pestaña (📨
+     Solicitudes) y los recados se quedaron en Socios: cada número va donde vive
+     lo que cuenta, que es la regla de arriba. Sumarlos en uno solo volvería a
+     mandar a Joan a buscar un recado donde no está. */
+  poner('navSolicitudes', c.solicitudes+c.aceptadas, falla||fallaSol);
   const ns=document.getElementById('navSolicitudes');
-  if(ns&&!(falla||fallaSol||fallaAyu)&&c.ayudas)
-    ns.title=c.solicitudes+' solicitud(es) de crédito y '+c.ayudas+' recado(s) de «Olvidé mi contraseña»';
+  if(ns&&!(falla||fallaSol)&&(c.solicitudes||c.aceptadas))
+    ns.title=c.solicitudes+' nueva(s) por proponer y '+c.aceptadas+' que aceptaron, por desembolsar';
+  poner('navRecados', c.ayudas, falla||fallaAyu);
+  const nr=document.getElementById('navRecados');
+  if(nr&&!(falla||fallaAyu)&&c.ayudas)
+    nr.title=c.ayudas+' recado(s) de «Olvidé mi contraseña»';
+  /* 13-nov-2026 — «🔔 Ana pidió $300.000, hace 5 min · Ver», arriba en el Tablero.
+     Con red, como contarPendientes: un aviso de menos no puede tumbar render(). */
+  try{ pintarAvisoSolicitudesNuevas(); }catch(e){}
   const pie=document.getElementById('avisoPie');
   if(pie){
     /* 22-oct-2026 — «a la vista», no «abierta»: el reloj se para con la
@@ -9858,10 +9914,21 @@ function pintarAvisos(){
    Garantía · Panel». Es lo que se ve desde otra pestaña sin globo ni sonido.
    Con la nube fallando no se deja un número viejo: se quita. */
 const TITULO_CRM='Tu Garantía · Panel';
+/* 13-nov-2026 — Y LAS SOLICITUDES QUE NO HAS MIRADO: «(1) Tu Garantía · Panel» cuando
+   alguien pide y estás en otra pestaña del navegador. Cuentan aparte del chat: si la
+   nube del chat falla, el número del chat se quita, pero una solicitud que llegó
+   sigue siendo una solicitud que llegó. Sin app/chat-vivo.js el título no se tocaba
+   y sigue sin tocarse, salvo para decir eso. */
 function pintarTituloChat(c,falla){
-  if(!window.ChatVivo||!ChatVivo.titulo) return;
-  try{ document.title=ChatVivo.titulo(TITULO_CRM, falla?0:(Number(c.mensajes||0)+Number(c.equipo||0))); }catch(e){}
+  let sinVer=0; try{ sinVer=solicitudesSinVer().length; }catch(e){}
+  const n=(falla?0:(Number(c.mensajes||0)+Number(c.equipo||0)))+sinVer;
+  if(!window.ChatVivo||!ChatVivo.titulo){
+    if(sinVer||_tituloConSolicitudes){ _tituloConSolicitudes=!!sinVer; try{ document.title=sinVer?'('+sinVer+') '+TITULO_CRM:TITULO_CRM; }catch(e){} }
+    return;
+  }
+  try{ document.title=ChatVivo.titulo(TITULO_CRM, n); }catch(e){}
 }
+var _tituloConSolicitudes=false;
 
 /* 26-oct-2026 — «Clientes (n) · Equipo (n)» y el orden de las tarjetas
    (chat-1). Primero la que tiene algo sin leer; si las dos (o ninguna), los
@@ -9972,11 +10039,14 @@ function avisarSiHayNuevo(c){
          `c` (la última línea de esta función): la comparación daba siempre
          falso y el globo llevaba SIEMPRE a Mensajes, también el de una
          solicitud o un recado de «Olvidé mi contraseña», que viven en Socios. */
-      const aSocios=sube(_vistos.solicitudes,c.solicitudes)||sube(_vistos.ayudas,c.ayudas);
+      /* 13-nov-2026 — la solicitud lleva a 📨 Solicitudes, que es donde vive desde
+         hoy; el recado, a Socios, donde se quedó. Si llegaron las dos, gana la
+         solicitud: es plata que alguien está esperando. */
+      const destino=sube(_vistos.solicitudes,c.solicitudes)?'solicitudes':sube(_vistos.ayudas,c.ayudas)?'socios':'mensajes';
       if(puedeAvisar()){
         try{
           const g=new Notification('Tu Garantía', { body:'Te llegaron '+partes.join(' y ')+'.', tag:'tg-pendientes', renotify:true });
-          g.onclick=()=>{ try{ window.focus(); }catch(e){} irA(aSocios?'socios':'mensajes'); g.close(); };
+          g.onclick=()=>{ try{ window.focus(); }catch(e){} irA(destino); g.close(); };
         }catch(e){}
       }
       /* 26-oct-2026 — EL SONIDO solo cuando el número SUBE (es lo que son
@@ -11783,11 +11853,17 @@ function buscarPorCelular(cel){
    registro con las solicitudes abiertas por el registro del que nacieron o por
    el celular (telDeSolicitud, el mismo camino que la base), y se pinta con su
    «✏️ Proponer», que abre el MISMO formulario de la bandeja. */
-function solicitudesDeRegistro(r){
+/* 13-nov-2026 — el cruce, en UN solo sitio: lo usan las dos direcciones, del
+   registro a lo que pidió (aquí) y de la solicitud a su registro
+   (registroDeSolicitud, para el «⚠️ Falta su cédula» y el enlace de 📨 Solicitudes). */
+function esSolicitudDeRegistro(s,r){
   const t=telDiez(r&&r.telefono);
-  return _solicitudes.filter(s=>s&&s.origen==='nube'&&(
+  return !!(s&&s.origen==='nube'&&(
     (s.registro_id!=null&&r&&r.id!=null&&String(s.registro_id)===String(r.id))||
     (t.length===10&&telDeSolicitud(s)===t)));
+}
+function solicitudesDeRegistro(r){
+  return _solicitudes.filter(s=>esSolicitudDeRegistro(s,r));
 }
 function pedidoEnRegistro(r){
   return solicitudesDeRegistro(r).map(s=>{
@@ -11799,11 +11875,12 @@ function pedidoEnRegistro(r){
     const id=escHTML(String(s.id));
     /* Las mismas tres salidas que la bandeja: sin propuesta se propone; con
        propuesta se puede cambiar mientras no la acepte; aceptada, se
-       desembolsa en Socios, que es donde vive ese botón. */
+       desembolsa en la bandeja, que es donde vive ese botón (13-nov-2026: en
+       📨 Solicitudes, ya no en Socios). */
     const accion=!cp
       ? `<button class="btn btn-rojo btn-sm" onclick="editarContrapropuesta('${id}')">✏️ Proponer</button>`
       : s.estado==='aceptada'
-        ? `<span class="chip pagado">✅ Aceptó</span> <button class="btn btn-ghost btn-sm" onclick="irA('socios')">Desembolsar en Socios</button>`
+        ? `<span class="chip pagado">✅ Aceptó</span> <button class="btn btn-ghost btn-sm" onclick="irA('solicitudes')">Desembolsar en 📨 Solicitudes</button>`
         : `<span class="chip al-dia">📨 Esperando que acepte</span> <button class="btn btn-ghost btn-sm" onclick="editarContrapropuesta('${id}')">✏️ Cambiar propuesta</button>`;
     return '<div style="margin-top:6px;white-space:normal">🙋 '+que+'<div style="margin-top:4px">'+accion+'</div></div>';
   }).join('');
@@ -11814,7 +11891,7 @@ function pedidoEnRegistro(r){
 function avisoPedidosRegistrados(){
   if(!sbListo()||_solEstado==='ok') return '';
   const txt=_solEstado==='cargando'?'Preguntando a la nube qué pidió cada uno…'
-    :_solEstado==='error'?'No pude preguntarle a la nube qué pidió cada uno: si alguien pidió, puede no salir aquí. Míralo en 📋 Socios → «↻ Buscar en la nube».'
+    :_solEstado==='error'?'No pude preguntarle a la nube qué pidió cada uno: si alguien pidió, puede no salir aquí. Míralo en 📨 Solicitudes → «↻ Buscar en la nube».'
     :'Todavía no le he preguntado a la nube qué pidió cada uno.';
   return '<div class="muted" style="padding:10px 14px 0;font-size:12px">'+txt+'</div>';
 }
@@ -13002,25 +13079,35 @@ function pedirFotosPorElChat(id,falta){
    Las llaves de la base no las escribe el teléfono: las escribe
    registro_archivos_guardar. «Más de un día» es el día en que el teléfono las borra
    (EC.fotosPertenecen), y huella.momento lo escribe esa misma función al subirlas. */
-function chipCedulaRegistro(r){
+/* 13-nov-2026 — LA REGLA SALE DE LA FILA. Lo que decide si a un registro le falta la
+   cédula vivía metido en el chip; 📨 Solicitudes necesita la MISMA respuesta para
+   pintar «⚠️ Falta su cédula» en la fila de quien pidió (faltaCedulaDeSolicitud), y
+   copiarla serían dos reglas que el día de mañana dicen cosas distintas de la misma
+   persona. Devuelve la frase, o '' si no hay nada que decir; el chip de Registrados
+   se pinta igual que antes. */
+function cedulaQueFaltaEnRegistro(r){
   if(String((r&&r.app)||'')==='platachat') return '';
   const h=(r&&r.huella&&typeof r.huella==='object')?r.huella:{};
   const tom=fotosTomadasDe(r&&r.datos), pasaporte=esPasaporte(r&&r.datos);
-  const chip=texto=>`<div style="margin-top:4px"><span class="chip riesgo-medio">🪪 ${texto}</span> <button class="btn btn-ghost btn-sm" onclick="pedirFotosPorElChat('${escHTML(String(r.id))}','')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
-  if(h.cedula_rechazada) return chip(h.cedula_rechazada.motivo==='otro_documento'
+  if(h.cedula_rechazada) return h.cedula_rechazada.motivo==='otro_documento'
     ?'La nube rechazó su cédula: no es la del documento de su registro'
-    :'La nube rechazó su cédula: no se pudo confirmar de quién es');
+    :'La nube rechazó su cédula: no se pudo confirmar de quién es';
   const rech=((h.fotos_rechazadas&&Array.isArray(h.fotos_rechazadas.fotos))?h.fotos_rechazadas.fotos:[]).some(x=>x&&(x.tipo==='cedula_frente'||x.tipo==='cedula_reverso'));
-  if(rech) return chip('La nube no aceptó la foto de su cédula');
+  if(rech) return 'La nube no aceptó la foto de su cédula';
   if(!tom) return '';
   if(tom.cedula_frente&&tom.cedula_reverso){
     const horas=(Date.now()-new Date(r.creado_en).getTime())/3600e3;
-    return (!h.momento&&!h.cedula_leida&&horas>=24)?chip('Su cédula no llegó, y ya pasó más de un día'):'';
+    return (!h.momento&&!h.cedula_leida&&horas>=24)?'Su cédula no llegó, y ya pasó más de un día':'';
   }
   const uno=tom.cedula_frente||tom.cedula_reverso;
   if(h.cedula_leida&&!uno) return '';
   if(pasaporte&&uno) return '';
-  return chip(pasaporte?'Se registró sin la foto de su pasaporte':(uno?'Se registró con un solo lado de la cédula':'Se registró sin la cédula'));
+  return pasaporte?'Se registró sin la foto de su pasaporte':(uno?'Se registró con un solo lado de la cédula':'Se registró sin la cédula');
+}
+function chipCedulaRegistro(r){
+  const texto=cedulaQueFaltaEnRegistro(r);
+  if(!texto) return '';
+  return `<div style="margin-top:4px"><span class="chip riesgo-medio">🪪 ${texto}</span> <button class="btn btn-ghost btn-sm" onclick="pedirFotosPorElChat('${escHTML(String(r.id))}','')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
 }
 /* Y la fila «Cédula leída» de bloqueHuella, cuando no hay lectura del código.
    4-nov-2026 — «No llegó lectura», no «No se leyó»: esto es lo que dijo el teléfono
@@ -21765,7 +21852,7 @@ function agregarProspecto() {
       <select id="apAutoriza"><option value="">— Elige una —</option>
         <option value="si">Sí, me autorizó que le escribamos</option>
         <option value="no">No, o no lo sé</option></select>
-      <div class="help">Marca «Sí» solo si es verdad: queda escrito con la fecha de hoy y es lo que te defiende si reclama. Con «No» entra igual, pero no le llegan las invitaciones de Comercial (sale en «🚫 Quién no, y por qué»): invitar sin permiso es lo que sanciona la SIC.</div></div>
+      <div class="help">Marca «Sí» solo si es verdad: queda escrito con la fecha de hoy y es lo que te defiende si reclama. Con «No» entra igual, pero no le llegan las invitaciones de 📈 Ventas (sale en «🚫 Quién no, y por qué»): invitar sin permiso es lo que sanciona la SIC.</div></div>
     ${gente.length ? `<div class="field"><label>Se lo asigno a <span class="opc">(opcional)</span></label>
       <select id="apAsignarA"><option value="">— Nadie por ahora —</option>${opcionesDestino('')}</select>
       <div class="help">${textoPublicarAsignar('Si se lo asignas, al agregarlo', 'prospecto')}</div>
@@ -21826,7 +21913,7 @@ function guardarProspectoSuelto() {
   const nuevo = r.nuevos[0];
   if (!nuevo.nombre) return alert('Ese nombre no tiene letras. Escríbelo como se llama.');
   if (!origen) return alert('Escribe de dónde sale.\n\nNo es un trámite: es lo único que te permite contestar el día que pregunte de dónde sacaste su teléfono.');
-  if (autoriza !== 'si' && autoriza !== 'no') return alert('Contesta si autorizó que lo contactemos: sí o no.\n\nCon «No» entra igual, pero no le llegan las invitaciones de Comercial.');
+  if (autoriza !== 'si' && autoriza !== 'no') return alert('Contesta si autorizó que lo contactemos: sí o no.\n\nCon «No» entra igual, pero no le llegan las invitaciones de 📈 Ventas.');
   if (destino && !personaDeEquipo(destino)) return alert('Elige a quién se lo asignas.');
   const hoy = hoyISO(), sello = Date.now();
   /* 27-oct-2026 — EL GERENTE AGREGA: la nota, solo al crear (como el origen):
@@ -21849,7 +21936,7 @@ function guardarProspectoSuelto() {
     guardar(); cerrarModal(); render(); irA('bases');
     publicarCelularesDeJoan();
     const listo = 'Listo: ' + p.nombre + ' entró a tus prospectos (lo ves arriba en la tabla de Bases).' +
-      (p.autorizaInvitacion ? '' : '\n\nComo no autorizó (o no lo sabes), no le llegan las invitaciones de Comercial.') +
+      (p.autorizaInvitacion ? '' : '\n\nComo no autorizó (o no lo sabes), no le llegan las invitaciones de 📈 Ventas.') +
       (sinMirar ? '\n\n(No pude mirar si tu equipo ya lo tenía. Antes de mandárselo a alguien lo vuelvo a mirar.)' : '');
     if (asignadoA === null) { alert(listo); return Promise.resolve('agregado'); }
     return publicarTrasAsignar(listo + '\n\n' + fraseAsignado(p.nombre, asignadoA).replace(/^Listo: /, ''));
@@ -22728,6 +22815,10 @@ function traerSolicitudes(callado){
     const nube=(JSON.parse(r.t)||[]).map(x=>Object.assign({origen:'nube'},x));
     _solicitudes=nube.concat(_solicitudes.filter(x=>x.origen==='pegada'));
     _solEstado='ok'; _solHora=horaCorta(); _solErrorHTML='';
+    /* 13-nov-2026 — antes de pintar: qué de esto es nuevo para ESTE navegador
+       (alLlegarSolicitudes), y de quién es lo que llegó sin ficha. */
+    try{ alLlegarSolicitudes(); }catch(e){}
+    try{ traerRegistrosParaSolicitudes(); }catch(e){}
     renderBandeja(); pintarAvisos();
     /* Registrados dice qué pidió cada uno (pedidoEnRegistro): con la lista
        nueva, se repinta. */
@@ -22750,8 +22841,102 @@ function renderBandeja(){
     b.innerHTML=estadoDeLaBandeja(false);
     return;
   }
+  /* 13-nov-2026 — AGRUPADA POR LO QUE TE TOCA HACER. Una sola lista donde lo nuevo,
+     lo aceptado y lo que solo espera salían revueltos obligaba a leer el chip de
+     cada fila para saber qué hacer primero. Las filas son las de siempre
+     (filaDeSolicitud, con sus mismos botones); lo que cambia es el orden y un
+     título por grupo. Una sola tabla, para que las columnas no bailen de un grupo
+     a otro. Grupo vacío, no se pinta. */
+  const grupos={};
+  GRUPOS_SOLICITUD.forEach(g=>{ grupos[g.k]=[]; });
+  _solicitudes.forEach(s=>{ grupos[grupoDeSolicitud(s)].push(filaDeSolicitud(s)); });
   b.innerHTML=estadoDeLaBandeja(true)+`<table><thead><tr><th>Cliente</th><th>Pide</th><th>Producto</th><th>Total a devolver</th><th>Última fecha</th><th></th></tr></thead><tbody>${
-    _solicitudes.map(s=>{
+    GRUPOS_SOLICITUD.filter(g=>grupos[g.k].length).map(g=>
+      `<tr class="sol-grupo" data-grupo="${g.k}"><td colspan="6"><b>${g.titulo}</b> <span class="muted">(${grupos[g.k].length})</span><div class="muted">${g.que}</div></td></tr>`
+      +grupos[g.k].join('')).join('')}</tbody></table>`;
+}
+/* Los grupos, en el orden en que Joan los atiende: lo que espera una respuesta
+   suya va arriba; lo que solo espera al cliente, abajo. «Vencidas» es la marca de
+   la propuesta vencida (vencioLaPropuesta, 10-nov): va antes que «Aceptaron»
+   aunque esté aceptada, porque desembolsarla así crea un crédito que nace
+   vencido. */
+const GRUPOS_SOLICITUD=[
+  {k:'nuevas',    titulo:'🙋 Nuevas: proponer',              que:'Pidieron y esperan tu propuesta. El botón para desembolsar sale aquí cuando la acepten.'},
+  {k:'vencidas',  titulo:'⏰ Vencidas: cámbiales la propuesta', que:'La fecha de pago de la propuesta ya llegó. Registrada así, nacería vencida.'},
+  {k:'aceptaron', titulo:'✅ Aceptaron: desembolsar',         que:'Aceptaron tu propuesta: lo que sigue es girarles la plata y registrar el crédito.'},
+  {k:'esperando', titulo:'📨 Esperando que acepten',          que:'Ya les propusiste. Falta que la acepten en su app.'},
+  {k:'pegadas',   titulo:'📋 Pegadas del WhatsApp',           que:'Las que pegaste de un WhatsApp: no pasaron por la app, así que allá no hay propuesta que aceptar.'}
+];
+function grupoDeSolicitud(s){
+  if(s&&s.origen==='pegada') return 'pegadas';
+  if(conPropuestaAbierta(s)&&vencioLaPropuesta(s)) return 'vencidas';
+  if(s&&s.estado==='aceptada') return 'aceptaron';
+  if(s&&s.contrapropuesta&&typeof s.contrapropuesta==='object') return 'esperando';
+  return 'nuevas';
+}
+/* 13-nov-2026 — LO QUE EL CRM YA SABE DE SU CÉDULA, sin preguntarle a la nube.
+   Con ficha, lo que pinta su ficha (porQueFaltaLaCedula sobre las fotos de la
+   ficha, solo si la ficha nació de un registro que lo anotó: una hecha a mano no
+   tiene por qué tener fotos). Sin ficha, lo de su registro (cedulaQueFaltaEnRegistro,
+   la regla de 📥 Registrados). Ni ficha ni registro traído: nada, que «no sé» no es
+   «le falta». Devuelve { texto, pedir } o null. */
+function faltaCedulaDeSolicitud(s){
+  if(CARTERA_EQUIPO||!s) return null;
+  const cli=socioDeSolicitud(s);
+  if(cli){
+    const declaro=fotosTomadasDe(cli.vinculacion)?{datos:cli.vinculacion}:null;
+    if(!declaro) return null;
+    const enLaFicha={cedula_frente:!!cli.cedulaFrenteFoto,cedula_reverso:!!cli.cedulaReversoFoto,selfie:!!cli.selfieFoto};
+    const falta=ladosQueFaltan(enLaFicha,declaro);
+    if(!falta) return null;
+    return { texto:porQueFaltaLaCedula(enLaFicha,declaro,cli.huellaRegistro),
+      pedir:`pedirFotosDeLaFicha('${escHTML(String(cli.id))}','${falta}')` };
+  }
+  const r=registroDeSolicitud(s);
+  const texto=r?cedulaQueFaltaEnRegistro(r):'';
+  return texto?{ texto, pedir:`pedirFotosPorElChat('${escHTML(String(r.id))}','')` }:null;
+}
+function chipFaltaCedulaSolicitud(s){
+  const f=faltaCedulaDeSolicitud(s);
+  if(!f) return '';
+  /* La razón se escribe, no va en un title: en el teléfono el title no existe. */
+  return `<div style="margin-top:4px"><span class="chip riesgo-medio">⚠️ Falta su cédula</span></div>`
+    +`<div class="muted" style="white-space:normal;max-width:34ch">${escHTML(f.texto)}</div>`
+    +`<div style="margin-top:4px"><button class="btn btn-ghost btn-sm" onclick="${f.pedir}" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
+}
+/* De la solicitud a su registro, entre los que este computador ya trajo
+   (esSolicitudDeRegistro, el mismo cruce de 📥 Registrados). */
+function registroDeSolicitud(s){
+  const de=l=>(l||[]).find(r=>esSolicitudDeRegistro(s,r))||null;
+  return de(_registros)||de(_registrosExtra)||de(_registrosDelChat)||de(_registrosDeSolicitudes);
+}
+/* El enlace de cada fila: su ficha si la tiene; si no, lo que declaró al
+   registrarse. En modo #equipo, nada: esta bandeja es de Joan. */
+function enlaceDeSolicitud(s){
+  if(CARTERA_EQUIPO||!s) return '';
+  const cli=socioDeSolicitud(s);
+  if(cli) return `<button class="btn btn-ghost btn-sm" onclick="verCliente('${escHTML(String(cli.id))}')" title="Abre su ficha">👤 Su ficha</button> `;
+  const r=registroDeSolicitud(s);
+  if(r&&r.datos) return `<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')" title="Lo que declaró al registrarse">📋 Su registro</button> `;
+  return '';
+}
+/* 13-nov-2026 — DE QUIÉN ES LO QUE LLEGÓ SIN FICHA. Los registros se traen al entrar a
+   📥 Registrados; si una solicitud llega de alguien sin ficha y este computador no
+   tiene su registro, se piden UNA vez por solicitud (cada llamada es un intento del
+   freno de clave_ok). Van aparte (_registrosDeSolicitudes): no son la bandeja de
+   Registrados ni la pintan. Si falla, no se insiste: Registrados los trae. */
+let _regBuscadoPara={};
+function traerRegistrosParaSolicitudes(){
+  if(CARTERA_EQUIPO||!sbListo()) return false;
+  const faltan=_solicitudes.filter(s=>s&&s.origen==='nube'&&!_regBuscadoPara[String(s.id)]&&!socioDeSolicitud(s)&&!registroDeSolicitud(s));
+  if(!faltan.length) return false;
+  faltan.forEach(s=>{ _regBuscadoPara[String(s.id)]=true; });
+  rpc('listar_registros',{p_clave:sbCfg().clave,p_estado:'nuevo'})
+    .then(f=>{ if(!Array.isArray(f)) return; _registrosDeSolicitudes=f; renderBandeja(); pintarAvisos(); })
+    .catch(()=>{});
+  return true;
+}
+function filaDeSolicitud(s){
       const cli=DB.socios.find(x=>String(x.cedula||'').replace(/\D/g,'')===String(s.cedula||'').replace(/\D/g,''));
       /* Del respaldado NO nos creemos el tope que manda la app: el que manda es
          el que sale de lo que este cliente ya pagó, acá, en tus datos. */
@@ -22833,7 +23018,7 @@ function renderBandeja(){
          Y si ese celular es de alguien de su equipo, se dice: le estaría
          prestando a su propio gerente. Las dos cosas, solo en la vista de Joan. */
       const telSol=CARTERA_EQUIPO?'':telDeSolicitud(s);
-      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${telSol?'<div class="muted mono">📱 '+escHTML(telSol)+'</div>':''}${chipDelEquipo(telSol)}${sinJuntar?'<div class="muted" style="color:var(--ambar)">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. Júntale la cuenta antes de prestarle.</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}${(cp||cpRaw)&&s.estado!=='aceptada'&&!pegada&&!laVeEnSuApp(s)?'<div class="muted" style="color:var(--ambar);white-space:normal;max-width:32ch">⚠️ '+escHTML(NO_LA_VE_EN_SU_APP)+'</div>':''}${avisoPropuestaVencida(s)}${condicionesAceptadasDe(s)}${destinoEnLaFila(s)}</td>
+      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${telSol?'<div class="muted mono">📱 '+escHTML(telSol)+'</div>':''}${chipDelEquipo(telSol)}${chipFaltaCedulaSolicitud(s)}${sinJuntar?'<div class="muted" style="color:var(--ambar)">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. Júntale la cuenta antes de prestarle.</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}${(cp||cpRaw)&&s.estado!=='aceptada'&&!pegada&&!laVeEnSuApp(s)?'<div class="muted" style="color:var(--ambar);white-space:normal;max-width:32ch">⚠️ '+escHTML(NO_LA_VE_EN_SU_APP)+'</div>':''}${avisoPropuestaVencida(s)}${condicionesAceptadasDe(s)}${destinoEnLaFila(s)}</td>
       <td class="num"><b>${COP(resp?s.capital:q.capital)}</b>${aviso}${notaDelCliente(s)}${estimadoEnLaFila(s)}${sinCupo}</td>
       <td>${resp?`<b>Con garantía</b><div class="muted">${(Number(s.tasa)*100).toFixed(0)}% mensual · ${pz} mes${pz!==1?'es':''}</div>`
                 :pcNueva?`<b>Pidió por el chat</b><div class="muted">${pidePct||q.pct}% · ${pideCortes} corte${pideCortes!==1?'s':''} · todavía sin propuesta</div>`
@@ -22843,9 +23028,8 @@ function renderBandeja(){
       <td>${resp||espera?(s.fecha_corte?fmtFecha(s.fecha_corte):'—'):fmtFecha(q.corte)}${resp?'<div class="muted">última cuota</div>':espera?'<div class="muted">la que pidió</div>':''}</td>
       <td style="text-align:right">
         ${cp||cpRaw||espera||proponerPrimero?`<button class="btn ${espera||proponerPrimero?'btn-rojo':'btn-ghost'} btn-sm" onclick="editarContrapropuesta('${s.id}')">✏️ ${espera||proponerPrimero?'Proponer':'Cambiar propuesta'}</button> `:''}${espera||proponerPrimero||((cp||cpRaw)&&s.estado!=='aceptada')?'':`<button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="crearDesdeSolicitud('${s.id}')">✓ ${resp?'Revisar préstamo':(cp||cpRaw)?'Desembolsar':'Crear crédito'}</button>`}
-        <button class="btn btn-ghost btn-sm" onclick="verAparatosDeSolicitud('${s.id}')" title="Desde qué celular pidió (19-oct-2026)">📱</button>
+        ${enlaceDeSolicitud(s)}<button class="btn btn-ghost btn-sm" onclick="verAparatosDeSolicitud('${s.id}')" title="Desde qué celular pidió (19-oct-2026)">📱</button>
         <button class="btn btn-ghost btn-sm" onclick="descartarSolicitud('${s.id}')">✕</button></td></tr>`;
-    }).join('')}</tbody></table>`;
 }
 
 /* 19-oct-2026 — LO QUE LA BANDEJA SABE, en palabras. «Ninguna solicitud
@@ -22873,6 +23057,90 @@ function estadoDeLaBandeja(hayLista){
   /* 'sin_preguntar' */
   return hayLista?'<div class="muted" style="font-size:12.5px;margin-bottom:8px">Todavía no le he preguntado a la nube: estas son solo las que pegaste.</div>'
     :`<div class="empty"><div class="ic">☁️</div><p>Todavía no le he preguntado a la nube.<br><span class="muted">Si alguien pidió desde la app, aparece cuando le pregunte.</span></p>${boton}</div>`;
+}
+
+/* ===========================================================================
+ * LAS QUE TODAVÍA NO HAS MIRADO — 13 de noviembre de 2026
+ *
+ * Joan: «quiero que desde el admin se vea cuando un cliente realiza una
+ * solicitud». El CRM ya le preguntaba a la nube solo (cada 45 s con la pestaña a
+ * la vista y al volver a ella: vigilarPendientes), y el número del menú subía;
+ * lo que faltaba era que se NOTARA. Desde hoy, lo que llegó y no has mirado en
+ * 📨 Solicitudes sale arriba en el Tablero («🔔 Ana pidió $300.000, hace 5 min ·
+ * Ver») y en el título de la pestaña del navegador. Sin sonido: el único toque
+ * es el que ya existía, con su interruptor (botonSonidoChat).
+ *
+ * «Mirado» es haber abierto 📨 Solicitudes con eso en la lista. Se recuerda en
+ * ESTE navegador (una lista de ids, LLAVE_SOL_VISTAS), nunca en la cartera ni en
+ * la nube: es una comodidad de esta pantalla, no un dato del negocio, y el
+ * celular de Joan lleva la suya. Si el navegador no deja guardar, vale para
+ * esta sesión.
+ *
+ * La PRIMERA vez que un navegador pregunta no hay nada «nuevo»: lo que ya estaba
+ * abierto no llegó ahora, y anunciarlo todo de golpe enseña a no leer el aviso.
+ * Siguen en su pestaña, con su número.
+ * ======================================================================== */
+const LLAVE_SOL_VISTAS='tg_solicitudes_vistas';
+const TOPE_SOL_VISTAS=500;
+let _solVistas;   // undefined: sin leer · null: este navegador nunca anotó · [ids]
+function idsSolicitudesVistas(){
+  if(_solVistas===undefined){
+    _solVistas=null;
+    try{ const t=localStorage.getItem(LLAVE_SOL_VISTAS); const l=t?JSON.parse(t):null; if(Array.isArray(l)) _solVistas=l.map(String); }catch(e){}
+  }
+  return _solVistas;
+}
+function guardarSolicitudesVistas(ids){
+  _solVistas=ids.map(String).slice(-TOPE_SOL_VISTAS);
+  try{ localStorage.setItem(LLAVE_SOL_VISTAS,JSON.stringify(_solVistas)); }catch(e){}
+}
+const idsDeLaNube=()=>_solicitudes.filter(s=>s&&s.origen==='nube').map(s=>String(s.id));
+/* Las de la nube que este navegador no ha visto, la más reciente primero. Las
+   pegadas no: esas las pegó Joan con su mano. */
+function solicitudesSinVer(){
+  const v=idsSolicitudesVistas();
+  if(!v||CARTERA_EQUIPO) return [];
+  return _solicitudes.filter(s=>s&&s.origen==='nube'&&v.indexOf(String(s.id))<0)
+    .sort((a,b)=>String(b.creada_en||'').localeCompare(String(a.creada_en||'')));
+}
+/* Abrir 📨 Solicitudes es mirarlas. Se guardan las que están abiertas: las que
+   se cerraron no vuelven, y así la lista no crece sin fin. Antes de la primera
+   respuesta buena de la nube (_solHora vacía) lo que hay en pantalla no es la
+   lista, y guardarla borraría lo que este navegador ya recordaba: no se marca
+   nada, y lo marca alLlegarSolicitudes si la pestaña sigue a la vista. */
+function marcarSolicitudesVistas(){
+  if(!_solHora) return;
+  guardarSolicitudesVistas(idsDeLaNube());
+}
+/* Cada respuesta buena de la nube: la primera de este navegador anota todo sin
+   avisar; con 📨 Solicitudes a la vista, lo que llega ya se está mirando. */
+var _vistaCRM='dash';
+function alLlegarSolicitudes(){
+  if(CARTERA_EQUIPO) return;
+  if(idsSolicitudesVistas()===null){ guardarSolicitudesVistas(idsDeLaNube()); return; }
+  if(_vistaCRM==='solicitudes'&&!document.hidden) marcarSolicitudesVistas();
+}
+/* El aviso del Tablero. Cuánto pidió es lo que pidió (pedido_monto), no lo que
+   se le propuso; «hace cuánto» con el reloj de los recados (antiguedadRecado). */
+function pintarAvisoSolicitudesNuevas(){
+  const e=document.getElementById('avisoSolicitudesNuevas'); if(!e) return;
+  const nuevas=solicitudesSinVer();
+  if(!nuevas.length){ e.innerHTML=''; return; }
+  const linea=s=>{
+    const nom=String(s.nombre||'').trim(), tel=telDeSolicitud(s);
+    const quien=(nom&&nom!=='Registrado'?escHTML(nom):'Alguien sin ficha')+((!nom||nom==='Registrado')&&tel?' ('+escHTML(tel)+')':'');
+    const monto=Math.round(Number(s.pedido_monto)||Number(s.capital)||0);
+    const edad=antiguedadRecado(s.creada_en).texto;
+    const sinCedula=faltaCedulaDeSolicitud(s)?' · ⚠️ falta su cédula':'';
+    return '<b>'+quien+'</b> pidió '+(monto?'<b>'+COP(monto)+'</b>':'un crédito')+(edad?', '+escHTML(edad):'')+sinCedula;
+  };
+  const ver='<button class="btn btn-ghost btn-sm" onclick="irA(\'solicitudes\')">Ver</button>';
+  e.innerHTML='<div class="alerta info" role="status">'+(nuevas.length===1
+    ? '🔔 '+linea(nuevas[0])+' · '+ver
+    : '🔔 <b>'+nuevas.length+' solicitudes nuevas</b> · '+ver
+      +nuevas.slice(0,3).map(s=>'<div style="margin-top:4px">'+linea(s)+'</div>').join('')
+      +(nuevas.length>3?'<div class="muted" style="margin-top:4px">y '+(nuevas.length-3)+' más</div>':''))
+    +'</div>';
 }
 
 /* 19-oct-2026 — EL CELULAR DE UNA SOLICITUD, por el mismo camino que la base
@@ -23781,7 +24049,7 @@ function sinSaberSiTienePropuesta(s) {
   try { traerSolicitudesSiToca(); } catch (e) {}
   return '<div class="alerta warn" style="margin-bottom:10px">No sé si ' + escHTML(s.nombre || 'este cliente') + ' tiene una propuesta abierta: '
     + (_solEstado === 'error' ? 'no pude preguntarle a la nube.' : 'la nube todavía no contesta.')
-    + ' Si la tiene y la nube contesta antes de que registres, te aviso al guardar. Si no, revisa 📋 Socios: un crédito a mano no la cierra.</div>';
+    + ' Si la tiene y la nube contesta antes de que registres, te aviso al guardar. Si no, revisa 📨 Solicitudes: un crédito a mano no la cierra.</div>';
 }
 
 /* ===========================================================================
@@ -24636,13 +24904,24 @@ modal.addEventListener('click',e=>{ if(e.target===modal)cerrarModal(); });
    Salió al fusionar crm-asignar con crm-sesion
    (pruebas/asignar-bajo-la-puerta-de-24-horas.test.js, 3). */
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&modal.classList.contains('on')&&!_candado)cerrarModal(); });
-function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
+function irA(v){
+  /* 13-nov-2026 — «🚀 Comercial» ya no es una pestaña: vive en 📈 Ventas, debajo del
+     embudo. Quien siga llamando irA('comercial') —un enlace, una prueba, la
+     costumbre— llega a esa sección, no a una vista que no existe. irATarjetaChat
+     no es solo del chat: baja hasta cualquier elemento por su id. */
+  if(v==='comercial'){ irA('ventas'); irATarjetaChat('ventasComercial'); return; }
+  _vistaCRM=v;   // 13-nov-2026 — ver alLlegarSolicitudes
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
   if(v==='cfg'){pintarCfg();pintarAvisoRespaldo();} if(v==='plantillas')renderPlantillas(); if(v==='cal')renderCalendario();
   if(v==='equipo')renderEquipo();
   if(v==='bases')renderBases();
   if(v==='cobranzas')renderCobranzas();
-  if(v==='ventas')renderVentas();
-  if(v==='comercial')renderComercial();
+  /* 13-nov-2026 — Ventas pinta también lo que era Comercial. Aquí y en su
+     «↻ Recalcular», no dentro de renderVentas: renderComercial vuelve a marcar a
+     todos los invitables, y renderVentas corre también al mover el embudo —
+     metido ahí, cada toque en la lista le borraría a Joan su selección de a
+     quién invitar. */
+  if(v==='ventas'){ renderVentas(); renderComercial(); }
   /* Registrados trae de la nube SOLO al entrar a la pestaña, no en cada
      render(): una petición por visita, no una por teclazo. */
   if(v==='registrados'){ renderRegistros(); traerRegistros(); traerSolicitudesSiToca(); }
@@ -24651,7 +24930,13 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
      al botón, y entretanto decía «Ninguna». Registrados también pregunta,
      porque desde hoy dice qué pidió cada uno. Las dos con el freno de 15 s
      (traerSolicitudesSiToca). */
-  if(v==='socios'){ renderBandeja(); traerSolicitudesSiToca(); }
+  /* 13-nov-2026 — LA BANDEJA SE FUE A 📨 SOLICITUDES, y pregunta al abrirse con el
+     mismo freno. Abrirla es mirar lo que hay: el aviso del Tablero y el número de
+     la pestaña del navegador se apagan (marcarSolicitudesVistas). Socios sigue
+     preguntando porque sus recados viajan en la misma vuelta (traerSolicitudes →
+     traerAyudas), con el mismo freno de 15 s. */
+  if(v==='solicitudes'){ renderBandeja(); traerSolicitudesSiToca(); marcarSolicitudesVistas(); pintarAvisos(); traerRegistrosParaSolicitudes(); }
+  if(v==='socios'){ traerSolicitudesSiToca(); }
   /* Mensajes, igual que Registrados: una petición por visita a la pestaña, no
      una por cada render(). */
   /* 26-oct-2026 — y el equipo, sin tocar ↻ (chat-1): la tarjeta «Tu equipo»
