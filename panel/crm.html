@@ -764,8 +764,8 @@
          #bandeja y sus dos botones: renderBandeja, traerSolicitudes y pegarSolicitud
          no cambiaron de dueño, solo de pestaña. Lo nuevo es el orden: la lista sale
          agrupada por lo que te toca hacer (GRUPOS_SOLICITUD), cada fila trae un
-         enlace a su ficha o a su registro, y «⚠️ Falta su cédula» cuando lo que el
-         CRM sabe de sus fotos lo dice (faltaCedulaDeSolicitud). -->
+         enlace a su ficha o a su registro, y «⚠️ Falta su cédula» cuando la nube
+         confirma que no la tiene (faltaCedulaDeSolicitud). -->
     <section class="view" id="v-solicitudes">
       <div class="ph"><div><h1>Solicitudes<span class="dot">.</span></h1><div class="sub">Lo que te piden desde la app, ordenado por lo que te toca hacer</div></div></div>
       <div class="card"><div class="card-h"><h3>📥 Solicitudes</h3><span class="tag">Lo que te piden desde la app</span></div>
@@ -13045,16 +13045,36 @@ function botonPedirFotosFicha(s,falta){
   if(!falta) return '';
   return `<div style="margin:0 0 8px"><button class="btn btn-ghost btn-sm" onclick="pedirFotosDeLaFicha('${escHTML(String(s.id))}','${falta}')" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
 }
+/* 13-nov-2026 (remate) — y desde 📨 Solicitudes, con el lado en blanco: la fila no
+   abre la ficha, así que no corrió traerFotosTardias, y la cédula que el cliente subió
+   después con «Subir mi cédula» no está en los campos de la ficha. Se le pregunta a la
+   nube, como pedirFotosPorElChat, y lo que ya está se suma a lo de la ficha. */
 function pedirFotosDeLaFicha(id,falta){
-  return escribirlePorLaApp('ficha',id,PEDIR_FOTOS[falta]||PEDIR_FOTOS.los_dos);
+  if(falta) return escribirlePorLaApp('ficha',id,PEDIR_FOTOS[falta]||PEDIR_FOTOS.los_dos);
+  const s=DB.socios.find(x=>x.id===id); if(!s) return;
+  const cel=celularDeFotosDe(s);
+  if(cel.length!==10) return alert('Esta ficha no tiene un celular de 10 dígitos para preguntarle a la nube por sus fotos.\n\nNo te abro el chat a ciegas: podría pedirle lo que ya mandó. Ábrele la ficha y míralas ahí.');
+  archivosDe(cel).then(a=>{
+    if(a.fallo) return alert('No pude preguntarle a la nube qué fotos tiene: '+a.fallo+'\n\nNo te abro el chat a ciegas: podría pedirle lo que ya mandó.');
+    anotarCedulaEnLaNube(cel,a.fotos);
+    const f=a.fotos||{};
+    const que=ladosQueFaltan({cedula_frente:!!(s.cedulaFrenteFoto||f.cedula_frente),cedula_reverso:!!(s.cedulaReversoFoto||f.cedula_reverso)},{datos:s.vinculacion});
+    if(!que){ try{ renderBandeja(); pintarAvisoSolicitudesNuevas(); }catch(e){}
+      return alert((esPasaporte(s.vinculacion)?'Ya llegó la foto de su pasaporte.':'Ya llegaron las dos fotos de su cédula.')
+        +(vieneDeRegistro(s)?' Ábrele la ficha: al abrirse las pone en su lugar.':' Están en la nube, con el celular de su registro.')); }
+    escribirlePorLaApp('ficha',id,PEDIR_FOTOS[que]);
+  });
 }
 function pedirFotosPorElChat(id,falta){
   if(falta) return escribirlePorLaApp('registro',id,PEDIR_FOTOS[falta]||PEDIR_FOTOS.los_dos);
   const r=registroPorId(id); if(!r) return;
   archivosDe(r.telefono||r.cedula).then(a=>{
     if(a.fallo) return alert('No pude preguntarle a la nube qué fotos tiene: '+a.fallo+'\n\nNo te abro el chat a ciegas: podría pedirle lo que ya mandó.');
+    /* 13-nov-2026 (remate) — lo que contestó también le sirve a 📨 Solicitudes. */
+    const cel=diez(r.telefono||r.cedula); if(cel.length===10) anotarCedulaEnLaNube(cel,a.fotos);
     const que=ladosQueFaltan(a.fotos,r);
-    if(!que) return alert((esPasaporte(r.datos)?'Ya llegó la foto de su pasaporte.':'Ya llegaron las dos fotos de su cédula.')+' Míralas en «👁 Ver datos».');
+    if(!que){ try{ renderBandeja(); pintarAvisoSolicitudesNuevas(); }catch(e){}
+      return alert((esPasaporte(r.datos)?'Ya llegó la foto de su pasaporte.':'Ya llegaron las dos fotos de su cédula.')+' Míralas en «👁 Ver datos».'); }
     escribirlePorLaApp('registro',id,PEDIR_FOTOS[que]);
   });
 }
@@ -22874,35 +22894,95 @@ function grupoDeSolicitud(s){
   if(s&&s.contrapropuesta&&typeof s.contrapropuesta==='object') return 'esperando';
   return 'nuevas';
 }
-/* 13-nov-2026 — LO QUE EL CRM YA SABE DE SU CÉDULA, sin preguntarle a la nube.
-   Con ficha, lo que pinta su ficha (porQueFaltaLaCedula sobre las fotos de la
-   ficha, solo si la ficha nació de un registro que lo anotó: una hecha a mano no
-   tiene por qué tener fotos). Sin ficha, lo de su registro (cedulaQueFaltaEnRegistro,
-   la regla de 📥 Registrados). Ni ficha ni registro traído: nada, que «no sé» no es
-   «le falta». Devuelve { texto, pedir } o null. */
+/* 13-nov-2026 — SU CÉDULA, EN LA FILA DE QUIEN PIDIÓ.
+   De dónde sale la sospecha: con ficha, de la ficha (solo si nació de un registro
+   que lo anotó: una hecha a mano no tiene por qué tener fotos); sin ficha, de su
+   registro (cedulaQueFaltaEnRegistro, la regla de 📥 Registrados). Ni ficha ni
+   registro traído: nada, que «no sé» no es «le falta».
+   13-nov-2026 (remate) — LO DEL DÍA DEL REGISTRO NO SE DICE EN PRESENTE. La
+   revisión lo encontró justo en el caso que pidió Joan: el registrado ve la tarjeta
+   «Subir mi cédula» (v144), la sube y pide. fotos_tomadas y los campos de la ficha
+   siguen diciendo lo del primer día, y la fila decía «⚠️ Falta su cédula», el
+   Tablero «· ⚠️ falta su cédula», y «💬 Pedirle las fotos» abría el chat pidiéndole
+   lo que ya mandó. Por eso ahora:
+   · lo que se sabe del registro se dice como hecho del registro («🪪 Se registró
+     sin la cédula», la frase de 📥 Registrados), que sigue siendo cierto si la
+     mandó después;
+   · «⚠️ Falta su cédula», y el aviso del Tablero, solo después de preguntarle a la
+     nube (archivos_de_registro), una vez por persona: si están las dos caras, no se
+     dice nada;
+   · «💬 Pedirle las fotos» vuelve a preguntar antes de abrir el chat, con ficha o
+     sin ella (pedirFotosDeLaFicha y pedirFotosPorElChat con el lado en blanco).
+   Devuelve null, o { dijo, pedir, estado:'preguntando'|'fallo'|'falta', … }. */
 function faltaCedulaDeSolicitud(s){
   if(CARTERA_EQUIPO||!s) return null;
   const cli=socioDeSolicitud(s);
+  let dijo, pedir, cel, ref, enLaFicha={};
   if(cli){
-    const declaro=fotosTomadasDe(cli.vinculacion)?{datos:cli.vinculacion}:null;
-    if(!declaro) return null;
-    const enLaFicha={cedula_frente:!!cli.cedulaFrenteFoto,cedula_reverso:!!cli.cedulaReversoFoto,selfie:!!cli.selfieFoto};
-    const falta=ladosQueFaltan(enLaFicha,declaro);
-    if(!falta) return null;
-    return { texto:porQueFaltaLaCedula(enLaFicha,declaro,cli.huellaRegistro),
-      pedir:`pedirFotosDeLaFicha('${escHTML(String(cli.id))}','${falta}')` };
+    if(!fotosTomadasDe(cli.vinculacion)) return null;
+    ref={datos:cli.vinculacion};
+    enLaFicha={cedula_frente:!!cli.cedulaFrenteFoto,cedula_reverso:!!cli.cedulaReversoFoto};
+    const deLaFicha=ladosQueFaltan(enLaFicha,ref);
+    if(!deLaFicha) return null;
+    /* La misma frase de 📥 Registrados, sobre lo que su teléfono anotó; si esa regla
+       no tiene nada que decir (dijo que las tomó), lo que es cierto de la ficha. */
+    dijo=cedulaQueFaltaEnRegistro({datos:cli.vinculacion,huella:cli.huellaRegistro})||FICHA_SIN_CEDULA[deLaFicha];
+    pedir=`pedirFotosDeLaFicha('${escHTML(String(cli.id))}','')`;
+    cel=celularDeFotosDe(cli);
+  } else {
+    const r=registroDeSolicitud(s);
+    dijo=r?cedulaQueFaltaEnRegistro(r):'';
+    if(!dijo) return null;
+    ref=r; cel=diez(r.telefono||r.cedula);
+    pedir=`pedirFotosPorElChat('${escHTML(String(r.id))}','')`;
   }
-  const r=registroDeSolicitud(s);
-  const texto=r?cedulaQueFaltaEnRegistro(r):'';
-  return texto?{ texto, pedir:`pedirFotosPorElChat('${escHTML(String(r.id))}','')` }:null;
+  const n=cel.length===10?cedulaEnLaNube(cel):{fallo:'no tiene un celular de 10 dígitos'};
+  if(n.preguntando) return { dijo, pedir, estado:'preguntando' };
+  if(n.fallo) return { dijo, pedir, estado:'fallo', fallo:n.fallo };
+  const falta=ladosQueFaltan({cedula_frente:enLaFicha.cedula_frente||n.cedula_frente,cedula_reverso:enLaFicha.cedula_reverso||n.cedula_reverso},ref);
+  return falta?{ dijo, pedir, estado:'falta', falta, hora:n.hora||'' }:null;
+}
+const FICHA_SIN_CEDULA={ los_dos:'Su ficha no tiene las fotos de la cédula', frente:'Su ficha no tiene el frente de la cédula',
+  reverso:'Su ficha no tiene el respaldo de la cédula', pasaporte:'Su ficha no tiene la foto de su pasaporte' };
+const LA_NUBE_NO_TIENE={ los_dos:'no tiene ningún lado de su cédula.', frente:'le falta el frente de su cédula.',
+  reverso:'le falta el respaldo de su cédula.', pasaporte:'no tiene la foto de su pasaporte.' };
+/* LO QUE LA NUBE DIJO DE CADA CÉDULA, por celular: si está cada lado, nada más. Las
+   imágenes NO se guardan aquí: viven solo mientras la ficha está abierta (_fotosReg,
+   15-sep), y si la ficha abierta ya las trajo, se usan esas. En memoria, nunca en el
+   disco. Una pregunta por persona: con las dos caras no se vuelve a preguntar; con
+   algo de menos, o si falló, a los 10 minutos (cada llamada pasa por clave_ok). */
+let _cedulaEnLaNube={};
+const REPREGUNTA_CEDULA_MS=10*60e3;
+function anotarCedulaEnLaNube(cel,fotos){
+  const f=fotos||{};
+  _cedulaEnLaNube[cel]={cedula_frente:!!f.cedula_frente,cedula_reverso:!!f.cedula_reverso,hora:horaCorta(),en:Date.now()};
+}
+function cedulaEnLaNube(cel){
+  const fr=_fotosReg[cel];
+  if(fr&&!fr.fallo&&fr.fotos) return {cedula_frente:!!fr.fotos.cedula_frente,cedula_reverso:!!fr.fotos.cedula_reverso,hora:''};
+  const e=_cedulaEnLaNube[cel];
+  if(e&&(e.preguntando||(e.cedula_frente&&e.cedula_reverso)||Date.now()-e.en<REPREGUNTA_CEDULA_MS)) return e;
+  if(!sbListo()) return {fallo:'la nube no está conectada en este computador'};
+  _cedulaEnLaNube[cel]={preguntando:true,en:Date.now()};
+  archivosDe(cel).then(a=>{
+    if(a.fallo) _cedulaEnLaNube[cel]={fallo:a.fallo,en:Date.now()};
+    else anotarCedulaEnLaNube(cel,a.fotos);
+    try{ renderBandeja(); }catch(e){}
+    try{ pintarAvisoSolicitudesNuevas(); }catch(e){}
+  });
+  return _cedulaEnLaNube[cel];
 }
 function chipFaltaCedulaSolicitud(s){
   const f=faltaCedulaDeSolicitud(s);
   if(!f) return '';
   /* La razón se escribe, no va en un title: en el teléfono el title no existe. */
-  return `<div style="margin-top:4px"><span class="chip riesgo-medio">⚠️ Falta su cédula</span></div>`
-    +`<div class="muted" style="white-space:normal;max-width:34ch">${escHTML(f.texto)}</div>`
-    +`<div style="margin-top:4px"><button class="btn btn-ghost btn-sm" onclick="${f.pedir}" title="Abre su chat con el mensaje escrito. Tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
+  const boton=`<div style="margin-top:4px"><button class="btn btn-ghost btn-sm" onclick="${f.pedir}" title="Primero le pregunto a la nube qué fotos tiene. Si falta algo, abre su chat con el mensaje escrito: tú lo lees y lo mandas.">💬 Pedirle las fotos por el chat</button></div>`;
+  if(f.estado==='falta') return `<div style="margin-top:4px"><span class="chip riesgo-medio">⚠️ Falta su cédula</span></div>`
+    +`<div class="muted" style="white-space:normal;max-width:34ch">${escHTML(f.dijo)}. ${f.hora?'Le pregunté a la nube a las '+escHTML(f.hora)+': ':'Según la nube, '}${LA_NUBE_NO_TIENE[f.falta]}</div>`+boton;
+  const nota=f.estado==='preguntando'?'Le estoy preguntando a la nube si la subió después…'
+    :'No pude preguntarle a la nube si la subió después: '+String(f.fallo).replace(/[.\s]+$/,'')+'. Eso no quiere decir que le falte.';
+  return `<div style="margin-top:4px"><span class="chip riesgo-medio">🪪 ${escHTML(f.dijo)}</span></div>`
+    +`<div class="muted" style="white-space:normal;max-width:34ch">${escHTML(nota)}</div>`+boton;
 }
 /* De la solicitud a su registro, entre los que este computador ya trajo
    (esSolicitudDeRegistro, el mismo cruce de 📥 Registrados). */
@@ -23131,7 +23211,10 @@ function pintarAvisoSolicitudesNuevas(){
     const quien=(nom&&nom!=='Registrado'?escHTML(nom):'Alguien sin ficha')+((!nom||nom==='Registrado')&&tel?' ('+escHTML(tel)+')':'');
     const monto=Math.round(Number(s.pedido_monto)||Number(s.capital)||0);
     const edad=antiguedadRecado(s.creada_en).texto;
-    const sinCedula=faltaCedulaDeSolicitud(s)?' · ⚠️ falta su cédula':'';
+    /* Solo lo que la nube confirmó (ver faltaCedulaDeSolicitud): lo del día del
+       registro no cabe en una línea sin que se lea como «hoy le falta». */
+    const fc=faltaCedulaDeSolicitud(s);
+    const sinCedula=fc&&fc.estado==='falta'?' · ⚠️ falta su cédula':'';
     return '<b>'+quien+'</b> pidió '+(monto?'<b>'+COP(monto)+'</b>':'un crédito')+(edad?', '+escHTML(edad):'')+sinCedula;
   };
   const ver='<button class="btn btn-ghost btn-sm" onclick="irA(\'solicitudes\')">Ver</button>';
