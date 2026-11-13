@@ -2210,6 +2210,17 @@
      páginas que lo piden (app/socio.html, play/, platachat/, index.html y el CRM) y en la
      precarga; PlataChat sube su VERSION_APP a 2026-11-13 (socio.html y play/ ya estaban
      en esa fecha). CACHE y VERSION_SITIO no cambian: ya dicen v144.
+     Y lo que arregló la revisión del 13-nov: «A cuotas» pide el mismo sí aparte del
+     registro a cuotas cuando una cuota pasa del estándar (confirmaCostoAltoDeCuotas);
+     a 390 px la vista previa se lee entera, un renglón por cuota en vez de la tabla que
+     cortaba Capital, Costo y Total (también en el registro a cuotas de 📊 Créditos, que
+     tenía la misma), y las filas de fecha, % y capital ya no se salen de la caja;
+     «Proponer» abre en «A cuotas» cuando lo pedido pasa de 60 días y no hay propuesta,
+     y «Un solo pago» arranca en 60 días como mucho; VERSION_CONDICIONES sube a
+     2026-11-13 y el CRM marca como descuadre una quincenal a cuotas aceptada con la
+     versión vieja (una página con la calculadora de antes la leyó como la del préstamo
+     con garantía). app/calculadora-solicitud.js vuelve a cambiar, pero sigue en ?v=144:
+     v144 no ha salido, así que no hay otra copia publicada con ese número.
    CACHE y VERSION_SITIO suben a v144 en las cinco páginas que se actualizan solas.
    HAY BASE NUEVA, SIN APLICAR: base/20261113_falta_tu_cedula.sql (la función de sesión
    mis_fotos_del_registro). Joan la pega entera en el SQL Editor y le da Run; se puede
