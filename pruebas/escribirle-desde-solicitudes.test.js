@@ -138,6 +138,20 @@ const cuadro = P => (P.elems.mBody || {}).innerHTML || '';
 const titulo = P => String((P.elems.mTitle || {}).textContent || '');
 /* Toca el botón de la fila y deja que la nube conteste. */
 async function tocar(P, id) { P.ev(boton(id)); await asentar(); }
+/* El setTimeout del banco no hace nada (banco-panel.js): un envío diferido con
+   setTimeout(responderChat, 0) pasaría por «no sale nada solo». Aquí los
+   relojes de la página se anotan, y vaciarRelojes los corre (tres vueltas, por
+   si uno arma otro) antes de mirar si salió algo. */
+function anotarRelojes(P) {
+  const pend = [];
+  P.ctx.setTimeout = fn => { pend.push(fn); return pend.length; };
+  return async function vaciarRelojes() {
+    for (let vuelta = 0; vuelta < 3; vuelta++) {
+      for (const fn of pend.splice(0)) { try { if (typeof fn === 'function') fn(); } catch (e) { /* lo que falle no es un envío */ } }
+      await asentar();
+    }
+  };
+}
 
 /* ======================================================================== */
 describe('1. «💬 Escribirle» en cada fila de 📨 Solicitudes', () => {
@@ -270,6 +284,7 @@ describe('3. «💬 Avisarle por el chat», después de mandar la propuesta', ()
   const poner = (P, id, v) => P.ev("document.getElementById('" + id + "').value=" + JSON.stringify(String(v)));
 
   test('un solo pago: lo ofrece en el mismo paso, deja escrito el mensaje en pesos y sin %, y no sale nada hasta «Enviar»', con({}, async ({ P, N }) => {
+    const vaciarRelojes = anotarRelojes(P);
     P.ev("editarContrapropuesta('501','unico')");
     poner(P, 'cpCap', 800000); poner(P, 'cpPct', 20); poner(P, 'cpDias', 30); poner(P, 'cpTexto', '');
     P.ev("guardarContrapropuesta('501')");
@@ -288,6 +303,8 @@ describe('3. «💬 Avisarle por el chat», después de mandar la propuesta', ()
     assert.match(texto, /Ábrela en la app para leer las condiciones y aceptarla/);
     assert.doesNotMatch(texto, /%/, 'el cliente nunca ve porcentajes');
     assert.equal(N.de('chat_responder').length, 0, 'el mensaje escrito se mandó solo');
+    await vaciarRelojes();
+    assert.equal(N.de('chat_responder').length, 0, 'el mensaje escrito se mandó solo, con un reloj');
 
     P.ev('responderChat()');
     await asentar();
