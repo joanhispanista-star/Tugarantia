@@ -223,12 +223,53 @@ describe('1. «Proponer»: «Un solo pago», «A cuotas» y «Con garantía · m
     const plan = M.construirPlanACuotas(2000000, ENTRADAS, { fechaDesembolso: HOY });
     const v = vista(P);
     assert.match(v, /El cliente ve recibe \$2\.000\.000 · 3 cuotas, la primera el/);
-    plan.cuotas.forEach(q => assert.ok(v.indexOf(q.pct + '% $' + q.capital.toLocaleString('es-CO') + ' $' + q.costo.toLocaleString('es-CO') +
+    plan.cuotas.forEach(q => assert.ok(v.indexOf(q.pct + '% capital $' + q.capital.toLocaleString('es-CO') + ' + costo $' + q.costo.toLocaleString('es-CO') +
       ' $' + q.total.toLocaleString('es-CO')) >= 0, 'falta la cuota ' + q.numero + ' en la vista: ' + v));
     assert.match(v, new RegExp('Devuelve en total \\$' + plan.total_a_pagar.toLocaleString('es-CO').replace(/\./g, '\\.')));
     assert.match(v, new RegExp('Garantía que le deja \\(si paga en fecha\\) \\$' + plan.total_garantia.toLocaleString('es-CO').replace(/\./g, '\\.')));
     assert.match(v, /E\.A\. real, con estas fechas/);
     assert.equal(apagado(P), false);
+  });
+
+  /* 13-nov-2026 (revisión) — EL CELULAR A 390 PX. La vista previa era una tabla
+     de seis columnas, y en pantallas de menos de 880 toda tabla del CRM mide al
+     menos 560 px (la regla de abajo): en la caja de 306 px del modal, Capital,
+     Costo y Total quedaban cortados. Medido en Chrome sin ventana a 390×844:
+     antes la tabla iba de 56 a 616 px en una caja de 306; ahora nada se sale.
+     Aquí, lo que se puede vigilar sin navegador: que no vuelva la tabla, que cada
+     cuota lleve su plata en su renglón, y que las filas de los campos puedan
+     encoger (la columna «Capital» se salía 170 px). */
+  test('a 390 px se lee entera: cada cuota en su renglón, sin tabla, y las filas encogen', () => {
+    const CRM = require('node:fs').readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
+    assert.match(CRM, /@media\(max-width:880px\)\{[\s\S]*?table\{min-width:560px\}/, 'la regla que cortaba la tabla ya no está: revisa este comentario');
+    const enRenglones = (html, plan, donde) => {
+      assert.doesNotMatch(html, /<table/, 'volvió la tabla a ' + donde + ': a 390 px mide 560 dentro de 306');
+      const t = plano(html);
+      plan.cuotas.forEach(q => assert.ok(t.indexOf('Cuota ' + q.numero + ' · ') >= 0 &&
+        t.indexOf(q.pct + '% capital ' + CS.pesos(q.capital) + ' + costo ' + CS.pesos(q.costo) + ' ' + CS.pesos(q.total)) >= 0,
+        'la cuota ' + q.numero + ' no está entera en ' + donde + ': ' + t));
+    };
+    const { P } = crm();
+    proponerACuotas(P, 2000000, ENTRADAS);
+    const plan = M.construirPlanACuotas(2000000, ENTRADAS, { fechaDesembolso: HOY });
+    enRenglones(P.elems.pqCalc.innerHTML, plan, 'la propuesta');
+    assert.match(plano(P.elems.pqCalc.innerHTML), /Cuota 3 · 31-ene-2027 ⚠️ · 10%/, 'el domingo se marca al lado de la fecha');
+    /* El registro a cuotas traía la misma tabla, y pinta con la misma función. */
+    P.ev('nuevoCredito()');
+    poner(P, 'qNombre', 'Otro Prueba'); poner(P, 'qTel', '3001230097');
+    poner(P, 'qCap', 2000000); poner(P, 'qFecha', HOY);
+    P.ev("modoAlta('cuotas')");
+    poner(P, 'qaN', 3); P.ev('filasAlta()');
+    ENTRADAS.forEach((x, i) => { poner(P, 'qaF' + (i + 1), x.fecha); poner(P, 'qaP' + (i + 1), x.pct); poner(P, 'qaK' + (i + 1), ''); });
+    P.ev('_alta.tocadas=true; calcAltaCuotas()');
+    enRenglones(P.elems.qaCalc.innerHTML, plan, 'el registro a cuotas');
+    /* Las filas de los campos: con «1fr» a secas una columna no baja de lo que
+       pide su campo; con el piso en 0, las tres caben. */
+    const piso = /grid-template-columns:minmax\(0,1\.3fr\) minmax\(0,\.6fr\) minmax\(0,1fr\)/;
+    assert.match(P.elems.qaFilas.innerHTML, piso);
+    const Q = crm().P;
+    proponerACuotas(Q, 2000000, ENTRADAS);
+    assert.match(Q.elems.pqFilas.innerHTML, piso);
   });
 
   test('LOS LÍMITES apagan el botón y dicen por qué: 1 y 7 cuotas, 187 días, el 51 %, la primera ayer u hoy, el monto', () => {

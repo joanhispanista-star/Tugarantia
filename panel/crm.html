@@ -6758,8 +6758,12 @@ function fechasPropuestasAlta(f,actuales,n){
    el mismo techo. Si cada pantalla armara las suyas, el día que una cambie el
    techo o el rótulo la otra se quedaría con el de antes. `enFecha` y `enOtro`
    son lo que corre al escribir: en la fecha, además, anotar que Joan la tocó. */
+/* 13-nov-2026 — minmax(0,…): una columna «fr» no baja de lo que pide su campo,
+   y a 390 px la fecha y el número empujaban «Capital» 170 px fuera de la caja
+   (revisión del 13-nov). Con el piso en 0 los tres campos caben en su ancho; en
+   el computador se ven igual. Es el mismo arreglo del calendario (.cal-grid). */
 function filasDeCuotasHTML(pre,n,enFecha,enOtro){
-  return Array.from({length:n},(_,i)=>`<div style="display:grid;grid-template-columns:1.3fr .6fr 1fr;gap:8px;align-items:end">
+  return Array.from({length:n},(_,i)=>`<div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.6fr) minmax(0,1fr);gap:8px;align-items:end">
       <div class="field"><label>Cuota ${i+1} · fecha</label><input id="${pre}F${i+1}" type="date" oninput="${enFecha}"></div>
       <div class="field"><label>%</label><input id="${pre}P${i+1}" type="number" inputmode="numeric" min="1" max="${TASA_TECHO_PCT}" step="1" oninput="${enOtro}"></div>
       <div class="field"><label>Capital</label><input id="${pre}K${i+1}" type="number" inputmode="numeric" placeholder="partes iguales" oninput="${enOtro}"></div>
@@ -6906,6 +6910,22 @@ function creditoProvisionalAlta(cap,f,plan){
     cicloActual:plan.cuotas[0].fecha_corte, prorrogas:[], abonosCapital:[], comprobantes:[], pagado:false,
     planPagos:PUENTE.planPagosDeAlta(plan) };
 }
+/* 13-nov-2026 — LAS CUOTAS DE LA VISTA PREVIA, UN RENGLÓN POR CUOTA Y NO UNA
+   TABLA. La tabla de seis columnas (cuota, fecha, %, capital, costo, total)
+   medía 560 px en cualquier pantalla de menos de 880 (table{min-width:560px},
+   puesto para las tablas grandes de las pestañas) dentro de una caja de 306 a
+   390 px: Capital, Costo y Total —la plata— quedaban cortados y solo se veían
+   deslizando de lado el modal entero (revisión del 13-nov, con la propuesta
+   «A cuotas»). Ahora va como el plan de pagos (ofrecerPlanDePagos) y la
+   reprogramación: la cuota, su fecha y su % a la izquierda, el capital y el
+   costo debajo, y el total a la derecha. Se lee entero a 390 y en el
+   computador dice lo mismo. Una sola para el registro a cuotas (calcAltaCuotas)
+   y la propuesta (previsualizarQuincenalACuotas), que traían la misma tabla. */
+function cuotasDelPlanHTML(plan){
+  return plan.cuotas.map(q=>`<div class="calc-row" style="gap:10px"><span>Cuota ${q.numero} · ${fechaCortaCuota(q.fecha_corte,true)}${q.habil?'':' ⚠️'} · ${q.pct}%`
+    +`<span class="muted" style="display:block;font-size:12px">capital ${COP(q.capital)} + costo <span class="gano">${COP(q.costo)}</span></span></span>`
+    +`<span class="v">${COP(q.total)}</span></div>`).join('');
+}
 /* La vista previa del crédito a cuotas, en vivo. */
 function calcAltaCuotas(){
   const c=document.getElementById('qaCalc'); if(!c) return;
@@ -6923,12 +6943,8 @@ function calcAltaCuotas(){
   plan.cuotas.forEach((q,i)=>{ const el=document.getElementById('qaK'+(i+1)); if(el) el.placeholder=COP(q.capital); });
   const ea=eaDelPlanAlta(f,cap,plan), usura=DB.config.tasaUsuraEA, sobreUsura=ea!=null&&usura>0&&ea>usura;
   const avisos=avisosInhabilesCuotas(plan.inhabiles,creditoProvisionalAlta(cap,f,plan));
-  const td='style="padding:4px 6px;text-align:right"';
   c.innerHTML=avisoCupo(r)+`<div class="calc">${tope}
-    <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin:4px 0 8px">
-      <thead><tr><th style="text-align:left;padding:4px 6px">Cuota</th><th style="text-align:left;padding:4px 6px">Fecha</th><th ${td}>%</th><th ${td}>Capital</th><th ${td}>Costo</th><th ${td}>Total</th></tr></thead>
-      <tbody>${plan.cuotas.map(q=>`<tr><td style="padding:4px 6px">${q.numero}</td><td style="padding:4px 6px">${fechaCortaCuota(q.fecha_corte,true)}${q.habil?'':' ⚠️'}</td><td ${td}>${q.pct}%</td><td ${td}>${COP(q.capital)}</td><td ${td} class="gano">${COP(q.costo)}</td><td ${td}><b>${COP(q.total)}</b></td></tr>`).join('')}</tbody>
-    </table>
+    ${cuotasDelPlanHTML(plan)}
     <div class="calc-row"><span>Capital</span><span class="v">${COP(plan.total_capital)}</span></div>
     <div class="calc-row"><span>Ganancia (costo de las cuotas)</span><span class="v gano">${COP(plan.total_costo)}</span></div>
     <div class="calc-row"><span>Total a pagar</span><span class="v">${COP(plan.total_a_pagar)}</span></div>
@@ -24852,13 +24868,9 @@ function previsualizarQuincenalACuotas() {
   const avisos = avisosInhabilesCuotas(plan.inhabiles, creditoProvisionalPropuesta(a));
   const s = _solicitudes.find(x => String(x.id) === String(_cpSolId));
   const cli = s ? socioDeSolicitud(s) : null, r = cli ? revisarCupo(cli, a.cap) : null;
-  const td = 'style="padding:4px 6px;text-align:right"';
   c.innerHTML = (r ? `<div class="calc-row"><span>Su cupo${r.comprometida ? ' <span class="muted">(sin lo comprometido)</span>' : ''}</span><span class="v">${COP(r.cupo)}</span></div>`
       + (r.pasa || r.pasaSumando ? `<div class="alerta warn" style="margin-bottom:8px">Le estás proponiendo más de lo que respalda su cupo. <b>Puedes hacerlo</b>, pero esa parte no tiene garantía que la respalde.</div>` : '') : '')
-    + `<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin:4px 0 8px">
-      <thead><tr><th style="text-align:left;padding:4px 6px">Cuota</th><th style="text-align:left;padding:4px 6px">Fecha</th><th ${td}>%</th><th ${td}>Capital</th><th ${td}>Costo</th><th ${td}>Total</th></tr></thead>
-      <tbody>${plan.cuotas.map(q => `<tr><td style="padding:4px 6px">${q.numero}</td><td style="padding:4px 6px">${fechaCortaCuota(q.fecha_corte, true)}${q.habil ? '' : ' ⚠️'}</td><td ${td}>${q.pct}%</td><td ${td}>${COP(q.capital)}</td><td ${td} class="gano">${COP(q.costo)}</td><td ${td}><b>${COP(q.total)}</b></td></tr>`).join('')}</tbody>
-    </table>
+    + `${cuotasDelPlanHTML(plan)}
     <div class="calc-row"><span>El cliente ve</span><span class="v">recibe <b>${COP(a.cap)}</b> · ${plan.cuotas.length} cuotas, la primera el ${fmtFecha(plan.cuotas[0].fecha_corte)}</span></div>
     <div class="calc-row"><span>Tu costo (lo que ganas)</span><span class="v gano">${COP(plan.total_costo)}</span></div>
     <div class="calc-row"><span>Devuelve en total</span><span class="v">${COP(plan.total_a_pagar)}</span></div>

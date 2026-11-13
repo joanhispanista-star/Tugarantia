@@ -182,8 +182,9 @@ describe('el alta a cuotas, ejecutando la página', () => {
     P.cargarCartera({ socios: [], prestamos: [], config: {} });
     llenarAlta(P);
     const v = texto(P.elems.qaCalc.innerHTML);
-    assert.match(v, /30-oct-2026 20% \$325\.000 \$130\.000 \$455\.000/);
-    assert.match(v, /15-nov-2026 ⚠️ 20% \$325\.000 \$65\.000 \$390\.000/);
+    /* 13-nov-2026 — un renglón por cuota (cuotasDelPlanHTML), no una tabla: a 390 px la tabla se cortaba. */
+    assert.match(v, /Cuota 1 · 30-oct-2026 · 20% capital \$325\.000 \+ costo \$130\.000 \$455\.000/);
+    assert.match(v, /Cuota 2 · 15-nov-2026 ⚠️ · 20% capital \$325\.000 \+ costo \$65\.000 \$390\.000/);
     assert.match(v, /Ganancia \(costo de las cuotas\) \$195\.000/);
     assert.match(v, /Total a pagar \$845\.000/);
     assert.match(v, /Garantía que le deja .*\$156\.000/);
@@ -292,7 +293,7 @@ describe('el alta a cuotas, ejecutando la página', () => {
     llenarAlta(P);
     poner(P, 'qaK1', '400000');
     P.ev('calcAltaCuotas()');
-    assert.match(texto(P.elems.qaCalc.innerHTML), /\$400\.000 \$130\.000 \$530\.000/, 'la cuota 1 con 400.000 de capital');
+    assert.match(texto(P.elems.qaCalc.innerHTML), /capital \$400\.000 \+ costo \$130\.000 \$530\.000/, 'la cuota 1 con 400.000 de capital');
     P.ev('repartirAltaIguales()');
     assert.equal(P.elems.qaK1.value, '');
     P.ev('guardarRapido()');
