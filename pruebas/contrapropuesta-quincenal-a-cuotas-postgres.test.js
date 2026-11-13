@@ -325,7 +325,10 @@ describe('la propuesta quincenal a cuotas, en un PostgreSQL de verdad', { skip: 
   });
 
   test('el redondeo es el del motor, y 186 días todavía caben', () => {
-    const s = pedir('3001230104', 20500, 30);
+    /* Pide 50.000, el piso de solicitar_a_la_medida (con 20.500 la base dice
+       'minimo' y la prueba no llega a proponer); Joan le propone 20.500, que
+       sí cabe en el rango de la propuesta (desde 10.000). */
+    const s = pedir('3001230104', 50000, 30);
     const motor = cuerpoDelMotor(20500, [{ fecha: fechaEn(14), pct: 35 }, { fecha: fechaEn(186), pct: 35 }], hoy());
     assert.equal(motor.cuotas[1].costo, 3587);
     const j = proponer(s.id, motor);
