@@ -764,7 +764,7 @@ describe('11 · lo que se declara y lo que se precarga', () => {
     assert.match(B.texto(B.cuerpo(P)), /Con tus extractos, igual: solo los que tú escojas, y nunca la clave de tu cuenta\./);
     assert.match(leer('PLAY-FICHA.md'), /Con tus extractos, igual: solo los que tú escojas, y nunca la clave de tu cuenta\./);
   });
-  test('?v=145 en cada página que pide lo nuevo o lo cambiado, y la misma dirección en la precarga; CACHE no sube aquí', () => {
+  test('?v=145 en cada página que pide lo nuevo o lo cambiado, y la misma dirección en la precarga; CACHE no baja y la nota no trae número propio', () => {
     const SW = leer('sw.js');
     ['app/extractos.js?v=145', 'panel/extractos-crm.js?v=145', 'app/cumplimiento.js?v=145'].forEach(f =>
       assert.ok(SW.indexOf("'" + f + "'") >= 0, 'sw.js no precarga ' + f));
@@ -777,7 +777,14 @@ describe('11 · lo que se declara y lo que se precarga', () => {
     const nota = SW.lastIndexOf('TUS EXTRACTOS (rama v145-extractos');
     assert.ok(nota > 0 && nota < SW.indexOf("const CACHE = 'tugarantia-v"), 'la nota no está antes del CACHE');
     assert.ok(nota > SW.indexOf('13-nov-2026, v144'), 'la nota no va después de la de v144');
-    assert.match(SW, /const CACHE = 'tugarantia-v144';/, 'CACHE subió en esta rama: eso lo hace lote-v145');
+    /* 13-nov-2026 (remate) — decía «CACHE es v144», y eso se ponía en rojo justo
+       al juntar con lote-v145, que es quien la sube a v145: el paso que sigue.
+       Lo que de verdad importa de esta rama es que no la BAJE y que su nota no
+       se invente un número propio (el número es el del lote con que sale). */
+    const cache = Number((SW.match(/const CACHE = 'tugarantia-v(\d+)';/) || [])[1]);
+    assert.ok(cache >= 144, 'CACHE bajó de v144: dice v' + cache);
+    const cabeza = SW.slice(SW.lastIndexOf('/*', nota), nota);
+    assert.equal(/\d{4}, v\d{3}\b/.test(cabeza), false, 'la nota de los extractos se puso número propio: «' + cabeza.trim() + '»');
   });
   test('los dos .js nuevos firman al llegar, primero que todo', () => {
     const FIRMA = '(function () { try { var s = document.currentScript; if (s && s.src) (window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();';
