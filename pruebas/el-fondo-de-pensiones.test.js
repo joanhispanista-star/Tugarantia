@@ -170,8 +170,13 @@ describe('los textos: la autorización dice lo que la ley pide, y nada que el c�
       'los términos dicen que cada dato sube la garantía, sin la excepción de la historia laboral');
     assert.equal(HL.TEXTOS.introCuenta.slice(-'No cambia tu garantía.'.length), 'No cambia tu garantía.');
     assert.equal(/sale de tus pagos/.test(HL.TEXTOS.introCuenta), false, 'la tarjeta dice que la garantía sale de los pagos: falso para quien recién se registra');
-    /* Los términos cambiaron: su fecha y su lista lo dicen (la regla de responsable-nexeco). */
-    assert.match(T, /Última actualización: 29 de octubre de 2026/);
+    /* Los términos cambiaron: su fecha y su lista lo dicen (la regla de responsable-nexeco).
+       13-nov-2026 — y volvieron a cambiar después (los extractos, que salen el 19-nov:
+       pruebas/los-extractos.test.js amarra esa fecha). Lo del 29-oct sigue en su lista, y la
+       fecha de arriba no puede ser anterior a ella. */
+    assert.match(T, /Lo que cambió el 29 de octubre de 2026:/);
+    assert.ok(/Última actualización: (\d{1,2}) de (octubre|noviembre|diciembre) de 2026/.test(T) && !/Última actualización: ([1-9]|1\d|2[0-8]) de octubre de 2026/.test(T),
+      'la fecha de los términos es anterior al cambio del 29 de octubre');
     /* 28-oct-2026 (arreglador final, L5 de la ronda 3) — los términos también
        los lee PlataChat, y su «que puedes darnos si quieres» le ofrecía algo
        que su app no pide. Dicen lo mismo que la política: «(PlataChat no la
@@ -254,18 +259,32 @@ describe('los textos: la autorización dice lo que la ley pide, y nada que el c�
     const casilla = visible(HL.autorizacionHTML(false));
     assert.equal(HL.VERSION_AUTORIZACION, PUBLICACION_DEL_LOTE, 'la casilla firma una versión que no es el día en que sale');
     assert.equal(isoDe((casilla.match(/Versión del (\d{1,2} de \w+ de \d{4})/) || [])[1]), PUBLICACION_DEL_LOTE, 'la casilla dice otro día');
-    const fechas = { 'la política, «Última actualización»': (P.match(/Última actualización: (\d{1,2} de \w+ de \d{4})/) || [])[1],
+    /* 13-nov-2026 — LA DEL 29-OCT YA NO ES LA MÁS NUEVA: los extractos salen
+       con su propia versión (el 19-nov, pruebas/los-extractos.test.js amarra
+       sus fechas), y la del 29 pasó a ser «la anterior». Lo que esta prueba
+       sigue cuidando es lo mismo: que el día que firma la casilla sea el de
+       una versión publicada en los dos documentos —con su «Lo que cambió» y su
+       «rige/rigió desde»—, que ninguno diga una fecha anterior a ese día arriba,
+       y que ninguna fecha pase del lote más nuevo que existe. Con los textos de
+       antes de mover la versión, sigue fallando. */
+    const LOTE_MAS_NUEVO = [PUBLICACION_DEL_LOTE, require('../app/extractos.js').VERSION_AUTORIZACION].sort().pop();
+    const listas = d => [...d.matchAll(/Lo que cambió el (\d{1,2} de \w+ de \d{4}):/g)].map(m => isoDe(m[1]));
+    assert.ok(listas(P).includes(PUBLICACION_DEL_LOTE), 'la política no tiene la lista del día en que salió el lote');
+    assert.ok(listas(T).includes(PUBLICACION_DEL_LOTE), 'los términos no tienen la lista del día en que salió el lote');
+    assert.ok([...P.matchAll(/(?:rige|rigió) desde el (\d{1,2} de \w+ de \d{4})/g)].some(m => isoDe(m[1]) === PUBLICACION_DEL_LOTE),
+      'la política no dice desde cuándo rigió la versión del lote');
+    const arriba = { 'la política, «Última actualización»': (P.match(/Última actualización: (\d{1,2} de \w+ de \d{4})/) || [])[1],
                      'la política, su primer «Lo que cambió»': (P.match(/Lo que cambió el (\d{1,2} de \w+ de \d{4}):/) || [])[1],
                      'la política, «Esta versión rige desde»': (P.match(/Esta versión rige desde el (\d{1,2} de \w+ de \d{4})/) || [])[1],
                      'los términos, «Última actualización»': (T.match(/Última actualización: (\d{1,2} de \w+ de \d{4})/) || [])[1],
                      'los términos, su primer «Lo que cambió»': (T.match(/Lo que cambió el (\d{1,2} de \w+ de \d{4}):/) || [])[1] };
-    Object.keys(fechas).forEach(k => assert.equal(isoDe(fechas[k]), PUBLICACION_DEL_LOTE, k + ' dice «' + fechas[k] + '»'));
+    Object.keys(arriba).forEach(k => assert.ok(isoDe(arriba[k]) >= PUBLICACION_DEL_LOTE, k + ' dice «' + arriba[k] + '», antes del lote'));
     /* Y en ninguno de los dos documentos hay una fecha de versión después del
-       día en que sale: una versión que «rige» después de publicada deja lo
-       que se firme en el medio sin la política que lo describe. */
+       día en que sale el lote más nuevo: una versión que «rige» después de
+       publicada deja lo que se firme en el medio sin la política que lo describe. */
     [['legal/privacidad.html', P], ['legal/terminos.html', T]].forEach(([f, d]) =>
       [...d.matchAll(/(?:Última actualización:|Lo que cambió el|rige desde el|rigió desde el) (\d{1,2} de \w+ de \d{4})/g)].forEach(m =>
-        assert.ok(isoDe(m[1]) <= PUBLICACION_DEL_LOTE, f + ' tiene una versión del ' + m[1] + ', después del día en que sale el lote')));
+        assert.ok(isoDe(m[1]) <= LOTE_MAS_NUEVO, f + ' tiene una versión del ' + m[1] + ', después del día en que sale el lote más nuevo')));
   });
   /* 28-oct-2026 (segunda revisión, ronda 1) — EL AVISO DEL PUNTO
      11 DE LOS TÉRMINOS. Los términos cambian con este lote (la historia

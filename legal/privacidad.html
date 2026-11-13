@@ -114,10 +114,37 @@ td.ob{white-space:nowrap;color:var(--gris)}
 <div class="cab"><div class="wrap">
   <h1>Qué hacemos con tus datos</h1>
   <p>Política de tratamiento de datos personales · Ley 1581 de 2012 y Decreto 1377 de 2013<br>
-     Última actualización: 29 de octubre de 2026</p>
+     Última actualización: 19 de noviembre de 2026</p>
 </div></div>
 
 <main><div class="wrap">
+
+  <!-- 13-nov-2026 — LA VERSIÓN DEL 19-NOV: LOS EXTRACTOS, OPCIONALES Y APARTE.
+       El dueño (13-nov): que quien NO es empleado pueda darnos, si quiere, los extractos de
+       sus cuentas (Nequi, Daviplata o banco) —el PDF, pantallazos o pegándolos— en un paso
+       opcional del registro o desde la app; que se guarden mientras tenga cuenta; que los vea
+       solo él; y que se publique con este texto y después vaya al abogado. Es un uso NUEVO de
+       un dato financiero, así que va con su PROPIA autorización, aparte y sin marcar
+       (app/extractos.js, VERSION_AUTORIZACION = '2026-11-19', la fecha de esta versión): a
+       quien no la da no le cambia nada, y por eso VERSION_AUTORIZACION de app/cuenta.js y
+       app/socio.html (la general) NO sube y «Lo que cambió» lo dice.
+       Lo que la sección «extractos» promete, y dónde se cumple: los ve solo quien dirige el
+       negocio (las funciones de la base piden la clave de sincronización; ninguna del equipo
+       los devuelve), se guardan mientras haya cuenta, se quitan desde la app
+       (extracto_retirar) o los borra el dueño si se le pide (extracto_borrar, «🗑 Borrar sus
+       extractos» del CRM, que se lleva también el resumen de la ficha), y se van con la cuenta
+       (el disparador sobre auth.users). Todo en base/20261113c_los_extractos.sql; el resumen
+       que anota el dueño (dos campos: cuánto le entra al mes y si es regular) vive en la ficha
+       (panel/extractos-crm.js), y la app del equipo no lo trae.
+       Y EL PUNTO 4 DICE LA VERDAD: decía «no los usamos para hacer perfiles», a secas. Lo que
+       pasa es que quien decide una solicitud es una persona, y ningún programa le pone a nadie
+       una calificación de riesgo; lo único que se calcula solo es la garantía, con las reglas
+       de los términos, y esa cuenta no lee la historia laboral ni los extractos.
+       La fecha es la de PUBLICACIÓN (regla del 15-oct): si el lote sale otro día, se mueve
+       aquí, en «Lo que cambió», en «rige desde», en los términos y en VERSION_AUTORIZACION de
+       app/extractos.js (pruebas/los-extractos.test.js las amarra). Se publica sin esperar al
+       abogado (decisión del dueño); el texto que se le manda está en
+       PARA-EL-ABOGADO-EXTRACTOS.md, fuera del repositorio. -->
 
   <!-- 28-oct-2026 — LA VERSIÓN DEL 30-OCT: LA HISTORIA LABORAL, OPCIONAL Y APARTE.
        El dueño (28-oct): que el cliente pueda dar, si quiere, la historia laboral de su fondo de
@@ -279,7 +306,8 @@ td.ob{white-space:nowrap;color:var(--gris)}
       —sin ellos no podemos evaluar tu solicitud ni hablar contigo— y otros son opcionales: si
       no los das, tu cuenta se abre igual y puedes pedir, pero <b>arrancas con menos
       garantía</b>, porque cada dato que nos das la sube (salvo tu historia laboral del fondo de
-      pensiones, que no la cambia: está <a href="#pension">aquí abajo</a>). La tabla dice cuál es
+      pensiones, que no la cambia: está <a href="#pension">aquí abajo</a>). Tampoco la cambian
+      los extractos de tus cuentas (<a href="#extractos">aquí abajo</a>). La tabla dice cuál es
       cuál.</p>
     <!-- 28-oct-2026 (arreglo de los leves, P4) — «cada dato que nos das la sube» chocaba con la
          sección #pension y con la tarjeta, que dicen que la historia laboral no cambia la
@@ -306,6 +334,7 @@ td.ob{white-space:nowrap;color:var(--gris)}
           <tr><td><b>Dos referencias: su nombre, qué son tuyos y su celular</b></td><td>Saber, al evaluar tu solicitud, que hay gente que te conoce. Lee la nota de abajo.</td><td class="ob">Sí</td></tr>
           <tr><td><b>La foto de tu cédula, la de tu cara y la ubicación de tu celular</b></td><td>Confirmar que eres tú. Son datos sensibles y van con su propia autorización, aparte de la general: están explicados en el <a href="#sensibles">punto 3</a>.</td><td class="ob">No</td></tr>
           <tr><td><b>Tu historia laboral del fondo de pensiones y en qué fondo estás</b></td><td>Mirar dónde trabajas y cuánto cotizas cuando evaluamos tus solicitudes. Solo en Tu Garantía, y no cambia tu garantía. Va con su propia autorización, aparte de la general: está explicada <a href="#pension">aquí abajo</a>.</td><td class="ob">No</td></tr>
+          <tr><td><b>Los extractos de tus cuentas</b> (Nequi, Daviplata o banco), si no eres empleado</td><td>Mirar cuánto te entra y con qué regularidad cuando evaluamos tus solicitudes. Solo en Tu Garantía, y no cambian tu garantía. Van con su propia autorización, aparte de la general: están explicados <a href="#extractos">aquí abajo</a>.</td><td class="ob">No</td></tr>
           <tr><td><b>Dónde recibes la plata: tu Nequi, tu Daviplata, tu llave Bre-B o tu cuenta de banco (banco, tipo y número)</b></td><td>Enviarte el dinero y recibir tus pagos.</td><td class="ob">Sí, al menos una</td></tr>
           <tr><td><b>Lo que pides y lo que pactamos</b> (montos, fechas, propuestas, pagos)</td><td>Es tu historial: lo que pediste, lo que te propusimos, lo que aceptaste y lo que pagaste, y la garantía que eso te deja.</td><td class="ob">Sale del uso</td></tr>
           <tr><td><b>La constancia de las condiciones que aceptas</b></td><td>Cuando aceptas una propuesta en la app, guardamos una copia de «Las condiciones de este crédito» tal como las viste, con la fecha, la hora, la cuenta desde la que las aceptaste y los datos técnicos de esa conexión (IP y aparato). Es la prueba de lo que pactamos, para ti y para nosotros.</td><td class="ob">Sí, si aceptas</td></tr>
@@ -360,11 +389,57 @@ td.ob{white-space:nowrap;color:var(--gris)}
         autorización. El documento trae los nombres de tus empleadores y lo que te han
         cotizado. Si trae incapacidades o licencias, que son datos de salud, quedan guardadas con
         el documento, pero no las usamos para nada. No estás obligado a darlas: si nos mandas
-        pantallazos, puedes taparlas. No te pedimos el extracto con tu saldo.</li>
+        pantallazos, puedes taparlas. No te pedimos el extracto con el saldo de tu pensión.</li>
       <li><b>Quién la ve:</b> solo quien dirige el negocio. Tu asesor y el resto del equipo no.</li>
       <li><b>Cuánto tiempo:</b> mientras tengas cuenta en Tu Garantía. La puedes quitar cuando
         quieras desde tu cuenta en la app (con eso retiras también la autorización), o pedirnos
         por el chat que la borremos; y se borra si se borra tu cuenta.</li>
+    </ul>
+
+    <h3 id="extractos">Los extractos de tus cuentas (opcional)</h3>
+    <!-- 13-nov-2026 — cada punto es verdad en el código: el paso solo sale si la ocupación no
+         es «Empleado» (Extractos.seOfrece) y no en PlataChat (MARCA !== 'platachat'); la
+         casilla nace sin marcar; los ven solo quien dirige el negocio (extracto_archivo pide
+         su clave); se guardan mientras haya cuenta; se quitan desde la app (extracto_retirar)
+         o con «🗑 Borrar sus extractos» (extracto_borrar); se van con la cuenta (el
+         disparador). Lo que se anota de ellos son dos campos de la ficha (la plata y si es
+         regular). Las imágenes salen sin sus metadatos (prepararArchivo, el de la historia
+         laboral). -->
+    <p>Si no eres empleado —trabajas por tu cuenta, eres pensionado o vives de otra cosa—, tus
+      extractos muestran mejor que un papel lo que de verdad te entra. Son los movimientos de los
+      <b>últimos 3 meses</b> de la cuenta donde te pagan o te llega la plata: tu Nequi, tu
+      Daviplata o tu cuenta de banco, que se bajan desde la app de tu banco. <b>Darlos es
+      opcional</b>, y es solo de Tu Garantía: te los pedimos en un paso de su registro que puedes
+      saltar («Lo hago después»), y los puedes dar después desde tu cuenta en la app. PlataChat no
+      te los pide. Si no los das, tu registro y tu solicitud siguen igual.</p>
+    <ul>
+      <li><b>Para qué:</b> para que quien evalúa tus solicitudes pueda mirar cuánto te entra y con
+        qué regularidad. Los mira una persona: ningún programa los lee ni los califica, y no
+        cambian tu garantía. Tu banco no nos confirma que el extracto es auténtico, así que
+        tampoco decimos que lo «verificamos».</li>
+      <li><b>Con tu autorización aparte:</b> es una casilla que nunca viene marcada: la marcas tú
+        si quieres darlos. Guardamos qué versión del texto aceptaste y cuándo.</li>
+      <li><b>Cómo:</b> nos los das como PDF (hasta tres, uno por mes), como pantallazos (hasta
+        cinco) o pegándolos; solo recibimos los archivos que tú escojas. <b>Nunca te pedimos la
+        clave de tu Nequi, de Daviplata ni de tu banco</b>, ni entramos a tu cuenta, ni usamos
+        programas que entren por ti, ni leemos los mensajes que te manda tu banco. Si tu banco le
+        puso clave al PDF, lo subes igual: tampoco te pedimos esa.</li>
+      <li><b>Qué guardamos:</b> los archivos tal como los subes (si un pantallazo pesa mucho, tu
+        celular lo achica antes de enviarlo, y a las imágenes les quita los datos ocultos que
+        traen, como el lugar donde se tomaron) y la constancia de tu autorización. Un extracto
+        trae los nombres de otras personas —quien te manda plata, a quien le pagas— y en qué
+        gastas: solo miramos lo que te entra. Si deja ver algo de tu salud, tu religión o tu
+        política, no lo usamos para nada. En un pantallazo puedes tapar lo que no quieras
+        mostrar.</li>
+      <li><b>Lo que anotamos de ellos:</b> quien los revisa anota en tu ficha cuánto te entra al
+        mes, en pesos, y si te entra con regularidad. Nada más: ningún nombre de nadie.</li>
+      <li><b>Quién los ve:</b> solo quien dirige el negocio. Tu asesor y el resto del equipo no
+        ven los archivos ni lo que se anota de ellos.</li>
+      <li><b>Cuánto tiempo:</b> mientras tengas cuenta en Tu Garantía. Los puedes quitar cuando
+        quieras desde tu cuenta en la app (con eso retiras también la autorización), o pedirnos
+        por el chat que los borremos, y entonces borramos también lo que anotamos de ellos; y se
+        borran si se borra tu cuenta. Si los quitas tú desde la app, lo que ya anotamos se queda
+        en tu ficha con el resto de tu historial, y lo borramos si nos lo pides.</li>
     </ul>
   </section>
 
@@ -483,10 +558,22 @@ td.ob{white-space:nowrap;color:var(--gris)}
       <!-- 28-oct-2026 — el uso nuevo, y solo para quien da su autorización aparte. -->
       <li>Solo si nos das esa autorización aparte: mirar tu historia laboral del fondo de pensiones
         cuando evaluamos tus solicitudes (punto 2).</li>
+      <!-- 13-nov-2026 — el uso nuevo, y solo para quien da su autorización aparte. -->
+      <li>Solo si nos das esa otra autorización aparte: mirar tus extractos cuando evaluamos tus
+        solicitudes (punto 2).</li>
     </ol>
+    <!-- 13-nov-2026 — decía «no los usamos para hacer perfiles ni venderlos a centrales de
+         riesgo», a secas. Lo verdadero, con lo que de verdad pasa: la decisión la toma una
+         persona; ningún programa pone una calificación de riesgo; lo único que se calcula solo
+         es la garantía (app/motor.js, con las reglas de los términos), y esa cuenta no lee la
+         historia laboral ni los extractos (no entran en datosKycDe, app/puente.js). -->
     <p><b>Para nada más.</b> No vendemos tus datos, no los cedemos a terceros con fines
-      comerciales, no te mandamos publicidad de otros, y no los usamos para hacer perfiles ni
-      venderlos a centrales de riesgo.</p>
+      comerciales, no te mandamos publicidad de otros, y no se los vendemos a centrales de
+      riesgo. Tampoco hacemos perfiles para decidir por ti: quien decide si te prestamos es una
+      persona, quien dirige el negocio, mirando lo que nos diste, y ningún programa te pone una
+      calificación de riesgo. Lo único que se calcula solo es tu garantía, con las reglas de los
+      términos (lo que has pagado y los datos que nos diste), y esa cuenta no lee tu historia
+      laboral ni tus extractos: esos los mira una persona.</p>
   </section>
 
   <section id="donde">
@@ -514,7 +601,8 @@ td.ob{white-space:nowrap;color:var(--gris)}
       dirige y, si te asignamos uno, tu asesor (que además puede ver tu avance mientras te
       registras, si tu celular ya está entre sus clientes). Ningún otro cliente puede ver los
       tuyos: para entrar a tu cuenta hacen falta tu celular y tu contraseña. Tu historia laboral del
-      fondo de pensiones, si nos la das, la ve solo quien dirige el negocio.</p>
+      fondo de pensiones, si nos la das, la ve solo quien dirige el negocio. Tus extractos y lo que
+      anotamos de ellos, si nos los das, también.</p>
   </section>
 
   <section id="cuanto">
@@ -529,6 +617,9 @@ td.ob{white-space:nowrap;color:var(--gris)}
     <p>Tu <b>historia laboral del fondo de pensiones</b>, si nos la das, se guarda mientras tengas
       cuenta con nosotros. Se borra cuando la quitas desde tu cuenta en la app, cuando nos pides que
       la borremos o cuando se borra tu cuenta.</p>
+    <p>Tus <b>extractos</b>, si nos los das, también se guardan mientras tengas cuenta con
+      nosotros, y se borran cuando los quitas desde tu cuenta en la app, cuando nos pides que los
+      borremos (con lo que anotamos de ellos) o cuando se borra tu cuenta.</p>
   </section>
 
   <section id="derechos">
@@ -578,6 +669,24 @@ td.ob{white-space:nowrap;color:var(--gris)}
     <!-- 23-oct-2026 — la del 27 va arriba de todas, y dice que para qué se usan tus datos
          no cambió: es lo que deja quieta la autorización (punto 10, y el comentario de
          arriba de la página). -->
+    <!-- 13-nov-2026 — la del 19-nov va arriba de todas, y dice que para qué se usan tus datos
+         no cambió para quien no da la autorización aparte: es lo que deja quieta la general
+         (pruebas/responsable-nexeco.test.js). -->
+    <div class="nota azul">
+      <b>Lo que cambió el 19 de noviembre de 2026:</b>
+      <ul>
+        <li>Si no eres empleado, en Tu Garantía (PlataChat no los pide) puedes darnos, si quieres,
+          los extractos de los últimos 3 meses de tu Nequi, tu Daviplata o tu cuenta de banco: como
+          PDF, como pantallazos o pegándolos, en un paso del registro que puedes saltar o desde tu
+          cuenta en la app. Es opcional, va con su propia autorización, no cambia tu garantía, nunca
+          te pedimos la clave de tu cuenta, los ve solo quien dirige el negocio, se guardan mientras
+          tengas cuenta y los puedes quitar cuando quieras (punto 2).</li>
+        <li>Decimos con más precisión qué hacemos y qué no: quien decide si te prestamos es una
+          persona, y ningún programa te pone una calificación de riesgo (punto 4).</li>
+        <li>Para qué usamos tus datos no cambió para quien no da esa autorización: mirar tus
+          extractos es un uso aparte, que solo aplica si nos los das (punto 4).</li>
+      </ul>
+    </div>
     <div class="nota azul">
       <b>Lo que cambió el 29 de octubre de 2026:</b>
       <ul>
@@ -634,9 +743,9 @@ td.ob{white-space:nowrap;color:var(--gris)}
         <li>A tus referencias no las llamamos para cobrarte (punto 2).</li>
       </ul>
     </div>
-    <p class="sub">Esta versión rige desde el 29 de octubre de 2026; la anterior rigió desde el
-      27 de octubre de 2026, otra desde el 19 de octubre de 2026, otra desde el 15 de octubre de
-      2026, y la primera, desde el 4 de agosto de 2026. Esta política se rige
+    <p class="sub">Esta versión rige desde el 19 de noviembre de 2026; la anterior rigió desde el
+      29 de octubre de 2026, otra desde el 27 de octubre de 2026, otra desde el 19 de octubre de
+      2026, otra desde el 15 de octubre de 2026, y la primera, desde el 4 de agosto de 2026. Esta política se rige
       por las leyes de la República de Colombia.</p>
   </section>
 
