@@ -476,6 +476,18 @@ describe('6 · la tarjeta de la app: el «Lo hago después» de verdad', () => {
     await asentar(30);
     assert.match(plano(B2.elem('exCuenta').innerHTML), /📄 Tus extractos · opcional.*Ya nos diste 1 PDF\./);
   });
+  /* 13-nov-2026 (remate) — la app leía S.perfil.ocupacion «por si la base no
+     lo dice», y S.perfil (los datos de la garantía) nunca la trae: el
+     comentario prometía una ficha que no existe. */
+  test('la app no finge saber la ocupación: sin registro (la base no la dice), no hay tarjeta; y no la busca donde no está', async () => {
+    const A = abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, red: nube({ ocupacion: null }) });
+    await asentar(30);
+    assert.equal(A.elem('exCuenta').innerHTML, '', 'se le ofreció a alguien cuya ocupación no sabemos');
+    const puente = leer('app/puente.js');
+    const kyc = puente.slice(puente.indexOf('function datosKycDe'), puente.indexOf('function referidosDe'));
+    assert.equal(/ocupacion/.test(kyc), false, 'S.perfil ya trae la ocupación: la app la puede usar');
+    assert.equal(/S\.perfil\.ocupacion/.test(leer('app/socio.html')), false, 'la app lee una ocupación que S.perfil no trae');
+  });
   test('con la base sin las funciones (404), la tarjeta no aparece', async () => {
     const A = abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, red: nube({ apagado: true }) });
     await asentar(30);

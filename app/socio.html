@@ -1834,11 +1834,18 @@ function montarHistoriaLaboral() {
  * quita un archivo o se RETIRA todo (extracto_retirar): la casilla del
  * registro promete «puedo quitarlos cuando quiera desde mi cuenta en la app».
  * La pantalla y sus reglas son las del registro (app/extractos.js).
- * A QUIÉN: la tarjeta se muestra a quien no es empleado (la ocupación de su
- * registro, que le dice la base, o la de su ficha) y a quien ya dio algo. Si
- * la base todavía no tiene las funciones (404), no aparece: no se ofrece lo
- * que no va a funcionar. Sin sesión (el «👁 Ver la app como la ve él» de
- * Joan, un enlace) tampoco.
+ * A QUIÉN: la tarjeta se muestra a quien no es empleado (la ocupación del
+ * registro de ESTA cuenta, que dice la base: extracto_mia) y a quien ya dio
+ * algo. Si la base todavía no tiene las funciones (404), no aparece: no se
+ * ofrece lo que no va a funcionar. Sin sesión (el «👁 Ver la app como la ve
+ * él» de Joan, un enlace) tampoco.
+ * 13-nov-2026 (remate) — LO QUE NO SE SABE: decía «o la de su ficha», y la
+ * leía de una «ocupacion» de S.perfil que nunca existe: S.perfil son los datos de la
+ * garantía (datosKycDe, app/puente.js) y la ficha del CRM no guarda la
+ * ocupación. Así que al cliente viejo, hecho a mano y sin registro en play/,
+ * no se le ofrece la tarjeta aunque sea independiente: su ocupación no está
+ * en ninguna parte. Se dejó de fingir que se miraba; ofrecérsela a quien no
+ * sabemos qué hace es una decisión de Joan (anotada para él).
  * ======================================================================== */
 var EX = (window.Extractos && typeof window.Extractos.disponible === 'function' && window.Extractos.disponible()) ? window.Extractos : null;
 var EX_APAGADO = false;   // la base contestó 404: no se vuelve a ofrecer en esta visita
@@ -1870,9 +1877,8 @@ function montarExtractos() {
   EX.tarjetaDeCuenta(caja, {
     credenciales: cfgChat,          // {url, anon, token} con la sesión renovada si hace falta
     escritura: escrituraEnCamino,   // «se actualiza sola» no recarga encima de una subida
-    /* La de su ficha, si la cuenta ya está junta (S.perfil es la vinculación
-       que Joan tiene de él); la de su registro la dice la base. */
-    ocupacion: function () { return (S && S.perfil && S.perfil.ocupacion) || ''; },
+    /* Sin `ocupacion`: la página no la sabe (ver LO QUE NO SE SABE, arriba);
+       la del registro la dice la base. */
     alApagado: function () { EX_APAGADO = true; },
     guardadero: guardaderoEX(),
     celular: function () { return (ses && ses.celular) || ''; }
