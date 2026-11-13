@@ -148,7 +148,10 @@ describe('1. «Proponer»: «Un solo pago», «A cuotas» y «Con garantía · m
     assert.match(h, /onclick="cambiarModoCp\('quincenal','77'\)">A cuotas<\/button>/);
     assert.match(h, /onclick="cambiarModoCp\('cuotas','77'\)">Con garantía · mensual<\/button>/);
     assert.doesNotMatch(h, /A cuotas · con garantía/);
-    /* Sin propuesta, abre en un solo pago, como siempre. */
+    /* Sin propuesta y con 79 días pedidos, abre en «A cuotas» (ver §1 «ABRIR EN
+       A CUOTAS»); se pasa a un solo pago y se vuelve. */
+    assert.equal(P.ev('_cpModo'), 'quincenal');
+    P.ev("cambiarModoCp('unico','77')");
     assert.equal(P.ev('_cpModo'), 'unico');
     P.ev("cambiarModoCp('quincenal','77')");
     assert.equal(P.ev('_cpModo'), 'quincenal');
@@ -161,6 +164,65 @@ describe('1. «Proponer»: «Un solo pago», «A cuotas» y «Con garantía · m
     assert.match(P.elems.pqFilas.innerHTML, /id="pqF2" type="date"/);
     assert.match(P.elems.pqFilas.innerHTML, /id="pqP2" type="number"[^>]*max="50"/);
     assert.match(P.elems.pqFilas.innerHTML, /id="pqK2" type="number"[^>]*placeholder="partes iguales"/);
+  });
+
+  /* 13-nov-2026 (revisión) — ABRIR EN «A CUOTAS». «Proponer» abría en «Un solo
+     pago» a quien pidió 79 días (un solo pago llega hasta 60), y al pasar de
+     una propuesta a cuotas a «Un solo pago» los días arrancaban en 79 y la
+     vista previa en error. */
+  test('ABRIR EN «A CUOTAS»: pidió más de 60 días y no hay propuesta; y «Un solo pago» arranca en 60 como mucho', () => {
+    /* 79 días, sin propuesta: «A cuotas», con la última cuota en lo que pidió. */
+    const { P } = crm();
+    P.ev("editarContrapropuesta('77')");
+    assert.equal(P.ev('_cpModo'), 'quincenal');
+    assert.ok(P.elems.mBody.innerHTML.indexOf('id="pqCap"') >= 0, 'no pintó el formulario de «A cuotas»');
+    assert.match(P.elems.mBody.innerHTML, /id="pqCap"[^>]*value="2000000"/);
+    assert.equal(P.elems['pqF' + P.ev('cuantasCuotasPropuesta()')].value, '2027-01-31', 'la última cuota no es la fecha que pidió');
+    assert.match(P.elems.mBody.innerHTML, /btn btn-negro btn-sm" id="cpModoQuincenal"/, 'el botón «A cuotas» no se ve escogido');
+
+    /* 60 días justos, o menos: un solo pago, como siempre. */
+    [['2027-01-12', 60], ['2026-12-28', 45]].forEach(([f, d]) => {
+      const s = Object.assign(PIDE(), { fecha_corte: f, pedido: { origen: 'play', capital: 2000000, fecha_pago: f, dias: d } });
+      const Q = crm({ solicitudes: [s] }).P;
+      Q.ev("editarContrapropuesta('77')");
+      assert.equal(Q.ev('_cpModo'), 'unico', 'pidió ' + d + ' días');
+      assert.match(Q.elems.mBody.innerHTML, new RegExp('id="cpDias"[^>]*value="' + d + '"'));
+    });
+
+    /* Con una propuesta de un solo pago ya mandada, abre en la suya aunque haya
+       pedido 79: lo que Joan ya le mandó manda. */
+    const unico = Object.assign(PIDE(), { estado: 'contrapropuesta',
+      contrapropuesta: { capital: 2000000, costo_pct: 20, dias: 60, costo: 400000, total: 2400000, fecha_pago: '2027-01-12', texto: '' } });
+    const U = crm({ solicitudes: [unico] }).P;
+    U.ev("editarContrapropuesta('77')");
+    assert.equal(U.ev('_cpModo'), 'unico');
+
+    /* El préstamo con garantía que pidió a meses, como estaba. */
+    const resp = Object.assign(PIDE(), { producto: 'respaldado', plazo_meses: 6 });
+    const R = crm({ solicitudes: [resp] }).P;
+    R.ev("editarContrapropuesta('77')");
+    assert.equal(R.ev('_cpModo'), 'unico');
+
+    /* De una propuesta «A cuotas» (la base guardó dias = 79, la última cuota) a
+       «Un solo pago»: los días arrancan en 60 y la vista previa no da error.
+       El capital y el % son los de siempre en ese modo. */
+    const cuerpo = cuerpoMandado(ENTRADAS);
+    const sol = Object.assign(PIDE(), { estado: 'contrapropuesta', contrapropuesta: propuestaGuardada(cuerpo) });
+    assert.equal(sol.contrapropuesta.dias, 79);
+    const C2 = crm({ solicitudes: [sol] }).P;
+    C2.ev("editarContrapropuesta('77')");
+    assert.equal(C2.ev('_cpModo'), 'quincenal');
+    C2.ev("cambiarModoCp('unico','77')");
+    assert.equal(C2.ev('_cpModo'), 'unico');
+    const campo = id => (new RegExp('id="' + id + '"[^>]*value="([^"]*)"').exec(C2.elems.mBody.innerHTML) || [])[1];
+    assert.equal(campo('cpDias'), '60');
+    assert.equal(campo('cpCap'), '2000000');
+    assert.equal(campo('cpPct'), '20');
+    /* El banco no lee el value del HTML: se ponen los del formulario, como los ve el navegador. */
+    ['cpCap', 'cpPct', 'cpDias'].forEach(id => poner(C2, id, campo(id)));
+    C2.ev('previsualizarContrapropuesta()');
+    assert.match(plano(C2.elems.cpCalc.innerHTML), /El cliente ve recibe \$2\.000\.000 · devuelve \$2\.400\.000 el/);
+    assert.doesNotMatch(plano(C2.elems.cpCalc.innerHTML), /más de 60 días/);
   });
 
   test('las fechas de partida son las del registro, y la última toma la fecha que pidió (79 días, el 31-ene)', () => {

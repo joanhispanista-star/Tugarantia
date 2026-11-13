@@ -24499,9 +24499,14 @@ function editarContrapropuesta(id, modo) {
      mandó cuotas, verlas convertidas en un pago único sería perder su trabajo
      sin avisar. 13-nov-2026 — y las cuotas quincenales se abren en «A cuotas»,
      no en «Con garantía»: las dos traen `cuotas`, y lo que las separa es el
-     producto que guardó la base. */
+     producto que guardó la base.
+     13-nov-2026 (revisión) — y sin propuesta, si lo que pidió pasa de 60
+     días, abre en «A cuotas»: un solo pago llega hasta 60, y abrir ahí a quien
+     pidió 79 era arrancar con algo que no es lo que pidió (el aviso de arriba
+     ya decía «usa A cuotas»). El de garantía queda como estaba. */
   _cpModo = modo || (esQuincenalACuotas(cp) ? 'quincenal'
-    : (cp && cp.cuotas && cp.cuotas.length) ? 'cuotas' : 'unico');
+    : (cp && cp.cuotas && cp.cuotas.length) ? 'cuotas'
+    : (!s.contrapropuesta && pz && pz.dias > 60 && productoSolicitud(s) !== 'respaldado') ? 'quincenal' : 'unico');
   const cli = socioDeSolicitud(s);
   const max = cli ? maxRespaldadoDe(cli) : 0;
   const pidio = Math.round(Number(s.capital) || Number(cp.capital) || 0);
@@ -24542,6 +24547,10 @@ function cambiarModoCp(m, id) {
   editarContrapropuesta(id, m);
 }
 
+/* 13-nov-2026 (revisión) — los días arrancan en 60 como mucho, que es lo que
+   llega un pago único (contrapropuestaNuevo). Al pasar de una propuesta «A
+   cuotas» a «Un solo pago», cp.dias es el de la última cuota (79, 120…) y la
+   vista previa arrancaba en error. Lo demás de este modo no cambia. */
 function formUnico(cp) {
   return `<div class="field"><label>Capital</label><input id="cpCap" type="number" inputmode="numeric"
       value="${Number(cp.capital) || 0}" oninput="previsualizarContrapropuesta()"></div>
@@ -24549,7 +24558,7 @@ function formUnico(cp) {
       min="1" max="${TASA_TECHO_PCT}" value="${Number(cp.costo_pct) || TASA_FIJA_PCT}"
       oninput="previsualizarContrapropuesta()"></div>
     <div class="field"><label>Días para pagar</label><input id="cpDias" type="number" inputmode="numeric"
-      min="1" max="60" value="${Number(cp.dias) || 8}" oninput="previsualizarContrapropuesta()"></div>
+      min="1" max="60" value="${Math.min(60, Number(cp.dias) || 8)}" oninput="previsualizarContrapropuesta()"></div>
     <div class="field"><label>Lo que el cliente lee</label>
       <textarea id="cpTexto" rows="3" maxlength="400">${escHTML(cp.texto || '')}</textarea></div>
     <div id="cpCalc" class="calc"></div>

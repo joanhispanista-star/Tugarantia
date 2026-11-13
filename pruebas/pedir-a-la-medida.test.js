@@ -598,7 +598,14 @@ describe('la bandeja del CRM con el pedido a la medida', () => {
     const m = P.ev('window.__modal');
     assert.match(m, /Pidió <b>\$700\.000<\/b> para pagar el 20[^<]*2099 \(en \d+ días\)/);
     assert.match(m, /pasa de 60 días/, 'no avisa que un pago único no llega a esa fecha');
-    assert.match(m, /id="cpCap" type="number" inputmode="numeric"\s+value="700000"/, 'no arrancó con lo que pidió');
+    /* 13-nov-2026 — pidió más de 60 días y no hay propuesta: abre en «A cuotas»
+       (pruebas/propuesta-a-cuotas.test.js, «ABRIR EN A CUOTAS»), con lo que pidió. */
+    assert.match(m, /id="pqCap" type="number" inputmode="numeric"[^>]*value="700000"/, 'no arrancó con lo que pidió');
+    /* Y en «Un solo pago», lo mismo, con los días en 60, lo más que llega. */
+    P.ev("cambiarModoCp('unico','31')");
+    const u = P.ev('window.__modal');
+    assert.match(u, /id="cpCap" type="number" inputmode="numeric"\s+value="700000"/, 'no arrancó con lo que pidió');
+    assert.match(u, /id="cpDias" type="number" inputmode="numeric"\s+min="1" max="60" value="60"/);
   });
 
   test('lo aceptado se ve en la fila, y su detalle se escapa entero', () => {
