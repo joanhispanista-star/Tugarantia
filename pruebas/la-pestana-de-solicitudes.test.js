@@ -534,7 +534,9 @@ describe('4. que Joan se entere cuando alguien pide', () => {
     const M = await conUnaVieja();
     await M.llega(ANA);
     const P = M.P, h = P.elems.avisoSolicitudesNuevas.innerHTML;
-    assert.equal(sinEtiquetas(h), '🔔 Ana Inventada pidió $250.000, hace 5 min · Ver');
+    /* 13-nov-2026 (v145) — y «💬 Escribirle», que abre su chat sin ir a la pestaña
+       (pruebas/escribirle-desde-solicitudes.test.js). */
+    assert.equal(sinEtiquetas(h), '🔔 Ana Inventada pidió $250.000, hace 5 min · Ver · 💬 Escribirle');
     assert.match(h, /onclick="irA\('solicitudes'\)">Ver<\/button>/);
     assert.equal(P.ctx.document.title, '(1) Tu Garantía · Panel');
     assert.equal(P.elems.navSolicitudes.textContent, ' (2)');

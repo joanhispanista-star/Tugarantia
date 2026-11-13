@@ -66,6 +66,30 @@
 >   que un celular de la bandeja le prestaba el nombre a ese otro hilo
 >   («Pepe Prefijo67»; sección 8).
 >
+> **13 de noviembre de 2026 (v145, rama v145-chat) — escribirle desde
+> 📨 Solicitudes.** Joan: «quiero que desde la pestaña de solicitudes yo le pueda
+> escribir al cliente y no tenga que recurrir a WhatsApp». No hay un chat
+> nuevo: «💬 Escribirle» abre el MISMO cuadro de 💬 Chat encima de la pestaña,
+> sin salir de ella (`escribirleDesdeSolicitud` en `panel/crm.html`), en la
+> conversación que lee QUIEN PIDIÓ, con la regla de la base para el hilo de una
+> solicitud (`llave_de_solicitud`, `base/20261005_platachat_solicitud.sql`):
+> - con `celular` (play/, PlataChat) se le pregunta a la nube
+>   (`chat_hilo_de_celular`): la ficha si la cuenta está junta, '0' + celular
+>   si es el número de una ficha sin juntar, el celular si no;
+> - sin `celular` (app/socio.html, cuenta junta), la llave con que quedó;
+> - pegada de WhatsApp con ficha, el hilo de la ficha; sin ficha, «💬 Sin chat»
+>   y un enlace de WhatsApp si trae celular: ahí no hay cuenta que lea.
+> - Está en cada fila, en «Lo que pidió» de la ficha y en el 🔔 del Tablero; la
+>   fila dice «· N sin leer» con la lista de 💬 Chat, y se repinta con cada
+>   vuelta. Abre en «Créditos nuevos» salvo que haya algo sin leer en otra.
+> - Después de «Mandarle esta propuesta» (las tres formas), «✓ Propuesta
+>   enviada» ofrece «💬 Avisarle por el chat»: deja ESCRITO un mensaje en pesos
+>   y fechas, sin %, sin nombre en un hilo '0'; si su app no la muestra
+>   (`laVeEnSuApp`), le pone las condiciones y le pide que conteste. No sale
+>   nada hasta «Enviar» (`pruebas/escribirle-desde-solicitudes.test.js`).
+> - Sin SQL nuevo. No hay botón de WhatsApp que se haya quitado: la fila de
+>   📨 Solicitudes no tenía ninguno.
+>
 > **La decisión B sigue pendiente**: sin Telegram, el aviso a Joan solo existe
 > con el CRM o el celular abiertos, y al cliente no le llega nada con la app
 > cerrada. Las pantallas lo dicen.
