@@ -1,6 +1,6 @@
 # De dónde sale el mapa del CRM
 
-`colombia-2026-11.json` es el mapa de la pestaña «🗺️ Mapa» del CRM
+`colombia-2026-11b.json` es el mapa de la pestaña «🗺️ Mapa» del CRM
 (`panel/mapa-clientes.js`). Lo arma `herramientas/mapa-colombia.js` y se puede
 rehacer con el mismo comando (abajo). Los créditos que pide cada licencia se
 ven en la pestaña, debajo del mapa:
@@ -67,7 +67,26 @@ Las descargas **no** están en el repo (pesan, y no son nuestras).
 5. **Los nombres** son los de la tabla de HDX, con una corrección: «Quindio»
    → «Quindío».
 
-Resultado: **583.676 bytes (570 KB)**, unos 200 KB comprimido.
+6. **(13-nov-2026) Dónde va el nombre de cada municipio** (`p`, en las mismas
+   unidades del mapa): el polo de inaccesibilidad, el punto de adentro más
+   lejos de todo borde. El centro de la caja no sirve: en un municipio en C
+   cae afuera, sobre el vecino. Los 1.122 caen dentro de su municipio (la
+   prueba lo comprueba uno por uno).
+7. **(13-nov-2026) Los huecos de cada departamento** (`h`): los municipios de
+   OTRO departamento que comparten con este dos tercios o más de su borde.
+   Vistos desde este son una muesca en blanco, y la pestaña los pinta en su
+   sitio. Son seis: Bogotá en Cundinamarca (83 %), Covarachía en Santander
+   (83 %), González en Norte de Santander (80 %), Gámbita en Boyacá (78 %),
+   Quinchía en Caldas (72 %) y Jamundí en el Cauca (67 %). Con la mitad salían
+   43, casi todos municipios de frontera que no se ven como hueco.
+
+Las formas no cambiaron: los 1.122 caminos y los 33 contornos son, carácter
+por carácter, los del 9-nov.
+
+Resultado: **601.577 bytes (587,5 KB)**. El del 9-nov, `colombia-2026-11.json`
+(583.676 bytes), sigue en la carpeta solo porque un CRM v144 que esté abierto
+lo pide por ese nombre; se puede borrar cuando v145 lleve un tiempo
+publicado.
 
 ## Rehacerlo
 
@@ -77,11 +96,12 @@ node herramientas/mapa-colombia.js \
   --tabla  <ruta>/COL_AdminBoundaries_TabularData.xlsx
 ```
 
-Escribe `panel/mapa/colombia-2026-11.json`. Si cambian las fuentes (otra
-división del DANE, municipios nuevos), el archivo nuevo va con **otro nombre**
-(la fecha) y se cambia `URL_MAPA` en `panel/mapa-clientes.js`: el service
-worker guarda este archivo la primera vez que se pide y lo sirve desde ahí
-(caché primero), así que un archivo con el mismo nombre no se renovaría.
+Escribe `panel/mapa/colombia-2026-11b.json`. Si cambia el archivo (otra
+división del DANE, municipios nuevos, o un dato nuevo como el `p` y el `h` del
+13-nov), el nuevo va con **otro nombre** (la fecha, o una letra más) y se
+cambia `URL_MAPA` en `panel/mapa-clientes.js`: el service worker guarda este
+archivo la primera vez que se pide y lo sirve desde ahí (caché primero), así
+que un archivo con el mismo nombre no se renovaría.
 
 ## Lo que el mapa NO usa
 

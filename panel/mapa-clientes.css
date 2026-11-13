@@ -10,7 +10,24 @@
  *     construyó, y el amarillo solo existe sobre la laca.
  *   · Nada en rojo: el rojo nunca es un estado ni una cifra.
  * Los trazos llevan vector-effect:non-scaling-stroke: el SVG cambia de escala
- * (toda Colombia o un departamento) y el borde tiene que medir lo mismo.
+ * (toda Colombia, un departamento, el zoom) y el borde tiene que medir lo mismo.
+ *
+ * 13-nov-2026 — «NO SE VEN LOS MUNICIPIOS» (Joan). La escala y los bordes se
+ * MIDIERON (pruebas/mapa-clientes.test.js los mide otra vez con los tokens de
+ * crm.html, así que tocar un token o un alfa de aquí sin que dé no pasa):
+ *   · Los bordes de municipio eran --papel sobre --neutro-1: 1,17:1, no se
+ *     veían. Ahora cada tramo lleva el borde que le da 3:1 o más contra su
+ *     propio relleno (lo que separa a dos vecinos del mismo color): laca al
+ *     55 % sobre los tramos claros (t0 a t2) y papel sobre los oscuros (t3 a
+ *     t5). Entre dos tramos distintos ya los separa el relleno.
+ *   · El «1–2» iba al 16 %, a 1,08:1 del beige de «Sin clientes»: casi
+ *     blanco. La escala nueva va por pasos de luminosidad parecidos (L* 93 →
+ *     83 → 70 → 58 → 46 → 31; ningún paso de menos de 10): 28, 48, 68 y 88 %
+ *     del azul y --azul-osc. La leyenda usa las MISMAS variables.
+ *   · Los nombres: letra negra con un halo de papel (19:1 contra el halo,
+ *     sobre cualquier color). Su tamaño va en calc(--k × px): --k son las
+ *     unidades del mapa por píxel (mapa-clientes.js lo pone en cada zoom), así
+ *     que en pantalla miden siempre lo mismo.
  * ===========================================================================*/
 .mapa-vistas{display:inline-flex;gap:var(--e1);background:var(--neutro-1);border-radius:12px;padding:var(--e1);margin-bottom:var(--e3)}
 .mapa-vista{border:0;background:transparent;color:var(--tinta-2);font:inherit;font-weight:700;font-size:13.5px;
@@ -19,42 +36,120 @@
 .mapa-cargando{padding:var(--e4);color:var(--gris);font-size:14px}
 
 .mapa-cuerpo{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:var(--e4);align-items:start}
-.mapa-lienzo{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);padding:var(--e3);position:relative}
+/* only light: un navegador que oscurece la página por su cuenta (Samsung
+   Internet) repintaría la escala y los bordes que se midieron (ver
+   pruebas/oscuro-forzado.test.js). La vista de Conquistas ya es oscura a
+   propósito y tampoco se toca. */
+.mapa-lienzo{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);padding:var(--e3);position:relative;color-scheme:only light;
+  --mapa-t0:var(--neutro-1);
+  --mapa-t1:rgba(var(--azul-rgb),.28);
+  --mapa-t2:rgba(var(--azul-rgb),.48);
+  --mapa-t3:rgba(var(--azul-rgb),.68);
+  --mapa-t4:rgba(var(--azul-rgb),.88);
+  --mapa-t5:var(--azul-osc);
+  --mapa-raya-sobre-claro:rgba(var(--laca-rgb),.55);
+  --mapa-raya-sobre-oscuro:var(--papel)}
 .mapa-lienzo.mapa-laca{background:var(--laca);border-color:var(--laca)}
-.mapa-svg{display:block;width:100%;height:auto;max-height:72vh;margin:0 auto}
-.mapa-volver{margin-bottom:var(--e2)}
+/* touch-action: ver «EL DEDO ES DE LA PÁGINA» en mapa-clientes.js. Sin
+   ampliar, el dedo vertical baja la página; ampliado, mueve el mapa. */
+.mapa-svg{display:block;width:100%;height:auto;max-height:72vh;margin:0 auto;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.mapa-svg.ampliado{touch-action:none;cursor:grab}
+.mapa-svg.ampliado:active{cursor:grabbing}
 
-/* Departamentos (papel, azul). */
-.mapa-z{stroke:var(--papel);stroke-width:.7px;vector-effect:non-scaling-stroke;stroke-linejoin:round;cursor:pointer}
-.mapa-z.t0{fill:var(--neutro-1)}
-.mapa-z.t1{fill:rgba(var(--azul-rgb),.16)}
-.mapa-z.t2{fill:rgba(var(--azul-rgb),.34)}
-.mapa-z.t3{fill:rgba(var(--azul-rgb),.56)}
-.mapa-z.t4{fill:rgba(var(--azul-rgb),.80)}
-.mapa-z.t5{fill:var(--azul-osc)}
+/* La barra de encima del mapa: volver, buscar y el zoom. */
+.mapa-barra{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);margin-bottom:var(--e2)}
+.mapa-volver{flex:none}
+.mapa-busca{position:relative;flex:1 1 180px;min-width:0}
+.mapa-buscar{width:100%;min-height:40px;border:1px solid var(--linea);border-radius:10px;padding:8px 12px;font:inherit;font-size:14px;
+  background:var(--papel);color:var(--tinta);color-scheme:only light}
+.mapa-buscar:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(var(--azul-rgb),.14)}
+.mapa-sug{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:6;background:var(--papel);border:1px solid var(--linea);border-radius:12px;
+  box-shadow:0 14px 34px -14px var(--sombra);max-height:320px;overflow-y:auto;padding:var(--e1)}
+.mapa-sug[hidden]{display:none}
+.mapa-sug-f{display:flex;justify-content:space-between;align-items:center;gap:var(--e3);width:100%;border:0;background:transparent;border-radius:8px;
+  font:inherit;font-size:14px;color:var(--tinta);text-align:left;padding:8px 10px;min-height:42px;cursor:pointer}
+.mapa-sug-f:hover,.mapa-sug-f.on{background:var(--azul-tinte)}
+.mapa-sug-f small{color:var(--gris);font-size:12px;font-weight:500}
+.mapa-sug-f b{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--laca);white-space:nowrap}
+.mapa-sug-f b i{font-family:'Inter',system-ui,sans-serif;font-style:normal;font-weight:500;color:var(--gris)}
+.mapa-sug-nada{margin:0;padding:10px;font-size:13.5px;color:var(--tinta-2)}
+.mapa-zoom{display:inline-flex;gap:var(--e1);flex:none}
+.mapa-zb{min-width:40px;min-height:40px;border:1px solid var(--linea);background:var(--papel);border-radius:10px;
+  font:inherit;font-size:18px;font-weight:700;line-height:1;color:var(--laca);cursor:pointer;padding:0 10px}
+.mapa-zb.mapa-todo{font-size:13px}
+.mapa-zb:hover:not(:disabled){background:var(--papel-2);border-color:var(--gris-claro)}
+.mapa-zb:disabled{color:var(--gris-claro);background:var(--papel-2);cursor:default}
+.mapa-laca .mapa-zb{background:var(--laca-2);border-color:rgba(var(--blanco-laca-rgb),.22);color:var(--blanco-laca)}
+.mapa-laca .mapa-zb:hover:not(:disabled){background:var(--laca-3);border-color:rgba(var(--blanco-laca-rgb),.4)}
+.mapa-laca .mapa-zb:disabled{background:var(--laca);color:rgba(var(--blanco-laca-rgb),.45)}
+
+/* Departamentos (papel, azul). El borde de cada tramo, contra su relleno:
+   ver la cabecera. */
+.mapa-z{stroke-width:.7px;vector-effect:non-scaling-stroke;stroke-linejoin:round;cursor:pointer}
+.mapa-z.t0{fill:var(--mapa-t0);stroke:var(--mapa-raya-sobre-claro)}
+.mapa-z.t1{fill:var(--mapa-t1);stroke:var(--mapa-raya-sobre-claro)}
+.mapa-z.t2{fill:var(--mapa-t2);stroke:var(--mapa-raya-sobre-claro)}
+.mapa-z.t3{fill:var(--mapa-t3);stroke:var(--mapa-raya-sobre-oscuro)}
+.mapa-z.t4{fill:var(--mapa-t4);stroke:var(--mapa-raya-sobre-oscuro)}
+.mapa-z.t5{fill:var(--mapa-t5);stroke:var(--mapa-raya-sobre-oscuro)}
 .mapa-papel .mapa-z:hover{stroke:var(--laca);stroke-width:1.6px}
-.mapa-papel .mapa-borde{fill:none;stroke:var(--tinta-2);stroke-width:1.4px;vector-effect:non-scaling-stroke;pointer-events:none}
+.mapa-papel .mapa-borde{fill:none;stroke:var(--laca);stroke-width:1.6px;vector-effect:non-scaling-stroke;stroke-linejoin:round;pointer-events:none}
+
+/* LOS MUNICIPIOS CON CLIENTES, en la vista de Colombia: un trazo de laca
+   sobre uno de papel más ancho. El de papel lo separa de cualquier azul de la
+   escala; el relleno es un velo, y el color del departamento se sigue viendo
+   por dentro. */
+.mapa-marca-f{fill:none;stroke:var(--papel);stroke-width:3.4px;vector-effect:non-scaling-stroke;stroke-linejoin:round;pointer-events:none}
+.mapa-marca{fill:rgba(var(--laca-rgb),.12);stroke:var(--laca);stroke-width:1.4px;vector-effect:non-scaling-stroke;stroke-linejoin:round;cursor:pointer}
+.mapa-papel .mapa-marca:hover{fill:rgba(var(--laca-rgb),.28)}
 
 /* Conquistas (laca, amarillo). */
-.mapa-q{stroke:var(--laca);stroke-width:.4px;vector-effect:non-scaling-stroke;cursor:pointer}
+.mapa-q{stroke-width:.5px;vector-effect:non-scaling-stroke;stroke-linejoin:round;cursor:pointer}
 /* 10-nov: «Con clientes» iba al 32 % y casi no se distinguía de «Sin
    clientes»; ahora al 50 %, que sigue lejos del amarillo entero. Y lo
    conquistado lleva borde de su mismo amarillo: 2 px que se ven aunque el
-   municipio mida un punto (mapa-clientes.js lo pinta al final). */
-.mapa-q.vacio{fill:var(--laca-3)}
-.mapa-q.con{fill:rgba(var(--amarillo-rgb),.5)}
+   municipio mida un punto (mapa-clientes.js lo pinta al final). Dos
+   conquistados vecinos se leen como una sola mancha conquistada, que es lo
+   que son. 13-nov: el borde de «Sin clientes» era laca sobre --laca-3
+   (1,28:1, no se veía); ahora el blanco de la laca al 38 %, 3,2:1. */
+.mapa-q.vacio{fill:var(--laca-3);stroke:rgba(var(--blanco-laca-rgb),.38)}
+.mapa-q.con{fill:rgba(var(--amarillo-rgb),.5);stroke:var(--laca)}
 .mapa-q.conq{fill:var(--amarillo);stroke:var(--amarillo);stroke-width:2px}
 .mapa-oscuro .mapa-q:hover{stroke:var(--blanco-laca);stroke-width:1.2px}
-.mapa-oscuro .mapa-borde{fill:none;stroke:rgba(var(--blanco-laca-rgb),.38);stroke-width:.8px;vector-effect:non-scaling-stroke;pointer-events:none}
+.mapa-oscuro .mapa-borde{fill:none;stroke:rgba(var(--blanco-laca-rgb),.7);stroke-width:1px;vector-effect:non-scaling-stroke;pointer-events:none}
 
 /* El municipio tocado (marcar() en mapa-clientes.js): un borde grueso, que
    se ve aunque a escala de país el municipio mida un punto. Va después del
    :hover para que pasar el ratón no se lo adelgace. */
 .mapa-papel .mapa-z.mapa-sel{stroke:var(--laca);stroke-width:2.5px}
+.mapa-papel .mapa-marca.mapa-sel{stroke-width:2.6px;fill:rgba(var(--laca-rgb),.28)}
 .mapa-oscuro .mapa-q.mapa-sel{stroke:var(--blanco-laca);stroke-width:2.5px}
 
+/* LOS NOMBRES. 12 px en pantalla con cualquier zoom (--k). El halo es un
+   trazo del color del fondo pintado DEBAJO de la letra (paint-order). */
+.mapa-ets{pointer-events:none}
+.mapa-et{font-family:'Inter',system-ui,sans-serif;font-size:calc(var(--k,1) * 12px);font-weight:700;text-anchor:middle;
+  fill:var(--laca);stroke:var(--papel);stroke-width:calc(var(--k,1) * 3.5px);stroke-linejoin:round;paint-order:stroke}
+.mapa-et .mapa-et-k{font-family:'JetBrains Mono',monospace;fill:var(--azul-osc)}
+.mapa-et.oculta{display:none}
+.mapa-oscuro .mapa-et{fill:var(--blanco-laca);stroke:var(--laca)}
+.mapa-oscuro .mapa-et .mapa-et-k{fill:var(--amarillo)}
+.mapa-oscuro .mapa-et.conq{fill:var(--amarillo)}
+
+/* EL GLOBITO: el nombre y la cifra junto al ratón o al dedo. Laca con letra
+   clara en las dos vistas; en Conquistas, que ya es laca, con un filo. */
+.mapa-globo{position:absolute;z-index:4;left:0;top:0;transform:translate(-50%,calc(-100% - 12px));pointer-events:none;
+  background:var(--laca);color:var(--blanco-laca);font-size:12.5px;font-weight:500;line-height:1.35;padding:6px 10px;border-radius:9px;
+  max-width:240px;width:max-content;box-shadow:0 8px 22px -8px var(--sombra)}
+.mapa-globo b{font-weight:800}
+.mapa-globo.abajo{transform:translate(-50%,16px)}
+.mapa-globo[hidden]{display:none}
+.mapa-laca .mapa-globo{border:1px solid rgba(var(--blanco-laca-rgb),.45)}
+
 .mapa-recuadro{fill:none;stroke:var(--linea);stroke-width:1px;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
-.mapa-recuadro-t{font-size:120px;fill:var(--gris);font-family:'Inter',system-ui,sans-serif}
+/* El nombre del recuadro mide 120 unidades del mapa, como antes, salvo
+   acercando: ahí se queda en 11 px de pantalla (--k), como los nombres. */
+.mapa-recuadro-t{font-size:min(120px, calc(var(--k,1) * 11px));fill:var(--gris);font-family:'Inter',system-ui,sans-serif}
 .mapa-oscuro .mapa-recuadro{stroke:rgba(var(--blanco-laca-rgb),.25)}
 .mapa-oscuro .mapa-recuadro-t{fill:rgba(var(--blanco-laca-rgb),.55)}
 
@@ -64,12 +159,13 @@
 .mapa-laca .mapa-leyenda{color:rgba(var(--blanco-laca-rgb),.7)}
 .mapa-leyenda span{display:inline-flex;align-items:center;gap:6px}
 .mapa-leyenda i{display:inline-block;width:14px;height:14px;border-radius:4px;border:1px solid var(--linea)}
-.mapa-leyenda .mapa-z.t0{background:var(--neutro-1)}
-.mapa-leyenda .mapa-z.t1{background:rgba(var(--azul-rgb),.16)}
-.mapa-leyenda .mapa-z.t2{background:rgba(var(--azul-rgb),.34)}
-.mapa-leyenda .mapa-z.t3{background:rgba(var(--azul-rgb),.56)}
-.mapa-leyenda .mapa-z.t4{background:rgba(var(--azul-rgb),.80)}
-.mapa-leyenda .mapa-z.t5{background:var(--azul-osc)}
+.mapa-leyenda .mapa-z.t0{background:var(--mapa-t0)}
+.mapa-leyenda .mapa-z.t1{background:var(--mapa-t1)}
+.mapa-leyenda .mapa-z.t2{background:var(--mapa-t2)}
+.mapa-leyenda .mapa-z.t3{background:var(--mapa-t3)}
+.mapa-leyenda .mapa-z.t4{background:var(--mapa-t4)}
+.mapa-leyenda .mapa-z.t5{background:var(--mapa-t5)}
+.mapa-leyenda .mapa-marca-i{background:rgba(var(--laca-rgb),.12);border:2px solid var(--laca);box-shadow:0 0 0 2px var(--papel)}
 .mapa-leyenda-q i{border-color:rgba(var(--blanco-laca-rgb),.2)}
 .mapa-leyenda .mapa-q.vacio{background:var(--laca-3)}
 .mapa-leyenda .mapa-q.con{background:rgba(var(--amarillo-rgb),.5)}
@@ -82,6 +178,7 @@
 .mapa-total b{font-family:'JetBrains Mono',monospace;font-size:18px;color:var(--laca)}
 /* La nota de un total en rango («5–7»), pegada a él: es su explicación. */
 .mapa-nota{font-size:12px;line-height:1.4;margin:calc(-1 * var(--e2)) 0 var(--e3)}
+.mapa-nota-otros{font-size:12px;line-height:1.4;margin:0 0 var(--e2)}
 .mapa-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--e2);margin-bottom:var(--e3)}
 .mapa-kpis div{background:var(--laca);color:var(--blanco-laca);border-radius:12px;padding:var(--e3);display:flex;flex-direction:column;gap:2px}
 .mapa-kpis b{font-family:'JetBrains Mono',monospace;font-size:20px;color:var(--amarillo)}
@@ -103,12 +200,15 @@
 
 /* A 880 px o menos (la misma cifra del menú del CRM): el mapa arriba y la
    lista debajo, y la lista sin su propio desplazamiento, que en un celular
-   atrapa el dedo. */
+   atrapa el dedo. Los botones del zoom, de 44 px como todo lo que se toca. */
 @media (max-width:880px){
   .mapa-cuerpo{grid-template-columns:minmax(0,1fr)}
   .mapa-svg{max-height:none}
   .mapa-lista{max-height:none;overflow:visible}
   .mapa-vista{min-height:44px}
+  .mapa-zb,.mapa-buscar{min-height:44px}
+  .mapa-zb{min-width:44px}
+  .mapa-busca{flex-basis:100%}
   .mapa-sin li{flex-direction:column;align-items:stretch}
   .mapa-sin li .btn{min-height:44px;justify-content:center}
 }

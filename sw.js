@@ -2462,8 +2462,8 @@ const ARCHIVOS = [
      El mapa en sí (el JSON de panel/mapa/, ~570 KB) NO va aquí: se pide al abrir
      la pestaña y queda guardado esa vez. */
   'panel/mapa-lugares.js?v=143',
-  'panel/mapa-clientes.js?v=143',
-  'panel/mapa-clientes.css?v=143'
+  'panel/mapa-clientes.js?v=145',
+  'panel/mapa-clientes.css?v=145'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {

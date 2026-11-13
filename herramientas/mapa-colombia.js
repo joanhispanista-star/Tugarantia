@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /* ===========================================================================
- * MAPA-COLOMBIA — arma panel/mapa/colombia-2026-11.json, el mapa de la
+ * MAPA-COLOMBIA — arma panel/mapa/colombia-2026-11b.json, el mapa de la
  * pestaña «🗺️ Mapa» del CRM (panel/mapa-clientes.js).
- * 9 de noviembre de 2026.
+ * 9 de noviembre de 2026. 13-nov: cada municipio trae dónde va su nombre
+ * (`p`) y cada departamento sus huecos (`h`); por eso el archivo cambió de
+ * nombre (la «b»): ver panel/mapa/FUENTES.md.
  *
  *   node herramientas/mapa-colombia.js \
  *     --formas <geoBoundaries-COL-ADM2_simplified.geojson> \
  *     --tabla  <COL_AdminBoundaries_TabularData.xlsx> \
- *     [--salida panel/mapa/colombia-2026-11.json]
+ *     [--salida panel/mapa/colombia-2026-11b.json]
  *
  * Las dos descargas NO viven en el repo (pesan 10,6 MB y no son nuestras): se
  * pasan por argumento. De dónde salen, con qué licencia y qué se les hizo está
@@ -317,6 +319,118 @@ function douglasPeucker(xs, ys, tol) {
   return guardo;
 }
 
+/* ------------------------------------------------------------ las etiquetas */
+/* 13-nov-2026 — DÓNDE VA EL NOMBRE DE CADA MUNICIPIO. Joan: «no se ven los
+   municipios». El centro de la caja no sirve: en un municipio en forma de C
+   (o de bota, como Bogotá con Sumapaz) cae afuera, encima del vecino. Se usa
+   el polo de inaccesibilidad: el punto de adentro más lejos de todo borde, el
+   centro del círculo más grande que cabe. Se busca partiendo la caja en
+   celdas y abriendo primero la que más promete, hasta que ninguna pueda
+   mejorar en más de `precision` unidades. Los anillos van con la regla par-
+   impar (un hueco dentro de un municipio es afuera), así que sirve igual con
+   islas y con agujeros. */
+function distanciaAlBorde(x, y, anillos) {
+  let dentro = false, min = Infinity;
+  for (const r of anillos) {
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      const a = r[i], b = r[j];
+      if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) dentro = !dentro;
+      let px = a[0], py = a[1];
+      const dx = b[0] - px, dy = b[1] - py;
+      if (dx || dy) {
+        const t = ((x - px) * dx + (y - py) * dy) / (dx * dx + dy * dy);
+        if (t > 1) { px = b[0]; py = b[1]; } else if (t > 0) { px += dx * t; py += dy * t; }
+      }
+      const d = (x - px) * (x - px) + (y - py) * (y - py);
+      if (d < min) min = d;
+    }
+  }
+  return (dentro ? 1 : -1) * Math.sqrt(min);
+}
+function poloDeInaccesibilidad(anillos, precision) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  anillos.forEach(r => r.forEach(([x, y]) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }));
+  const lado = Math.min(x1 - x0, y1 - y0);
+  if (!(lado > 0)) return { x: x0, y: y0, d: 0 };
+  const celda = (x, y, h) => { const d = distanciaAlBorde(x, y, anillos); return { x, y, h, d, max: d + h * Math.SQRT2 }; };
+  /* Un montón binario por `max`: la celda que más promete sale primero. */
+  const monton = [];
+  const meter = c => {
+    monton.push(c);
+    for (let i = monton.length - 1; i > 0;) {
+      const p = (i - 1) >> 1;
+      if (monton[p].max >= monton[i].max) break;
+      [monton[p], monton[i]] = [monton[i], monton[p]]; i = p;
+    }
+  };
+  const sacar = () => {
+    const top = monton[0], ult = monton.pop();
+    if (monton.length) {
+      monton[0] = ult;
+      for (let i = 0; ;) {
+        const a = 2 * i + 1, b = a + 1;
+        let m = i;
+        if (a < monton.length && monton[a].max > monton[m].max) m = a;
+        if (b < monton.length && monton[b].max > monton[m].max) m = b;
+        if (m === i) break;
+        [monton[m], monton[i]] = [monton[i], monton[m]]; i = m;
+      }
+    }
+    return top;
+  };
+  const h = lado / 2;
+  for (let x = x0; x < x1; x += lado) for (let y = y0; y < y1; y += lado) meter(celda(x + h, y + h, h));
+  /* El primer candidato: el centro del anillo más grande (casi siempre adentro). */
+  const mayor = anillos.reduce((m, r) => (r.length > m.length ? r : m), anillos[0]);
+  let mejor = celda(mayor.reduce((t, p) => t + p[0], 0) / mayor.length, mayor.reduce((t, p) => t + p[1], 0) / mayor.length, 0);
+  const centro = celda((x0 + x1) / 2, (y0 + y1) / 2, 0);
+  if (centro.d > mejor.d) mejor = centro;
+  while (monton.length) {
+    const c = sacar();
+    if (c.d > mejor.d) mejor = c;
+    if (c.max - mejor.d <= precision) continue;
+    const m = c.h / 2;
+    meter(celda(c.x - m, c.y - m, m)); meter(celda(c.x + m, c.y - m, m));
+    meter(celda(c.x - m, c.y + m, m)); meter(celda(c.x + m, c.y + m, m));
+  }
+  return mejor;
+}
+
+/* 13-nov-2026 — LOS HUECOS. Al abrir Cundinamarca, Bogotá quedaba como un
+   hueco blanco justo donde están la mayoría de los clientes: es su propio
+   departamento y la vista de un departamento solo pintaba los suyos. Un
+   municipio es «hueco» de otro departamento cuando DOS TERCIOS o más de su
+   borde los comparte con municipios de ese departamento: visto desde allá,
+   es una muesca en blanco. Con la mitad salían 43, casi todos municipios de
+   frontera que no se ven como hueco; con dos tercios quedan seis, los que de
+   verdad se meten en el otro (Bogotá en Cundinamarca, 83 %; Covarachía en
+   Santander; González en Norte de Santander; Gámbita en Boyacá; Quinchía en
+   Caldas; Jamundí en el Cauca). Se mide con los bordes ya simplificados (los
+   mismos que se dibujan). */
+const UMBRAL_HUECO = 2 / 3;
+function huecos(refs, arcosQ, deptoDeForma) {
+  const largo = arcosQ.map(a => {
+    let t = 0;
+    for (let i = 1; i < a.length; i++) t += Math.hypot(a[i][0] - a[i - 1][0], a[i][1] - a[i - 1][1]);
+    return t;
+  });
+  const usan = arcosQ.map(() => new Set());
+  refs.forEach((as, f) => as.forEach(r => r.forEach(({ a }) => usan[a].add(f))));
+  const r = [];
+  refs.forEach((as, f) => {
+    const mio = deptoDeForma(f);
+    let total = 0;
+    const con = new Map();
+    as.forEach(an => an.forEach(({ a }) => {
+      total += largo[a];
+      const otros = new Set([...usan[a]].filter(g => g !== f).map(deptoDeForma).filter(d => d !== mio));
+      otros.forEach(d => con.set(d, (con.get(d) || 0) + largo[a]));
+    }));
+    con.forEach((l, d) => { if (total > 0 && l / total >= UMBRAL_HUECO) r.push({ f, depto: d, parte: l / total }); });
+  });
+  return r;
+}
+
 function construir(formasGeo, filas, casado, tolerancia) {
   const topo = topologia(formasGeo);
   const deptoDeForma = f => filas[casado.forma[f]].ADM1_PCODE.slice(2);
@@ -417,10 +531,17 @@ function construir(formasGeo, filas, casado, tolerancia) {
     return d;
   };
 
+  /* `p`: dónde va el nombre (ver poloDeInaccesibilidad), en enteros como todo. */
   const municipios = formasGeo.map((f, i) => {
     const r = filas[casado.forma[i]];
-    return { c: r.ADM2_PCODE.slice(2), n: r.ADM2_ES, d: ruta(topo.refs[i].map(puntosDe)) };
+    const anillos = topo.refs[i].map(puntosDe).filter(a => a.length >= 3);
+    const polo = poloDeInaccesibilidad(anillos, 1);
+    return { c: r.ADM2_PCODE.slice(2), n: r.ADM2_ES, p: [Math.round(polo.x), Math.round(polo.y)], d: ruta(anillos) };
   }).sort((a, b) => a.c.localeCompare(b.c));
+  const codigoDe = f => filas[casado.forma[f]].ADM2_PCODE.slice(2);
+  const losHuecos = huecos(topo.refs, arcosQ, deptoDeForma)
+    .map(h => ({ c: codigoDe(h.f), n: filas[casado.forma[h.f]].ADM2_ES, depto: h.depto, parte: h.parte }))
+    .sort((a, b) => a.depto.localeCompare(b.depto) || a.c.localeCompare(b.c));
 
   /* Departamentos: la unión de sus municipios. Un arco que aparece dos veces
      dentro del mismo departamento es un borde interno y se va; los que quedan
@@ -455,7 +576,8 @@ function construir(formasGeo, filas, casado, tolerancia) {
     const dd = ruta(anillos.map(puntosDe), b);
     return { c: d, n: nombresDepto.get(d), m: filas.filter(r => r.ADM1_PCODE.slice(2) === d).length, d: dd, b };
   });
-  return { municipios, departamentos, ancho, alto, recuadro, puntos: arcosQ.reduce((t, a) => t + a.length, 0), vecinos: topo.vecinos };
+  departamentos.forEach(d => { d.h = losHuecos.filter(h => h.depto === d.c).map(h => h.c); });
+  return { municipios, departamentos, ancho, alto, recuadro, huecos: losHuecos, puntos: arcosQ.reduce((t, a) => t + a.length, 0), vecinos: topo.vecinos };
 }
 
 /* Los nombres que la tabla escribió sin tilde, y el corto para la pantalla. */
@@ -469,7 +591,7 @@ function main() {
     console.error('uso: node herramientas/mapa-colombia.js --formas <geojson de geoBoundaries> --tabla <xlsx de HDX> [--salida <json>] [--tolerancia 1.2]');
     process.exit(2);
   }
-  const salida = a.salida || path.join(__dirname, '..', 'panel', 'mapa', 'colombia-2026-11.json');
+  const salida = a.salida || path.join(__dirname, '..', 'panel', 'mapa', 'colombia-2026-11b.json');
   const tolerancia = Number(a.tolerancia) || 1.2;
   const geo = JSON.parse(fs.readFileSync(a.formas, 'utf8'));
   const hojas = leerXlsx(fs.readFileSync(a.tabla));
@@ -522,15 +644,20 @@ function main() {
     if (CORTO_DEPTO[d.c]) d.corto = CORTO_DEPTO[d.c];
   });
   const json = {
-    version: '2026-11',
+    version: '2026-11b',
     nota: 'Generado por herramientas/mapa-colombia.js. Ver panel/mapa/FUENTES.md.',
     creditos: 'Límites: DANE, vía geoBoundaries (CC BY 4.0) y OCHA/HDX (CC BY-IGO)',
     proyeccion: 'plate carrée ajustada a 4° N, ' + ESCALA + ' unidades por grado de latitud; San Andrés y Providencia en recuadro a ×' + RECUADRO_X4,
     caja: [mapa.ancho, mapa.alto],
     recuadro: { x: mapa.recuadro.x, y: mapa.recuadro.y, w: mapa.recuadro.w, h: mapa.recuadro.h, depto: '88' },
-    departamentos: mapa.departamentos.map(d => Object.assign({ c: d.c, n: d.n }, d.corto ? { corto: d.corto } : {}, { m: d.m, b: d.b, d: d.d })),
+    /* `h`: los municipios de OTRO departamento que, vistos desde este, son
+       un hueco (ver huecos()). Solo va cuando hay alguno. */
+    departamentos: mapa.departamentos.map(d => Object.assign({ c: d.c, n: d.n }, d.corto ? { corto: d.corto } : {}, { m: d.m, b: d.b },
+      d.h.length ? { h: d.h } : {}, { d: d.d })),
     municipios: mapa.municipios
   };
+  console.log('huecos (municipio → departamento desde el que se ve como hueco, parte de su borde):');
+  mapa.huecos.forEach(h => console.log('  ' + h.c + ' ' + h.n + ' → ' + h.depto + ' ' + Math.round(h.parte * 100) + ' %'));
   const texto = JSON.stringify(json);
   fs.mkdirSync(path.dirname(salida), { recursive: true });
   fs.writeFileSync(salida, texto);
@@ -540,4 +667,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { leerXlsx, variantes, casar, topologia, construir, distanciaUno };
+module.exports = { leerXlsx, variantes, casar, topologia, construir, distanciaUno, poloDeInaccesibilidad, distanciaAlBorde, huecos, UMBRAL_HUECO };

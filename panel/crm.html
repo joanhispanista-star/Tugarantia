@@ -50,7 +50,7 @@
 <link rel="stylesheet" href="../app/chat.css">
 <!-- 9-nov-2026 — la pestaña «🗺️ Mapa» (panel/mapa-clientes.js). Sin colores
      propios: se pinta con los tokens de esta página. -->
-<link rel="stylesheet" href="mapa-clientes.css?v=143">
+<link rel="stylesheet" href="mapa-clientes.css?v=145">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -1010,7 +1010,7 @@
     <!-- 9-nov-2026 — EL MAPA DE TUS CLIENTES, pedido de Joan con maquetas: la
          opción 1 (Departamentos) más la 3 (Conquistas). Zonas, nunca puntos: sale
          de la ciudad de cada ficha, no del GPS. Lo pinta panel/mapa-clientes.js,
-         que solo LEE la cartera; el mapa (panel/mapa/colombia-2026-11.json) se
+         que solo LEE la cartera; el mapa (panel/mapa/colombia-2026-11b.json) se
          baja al abrir la pestaña la primera vez, no al abrir el CRM. -->
     <section class="view" id="v-mapa">
       <div class="ph"><div><h1>Mapa<span class="dot">.</span></h1><div class="sub">Dónde están tus clientes, por departamento y municipio · y los municipios que ya conquistaste</div></div></div>
@@ -25871,7 +25871,7 @@ setTimeout(function(){ if(!window.HistorialesAuto){ var b=document.getElementByI
      nube-crm.js: no hace nada al cargar, y lo que usa (DB, PUENTE, verCliente)
      ya existe cuando Joan toca la pestaña. -->
 <script src="mapa-lugares.js?v=143"></script>
-<script src="mapa-clientes.js?v=143"></script>
+<script src="mapa-clientes.js?v=145"></script>
 <script>
 /* 9-nov-2026 — la RECETA E del mapa: si los dos archivos no llegaron (un
    service worker viejo, sin señal), la pestaña lo dice en vez de quedar vacía.

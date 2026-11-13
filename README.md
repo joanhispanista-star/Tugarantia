@@ -490,14 +490,24 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         «1–2», y para que no se despeje la cifra, un total con
                         una zona así va en rango («Huila 5–7») y las listas se
                         ordenan solo por lo que se ve. Solo LEE la cartera.
-                        Hoja: mapa-clientes.css.
+                        13-nov: los nombres de los municipios en el mapa (en
+                        un departamento abierto, los que tienen clientes
+                        siempre; en Colombia, los que caben), el globito al
+                        pasar el ratón o tocar, los municipios con clientes
+                        marcados en Colombia, Bogotá dentro de Cundinamarca,
+                        zoom (＋/－, rueda, pellizco, arrastrar, «Volver a ver
+                        todo») que no roba el scroll, y «Buscar municipio…».
+                        Hoja: mapa-clientes.css (bordes y escala medidos).
   mapa-lugares.js       De la «Ciudad» que escribió el cliente, su municipio
                         (código DIVIPOLA). Un nombre repetido sin departamento
                         («Mosquera») no se adivina: queda sin ubicar, con el
                         enlace a su ficha.
-  mapa/                 colombia-2026-11.json, el mapa (1.122 municipios, 570 KB):
-                        se baja al abrir la pestaña, NO va en la precarga del
-                        service worker. De dónde sale y su licencia: FUENTES.md.
+  mapa/                 colombia-2026-11b.json, el mapa (1.122 municipios, 590 KB,
+                        con el punto del nombre de cada municipio y los huecos
+                        de cada departamento): se baja al abrir la pestaña, NO
+                        va en la precarga del service worker. De dónde sale y
+                        su licencia: FUENTES.md. colombia-2026-11.json es el de
+                        v144: se queda mientras haya un CRM v144 abierto.
                         Pruebas: pruebas/mapa-clientes.test.js.
   subir.html            Ajustes → Avanzado (plegado). Lo que todavía es a mano:
                         entrar con el correo la primera vez, traer lo hecho en el
