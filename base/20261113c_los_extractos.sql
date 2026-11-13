@@ -311,6 +311,14 @@ begin
   -- encabezado: el reparto de los 500 MB). Va justo antes de escribir y
   -- después de «ya estaba»: un reintento de lo que YA entró no es escritura
   -- nueva, y contestarle «no podemos recibirlo» sería mentirle.
+  -- EN FILA (remate del 13-nov): pg_total_relation_size no bloquea nada, así
+  -- que N cuentas subiendo a la vez miraban el mismo tamaño y se pasaban del
+  -- tope unos N × 3 MB. Los topes por persona ya aguantaban (anotar_fallo
+  -- bloquea la fila 'ex:' || celular); el total no. Este candado vive hasta
+  -- que termina la transacción, o sea hasta después del insert: la siguiente
+  -- subida mira el tamaño con este archivo ya adentro. Las subidas son pocas
+  -- y cortas, y ponerlas en fila no frena nada más de la base.
+  perform pg_advisory_xact_lock(hashtext('extracto_subir'));
   if pg_total_relation_size('public.extracto_archivos') > 50 * 1024 * 1024 then
     return jsonb_build_object('ok', false, 'motivo', 'lleno');
   end if;
@@ -696,9 +704,9 @@ select 9, 'la prueba no dejó nada',
        and not exists (select 1 from public.extracto_archivos where celular = '3009991113')
        and not exists (select 1 from public.intentos_fallidos where cedula = 'ex:3009991113')
 union all
-select 10, 'subir tiene su cortacircuito: pasados 50 MB en extracto_archivos no escribe nada (el reparto de los 500 MB)',
+select 10, 'subir tiene su cortacircuito, en fila: pasados 50 MB en extracto_archivos no escribe nada (el reparto de los 500 MB), ni con muchas cuentas subiendo a la vez',
        pg_get_functiondef('public.extracto_subir(text)'::regprocedure)
-         like '%if pg_total_relation_size(''public.extracto_archivos'') > 50 * 1024 * 1024 then%return jsonb_build_object(''ok'', false, ''motivo'', ''lleno'');%insert into public.extracto_archivos%'
+         like '%perform pg_advisory_xact_lock(hashtext(''extracto_subir''));%if pg_total_relation_size(''public.extracto_archivos'') > 50 * 1024 * 1024 then%return jsonb_build_object(''ok'', false, ''motivo'', ''lleno'');%insert into public.extracto_archivos%'
 union all
 select 11, 'el tope que Joan ve en 📥 Registrados es el mismo del cortacircuito (50 MB)',
        pg_get_functiondef('public.extracto_resumen(text)'::regprocedure)

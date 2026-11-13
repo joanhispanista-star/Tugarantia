@@ -778,9 +778,17 @@ describe('9 · la política, los términos y la versión de la autorización cua
 describe('10 · el SQL: lo que se puede comprobar leyéndolo', () => {
   const SQL = leer('base/20261113c_los_extractos.sql');
   const codigo = SQL.replace(/--[^\n]*/g, '');
-  test('va al final, y se para en su paso 0 si falta lo de antes', () => {
+  test('va después de lo que había y de lo que copia, y se para en su paso 0 si falta lo de antes', () => {
+    /* 13-nov-2026 (remate) — exigía ser la ÚLTIMA de base/, y eso se rompía el
+       día que cualquier rama agregara una migración después. Lo que importa es
+       que vaya después de la última que había (20261113b) y de su modelo. */
     const base = fs.readdirSync(path.join(RAIZ, 'base')).filter(f => /^\d{8}.*\.sql$/.test(f)).sort();
-    assert.equal(base[base.length - 1], '20261113c_los_extractos.sql');
+    const yo = base.indexOf('20261113c_los_extractos.sql');
+    assert.ok(yo >= 0);
+    ['20261103_el_fondo_de_pensiones.sql', '20261113_falta_tu_cedula.sql', '20261113b_propuesta_quincenal_a_cuotas.sql'].forEach(f => {
+      assert.ok(base.indexOf(f) >= 0, 'falta ' + f);
+      assert.ok(base.indexOf(f) < yo, f + ' va después de los extractos');
+    });
     const paso0 = codigo.slice(0, codigo.indexOf('end $$;') + 7);
     assert.match(paso0, /to_regprocedure\('public\.celular_del_equipo_de_sesion\(\)'\) is null[\s\S]*?raise exception/);
     assert.ok(codigo.indexOf('do $$') < codigo.search(/create (table|or replace function|index|trigger)/));
@@ -815,8 +823,31 @@ describe('10 · el SQL: lo que se puede comprobar leyéndolo', () => {
     assert.match(resumen, /'tope', 50 \* 1024 \* 1024/);
     /* Los topes por persona, los mismos de la pantalla. */
     assert.match(subir, /n_pdf >= 3\) or \(tipo <> 'pdf' and n_img >= 5\)/);
-    assert.match(subir, /> 12582912/);
+    /* Antes era /> 12582912/, que también casaba con «> 125829120» (diez veces
+       más): la mutación M15 del revisor sobrevivía. Ahora, la frase entera. */
+    assert.match(subir, /if total \+ octet_length\(datos\) > 12582912 then\s*return jsonb_build_object\('ok', false, 'motivo', 'sin_espacio'\);/);
+    /* EN FILA: el candado antes de mirar el tamaño total (si no, N cuentas a la
+       vez se pasan del tope). */
+    const candado = subir.indexOf("perform pg_advisory_xact_lock(hashtext('extracto_subir'));");
+    assert.ok(candado > subir.indexOf("'ya_estaba', true") && candado < corte, 'el cortacircuito mira el tamaño sin hacer fila');
     assert.equal(EX.LIMITES.pdf, 3); assert.equal(EX.LIMITES.imagenes, 5); assert.equal(EX.LIMITES.totalBytes, 12582912);
+  });
+  /* 13-nov-2026 (remate) — cuatro reglas del cliente que solo cazaban la
+     autocomprobación al aplicar el SQL o la prueba de PostgreSQL, que no se
+     corre con Joan en el PC (mutaciones M14, M16, M18 y M27 del revisor). Se
+     leen aquí, en el cuerpo de cada función. */
+  test('las reglas del cliente, leídas en cada función: sin autorización no sube, quita solo lo suyo, lo suyo vuelve sin el contenido, sin versión no firma', () => {
+    const cuerpo = n => codigo.split(new RegExp('create or replace function public\\.' + n + '\\('))[1].split(/create or replace function/)[0];
+    const subir = cuerpo('extracto_subir');
+    const sinAut = subir.search(/if not exists \(select 1 from public\.extracto_autorizaciones\s+where celular = cel and revocada_en is null\) then\s*return jsonb_build_object\('ok', false, 'motivo', 'sin_autorizacion'\);/);
+    assert.ok(sinAut > 0 && sinAut < subir.indexOf('decode(b64'), 'subir no exige la autorización antes de leer el archivo');
+    assert.match(cuerpo('extracto_quitar'), /delete from public\.extracto_archivos where id = p_id and celular = cel;/, 'quitar no filtra por el celular de la sesión: borraría lo de otro');
+    assert.equal(/delete from public\.extracto_archivos where id = p_id;/.test(cuerpo('extracto_quitar')), false);
+    const mia = cuerpo('extracto_mia');
+    assert.equal(/datos|encode\(|base64/.test(mia.replace(/r\.datos ->> 'ocupacion'/g, '')), false, 'lo suyo vuelve con el contenido del archivo');
+    const aut = cuerpo('extracto_autorizar');
+    assert.match(aut, /if v is null or v !~ '\^\[0-9\]\{4\}-\[0-9\]\{2\}-\[0-9\]\{2\}\$' then\s*return jsonb_build_object\('ok', false, 'motivo', 'version'\);/, 'autorizar firma sin versión');
+    assert.ok(aut.indexOf("'motivo', 'version'") < aut.indexOf('insert into public.extracto_autorizaciones'));
   });
   test('el reparto de los 500 MB del encabezado es el de las migraciones, y la cuenta da', () => {
     const filas = [...SQL.matchAll(/^--\s+·\s+(\w+)\s+(\d+) MB\s+\((\d{8}[a-z]?|este archivo)/gm)].map(m => ({ tabla: m[1], mb: Number(m[2]), de: m[3] }));

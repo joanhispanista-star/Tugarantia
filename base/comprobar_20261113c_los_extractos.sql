@@ -65,10 +65,10 @@ select 6, 'Al borrar una cuenta se borran sus extractos (el disparador existe)',
        exists (select 1 from pg_trigger t where not t.tgisinternal and t.tgname = 'extracto_al_borrar_la_cuenta'),
        'sin él, una cuenta borrada a mano en Supabase dejaría sus extractos; «🗑 Borrar sus extractos» del CRM sigue sirviendo'
 union all
-select 7, 'Subir tiene su cortacircuito de 50 MB, y el tope que ves en 📥 Registrados es el mismo',
+select 7, 'Subir tiene su cortacircuito de 50 MB, en fila, y el tope que ves en 📥 Registrados es el mismo',
        case when to_regprocedure('public.extracto_subir(text)') is null or to_regprocedure('public.extracto_resumen(text)') is null then false
             else pg_get_functiondef('public.extracto_subir(text)'::regprocedure)
-                   like '%if pg_total_relation_size(''public.extracto_archivos'') > 50 * 1024 * 1024 then%'
+                   like '%perform pg_advisory_xact_lock(hashtext(''extracto_subir''));%if pg_total_relation_size(''public.extracto_archivos'') > 50 * 1024 * 1024 then%'
                  and pg_get_functiondef('public.extracto_resumen(text)'::regprocedure) like '%''tope'', 50 * 1024 * 1024%' end,
        'si sale false se pegó otra versión: los extractos podrían llenar la base y dejarla de solo lectura'
 union all
