@@ -654,13 +654,41 @@ describe('9 · la política, los términos y la versión de la autorización cua
       .forEach(p => assert.ok(s.toLowerCase().indexOf(p.toLowerCase()) >= 0, 'la sección no dice «' + p + '»'));
     assert.equal(/no se guardan|no las guardamos/.test(s), false);
   });
-  test('«no hacemos perfiles» dice la verdad: decide una persona, ningún programa califica, y la garantía no lee los extractos', () => {
+  /* 13-nov-2026 (remate) — la primera versión de esta prueba FIJABA la frase
+     falsa «ningún programa te pone una calificación de riesgo»: el Panel pone
+     solo un «Riesgo (sugerido)» (riesgoCliente) y PlataChat contesta sola una
+     solicitud vencida (resolver_vencidas). Ahora la prueba amarra el texto al
+     código: si el código las tiene, la política las nombra; si alguien las
+     quita, la prueba dice qué quitar de la política. */
+  test('«no hacemos perfiles» dice la verdad: decide una persona, y nombra lo que se calcula solo (la garantía, la señal de riesgo del Panel y la propuesta sola de PlataChat)', () => {
     const para = visible(leer('legal/privacidad.html').split('<section id="para">')[1].split('</section>')[0]);
     assert.equal(/no los usamos para hacer perfiles/.test(para), false, 'sigue la frase de antes');
-    assert.match(para, /quien decide si te prestamos es una persona, quien dirige el negocio/);
-    assert.match(para, /ningún programa te pone una calificación de riesgo/);
-    assert.match(para, /esa cuenta no lee tu historia laboral ni tus extractos/);
+    assert.equal(/ningún programa te pone una calificación de riesgo/.test(visible(leer('legal/privacidad.html'))), false,
+      'la política dice que ningún programa califica, y riesgoCliente lo hace');
+    assert.match(para, /Quien decide si te prestamos es una persona, quien dirige el negocio/);
+    assert.match(para, /Hay tres cosas que se calculan solas/);
+    /* La señal de riesgo: existe en el CRM, con estas cuatro palabras y solo con prórrogas y mora. */
+    const crm = leer('panel/crm.html');
+    const i = crm.indexOf('function riesgoCliente(s){');
+    assert.ok(i > 0, 'riesgoCliente ya no existe: quita «Una señal de riesgo» del punto 4 y de «Lo que cambió»');
+    const riesgo = crm.slice(i, crm.indexOf('\n}', i));
+    ['Nuevo', 'Bajo', 'Medio', 'Alto'].forEach(t => assert.match(riesgo, new RegExp("txt:'" + t + "'")));
+    assert.deepEqual([...new Set(riesgo.match(/[A-Za-z]+(?=\()/g))].sort(),
+      ['diasMora', 'estadoPrestamo', 'filter', 'if', 'riesgoCliente', 'some', 'totalProrrogasCliente'],
+      'riesgoCliente mira algo más que las prórrogas y la mora: la política dice que no');
+    assert.match(para, /Una señal de riesgo que el sistema con que manejamos el negocio le muestra a quien decide: nuevo, bajo, medio o alto, hecha solo con tus prórrogas y tus atrasos/);
+    assert.match(para, /no decide sola, no cambia tu garantía ni tu cupo/);
+    /* La propuesta sola de PlataChat: existe en la base, y aceptarla no desembolsa. */
+    assert.match(leer('base/20261005_platachat_solicitud.sql'), /create or replace function public\.resolver_vencidas\(\)/);
+    assert.match(para, /En PlataChat, la propuesta que sale sola si nadie contesta tu solicitud antes de la hora que te muestra la app/);
+    assert.match(para, /Aceptarla no te entrega la plata: el desembolso lo hace una persona/);
+    /* Y lo de «ningún programa» se queda donde es verdad. */
+    assert.match(para, /Ninguna de esas tres cuentas lee tu historia laboral ni tus extractos: esos los mira una persona, y ningún programa los lee ni los califica/);
+    assert.equal(/extracto|pension|historia/i.test(riesgo), false, 'la señal de riesgo lee la historia laboral o los extractos');
     assert.match(para, /Solo si nos das esa otra autorización aparte: mirar tus extractos/);
+    /* «Lo que cambió» dice lo mismo, no la frase de antes. */
+    const cambio = P.split('Lo que cambió el ' + PUBLICACION_EN_PALABRAS + ':')[1].split('Lo que cambió el')[0];
+    assert.match(cambio, /te contamos las tres cosas que se calculan solas: tu garantía, una señal de riesgo hecha solo con tus prórrogas y tus atrasos, que no decide sola, y en PlataChat la propuesta que sale sola/);
   });
   test('los términos: los extractos tampoco suben la garantía prestada, y la app lo dice antes de que los dé', () => {
     assert.match(T, /Los extractos de tus cuentas, si nos los das, tampoco la cambian/);

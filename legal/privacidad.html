@@ -137,9 +137,11 @@ td.ob{white-space:nowrap;color:var(--gris)}
        que anota el dueño (dos campos: cuánto le entra al mes y si es regular) vive en la ficha
        (panel/extractos-crm.js), y la app del equipo no lo trae.
        Y EL PUNTO 4 DICE LA VERDAD: decía «no los usamos para hacer perfiles», a secas. Lo que
-       pasa es que quien decide una solicitud es una persona, y ningún programa le pone a nadie
-       una calificación de riesgo; lo único que se calcula solo es la garantía, con las reglas
-       de los términos, y esa cuenta no lee la historia laboral ni los extractos.
+       pasa es que quien decide una solicitud es una persona, y que se calculan solas tres
+       cosas, que ahora se nombran: la garantía (con las reglas de los términos), el «Riesgo
+       (sugerido)» del Panel (riesgoCliente: solo prórrogas y mora) y, en PlataChat, la
+       propuesta que la base manda sola si nadie contesta a tiempo (resolver_vencidas), que no
+       desembolsa. Ninguna de las tres lee la historia laboral ni los extractos.
        La fecha es la de PUBLICACIÓN (regla del 15-oct): si el lote sale otro día, se mueve
        aquí, en «Lo que cambió», en «rige desde», en los términos y en VERSION_AUTORIZACION de
        app/extractos.js (pruebas/los-extractos.test.js las amarra). Se publica sin esperar al
@@ -563,17 +565,39 @@ td.ob{white-space:nowrap;color:var(--gris)}
         solicitudes (punto 2).</li>
     </ol>
     <!-- 13-nov-2026 — decía «no los usamos para hacer perfiles ni venderlos a centrales de
-         riesgo», a secas. Lo verdadero, con lo que de verdad pasa: la decisión la toma una
-         persona; ningún programa pone una calificación de riesgo; lo único que se calcula solo
-         es la garantía (app/motor.js, con las reglas de los términos), y esa cuenta no lee la
-         historia laboral ni los extractos (no entran en datosKycDe, app/puente.js). -->
+         riesgo», a secas. La primera corrección del mismo día decía «ningún programa te pone
+         una calificación de riesgo», y era falso por dos lados: el Panel le pone solo a cada
+         cliente un «Riesgo (sugerido)» (riesgoCliente, panel/crm.html: Nuevo, Bajo, Medio o
+         Alto, con las prórrogas y la mora de sus créditos; sale en la ficha y en la lista de
+         clientes), y en PlataChat la base contesta sola la solicitud que nadie contestó a
+         tiempo (resolver_vencidas, base/20261005_platachat_solicitud.sql: lo pedido con un
+         tope, o recortado al cupo; la espera es politica_app.espera_minutos, 60 de fábrica, y
+         la app le muestra la hora al cliente). Aceptar esa propuesta no desembolsa
+         (aceptar_propuesta_platachat): la plata la entrega una persona. Ahora se nombran las
+         tres cosas que se calculan solas, y «ningún programa los lee ni los califica» se queda
+         solo para la historia laboral y los extractos, donde es verdad: no entran en la
+         garantía (datosKycDe, app/puente.js) ni en riesgoCliente. Si el dueño decide quitar la
+         etiqueta del Panel, se quita también de aquí: pruebas/los-extractos.test.js, grupo 9,
+         amarra el texto a riesgoCliente y a resolver_vencidas. -->
     <p><b>Para nada más.</b> No vendemos tus datos, no los cedemos a terceros con fines
       comerciales, no te mandamos publicidad de otros, y no se los vendemos a centrales de
-      riesgo. Tampoco hacemos perfiles para decidir por ti: quien decide si te prestamos es una
-      persona, quien dirige el negocio, mirando lo que nos diste, y ningún programa te pone una
-      calificación de riesgo. Lo único que se calcula solo es tu garantía, con las reglas de los
-      términos (lo que has pagado y los datos que nos diste), y esa cuenta no lee tu historia
-      laboral ni tus extractos: esos los mira una persona.</p>
+      riesgo. Quien decide si te prestamos es una persona, quien dirige el negocio, mirando lo
+      que nos diste. Hay tres cosas que se calculan solas, y te las contamos:</p>
+    <ul>
+      <li><b>Tu garantía</b> (y tu nivel, que es su tamaño), con las reglas de los términos: lo
+        que has pagado y los datos que nos diste.</li>
+      <li><b>Una señal de riesgo</b> que el sistema con que manejamos el negocio le muestra a
+        quien decide: nuevo, bajo, medio o alto, hecha solo con tus prórrogas y tus atrasos en
+        los créditos que te hemos hecho. Es una sugerencia: no decide sola, no cambia tu
+        garantía ni tu cupo, y no se la damos a nadie de fuera. Si quieres saber cuál es la tuya
+        y por qué, pregúntanos por el chat.</li>
+      <li><b>En PlataChat, la propuesta que sale sola</b> si nadie contesta tu solicitud antes
+        de la hora que te muestra la app: lo que pediste, con un tope o dentro de tu cupo, con
+        las reglas de PlataChat. Aceptarla no te entrega la plata: el desembolso lo hace una
+        persona.</li>
+    </ul>
+    <p>Ninguna de esas tres cuentas lee tu historia laboral ni tus extractos: esos los mira una
+      persona, y ningún programa los lee ni los califica.</p>
   </section>
 
   <section id="donde">
@@ -682,7 +706,10 @@ td.ob{white-space:nowrap;color:var(--gris)}
           te pedimos la clave de tu cuenta, los ve solo quien dirige el negocio, se guardan mientras
           tengas cuenta y los puedes quitar cuando quieras (punto 2).</li>
         <li>Decimos con más precisión qué hacemos y qué no: quien decide si te prestamos es una
-          persona, y ningún programa te pone una calificación de riesgo (punto 4).</li>
+          persona, y te contamos las tres cosas que se calculan solas: tu garantía, una señal de
+          riesgo hecha solo con tus prórrogas y tus atrasos, que no decide sola, y en PlataChat la
+          propuesta que sale sola si nadie contesta tu solicitud a tiempo. Ninguna de las tres
+          lee tu historia laboral ni tus extractos (punto 4).</li>
         <li>Para qué usamos tus datos no cambió para quien no da esa autorización: mirar tus
           extractos es un uso aparte, que solo aplica si nos los das (punto 4).</li>
       </ul>
