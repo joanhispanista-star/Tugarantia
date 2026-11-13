@@ -2161,7 +2161,42 @@
    no quedó. Cambian app/propuesta-en-la-app.js y app/sesion-socio.js, que ya estaban
    en ?v=143 (en socio.html y en la precarga), y la página app/socio.html
    (VERSION_APP 2026-11-10). En el CRM solo cambia la página. No hay base nueva. */
-const CACHE = 'tugarantia-v143';
+/* 13-nov-2026, v144 — SALE DESPUÉS DE v143 (primero lote-v142, luego plata-e1 y la
+   propuesta conectada, que van juntas en v143). Es lote-v144: la propuesta conectada
+   más mapa-clientes, v144-solicitudes y v144-cedula. Lo que trae:
+   · EL MAPA (panel/crm.html, la pestaña «🗺️ Mapa»): los clientes por departamento y
+     municipio, y «🏁 Conquistas», los municipios donde ya hay clientes. Entran tres
+     archivos NUEVOS que pide solo crm.html: panel/mapa-lugares.js,
+     panel/mapa-clientes.js y panel/mapa-clientes.css. Llevan ?v=143 desde que nacieron
+     y nunca se publicaron, así que no hay copia vieja con la que mezclarse; están en la
+     precarga. El JSON de panel/mapa/ (~570 KB) no se precarga: se pide al abrir la
+     pestaña.
+   · LA PESTAÑA «📨 SOLICITUDES» (panel/crm.html): la bandeja sale de Socios a su propia
+     pestaña, la segunda del menú, agrupada por lo que toca hacer (proponer, desembolsar,
+     vencidas, esperando que acepten, pegadas del WhatsApp), con «⚠️ Falta su cédula»
+     cuando el CRM lo sabe. Cuando alguien pide, el Tablero dice «🔔 Fulano pidió $X» y
+     el título del navegador suma las que no se han mirado; lo visto vive en el
+     localStorage de ese navegador (tg_solicitudes_vistas), nunca en la cartera ni en la
+     nube. Los recados de «Olvidé mi contraseña» se quedan en Socios, con su número.
+   · VENTAS CON COMERCIAL (panel/crm.html): «🚀 Comercial» deja de ser pestaña. Lo de
+     invitar vive en «📈 Ventas», debajo del embudo («🚀 Invitar a la app»), con los
+     mismos ids y la misma autorización; irA('comercial') abre Ventas. El menú del
+     equipo no cambia. En el CRM solo cambia la página: ningún .js suyo sube.
+   · FALTA LA CÉDULA (app/socio.html y play/index.html): «Tu información está
+     incompleta: falta la foto de tu cédula», con «Subir mi cédula», sin frenar nada.
+     Entra un .js NUEVO, app/falta-la-cedula.js, con ?v=144 (firma al llegar), que piden
+     las dos páginas. app/propuesta-en-la-app.js, que sale en v143 con ?v=143, cambia
+     (extraPropuesta) y pasa a ?v=144 en socio.html y en la precarga. VERSION_APP y
+     VERSION_PLAY quedan en 2026-11-13.
+   CACHE y VERSION_SITIO suben a v144 en las cinco páginas que se actualizan solas.
+   HAY BASE NUEVA, SIN APLICAR: base/20261113_falta_tu_cedula.sql (la función de sesión
+   mis_fotos_del_registro). Joan la pega entera en el SQL Editor y le da Run; se puede
+   correr dos veces y termina con una tabla de 6 filas en true. Después: Settings → API →
+   Reload schema. Para comprobarla otro día: base/comprobar_20261113_falta_tu_cedula.sql
+   (solo mira). Sin ella la app no muestra la tarjeta (no dice nada falso); lo demás de
+   v144 no la necesita. La regla de los ?v= se mide contra lo que estará publicado
+   antes: TG_PUBLICADO=propuesta-conectada. */
+const CACHE = 'tugarantia-v144';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -2199,8 +2234,8 @@ const ARCHIVOS = [
   'app/propuesta-en-la-app.js?v=144',
   /* 13-nov-2026 — «Falta tu cédula»: la tarjeta que avisa y deja subirla, en
      app/socio.html y en la cuenta de play/. NUEVO, con ?v=144 en la dirección,
-     como lo piden las dos páginas: firma al llegar. El CACHE y VERSION_SITIO
-     los sube quien junta lote-v144. */
+     como lo piden las dos páginas: firma al llegar. Sale con el CACHE v144
+     (ver la nota de v144). */
   'app/falta-la-cedula.js?v=144',
   'app/ver-como.js',
   'app/chat.css',
