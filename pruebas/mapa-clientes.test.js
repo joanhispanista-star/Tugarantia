@@ -13,10 +13,15 @@
  *     con la regla del motor (un cierre con pérdida no cuenta, un abierto
  *     tampoco);
  *   · la pestaña solo lee la cartera.
- * Y el mapa mismo (panel/mapa/colombia-2026-11.json, que arma
+ * Y el mapa mismo (panel/mapa/colombia-2026-11b.json, que arma
  * herramientas/mapa-colombia.js con las descargas de geoBoundaries y HDX):
  * sus 1.122 municipios, que cada departamento sume su cuenta oficial, y el
  * casado de los nombres repetidos por vecindad.
+ *
+ * 13-nov-2026 — la sección 8: «quiero que se mejore el mapa ya que no se ven
+ * los municipios» (Joan). Los nombres, el zoom (sin robar el scroll), el
+ * buscador, Bogotá dentro de Cundinamarca, el contraste medido y el «1–2» en
+ * los globitos y las etiquetas.
  *
  * Las descargas no viven en el repo: el casado se prueba con un mapa de
  * juguete que tiene las mismas trampas (un nombre en dos departamentos, un
@@ -30,7 +35,7 @@ const path = require('node:path');
 
 const RAIZ = path.join(__dirname, '..');
 const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8').replace(/\r\n/g, '\n');
-const RUTA_MAPA = path.join(RAIZ, 'panel', 'mapa', 'colombia-2026-11.json');
+const RUTA_MAPA = path.join(RAIZ, 'panel', 'mapa', 'colombia-2026-11b.json');
 const MAPA = JSON.parse(fs.readFileSync(RUTA_MAPA, 'utf8'));
 const L = require('../panel/mapa-lugares.js');
 const P = require('../app/puente.js');
@@ -112,9 +117,11 @@ describe('1 · el mapa: 1.122 municipios y cada departamento con su cuenta', () 
     }
   });
 
-  test('pesa menos de 600 KB y trae los créditos de las fuentes', () => {
+  /* 13-nov: 650 KB, con el punto del nombre de cada municipio (`p`) y los
+     huecos de cada departamento (`h`): 601.577 bytes. */
+  test('pesa menos de 650 KB y trae los créditos de las fuentes', () => {
     const bytes = fs.statSync(RUTA_MAPA).size;
-    assert.ok(bytes < 600 * 1000, 'el mapa pesa ' + bytes + ' bytes');
+    assert.ok(bytes < 650 * 1000, 'el mapa pesa ' + bytes + ' bytes');
     assert.equal(MAPA.creditos, 'Límites: DANE, vía geoBoundaries (CC BY 4.0) y OCHA/HDX (CC BY-IGO)');
     const f = leer('panel/mapa/FUENTES.md');
     for (const x of ['geoboundaries.org', 'data.humdata.org', 'CC BY 4.0', 'CC BY-IGO', '9-nov-2026', 'herramientas/mapa-colombia.js']) {
@@ -525,11 +532,17 @@ describe('6 · la pestaña «🗺️ Mapa» en el CRM', () => {
     assert.match(irA, /if\(v==='mapa'&&typeof abrirMapaClientes==='function'\)abrirMapaClientes\(\)/);
   });
 
-  test('los .js nuevos se piden con ?v=143, la hoja también, y el mapa NO va en la precarga', () => {
+  /* 13-nov: mapa-clientes.js y su hoja cambiaron después de salir en v144:
+     ?v=145. mapa-lugares.js no cambió y sigue en ?v=143. */
+  test('los .js se piden con su versión, la hoja también, y el mapa NO va en la precarga', () => {
     assert.match(CRM, /<script src="mapa-lugares\.js\?v=143"><\/script>/);
-    assert.match(CRM, /<script src="mapa-clientes\.js\?v=143"><\/script>/);
-    assert.match(CRM, /<link rel="stylesheet" href="mapa-clientes\.css\?v=143">/);
-    assert.ok(!leer('sw.js').includes('colombia-2026-11.json'), 'el mapa (570 KB) se colaría en la precarga de cada teléfono');
+    assert.match(CRM, /<script src="mapa-clientes\.js\?v=145"><\/script>/);
+    assert.match(CRM, /<link rel="stylesheet" href="mapa-clientes\.css\?v=145">/);
+    const sw = leer('sw.js');
+    assert.ok(sw.includes("'panel/mapa-clientes.js?v=145'") && sw.includes("'panel/mapa-clientes.css?v=145'"), 'la precarga sigue con la versión de antes');
+    for (const f of ['colombia-2026-11.json', 'colombia-2026-11b.json']) {
+      assert.ok(!sw.includes(f), 'el mapa (590 KB) se colaría en la precarga de cada teléfono: ' + f);
+    }
   });
 
   test('se ve en el celular: a 880 px o menos, una sola columna', () => {
@@ -623,7 +636,7 @@ describe('7 · la pestaña solo LEE la cartera', () => {
 
   test('en el CRM de verdad: abrir el mapa no toca el disco ni llama a guardar()', async () => {
     const { abrirPanel } = require('./banco-panel.js');
-    const red = url => (/mapa\/colombia-2026-11\.json$/.test(url) ? pedirMapa()
+    const red = url => (/mapa\/colombia-2026-11b\.json$/.test(url) ? pedirMapa()
       : Promise.reject(new Error('sin red')));
     const B = abrirPanel({ red });
     B.cargarCartera({ socios: [cliente('s1', 'Soacha'), cliente('s2', 'Mosquera')],
@@ -651,5 +664,511 @@ describe('7 · la pestaña solo LEE la cartera', () => {
     const B = abrirPanel({});
     B.ev("irA('mapa')");
     assert.match(B.elems.mapaCaja.innerHTML, /versión vieja del CRM: el mapa no cargó/);
+  });
+});
+
+/* ==========================================================================
+ * 8 · 13-nov-2026: QUE SE VEAN LOS MUNICIPIOS
+ *
+ * Joan: «quiero que se mejore el mapa ya que no se ven los municipios». En
+ * las capturas de antes: Cundinamarca en beige con bordes blancos casi
+ * invisibles y sin un solo nombre, el «1–2» en un azul casi blanco, Bogotá
+ * como un hueco en blanco en medio de Cundinamarca, y en Conquistas los
+ * municipios eran puntitos. Cada prueba de aquí falla con el código de antes.
+ * ======================================================================== */
+describe('8 · que se vean los municipios (13-nov-2026)', () => {
+  function carteraCon(cuantos) {
+    const socios = [], prestamos = [];
+    let n = 0;
+    for (const [ciudad, [c, p]] of Object.entries(cuantos)) {
+      for (let i = 0; i < c; i++) {
+        n++; socios.push(cliente('s' + n, ciudad));
+        if (i < (p || 0)) prestamos.push(pagado('p' + n, 's' + n));
+      }
+    }
+    return { socios, prestamos };
+  }
+  /* Un DOM de mentira con lo que tocan el zoom, las etiquetas y el globito:
+     el <svg> medido en pantalla (left 100, top 50), el lienzo, el globito,
+     la línea, el buscador con sus sugerencias, los botones del zoom y los
+     <path> que marcar() pide. Anota lo que se le hace. */
+  function montaje(ancho, alto) {
+    const anota = ini => { const s = new Set(ini || []); return { add: x => s.add(x), remove: x => s.delete(x), contains: x => s.has(x) }; };
+    const M = { textos: [], caminos: {} };
+    M.svg = { tagName: 'svg', attrs: {}, k: null, classList: anota(), capturas: [],
+      setAttribute(k, v) { this.attrs[k] = String(v); },
+      style: { setProperty(k, v) { if (k === '--k') M.svg.k = Number(v); } },
+      getBoundingClientRect: () => ({ left: 100, top: 50, width: ancho, height: alto, right: 100 + ancho, bottom: 50 + alto }),
+      setPointerCapture(id) { this.capturas.push(id); },
+      querySelectorAll: () => {
+        const n = (M.caja.innerHTML.match(/<text class="mapa-et/g) || []).length;
+        M.textos = Array.from({ length: n }, () => ({ classList: anota(), attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } }));
+        return M.textos;
+      } };
+    M.lienzo = { getBoundingClientRect: () => ({ left: 90, top: 40, width: ancho + 20, height: alto + 120 }) };
+    M.globo = { innerHTML: '', hidden: true, style: {}, classList: anota() };
+    M.info = { textContent: '' };
+    M.sug = { innerHTML: '', hidden: true };
+    M.entrada = { className: 'mapa-buscar', value: '' };
+    M.botones = { mas: { disabled: false }, menos: { disabled: true }, todo: { disabled: true } };
+    M.caja = cajaFalsa();
+    M.caja.querySelector = sel => {
+      const fijo = { 'svg.mapa-svg': M.svg, '.mapa-lienzo': M.lienzo, '.mapa-globo': M.globo, '.mapa-info': M.info,
+        '.mapa-sug': M.sug, '.mapa-buscar': M.entrada, '[data-z="mas"]': M.botones.mas, '[data-z="menos"]': M.botones.menos,
+        '[data-z="todo"]': M.botones.todo }[sel];
+      if (fijo) return fijo;
+      const m = /^path\[data-mapa="muni"\]\[data-c="(\d+)"\]$/.exec(sel);
+      if (m) {
+        if (!M.caja.innerHTML.includes('data-mapa="muni" data-c="' + m[1] + '"')) return null;
+        return M.caminos[m[1]] || (M.caminos[m[1]] = { classList: anota(), parentNode: { appendChild() {} } });
+      }
+      if (sel === 'path.mapa-sel') return Object.values(M.caminos).find(p => p.classList.contains('mapa-sel')) || null;
+      return null;
+    };
+    M.doc = { oy: {}, addEventListener(t, f) { this.oy[t] = f; } };
+    /* Los blancos de un evento: una zona del mapa, el mar del <svg> (dentro
+       del mapa, fuera de toda zona), un botón, y fuera del mapa. */
+    M.zona = (c, accion) => {
+      const p = { tagName: 'path', getAttribute: k => ({ 'data-mapa': accion || 'muni', 'data-c': c }[k]) };
+      return { closest: sel => (sel === 'svg.mapa-svg' ? M.svg : sel === '.mapa-busca' ? null : p) };
+    };
+    M.mar = { closest: sel => (sel === 'svg.mapa-svg' ? M.svg : null) };
+    M.fuera = { closest: () => null };
+    M.boton = attrs => {
+      const b = { tagName: 'BUTTON', getAttribute: k => attrs[k] };
+      return { closest: sel => (sel === '[data-mapa]' ? b : null) };
+    };
+    M.clic = (target, extra) => M.caja.oy.click(Object.assign({ target }, extra));
+    M.rueda = (deltaY, extra) => {
+      const ev = Object.assign({ target: M.mar, deltaY, deltaMode: 0, clientX: 350, clientY: 350, ctrlKey: false, prevenido: false,
+        preventDefault() { this.prevenido = true; } }, extra);
+      M.caja.oy.wheel(ev);
+      return ev;
+    };
+    M.puntero = (tipo, extra) => {
+      const ev = Object.assign({ type: tipo, pointerType: 'mouse', pointerId: 1, button: 0, buttons: 0, target: M.mar, clientX: 350, clientY: 350,
+        movementX: 0, movementY: 0, cancelable: true, prevenido: false, preventDefault() { this.prevenido = true; } }, extra);
+      M.caja.oy[tipo](ev);
+      return ev;
+    };
+    return M;
+  }
+  async function abrirCon(db, opciones, ancho, alto) {
+    const MC = fresco();
+    const M = montaje(ancho || 500, alto || 600);
+    Object.assign(MC._estado, opciones && opciones.estado);
+    let ahora = 100000;
+    MC._estado.reloj = () => ahora;
+    M.pasa = ms => { ahora += ms; };
+    await MC.abrir({ caja: M.caja, db, puente: P, pedir: pedirMapa, doc: M.doc });
+    return { MC, M, E: MC._estado };
+  }
+  /* Las etiquetas de un HTML: código, nombre, cifra y si es de las de siempre. */
+  const etiquetasDe = html => [...html.matchAll(/<text class="mapa-et( siempre| oculta)?[^"]*"[^>]*data-c="(\d+)">([^<]+) <tspan class="mapa-et-k">([^<]+)<\/tspan><\/text>/g)]
+    .map(m => ({ c: m[2], nombre: m[3], cifra: m[4], siempre: m[1] === ' siempre' }));
+  const casi = (a, b, que) => assert.ok(Math.abs(a - b) < 1e-6 * Math.max(1, Math.abs(b)), que + ': ' + a + ' ≠ ' + b);
+  const nombreDe = c => MAPA.municipios.find(m => m.c === c).n;
+
+  /* ---------------------------------------------------------- el mapa nuevo */
+  test('el mapa trae dónde va el nombre de cada municipio, DENTRO de él, y los huecos de cada departamento', () => {
+    const anillos = d => (d.match(/M[^M]*/g) || []).map(p => {
+      const n = p.match(/-?\d+/g).map(Number); let x = n[0], y = n[1]; const r = [[x, y]];
+      for (let i = 2; i + 1 < n.length; i += 2) { x += n[i]; y += n[i + 1]; r.push([x, y]); }
+      return r;
+    });
+    const dentro = (x, y, as) => {
+      let s = false;
+      for (const r of as) for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+        const a = r[i], b = r[j];
+        if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) s = !s;
+      }
+      return s;
+    };
+    const fuera = MAPA.municipios.filter(m => !(Array.isArray(m.p) && dentro(m.p[0], m.p[1], anillos(m.d)))).map(m => m.c + ' ' + m.n);
+    assert.deepEqual(fuera, [], 'el nombre caería fuera de su municipio');
+    const huecos = Object.fromEntries(MAPA.departamentos.filter(d => d.h).map(d => [d.c, d.h]));
+    assert.deepEqual(huecos['25'], ['11001'], 'Bogotá es el hueco de Cundinamarca');
+    assert.deepEqual(Object.keys(huecos).sort(), ['15', '17', '19', '25', '54', '68']);
+    const MC = fresco();
+    assert.equal(MC.URL_MAPA, 'mapa/colombia-2026-11b.json', 'un JSON cambiado con el mismo nombre: el service worker serviría el de antes');
+    assert.ok(leer('panel/mapa/FUENTES.md').includes('colombia-2026-11b.json'));
+  });
+
+  test('el guion: el polo de una C cae dentro (el centro de la caja no) y un hueco es el que comparte 2/3 de su borde', () => {
+    const C = [[[0, 0], [10, 0], [10, 2], [2, 2], [2, 8], [10, 8], [10, 10], [0, 10]]];
+    assert.ok(G.distanciaAlBorde(5, 5, C) < 0, 'precondición: el centro de la caja de una C está afuera');
+    const p = G.poloDeInaccesibilidad(C, 0.1);
+    assert.ok(G.distanciaAlBorde(p.x, p.y, C) > 0.9, 'el polo cayó en (' + p.x + ', ' + p.y + ')');
+    /* Un cuadrado de 10×10 (forma 0, depto 11): tres lados con la forma 1
+       (depto 25) y uno con la 2 (depto 50). Las otras dos tienen además un
+       borde largo propio. */
+    const arcos = [[[0, 0], [0, 10]], [[0, 10], [10, 10]], [[10, 10], [10, 0]], [[10, 0], [0, 0]], [[0, 0], [0, 100]], [[0, 0], [100, 0]]];
+    const depto = f => ['11', '25', '50'][f];
+    const con = (...a) => [a.map(x => ({ a: x, rev: false }))];
+    assert.deepEqual(G.huecos([con(0, 1, 2, 3), con(0, 1, 2, 4), con(3, 5)], arcos, depto).map(h => [h.f, h.depto]), [[0, '25']], '3/4 del borde');
+    assert.deepEqual(G.huecos([con(0, 1, 2, 3), con(0, 1, 4), con(2, 3, 5)], arcos, depto), [], 'con la mitad no es un hueco');
+  });
+
+  /* ----------------------------------------------------- 1 · los nombres */
+  test('en un departamento abierto, el nombre y la cifra de CADA municipio con clientes, siempre; los demás no', async () => {
+    const db = carteraCon({ Soacha: [4], Chía: [1], Zipaquirá: [2], Fusagasugá: [3] });
+    const { M, E } = await abrirCon(db, { estado: { depto: '25' } });
+    const ets = etiquetasDe(M.caja.innerHTML);
+    assert.deepEqual(ets.map(e => e.c).sort(), ['25175', '25290', '25754', '25899']);
+    assert.ok(ets.every(e => e.siempre), 'en un departamento abierto los nombres no se esconden');
+    const por = Object.fromEntries(ets.map(e => [e.nombre, e.cifra]));
+    assert.deepEqual(por, { Soacha: '4', Fusagasugá: '3', 'Chía': '1–2', 'Zipaquirá': '1–2' });
+    assert.ok(E.ets.every(e => e.ver), 'colocarEtiquetas apagó uno de los que van siempre');
+    /* Los demás, en el globito: al pasar el ratón por Tocaima, sin clientes. */
+    M.caja.oy.mouseover({ target: M.zona('25815'), clientX: 300, clientY: 300 });
+    assert.equal(M.globo.hidden, false);
+    assert.equal(M.globo.innerHTML, '<b>Tocaima (Cundinamarca)</b> · sin clientes');
+    assert.equal(M.info.textContent, 'Tocaima (Cundinamarca) · sin clientes');
+    assert.equal(M.globo.style.left, '210px', 'el globito va donde está el ratón (300 − 90 del lienzo)');
+  });
+
+  test('en Colombia, los nombres que caben sin taparse; con zoom, caben más', async () => {
+    const db = carteraCon({ Funza: [3], 'Mosquera, Cundinamarca': [4], Madrid: [5], Medellín: [6], Neiva: [2] });
+    const { M, E } = await abrirCon(db);
+    const ets = etiquetasDe(M.caja.innerHTML);
+    assert.deepEqual(ets.map(e => e.nombre).sort(), ['Funza', 'Madrid', 'Medellín', 'Mosquera', 'Neiva'].sort());
+    assert.ok(ets.every(e => !e.siempre), 'en Colombia salen apagados hasta que se sabe si caben');
+    const ver = () => Object.fromEntries(E.ets.map(e => [nombreDe(e.c), e.ver]));
+    const lejos = ver();
+    assert.equal(lejos['Medellín'], true); assert.equal(lejos.Neiva, true);
+    assert.ok(!(lejos.Funza && lejos.Mosquera && lejos.Madrid), 'tres vecinos de la Sabana a escala de país se tapan: ' + JSON.stringify(lejos));
+    /* Acercar sobre Funza hasta el tope: Funza y Mosquera, que son vecinos, ya caben los dos. */
+    const funza = MAPA.municipios.find(m => m.c === '25286').p;
+    for (let i = 0; i < 12; i++) {
+      const vb = E.z.vb, s = Math.max(vb[2] / 500, vb[3] / 600);
+      M.rueda(-200, { ctrlKey: true, clientX: 100 + (500 - vb[2] / s) / 2 + (funza[0] - vb[0]) / s, clientY: 50 + (600 - vb[3] / s) / 2 + (funza[1] - vb[1]) / s });
+    }
+    const cerca = ver();
+    assert.equal(cerca.Funza, true); assert.equal(cerca.Mosquera, true);
+    assert.equal(cerca['Medellín'], false, 'lo que quedó fuera de la ventana no se cuenta (ni se ve)');
+  });
+
+  test('colocarEtiquetas: la segunda que tapa a la primera se apaga; «siempre» se corre arriba o abajo', () => {
+    const MC = fresco();
+    const dos = [{ x: 0, y: 0, w: 60, h: 16 }, { x: 10, y: 0, w: 60, h: 16 }];
+    const vb = [-500, -500, 1000, 1000];
+    assert.deepEqual(MC.colocarEtiquetas(dos, vb, 1).map(r => r.ver), [true, false]);
+    assert.deepEqual(MC.colocarEtiquetas(dos, vb, 0.1).map(r => r.ver), [true, true], 'más cerca, las dos caben');
+    const siempre = MC.colocarEtiquetas(dos.map(e => Object.assign({ siempre: true }, e)), vb, 1);
+    assert.deepEqual(siempre.map(r => r.ver), [true, true]);
+    assert.equal(siempre[0].dy, 0); assert.notEqual(siempre[1].dy, 0, 'la segunda se corrió para no tapar a la primera');
+  });
+
+  /* ------------------------------------- 3 · los municipios con clientes */
+  test('en Colombia, los municipios con clientes se marcan encima de los departamentos, sin taparlos', async () => {
+    const db = carteraCon({ Soacha: [4], Neiva: [1] });
+    const { M } = await abrirCon(db);
+    const h = M.caja.innerHTML;
+    assert.equal((h.match(/<path class="mapa-z t\d" data-mapa="depto"/g) || []).length, 33, 'los departamentos siguen todos');
+    const marcas = [...h.matchAll(/<path class="mapa-marca" data-mapa="muni" data-c="(\d+)"/g)].map(m => m[1]).sort();
+    assert.deepEqual(marcas, ['25754', '41001']);
+    assert.equal((h.match(/<path class="mapa-marca-f"/g) || []).length, 2, 'cada marca con su trazo claro debajo');
+    assert.ok(h.indexOf('class="mapa-marca"') > h.lastIndexOf('<path class="mapa-z'), 'las marcas van encima de los departamentos');
+    assert.match(h, /<title>Neiva \(Huila\) · 1–2 clientes<\/title>/);
+  });
+
+  /* ------------------------------------- 4 · Bogotá dentro de Cundinamarca */
+  test('Bogotá dentro de Cundinamarca: en su sitio, con su nombre y su cifra, se toca, y no suma al total', async () => {
+    const db = carteraCon({ Bogotá: [3], Soacha: [1] });
+    const { MC, M, E } = await abrirCon(db, { estado: { depto: '25' } });
+    const h = M.caja.innerHTML;
+    assert.match(h, /<path class="mapa-z t2 mapa-hueco" data-mapa="muni" data-c="11001"/, 'Bogotá no se pintó');
+    const bog = etiquetasDe(h).find(e => e.c === '11001');
+    assert.deepEqual(bog, { c: '11001', nombre: 'Bogotá, D.C.', cifra: '3', siempre: true });
+    assert.match(h, /<h3 class="mapa-h">Cundinamarca<\/h3><div class="mapa-total"><b>1–2<\/b> clientes · 1 de 116 municipios/, 'Bogotá sumó al total de Cundinamarca');
+    assert.match(h, /También en este mapa[\s\S]*data-mapa="muni" data-c="11001"><span>Bogotá, D\.C\.<\/span><b>3<\/b>/);
+    /* La ventana la incluye entera. */
+    const b = MC.cajaDe(MAPA.municipios.find(m => m.c === '11001').d), vb = E.z.base;
+    assert.ok(b[0] >= vb[0] && b[1] >= vb[1] && b[2] <= vb[0] + vb[2] && b[3] <= vb[1] + vb[3], 'Bogotá se sale de la ventana');
+    M.clic(M.zona('11001'), { clientX: 320, clientY: 330 });
+    assert.equal(M.info.textContent, 'Bogotá, D.C. · 3 clientes');
+    assert.equal(M.globo.innerHTML, '<b>Bogotá, D.C.</b> · 3 clientes');
+    assert.ok(M.caminos['11001'].classList.contains('mapa-sel'), 'Bogotá no quedó marcada');
+  });
+
+  /* ------------------------------------------------------------ 5 · zoom */
+  test('zoom: ＋, － y «Volver a ver todo»; el texto mide lo mismo en pantalla con cualquier zoom', async () => {
+    const { M, E } = await abrirCon(carteraCon({ Soacha: [4] }));
+    const base = E.z.base.slice(), k0 = M.svg.k;
+    assert.ok(k0 > 0, 'sin --k el texto crece con el zoom');
+    assert.deepEqual(E.z.vb, base);
+    assert.equal(M.botones.todo.disabled, true, '«Volver a ver todo» sin nada que volver');
+    M.clic(M.boton({ 'data-mapa': 'zoom', 'data-z': 'mas' }));
+    casi(E.z.vb[2], base[2] / 1.6, 'el ancho tras ＋');
+    assert.ok(Math.abs(M.svg.k * 1.6 - k0) < 0.01, '--k (unidades por píxel) baja lo mismo que sube el zoom: la letra no crece');
+    assert.equal(M.svg.attrs.viewBox, E.z.vb.map(v => Math.round(v * 10) / 10).join(' '));
+    assert.ok(M.svg.classList.contains('ampliado'));
+    assert.equal(M.botones.todo.disabled, false);
+    M.clic(M.boton({ 'data-mapa': 'zoom', 'data-z': 'mas' }));
+    M.clic(M.boton({ 'data-mapa': 'zoom', 'data-z': 'menos' }));
+    casi(E.z.vb[2], base[2] / 1.6, 'el ancho tras ＋＋－');
+    M.clic(M.boton({ 'data-mapa': 'zoom', 'data-z': 'todo' }));
+    assert.deepEqual(E.z.vb, base);
+    assert.ok(Math.abs(M.svg.k - k0) < 0.001, '--k al volver');
+    assert.ok(!M.svg.classList.contains('ampliado'));
+    for (let i = 0; i < 40; i++) M.clic(M.boton({ 'data-mapa': 'zoom', 'data-z': 'mas' }));
+    assert.equal(E.z.vb[2], 100, 'hasta 100 unidades (23 km) y no más');
+    assert.equal(M.botones.mas.disabled, true);
+    const hoja = leer('panel/mapa-clientes.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.match(hoja, /\.mapa-et\{[^}]*font-size:calc\(var\(--k,1\) \* 12px\)/, 'el tamaño de la letra no va en --k');
+  });
+
+  test('la rueda NO roba el scroll de la página: solo con el ratón movido encima del mapa, o con Ctrl', async () => {
+    const { M, E } = await abrirCon(carteraCon({ Soacha: [4] }));
+    const base = E.z.base.slice();
+    let ev = M.rueda(-100);
+    assert.equal(ev.prevenido, false, 'el mapa llegó debajo del ratón quieto y se robó la rueda');
+    assert.deepEqual(E.z.vb, base);
+    M.puntero('pointermove', { movementX: 3 });
+    ev = M.rueda(-100);
+    assert.equal(ev.prevenido, true); assert.ok(E.z.vb[2] < base[2], 'con el ratón movido encima, la rueda acerca');
+    /* La página se movió (la rueda en otra parte): el mapa la deja pasar. */
+    M.pasa(1000); M.doc.oy.scroll();
+    const vb = E.z.vb.slice();
+    ev = M.rueda(-100);
+    assert.equal(ev.prevenido, false); assert.deepEqual(E.z.vb, vb);
+    /* Un movimiento pegado al scroll es el que inventa el navegador al pasar el mapa: no arma. */
+    M.puntero('pointermove', { movementX: 2 });
+    assert.equal(M.rueda(-100).prevenido, false);
+    M.pasa(1000); M.puntero('pointermove', { movementY: 2 });
+    assert.equal(M.rueda(-100).prevenido, true, 'movido de verdad, vuelve a acercar');
+    /* Fuera del mapa, la rueda es de la página. */
+    M.pasa(1000); M.puntero('pointermove', { target: M.fuera, movementX: 5 });
+    assert.equal(M.rueda(-100).prevenido, false);
+    /* En el tope (todo a la vista, alejando), pasado un rato, la rueda es de la página. */
+    M.pasa(1000); M.puntero('pointermove', { movementX: 5 });
+    M.rueda(5000);
+    assert.deepEqual(E.z.vb, base);
+    M.pasa(1000);
+    assert.equal(M.rueda(100).prevenido, false, 'con todo a la vista, alejar no frena la página');
+    /* Con Ctrl (o el pellizco del trackpad) acerca aunque la página se haya movido. */
+    M.doc.oy.scroll();
+    assert.equal(M.rueda(-30, { ctrlKey: true }).prevenido, true);
+    assert.ok(E.z.vb[2] < base[2]);
+  });
+
+  test('arrastrar con el ratón mueve el mapa, y soltar encima de un departamento no lo abre', async () => {
+    const { M, E } = await abrirCon(carteraCon({ Soacha: [4] }));
+    M.clic(M.boton({ 'data-mapa': 'zoom', 'data-z': 'mas' }));
+    M.clic(M.boton({ 'data-mapa': 'zoom', 'data-z': 'mas' }));
+    const vb = E.z.vb.slice();
+    M.puntero('pointerdown', { target: M.zona('25', 'depto'), clientX: 300, clientY: 300 });
+    M.puntero('pointermove', { target: M.zona('25', 'depto'), clientX: 302, clientY: 301, buttons: 1 });
+    assert.deepEqual(E.z.vb, vb, 'dos píxeles no son un arrastre');
+    const ev = M.puntero('pointermove', { target: M.zona('25', 'depto'), clientX: 340, clientY: 320, buttons: 1 });
+    assert.ok(E.z.vb[0] < vb[0] && E.z.vb[1] < vb[1], 'arrastrar a la derecha y abajo muestra lo de la izquierda y arriba');
+    assert.equal(ev.prevenido, true);
+    assert.deepEqual(M.svg.capturas, [1], 'el ratón se captura cuando ya es arrastre');
+    M.puntero('pointerup', { target: M.zona('25', 'depto'), clientX: 340, clientY: 320 });
+    M.clic(M.zona('25', 'depto'), { clientX: 340, clientY: 320 });
+    assert.equal(E.depto, null, 'soltar el arrastre encima de Cundinamarca la abrió');
+    M.pasa(2000);
+    /* Apretado y soltado fuera de la caja antes de ser arrastre (ese pointerup
+       no llega): de vuelta, el ratón sin botones no arrastra el mapa. */
+    M.puntero('pointerdown', { target: M.mar, clientX: 300, clientY: 300 });
+    const quieto = E.z.vb.slice();
+    M.puntero('pointermove', { target: M.mar, clientX: 380, clientY: 300, buttons: 0, movementX: 80 });
+    assert.deepEqual(E.z.vb, quieto, 'el mapa se pegó al ratón sin apretar');
+    M.clic(M.zona('25', 'depto'), { clientX: 340, clientY: 320 });
+    assert.equal(E.depto, '25', 'un toque de verdad sí la abre');
+  });
+
+  test('en el celular: un dedo sin ampliar es de la página; dos dedos pellizcan; ampliado, un dedo mueve', async () => {
+    const { M, E } = await abrirCon(carteraCon({ Soacha: [4] }));
+    const base = E.z.base.slice();
+    const dedo = (tipo, id, x, y) => M.puntero(tipo, { pointerType: 'touch', pointerId: id, clientX: x, clientY: y, target: M.zona('25', 'depto') });
+    dedo('pointerdown', 5, 300, 400);
+    const ev = dedo('pointermove', 5, 300, 250);
+    assert.equal(ev.prevenido, false, 'el dedo que baja la página quedó atrapado en el mapa');
+    assert.deepEqual(E.z.vb, base);
+    dedo('pointerup', 5, 300, 250);
+    dedo('pointerdown', 7, 250, 300); dedo('pointerdown', 8, 350, 300);
+    dedo('pointermove', 8, 450, 300);
+    casi(E.z.vb[2], base[2] / 2, 'separar los dedos al doble acerca al doble');
+    assert.ok(M.svg.classList.contains('ampliado'), 'ampliado: la hoja le quita el dedo a la página (touch-action:none)');
+    dedo('pointerup', 7, 250, 300); dedo('pointerup', 8, 450, 300);
+    const vb = E.z.vb.slice();
+    dedo('pointerdown', 9, 300, 300); dedo('pointermove', 9, 260, 300);
+    assert.ok(E.z.vb[0] > vb[0], 'ampliado, un dedo mueve el mapa');
+    dedo('pointerup', 9, 260, 300);
+    const hoja = leer('panel/mapa-clientes.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.match(hoja, /\.mapa-svg\{[^}]*touch-action:pan-y/);
+    assert.match(hoja, /\.mapa-svg\.ampliado\{[^}]*touch-action:none/);
+  });
+
+  /* ------------------------------------------------------- 6 · el buscador */
+  test('el buscador encuentra el municipio, abre su departamento, lo centra y lo resalta', async () => {
+    const db = carteraCon({ 'Mosquera, Cundinamarca': [1], Soacha: [4] });
+    const { MC, M, E } = await abrirCon(db);
+    assert.deepEqual(MC.buscar('mosq'), ['25473', '52473'], 'primero el que tiene clientes');
+    assert.ok(MC.buscar('fusa').includes('25290'), 'los apodos de mapa-lugares.js también');
+    M.entrada.value = 'mosq';
+    M.caja.oy.input({ target: M.entrada });
+    assert.equal(M.sug.hidden, false);
+    assert.match(M.sug.innerHTML, /data-c="25473"><span>Mosquera <small>Cundinamarca<\/small><\/span><b>1–2<\/b>/);
+    assert.match(M.sug.innerHTML, /data-c="52473"><span>Mosquera <small>Nariño<\/small><\/span><b><i>sin clientes<\/i><\/b>/);
+    M.caja.oy.keydown({ target: M.entrada, key: 'Enter', preventDefault() {} });
+    assert.equal(E.depto, '25', 'no abrió Cundinamarca');
+    assert.ok(E.z.vb[2] < E.z.base[2], 'no se acercó');
+    const p = MAPA.municipios.find(m => m.c === '25473').p, vb = E.z.vb;
+    assert.ok(p[0] > vb[0] && p[0] < vb[0] + vb[2] && p[1] > vb[1] && p[1] < vb[1] + vb[3], 'Mosquera quedó fuera de la ventana');
+    assert.ok(M.caminos['25473'].classList.contains('mapa-sel'), 'no quedó resaltado');
+    assert.equal(M.info.textContent, 'Mosquera (Cundinamarca) · 1–2 clientes');
+    assert.equal(M.globo.hidden, false);
+    assert.equal(M.entrada.value, 'Mosquera');
+    /* Bogotá se busca y se ve dentro de Cundinamarca. */
+    E.depto = null;
+    M.entrada.value = 'bogota'; M.caja.oy.input({ target: M.entrada });
+    M.caja.oy.keydown({ target: M.entrada, key: 'Enter', preventDefault() {} });
+    assert.equal(E.depto, '25');
+    assert.ok(M.caminos['11001'].classList.contains('mapa-sel'));
+    /* Lo que no existe se dice. */
+    M.entrada.value = 'Narnia'; M.caja.oy.input({ target: M.entrada });
+    assert.match(M.sug.innerHTML, /No encuentro un municipio con ese nombre/);
+    /* En Conquistas busca sin cambiar de vista. */
+    E.vista = 'conquistas'; E.depto = null;
+    await MC.abrir({ caja: M.caja, db, puente: P, doc: M.doc });
+    M.entrada.value = 'soacha'; M.caja.oy.input({ target: M.entrada });
+    M.clic(M.boton({ 'data-mapa': 'buscado', 'data-c': '25754' }));
+    assert.equal(E.vista, 'conquistas'); assert.equal(E.depto, null);
+    assert.ok(E.z.vb[2] < E.z.base[2]);
+  });
+
+  /* ------------------------------------------------- 2 · el contraste medido */
+  describe('el contraste, medido con los tokens de crm.html', () => {
+    const CRM_HTML = leer('panel/crm.html');
+    const i = CRM_HTML.indexOf(':root{');
+    const VARS = Object.fromEntries([...CRM_HTML.slice(i, CRM_HTML.indexOf('}', i)).replace(/\/\*[\s\S]*?\*\//g, '')
+      .matchAll(/--([\w-]+):([^;]+);/g)].map(m => [m[1], m[2].trim()]));
+    const HOJA = leer('panel/mapa-clientes.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    const REGLAS = {};
+    for (const m of HOJA.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const sel = m[1].trim();
+      if (!(sel in REGLAS)) REGLAS[sel] = Object.fromEntries(m[2].split(';').map(d => d.split(':')).filter(d => d.length >= 2)
+        .map(d => [d[0].trim(), d.slice(1).join(':').trim()]));
+    }
+    Object.entries(REGLAS['.mapa-lienzo'] || {}).forEach(([k, v]) => { if (k.startsWith('--')) VARS[k.slice(2)] = v; });
+    const decl = (sel, prop, otra) => (REGLAS[sel] && REGLAS[sel][prop]) || (otra && REGLAS[otra] && REGLAS[otra][prop]);
+    const hex = h => [1, 3, 5].map(k => parseInt(h.slice(k, k + 2), 16));
+    /* Un color de la hoja, pintado sobre `sobre` (las transparencias se mezclan). */
+    function color(valor, sobre) {
+      const v = String(valor).trim();
+      let m = /^var\(--([\w-]+)\)$/.exec(v);
+      if (m) return color(VARS[m[1]], sobre);
+      m = /^rgba\(var\(--([\w-]+)\),\s*([\d.]+)\)$/.exec(v);
+      if (m) { const c = VARS[m[1]].split(',').map(Number), a = Number(m[2]); return c.map((x, k) => a * x + (1 - a) * sobre[k]); }
+      if (/^#[0-9a-f]{6}$/i.test(v)) return hex(v);
+      throw new Error('no sé leer el color «' + v + '»');
+    }
+    const lin = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    const Y = c => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+    const contraste = (a, b) => { const x = Y(a), y = Y(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const Lestrella = c => { const y = Y(c); return y > 0.008856 ? 116 * Math.cbrt(y) - 16 : 903.3 * y; };
+    const PAPEL = color('var(--papel)'), LACA = color('var(--laca)');
+    const rellenos = [0, 1, 2, 3, 4, 5].map(t => color(decl('.mapa-z.t' + t, 'fill'), PAPEL));
+
+    test('cada borde de municipio contra su relleno, a 3:1 o más (antes: blanco sobre beige, 1,17:1)', () => {
+      const malos = [];
+      rellenos.forEach((f, t) => {
+        const raya = color(decl('.mapa-z.t' + t, 'stroke', '.mapa-z'), f);
+        const c = contraste(raya, f);
+        if (c < 3) malos.push('t' + t + ': ' + c.toFixed(2) + ':1');
+      });
+      assert.deepEqual(malos, []);
+    });
+
+    test('la escala se distingue paso a paso, y el «1–2» ya no es casi blanco', () => {
+      const Ls = rellenos.map(Lestrella);
+      for (let t = 1; t < 6; t++) assert.ok(Ls[t - 1] - Ls[t] >= 8, 't' + (t - 1) + '→t' + t + ': L* ' + Ls[t - 1].toFixed(1) + ' → ' + Ls[t].toFixed(1));
+      const c1 = contraste(rellenos[1], rellenos[0]);
+      assert.ok(c1 >= 1.3, '«1–2» contra «Sin clientes»: ' + c1.toFixed(2) + ':1 (antes 1,08)');
+      for (let t = 0; t < 6; t++) assert.equal(decl('.mapa-leyenda .mapa-z.t' + t, 'background'), decl('.mapa-z.t' + t, 'fill'), 'la leyenda de t' + t + ' no es el color del mapa');
+    });
+
+    test('los nombres y el globito se leen (4,5:1) sobre su halo y su fondo, en las dos vistas', () => {
+      const halo = color(decl('.mapa-et', 'stroke'), PAPEL);
+      assert.ok(contraste(color(decl('.mapa-et', 'fill'), halo), halo) >= 4.5);
+      assert.ok(contraste(color(decl('.mapa-et .mapa-et-k', 'fill'), halo), halo) >= 4.5, 'la cifra');
+      const haloO = color(decl('.mapa-oscuro .mapa-et', 'stroke'), LACA);
+      for (const s of ['.mapa-oscuro .mapa-et', '.mapa-oscuro .mapa-et .mapa-et-k', '.mapa-oscuro .mapa-et.conq']) {
+        assert.ok(contraste(color(decl(s, 'fill'), haloO), haloO) >= 4.5, s);
+      }
+      const fondo = color(decl('.mapa-globo', 'background'), PAPEL);
+      assert.ok(contraste(color(decl('.mapa-globo', 'color'), fondo), fondo) >= 4.5, 'el globito');
+      assert.ok(/paint-order:stroke/.test(HOJA), 'sin paint-order el halo tapa la letra');
+    });
+
+    test('Conquistas: los bordes de «sin clientes» y «con clientes» a 3:1; la marca de Colombia, de dos tonos', () => {
+      for (const c of ['vacio', 'con']) {
+        const f = color(decl('.mapa-q.' + c, 'fill'), LACA);
+        const raya = color(decl('.mapa-q.' + c, 'stroke', '.mapa-q'), f);
+        assert.ok(contraste(raya, f) >= 3, c + ': ' + contraste(raya, f).toFixed(2) + ':1');
+      }
+      const oscura = color(decl('.mapa-marca', 'stroke'), PAPEL), clara = color(decl('.mapa-marca-f', 'stroke'), PAPEL);
+      assert.ok(contraste(oscura, clara) >= 4.5, 'los dos tonos de la marca');
+      assert.ok(parseFloat(decl('.mapa-marca-f', 'stroke-width')) > parseFloat(decl('.mapa-marca', 'stroke-width')), 'el trazo claro va por fuera');
+      const velo = /rgba\(var\(--laca-rgb\),([\d.]+)\)/.exec(decl('.mapa-marca', 'fill'));
+      assert.ok(velo && Number(velo[1]) <= 0.3, 'la marca tapa el color del departamento');
+    });
+  });
+
+  /* ------------------------------------- «1–2» en globitos y etiquetas */
+  test('«1–2» en las etiquetas, el globito y el buscador: nunca un «2» ni un total que se despeje', async () => {
+    const db = carteraCon({ Neiva: [2, 2], Pitalito: [1] });
+    const { M, E } = await abrirCon(db);
+    /* La nota que explica el rango dice «1 o 2 clientes» a propósito, y las
+       tarjetas de Conquistas cuentan MUNICIPIOS («2 con clientes»): no son
+       cifras de personas. */
+    const sinDos = (txt, que) => assert.doesNotMatch(txt.replace(/las zonas con 1 o 2 clientes/g, '')
+      .replace(/<div class="mapa-kpis">[\s\S]*?<\/div><\/div>/, ''), /(^|[^–\d])[12]( clientes|<\/tspan>|<\/b>)/, que);
+    /* Colombia: el departamento (dos «1–2» suman 2–4) y la etiqueta. */
+    M.caja.oy.mouseover({ target: M.zona('41', 'depto'), clientX: 300, clientY: 300 });
+    assert.equal(M.globo.innerHTML, '<b>Huila</b> · 2–4 clientes');
+    M.caja.oy.mouseover({ target: M.zona('41001'), clientX: 300, clientY: 300 });
+    assert.equal(M.globo.innerHTML, '<b>Neiva (Huila)</b> · 1–2 clientes');
+    assert.deepEqual(etiquetasDe(M.caja.innerHTML).map(e => e.cifra), ['1–2', '1–2']);
+    sinDos(M.caja.innerHTML, 'Colombia');
+    /* El departamento abierto. */
+    M.clic(M.boton({ 'data-mapa': 'depto', 'data-c': '41' }));
+    assert.equal(E.depto, '41');
+    assert.deepEqual(etiquetasDe(M.caja.innerHTML).map(e => [e.nombre, e.cifra]), [['Neiva', '1–2'], ['Pitalito', '1–2']]);
+    sinDos(M.caja.innerHTML, 'Huila');
+    /* Conquistas: «faltan 1–2» en el globito, «1–2» en la etiqueta. */
+    M.clic(M.boton({ 'data-mapa': 'vista', 'data-v': 'conquistas' }));
+    M.caja.oy.mouseover({ target: M.zona('41001'), clientX: 300, clientY: 300 });
+    assert.equal(M.globo.innerHTML, '<b>Neiva (Huila)</b> · 1–2 clientes · faltan 1–2 para conquistarlo');
+    sinDos(M.caja.innerHTML, 'Conquistas');
+    /* El buscador. */
+    M.entrada.value = 'neiva'; M.caja.oy.input({ target: M.entrada });
+    assert.match(M.sug.innerHTML, /<b>1–2<\/b>/);
+    sinDos(M.sug.innerHTML, 'el buscador');
+  });
+
+  /* ----------------------------------------------------------- 7 · rápido */
+  test('rápido: 2.000 clientes en 300 municipios, cada vista en menos de 1 s y el zoom en menos de 30 ms', async () => {
+    const codigos = MAPA.municipios.filter((_, i) => i % 3 === 0).slice(0, 300);
+    const socios = Array.from({ length: 2000 }, (_, i) => {
+      const m = codigos[i % codigos.length];
+      return cliente('s' + i, m.n + ', ' + MAPA.departamentos.find(d => d.c === m.c.slice(0, 2)).n);
+    });
+    const prestamos = socios.filter((_, i) => i % 2).map((s, i) => pagado('p' + i, s.id));
+    const { MC, M, E } = await abrirCon({ socios, prestamos });
+    assert.ok(Object.keys(E.res.porMuni).length > 250, 'precondición: se ubicaron ' + Object.keys(E.res.porMuni).length);
+    for (const [que, antes] of [['Colombia', () => { E.depto = null; E.vista = 'deptos'; }], ['Cundinamarca', () => { E.depto = '25'; }],
+      ['Antioquia', () => { E.depto = '05'; }], ['Conquistas', () => { E.vista = 'conquistas'; E.depto = null; }]]) {
+      antes();
+      const t = Date.now();
+      await MC.abrir({ caja: M.caja, db: { socios, prestamos }, puente: P, doc: M.doc });
+      assert.ok(Date.now() - t < 1000, que + ' tardó ' + (Date.now() - t) + ' ms');
+      const t2 = Date.now();
+      for (let k = 0; k < 10; k++) M.clic(M.boton({ 'data-mapa': 'zoom', 'data-z': k < 5 ? 'mas' : 'menos' }));
+      assert.ok((Date.now() - t2) / 10 < 30, que + ': cada paso de zoom tardó ' + (Date.now() - t2) / 10 + ' ms');
+    }
+    assert.ok(E.ets.length > 250, 'las etiquetas de Conquistas: ' + E.ets.length);
   });
 });
