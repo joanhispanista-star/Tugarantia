@@ -2173,11 +2173,17 @@
      pestaña.
    · LA PESTAÑA «📨 SOLICITUDES» (panel/crm.html): la bandeja sale de Socios a su propia
      pestaña, la segunda del menú, agrupada por lo que toca hacer (proponer, desembolsar,
-     vencidas, esperando que acepten, pegadas del WhatsApp), con «⚠️ Falta su cédula»
-     cuando el CRM lo sabe. Cuando alguien pide, el Tablero dice «🔔 Fulano pidió $X» y
+     vencidas, esperando que acepten, pegadas del WhatsApp). Lo que se sabe del día del
+     registro se dice como del registro («🪪 Se registró sin la cédula»); «⚠️ Falta su
+     cédula» solo cuando la nube confirma que no la tiene (archivos_de_registro, una vez
+     por persona), porque la cédula que el cliente sube después no queda en el registro
+     ni en la ficha. El número del menú cuenta las nuevas, las aceptadas y las de
+     propuesta vencida. Cuando alguien pide, el Tablero dice «🔔 Fulano pidió $X» y
      el título del navegador suma las que no se han mirado; lo visto vive en el
      localStorage de ese navegador (tg_solicitudes_vistas), nunca en la cartera ni en la
-     nube. Los recados de «Olvidé mi contraseña» se quedan en Socios, con su número.
+     nube, y otra pestaña del CRM abierta se entera. Con el CRM escondido el reloj solo
+     pregunta por el chat: la solicitud nueva se ve al volver. Los recados de «Olvidé
+     mi contraseña» se quedan en Socios, con su número.
    · VENTAS CON COMERCIAL (panel/crm.html): «🚀 Comercial» deja de ser pestaña. Lo de
      invitar vive en «📈 Ventas», debajo del embudo («🚀 Invitar a la app»), con los
      mismos ids y la misma autorización; irA('comercial') abre Ventas. El menú del
