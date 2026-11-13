@@ -2193,8 +2193,15 @@ const ARCHIVOS = [
   /* 9-nov-2026 — la propuesta en la app instalada (app/socio.html): ver y
      aceptar la propuesta de Joan con las mismas funciones de la base que
      play/. NUEVO, pero con ?v=143 en la dirección, como lo pide la página:
-     firma al llegar, y socio.html no arranca sin él. */
-  'app/propuesta-en-la-app.js?v=143',
+     firma al llegar, y socio.html no arranca sin él.
+     13-nov-2026 — ?v=144: la propuesta deja lugar para «falta tu cédula»
+     (extraPropuesta). */
+  'app/propuesta-en-la-app.js?v=144',
+  /* 13-nov-2026 — «Falta tu cédula»: la tarjeta que avisa y deja subirla, en
+     app/socio.html y en la cuenta de play/. NUEVO, con ?v=144 en la dirección,
+     como lo piden las dos páginas: firma al llegar. El CACHE y VERSION_SITIO
+     los sube quien junta lote-v144. */
+  'app/falta-la-cedula.js?v=144',
   'app/ver-como.js',
   'app/chat.css',
   'app/app.webmanifest',

@@ -156,6 +156,10 @@
    *   volverAMirar  → el onclick del botón «Volver a mirar»;
    *   callarSiNoSabe() → true donde, sin respuesta de la base, mejor no decir
    *                   nada (la cuenta junta: ver html()).
+   *   extraPropuesta(sol) → opcional: HTML que la página quiere dentro de la
+   *                   propuesta, arriba de la casilla (13-nov-2026: «falta tu
+   *                   cédula», app/falta-la-cedula.js). Es un aviso: no cambia
+   *                   la casilla, ni la cuenta, ni el «Acepto».
    */
   function crear(o) {
     o = o || {};
@@ -325,7 +329,11 @@
           'Vuelve a abrir la app con señal para leerlas y aceptarla; si te urge, escríbenos por el chat.</div></div>';
       }
       var marcada = !!LEIDAS[CS.llaveDeCasilla(sol)];
-      h += (preguntaDestino(sol) ? '<div id="cajaDestino">' + eleccionDestinoHTML(sol) + '</div>' : '') +
+      /* 13-nov-2026 — lo que la página quiera decir aquí (extraPropuesta). Si
+         revienta, la propuesta sale igual: aceptar no depende de esto. */
+      var extra = '';
+      try { extra = o.extraPropuesta ? String(o.extraPropuesta(sol) || '') : ''; } catch (e) { extra = ''; }
+      h += extra + (preguntaDestino(sol) ? '<div id="cajaDestino">' + eleccionDestinoHTML(sol) + '</div>' : '') +
         CS.casillaHTML('condLeidas', 'marcarCondiciones(this.checked)', marcada) +
         '<p class="sub" style="margin-top:var(--e3)">Si no te cuadra, no aceptes: no pasa nada y no pierdes nada.</p>' +
         /* APAGADO PERO NO MUDO (play/, 8-oct): se ve apagado, se puede tocar,
@@ -595,7 +603,7 @@
   }
 
   return {
-    VERSION: '2026-11-10',
+    VERSION: '2026-11-13',
     LECTURAS: LECTURAS.slice(),
     queMostrar: queMostrar,
     vencioEl: vencioEl,

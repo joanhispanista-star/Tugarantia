@@ -147,6 +147,10 @@ function abrirPlay(opciones) {
   ctx.FichaSocio = require(path.join(RAIZ, 'app', 'ficha.js'));
   ctx.RuletaCupo = require(path.join(RAIZ, 'app', 'ruleta.js'));
   ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
+  /* 13-nov-2026 — «Falta tu cédula» en la cuenta. No guarda estado en el
+     módulo (cada página arma su controlador), así que la copia compartida no
+     envenena a nadie. `sinFaltaCedula: true` simula que no llegó. */
+  if (!o.sinFaltaCedula) ctx.FaltaLaCedula = require(path.join(RAIZ, 'app', 'falta-la-cedula.js'));
   vm.createContext(ctx);
   /* 21-oct-2026 — se actualiza sola. Este corre DENTRO del contexto y no con
      require: lee la ventana de la página (su sessionStorage, su navigator), y
