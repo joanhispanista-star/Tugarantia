@@ -210,6 +210,11 @@ describe('2. agrupada por lo que te toca hacer, con los botones de siempre', () 
   test('cada fila trae sus botones de siempre', () => {
     const P = todas();
     assert.match(filaDe(P, 201), /editarContrapropuesta\('201'\)">✏️ Proponer/);
+    /* Lo que dice el título de «Nuevas»: el botón para desembolsar sale cuando la
+       acepten. Ni en la nueva ni en la que espera. */
+    assert.match(bandeja(P), /El botón para desembolsar sale aquí cuando la acepten/);
+    assert.doesNotMatch(filaDe(P, 201), /crearDesdeSolicitud/, 'una nueva, sin propuesta, se puede desembolsar');
+    assert.doesNotMatch(filaDe(P, 204), /crearDesdeSolicitud/, 'una que no ha aceptado se puede desembolsar');
     assert.match(filaDe(P, 203), /crearDesdeSolicitud\('203'\)">✓ Desembolsar/);
     assert.match(filaDe(P, 204), /editarContrapropuesta\('204'\)">✏️ Cambiar propuesta/);
     assert.match(plano(filaDe(P, 202)), /Vencida: pagaba el/, 'la vencida perdió la marca de la propuesta vencida');
