@@ -19,7 +19,9 @@
  *   · lo suyo vuelve SIN el contenido, con la ocupación de SU registro (no la
  *     de otra persona que usó ese celular antes de abrir la cuenta);
  *   · el EQUIPO: las funciones de Joan no se pueden llamar con la sesión de
- *     nadie, y gerente_archivos no trae ningún extracto;
+ *     nadie (tampoco la del gerente), y gerente_archivos no trae ningún
+ *     extracto, con un control: SÍ trae la foto de cédula del registro de su
+ *     base (si no la trajera, la prueba no probaría nada);
  *   · BORRAR: lo quita el cliente (uno o todo, y queda la constancia), lo
  *     borra Joan, y se va con la cuenta de acceso por cualquier camino;
  *   · el CORTACIRCUITO: pasados 50 MB, «lleno» y no escribe; el reintento de
@@ -46,7 +48,9 @@ const NOMBRE = '20261113c_los_extractos.sql';
 const COMPROBAR = 'comprobar_20261113c_los_extractos.sql';
 const SQL = fs.readFileSync(path.join(RAIZ, 'base', NOMBRE), 'utf8');
 const CLAVE = 'clave-de-prueba-larga-123';
-const ANA = '3001113301', BETO = '3001113302', CARLA = '3001113303', GER = '3172862539';
+/* 13-nov-2026 (remate) — GER venía copiado del modelo, y ese número se parece
+   al de un gerente de verdad. La regla es usar datos inventados. */
+const ANA = '3001113301', BETO = '3001113302', CARLA = '3001113303', DANI = '3001113304', GER = '3001113399';
 
 /* Archivos de mentira, sin datos de nadie: lo que importa son sus primeros
    bytes (lo único con lo que la base decide el tipo). */
@@ -89,18 +93,21 @@ describe('los extractos, en un PostgreSQL de verdad', { skip: !BIN && 'sin TG_PG
   const uid = cel => "md5('cuenta-" + cel + "')::uuid";
   const lit = s => "'" + String(s).replace(/'/g, "''") + "'";
   /* Como la sesión de esa cuenta, con el ROL de la sesión (authenticated):
-     así PostgreSQL mira los permisos de verdad, como PostgREST. */
-  const comoRol = (rol, cel, q) => sqlCrudo(
+     así PostgreSQL mira los permisos de verdad, como PostgREST.
+     13-nov-2026 (remate) — con «iat», como el modelo: sin él, el gerente (que
+     tiene la clave de Joan puesta DESPUÉS de crear su cuenta, 20261022d) no
+     queda reconocido como equipo, y la prueba del equipo no medía nada. */
+  const comoRol = (rol, cel, q, iat) => sqlCrudo(
     (cel ? "select set_config('request.jwt.claims', '{\"sub\":\"' || " + uid(cel) + " || '\",\"email\":\"57" + cel +
-      "@tugarantia.net\",\"role\":\"authenticated\"}', false);"
+      "@tugarantia.net\",\"role\":\"authenticated\",\"iat\":' || floor(extract(epoch from now()) + " + (iat || 0) + ") || '}', false);"
       : "select set_config('request.jwt.claims', '', false);") +
     ' set role ' + rol + '; select (' + q + ')::text;');
-  const como = (cel, q) => {
-    const r = comoRol('authenticated', cel, q);
+  const como = (cel, q, iat) => {
+    const r = comoRol('authenticated', cel, q, iat);
     assert.equal(r.status, 0, 'la llamada falló: ' + r.stderr);
     return r.stdout.trim().split(/\r?\n/).pop();
   };
-  const jsonComo = (cel, q) => JSON.parse(como(cel, q));
+  const jsonComo = (cel, q, iat) => JSON.parse(como(cel, q, iat));
   const comoAnon = q => {
     const r = comoRol('anon', null, q);
     assert.equal(r.status, 0, 'la llamada de Joan falló: ' + r.stderr);
@@ -188,11 +195,13 @@ describe('los extractos, en un PostgreSQL de verdad', { skip: !BIN && 'sin TG_PG
       assert.notEqual(r.status, 0, 'anon pudo llamar ' + q);
       assert.match(r.stderr, /permission denied/i);
     });
-    ["public.extracto_resumen('" + CLAVE + "')", "public.extracto_archivo('" + CLAVE + "', 1)",
-     "public.extracto_borrar('" + CLAVE + "', '" + ANA + "')"].forEach(q => {
-      const r = comoRol('authenticated', ANA, q);
-      assert.notEqual(r.status, 0, 'una sesión pudo llamar ' + q);
-      assert.match(r.stderr, /permission denied/i);
+    ["public.extracto_resumen('" + CLAVE + "')", "public.extracto_de('" + CLAVE + "', '" + ANA + "')",
+     "public.extracto_archivo('" + CLAVE + "', 1)", "public.extracto_borrar('" + CLAVE + "', '" + ANA + "')"].forEach(q => {
+      [[ANA, 0], [GER, 5]].forEach(([cel, iat]) => {
+        const r = comoRol('authenticated', cel, q, iat);
+        assert.notEqual(r.status, 0, 'la sesión de ' + cel + ' pudo llamar ' + q);
+        assert.match(r.stderr, /permission denied/i);
+      });
     });
   });
 
@@ -221,6 +230,29 @@ describe('los extractos, en un PostgreSQL de verdad', { skip: !BIN && 'sin TG_PG
     [2, 3, 4].forEach(i => assert.equal(subir(ANA, PNG(i)).ok, true));
     assert.equal(subir(ANA, PNG(9)).motivo, 'demasiados', 'entró un sexto pantallazo');
     assert.equal(filas(ANA), '8');
+  });
+
+  /* 13-nov-2026 (remate) — el tope de 12 MB por persona no lo probaba nadie
+     (la mutación que lo multiplicaba por diez sobrevivía). Cuatro archivos de
+     3 MB justos son 12 MB exactos y entran; uno más, por chico que sea, no. */
+  test('el tope por persona: 12 MB entre todos sus archivos', () => {
+    cuenta(DANI, '1 day');
+    limpiarFreno(DANI);
+    assert.equal(autorizar(DANI).ok, true);
+    const grande = (cabeza, i) => {
+      const b = Buffer.alloc(3145728, 0x41);
+      Buffer.from(cabeza + ' ' + i + ' ', 'binary').copy(b);
+      return b.toString('base64');
+    };
+    ['%PDF-1.4', '%PDF-1.4', '%PDF-1.4', '\x89PNG\r\n\x1a\n'].forEach((c, i) => {
+      const r = subir(DANI, grande(c, i));
+      assert.equal(r.ok, true, 'el archivo ' + (i + 1) + ' de 3 MB no entró: ' + JSON.stringify(r));
+    });
+    assert.equal(sql("select sum(bytes) from public.extracto_archivos where celular = '" + DANI + "'"), '12582912');
+    assert.equal(subir(DANI, PNG('chiquito')).motivo, 'sin_espacio', 'pasó de 12 MB');
+    assert.equal(filas(DANI), '4');
+    sql("delete from public.extracto_archivos where celular = '" + DANI + "'");
+    limpiarFreno(DANI);
   });
 
   test('lo suyo vuelve SIN el contenido, con la ocupación de SU registro', () => {
@@ -273,8 +305,17 @@ describe('los extractos, en un PostgreSQL de verdad', { skip: !BIN && 'sin TG_PG
   });
 
   test('el EQUIPO: la ficha del gerente (gerente_archivos) no trae ningún extracto', () => {
-    const r = comoRol('authenticated', GER, "public.gerente_archivos('" + ANA + "')");
-    if (r.status === 0) assert.equal(/extracto|JVBER|%PDF/.test(r.stdout), false, 'el gerente recibió un extracto: ' + r.stdout.slice(0, 200));
+    /* 13-nov-2026 (remate) — antes, «if (r.status === 0)»: si gerente_archivos
+       fallaba (y sin «iat» fallaba siempre), la prueba pasaba sin mirar nada.
+       Ahora con el control del modelo: Ana es de la base del gerente, y él SÍ
+       ve la foto de cédula de su registro; lo que no ve es ningún extracto. */
+    sql("insert into public.registros (codigo, cedula, nombre, telefono, datos, origen) values ('', '52123456', 'Ana De Mentira', '" + ANA +
+      "', '{\"documento\":\"52123456\",\"ocupacion\":\"Independiente\"}', 'abierto');" +
+      " insert into public.registro_archivos (celular, tipo, imagen) values ('" + ANA + "', 'cedula_frente', 'data:image/jpeg;base64,RlJFTlRF')");
+    assert.ok(Number(filas(ANA)) > 0, 'Ana no tiene extractos: la prueba no prueba nada');
+    const g = como(GER, "public.gerente_archivos('" + ANA + "')", 5);
+    assert.match(g, /RlJFTlRF/, 'el gerente no vio el registro de su base (la prueba no prueba nada): ' + g.slice(0, 200));
+    assert.equal(/extracto|JVBER|%PDF/.test(g), false, 'el gerente recibió un extracto: ' + g.slice(0, 200));
     /* Y ninguna función que no sea de los extractos los nombra. */
     assert.equal(sql("select count(*) from pg_proc p join pg_namespace s on s.oid = p.pronamespace where s.nspname = 'public'" +
       " and p.proname not like 'extracto\\_%' and p.prosrc ~ 'extracto_archivos|extracto_autorizaciones'"), '0');
