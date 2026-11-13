@@ -940,8 +940,12 @@ details.plegado>summary{padding:0 var(--e4)}
    tiene la versión que se la muestra. Sale con el CACHE v143.
    10-nov-2026: una propuesta cuya fecha de pago ya llegó no se acepta (se dice y
    se pide una nueva por el chat); «Aceptaste» va arriba de las condiciones; y en
-   la cuenta junta, sin señal, no se pinta el aviso de «no pude ver». También v143. */
-var VERSION_APP = '2026-11-10';
+   la cuenta junta, sin señal, no se pinta el aviso de «no pude ver». También v143.
+   13-nov-2026: «Tu información está incompleta: falta la foto de tu cédula», con
+   «Subir mi cédula» (app/falta-la-cedula.js, nuevo), en la cuenta sin juntar, en
+   Inicio, antes de mandar una solicitud y en la propuesta. Nunca frena nada. Sale
+   con v144. */
+var VERSION_APP = '2026-11-13';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
@@ -1043,7 +1047,11 @@ setTimeout(function () {
      consignamos?». Sin estos dos, se acepta sin la pregunta (como play/). -->
 <script src="bancos-colombia.js"></script>
 <script src="cuentas-pago.js"></script>
-<script src="propuesta-en-la-app.js?v=143"></script>
+<script src="propuesta-en-la-app.js?v=144"></script>
+<!-- 13-nov-2026 — «Falta tu cédula»: la tarjeta que avisa (sin frenar nada) y la
+     subida por registro_archivos_guardar, la misma de play/. Si no llega, la
+     página no arranca (va con versión: ver la guardia de abajo). -->
+<script src="falta-la-cedula.js?v=144"></script>
 <script src="sesion-socio.js?v=143"></script>
 <script src="ver-como.js"></script>
 <!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
@@ -1541,6 +1549,11 @@ function pintarSinJuntar(estado) {
     /* 9-nov-2026 — LA PROPUESTA, ARRIBA DE TODO: es lo que tiene que
        contestar, y lo único de esta pantalla que depende de ella. */
     (conPropuesta ? '<div id="propuestaCaja">' + PDA.html() + '</div>' : '') +
+    /* 13-nov-2026 — «Falta tu cédula» (ver FALTA TU CÉDULA): debajo de la
+       propuesta, que es lo que tiene que contestar. Nace vacía y se llena
+       cuando contesta la base; sin la puerta (mi_registro en 404) no se
+       pregunta, igual que la propuesta. */
+    (conChat && FLC ? '<div id="faltaCedula">' + FLC.html('') + '</div>' : '') +
     (arriba ? instalar : '') +
     '<div class="card">' +
       '<h3 class="tit" id="sjTit">' + esc(t.titulo) + '</h3>' +
@@ -1558,6 +1571,7 @@ function pintarSinJuntar(estado) {
       enlacesLegales() + selloDeVersion() + '</div>';
   mostrar('pEntrar');
   if (conChat) arrancarChat();
+  if (conChat) cargarCedulaSinJuntar();   // 13-nov-2026 — ver FALTA TU CÉDULA
   montarHistoriaLaboral();   // 28-oct-2026
   avisarQueEsMomento();   // 21-oct-2026 — la cuenta sin juntar es el inicio de quien se registró
 }
@@ -1611,7 +1625,12 @@ var PDA = (function () {
       /* 10-nov-2026 — en la cuenta junta (S puesto), sin respuesta de la base no
          se dice nada: el aviso le salía en Inicio a todo cliente, aunque nunca
          hubiera pedido. En la cuenta sin juntar (S es null) sí se dice. */
-      callarSiNoSabe: function () { return !!S; }
+      callarSiNoSabe: function () { return !!S; },
+      /* 13-nov-2026 — y si le falta la cédula, la propuesta lo dice, con
+         «Subir mi cédula» y «puedes aceptar igual» (ver FALTA TU CÉDULA). La
+         caja la llena FLC cuando contesta la base, sin repintar la propuesta:
+         repintarla le quitaría el teclado a quien escribe su cuenta. */
+      extraPropuesta: function () { return FLC ? '<div id="flcEnPropuesta">' + FLC.lineaPropuesta() + '</div>' : ''; }
     });
   } catch (e) { return null; }
 })();
@@ -1631,6 +1650,93 @@ function cargarPropuestaDeLaCuenta() {
     if (!SESION || SESION.celular !== cel || !S || S.origen !== 'nube') return;
     if (PANTALLA === 'inicio') PDA.pintar();
   });
+}
+
+/* ===========================================================================
+ * FALTA TU CÉDULA — 13 de noviembre de 2026
+ *
+ * Joan: «el cliente no puso la cédula al momento de registrarse; quiero que
+ * cuando él solicite el crédito, o incluso antes, tenga un botón o una alerta
+ * que diga que no ha subido la cédula o que la información está incompleta».
+ *
+ * Y NO FRENA NADA: la cédula no es obligatoria (decisión de Joan del 3-nov;
+ * Decreto 1377 de 2013, art. 6). La tarjeta «Tu información está incompleta»
+ * sale en la cuenta sin juntar y en Inicio; justo antes de mandar una
+ * solicitud (antesDeMandar), con «Seguir sin ella»; y dentro de la propuesta,
+ * con «puedes aceptar igual». «Subir mi cédula» pide primero el permiso de
+ * datos sensibles si no lo dio, y sube por registro_archivos_guardar, la de
+ * play/ (app/falta-la-cedula.js).
+ *
+ * La tarjeta sale SOLO si la base lo sabe (mis_fotos_del_registro,
+ * base/20261113_falta_tu_cedula.sql): sin la función (404), sin señal o con
+ * una respuesta rara, no se dice nada. En la cuenta junta también cuenta lo
+ * que tiene la ficha de Joan (S.perfil: si la pegó a mano, no se le pide).
+ * Solo con su sesión: ni el «Ver como» de Joan ni un enlace preguntan nada.
+ * ======================================================================== */
+var FLC = (function () {
+  var F = window.FaltaLaCedula;
+  if (!F || typeof F.crear !== 'function' || !SS) return null;
+  try {
+    return F.crear({
+      nombre: 'FLC',
+      U: U,
+      rpc: function (fn, cuerpo) { return SS.conSesion(CFG, SESION, fn, cuerpo, guardarSesionSocio); },
+      /* Con la sesión renovada si está por vencer (la de cfgChat). */
+      credenciales: function () { return SESION && SESION.access_token ? cfgChat() : Promise.resolve(null); },
+      escritura: escrituraEnCamino,
+      quien: function () { return (SESION && SESION.celular) || ''; },
+      caja: function () { return $('faltaCedula'); },
+      porId: $,
+      ficha: function () { return (S && S.origen === 'nube' && S.perfil) ? S.perfil : null; },
+      almacen: function () { try { return localStorage; } catch (e) { return null; } },
+      /* En la cuenta sin juntar el chat está en la misma pantalla, debajo. */
+      irAlChat: function () {
+        if (PANTALLA === 'sin_juntar') { var t = $('chTexto'); if (t && t.focus) t.focus(); return; }
+        if (S) irA('chat');
+      },
+      /* Antes de pedir: si ya la subió, el botón deja de decir «sin ella». */
+      alCambiar: function () {
+        if (PANTALLA !== 'pedir' || !FLC) return;
+        var b = $('btnSeguirSinElla');
+        if (b && !FLC.debeAvisar()) b.textContent = 'Mandar la solicitud';
+      },
+      textoVencida: SS.TEXTOS.vencida
+    });
+  } catch (e) { return null; }
+})();
+/* La cuenta sin juntar: pintarSinJuntar ya dejó la caja vacía. */
+function cargarCedulaSinJuntar() {
+  if (!FLC || !SESION || !SESION.access_token) return;
+  var cel = SESION.celular;
+  FLC.cargar().then(function () {
+    if (!SESION || SESION.celular !== cel || PANTALLA !== 'sin_juntar') return;
+    FLC.pintar();
+  });
+}
+/* La cuenta junta: se pregunta al abrirla y se pinta en Inicio si todavía
+   está ahí (como la propuesta). */
+function cargarCedulaDeLaCuenta() {
+  if (!FLC || !S || S.origen !== 'nube' || !SESION || !SESION.access_token) return;
+  var cel = SESION.celular;
+  FLC.cargar().then(function () {
+    if (!SESION || SESION.celular !== cel || !S || S.origen !== 'nube') return;
+    if (PANTALLA === 'inicio') FLC.pintar();
+  });
+}
+/* «Mandar la solicitud»: si le falta la cédula, la tarjeta primero, con
+   «Seguir sin ella» al lado. Sin la respuesta de la base, derecho a mandar.
+   Lo que se sabe ya está en memoria: nada espera a la red aquí, y por eso el
+   WhatsApp de mandarSolicitud sigue saliendo del toque de la persona. */
+function antesDeMandar(monto) {
+  if (!FLC || !S || S.origen !== 'nube' || !FLC.debeAvisar()) return mandarSolicitud(monto);
+  PANTALLA = 'pedir';   // ver SE ACTUALIZA SOLA
+  $('cuerpo').innerHTML = '<div class="panel">' +
+    '<div id="faltaCedula">' + FLC.html('antes_de_pedir') + '</div>' +
+    '<div class="card">' +
+      '<button class="btn arriba" id="btnSeguirSinElla" onclick="mandarSolicitud(' + Number(monto) + ')">Seguir sin ella</button>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pedirCredito()">Volver</button>' +
+    '</div></div>';
+  window.scrollTo(0, 0);
 }
 
 /* ===========================================================================
@@ -2152,6 +2258,7 @@ function abrir(resp) {
   irA(pestanaAlVolver() || atajoDelManifiesto() || 'inicio');
   mostrar('pCuenta');
   cargarPropuestaDeLaCuenta();   // 9-nov-2026 — ver LA PROPUESTA EN LA APP
+  cargarCedulaDeLaCuenta();      // 13-nov-2026 — ver FALTA TU CÉDULA
   /* 26-oct-2026 (chat-1) — el número de «Chat (n)» late en toda la app, no
      solo dentro de la pestaña. Solo con sesión (chatDisponible lo mira). */
   arrancarLatidoChat();
@@ -2219,6 +2326,8 @@ function vistaInicio() {
      PROPUESTA EN LA APP): una propuesta esperando su respuesta es lo primero
      que tiene que ver. Solo en su cuenta (origen nube, con su sesión). */
   if (PDA && S.origen === 'nube' && SESION && SESION.access_token) h += '<div id="propuestaCaja">' + PDA.html() + '</div>';
+  /* 13-nov-2026 — y si le falta la cédula, debajo (ver FALTA TU CÉDULA). */
+  if (FLC && S.origen === 'nube' && SESION && SESION.access_token) h += '<div id="faltaCedula">' + FLC.html('') + '</div>';
 
   var cuota = proximaCuotaRespaldado();
   /* "Este corte" se mide contra el corte que viene DE VERDAD, no contra el
@@ -4094,7 +4203,9 @@ function pedirCredito() {
     'una prórroga o pasar a un plan de pagos. Las dos cosas tienen costo —el plan arranca con una ' +
     'entrada— y está todo explicado en <b>Cómo funciona esto</b>. ' +
     'Y aunque te atrases, sigues siendo socio.</div>' +
-    '<button class="btn ' + (resp ? 'azul' : '') + ' arriba" onclick="mandarSolicitud(' + MONTO + ')">' +
+    /* 13-nov-2026 — por antesDeMandar: si le falta la cédula, se lo dice antes,
+       con «Seguir sin ella» (ver FALTA TU CÉDULA). */
+    '<button class="btn ' + (resp ? 'azul' : '') + ' arriba" onclick="antesDeMandar(' + MONTO + ')">' +
       'Mandar la solicitud' + '</button>' +
     '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="irA(\'calc\')">Volver</button>' +
     '</div>';
@@ -5392,6 +5503,8 @@ function cerrarSesionLocal() {
   /* 9-nov-2026 — y la propuesta: la casilla, la cuenta elegida y las cuentas
      del registro de esta cuenta no se quedan para la siguiente. */
   if (PDA) PDA.soltar();
+  /* 13-nov-2026 — y lo que se sabía de su cédula. */
+  if (FLC) FLC.soltar();
 }
 
 function salir() {
@@ -5496,6 +5609,8 @@ function momentoSeguroSocio() {
      son justo donde está la propuesta; y la persona sale a la app del banco a
      copiar el número y vuelve. */
   if (PDA && PDA.aMedias()) return false;
+  /* 13-nov-2026 — y el permiso marcado o la foto de la cédula subiendo. */
+  if (FLC && FLC.aMedias()) return false;
   if (PANTALLAS_SEGURAS.indexOf(PANTALLA) < 0) return false;
   if (PANTALLA === 'entrar') return sinTeclear('inCel') && sinTeclear('inClave');
   if (PANTALLA === 'sin_juntar') return sinTeclear('chTexto');
