@@ -24,7 +24,10 @@
  *     sí), el 51 %, un peso de más en un costo, capitales que no suman, y el
  *     redondeo del motor (10.250 al 35 % son 3.587, no 3.588);
  *   · volver a proponer sobre una aceptada la deja otra vez esperando, sin la
- *     aceptación vieja; una solicitud cerrada no se toca.
+ *     aceptación vieja; una solicitud cerrada no se toca;
+ *   · (13-nov, revisión) una de PlataChat queda resuelta y recibe el mensaje
+ *     en el hilo de Créditos, en pesos y fechas; una de Tu Garantía, no.
+ *     Escrita sin PostgreSQL a mano: tampoco se ha corrido.
  * Sin TG_PG_BIN se salta (la parte que lee el archivo corre siempre). Con la
  * base de 9ac0aff (sin el archivo) todas las de PostgreSQL fallan: la función
  * no existe.
@@ -339,6 +342,49 @@ describe('la propuesta quincenal a cuotas, en un PostgreSQL de verdad', { skip: 
     const no = proponer(s.id, exacto);
     assert.equal(no.ok, false);
     assert.match(no.motivo, /da 3587 y llegó 3588/);
+  });
+
+  /* 13-nov-2026 (revisión, hueco c) — LA RAMA DE PLATACHAT. Ninguna prueba
+     proponía sobre una solicitud de PlataChat, así que el insert en mensajes
+     (con pesos_texto, fecha_texto y llave_de_solicitud) nunca corría aquí: en
+     PL/pgSQL una sentencia se compila la primera vez que se ejecuta, y un
+     nombre mal escrito ahí revienta en producción con la propuesta ya
+     guardada a medias. La solicitud se mete a mano, como la deja
+     solicitar_platachat (la prueba no depende del reloj ni del cupo). */
+  test('PlataChat: la deja resuelta y le escribe en el hilo de Créditos, en pesos y fechas; Tu Garantía no escribe', () => {
+    const CEL = '3001230106';
+    const id = Number(sql("with x as (insert into public.solicitudes (cedula, celular, nombre, capital, tasa, costo, total, fecha_corte, producto, estado, app) values ('"
+      + CEL + "', '" + CEL + "', 'Prueba PC', 2000000, 0, 0, 0, public.hoy_bogota() + 79, 'quincenal', 'nueva', 'platachat') returning id) select id from x"));
+    const llave = sql('select public.llave_de_solicitud(s) from public.solicitudes s where s.id = ' + id);
+    assert.equal(llave, CEL, 'sin ficha vinculada, el hilo es el de su celular');
+    const mensajes = k => json("(select coalesce(json_agg(json_build_object('de', de, 'texto', texto, 'canal', canal) order by id), '[]'::json) "
+      + "from public.mensajes where cedula = '" + k + "')");
+    const antes = mensajes(llave).length;
+    const cuerpo = cuerpoDelMotor(2000000,
+      [{ fecha: fechaEn(15), pct: 20 }, { fecha: fechaEn(30), pct: 15 }, { fecha: fechaEn(79), pct: 10 }], hoy(), '  Te propongo esto en tres  ');
+    const j = proponer(id, cuerpo);
+    assert.equal(j.ok, true, JSON.stringify(j));
+    assert.equal(j.solicitud.app, 'platachat');
+    assert.equal(j.solicitud.estado, 'contrapropuesta');
+    assert.ok(j.solicitud.resuelta_en, 'una de PlataChat queda resuelta, como con contrapropuesta_solicitud');
+    const ms = mensajes(llave);
+    assert.equal(ms.length, antes + 1, 'no escribió en el chat (o escribió de más): ' + JSON.stringify(ms));
+    const m = ms[ms.length - 1];
+    assert.equal(m.de, 'panel');
+    assert.equal(m.canal, 'creditos');
+    const ft = f => sql("select public.fecha_texto('" + f + "'::date)");
+    assert.equal(m.texto, 'Te propongo ' + CS.pesos(2000000) + '; devuelves ' + CS.pesos(cuerpo.total) + ' en 3 cuotas: la primera de '
+      + CS.pesos(cuerpo.cuotas[0].total) + ' el ' + ft(cuerpo.cuotas[0].fecha) + ' y la última el ' + ft(cuerpo.cuotas[2].fecha)
+      + '. Te propongo esto en tres');
+    assert.doesNotMatch(m.texto, /%/, 'el cliente leyó un porcentaje en el chat');
+
+    /* Una de Tu Garantía (play/): ni mensaje en su hilo ni resuelta_en. */
+    const s = pedir('3001230107', 650000, 30);
+    const antesTG = mensajes('3001230107').length;
+    const k = proponer(s.id, cuerpoDelMotor(650000, [{ fecha: fechaEn(14), pct: 20 }, { fecha: fechaEn(30), pct: 20 }], hoy()));
+    assert.equal(k.ok, true, JSON.stringify(k));
+    assert.equal(k.solicitud.resuelta_en, null);
+    assert.equal(mensajes('3001230107').length, antesTG, 'una de Tu Garantía escribió en el chat de PlataChat');
   });
 
   test('una solicitud cerrada no se toca', () => {

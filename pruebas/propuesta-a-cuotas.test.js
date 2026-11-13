@@ -485,11 +485,35 @@ describe('2. «Un solo pago» y «Con garantía · mensual» mandan lo mismo que
       { fechaDesembolso: HOY });
     assert.equal(p.total, r.total_a_pagar);
     assert.deepEqual(p.cuotas.map(q => [q.fecha, q.total]), r.cuotas.map(q => [q.fecha_corte, q.total]));
+    /* 13-nov-2026 (revisión, hueco d) — esto decía `env.length, p.ea > p.tope ? 0 : 1`:
+       si el caso pasaba el techo, la prueba no miraba nada. Ahora el caso está
+       debajo del techo a la vista, se mira el cuerpo entero, y el de encima del
+       techo va aparte. */
+    assert.ok(p.ea != null && p.tope != null && p.ea <= p.tope, 'el caso tiene que estar debajo del techo: ' + p.ea + ' > ' + p.tope);
+    poner(P, 'cqTexto', 'En seis meses');
     P.ev("guardarContrapropuestaCuotas('77')");
     const env = vistas.filter(x => x.fn === 'contrapropuesta_a_cuotas');
-    assert.equal(env.length, p.ea > p.tope ? 0 : 1);
-    if (env.length) assert.equal(env[0].cuerpo.p_cuerpo.meses, 6);
+    assert.equal(env.length, 1);
+    assert.deepEqual(env[0].cuerpo, { p_clave: CLAVE, p_id: 77, p_cuerpo: { capital: r.capital, costo: r.costo_total, meses: 6,
+      cuotas: r.cuotas.map(q => ({ numero: q.numero, fecha: q.fecha_corte, capital: q.capital, costo: q.costo, total: q.total })),
+      ea: p.ea, tope: p.tope, texto: 'En seis meses' } });
     assert.equal(vistas.filter(x => /quincenal_a_cuotas/.test(x.fn || '')).length, 0);
+  });
+
+  test('con garantía por encima del techo de usura: no manda nada y dice por qué', () => {
+    const { P, vistas, preguntas } = crm();
+    P.ev('entradaRespaldoDe = function () { return { datos: {}, referidos: 0, acumulada: 3000000, ajuste: 0, comprometida: 0 }; };');
+    /* Un techo de mentira, más bajo que la efectiva del plan. */
+    P.ev("CreditosPublicables.topeVigente = function () { return { consumo_ordinario: 0.10, fuente: 'prueba' }; };");
+    P.ev("editarContrapropuesta('77','cuotas')");
+    poner(P, 'cqCap', 2000000); poner(P, 'cqMeses', 6);
+    const p = JSON.parse(P.ev('JSON.stringify(planDeCuotas())'));
+    assert.ok(p.ea > p.tope, 'el caso tiene que pasar el techo');
+    P.ev('previsualizarCuotas()');
+    assert.equal(!!P.elems.cqBtn.disabled, true);
+    P.ev("guardarContrapropuestaCuotas('77')");
+    assert.equal(vistas.filter(x => x.fn === 'contrapropuesta_a_cuotas').length, 0);
+    assert.ok(preguntas.some(t => /^ALERT Esa propuesta pasa el techo de usura del mes/.test(t)), preguntas.join('\n'));
   });
 });
 
@@ -754,5 +778,43 @@ describe('6. «Lo que pidió» y 📨 Solicitudes: «N cuotas, la primera el …
     assert.match(t, /la primera de 3/);
     assert.doesNotMatch(t, /él aceptó/, 'un descuadre falso en la fila');
     assert.doesNotMatch(t, /Primer crédito/);
+  });
+
+  /* 13-nov-2026 (revisión, huecos a y b) — dos mutaciones pasaban 24/24: quitar
+     el descuadre de la fila (`descuadre:(rv.plan&&!rv.ok)?dicho:0` → `0`) y
+     poner en la columna de la fecha la última cuota en vez de la primera. La
+     prueba de arriba mira el texto de la fila entera, y «la primera el …» ya
+     sale en la columna del producto: aquí se mira CADA columna. */
+  const columnas = (P, id) => {
+    P.ev('renderBandeja()');
+    const h = P.elems.bandeja.innerHTML;
+    const fin = h.indexOf("descartarSolicitud('" + id + "')");
+    const fila = h.slice(h.lastIndexOf('<tr>', fin), h.indexOf('</tr>', fin));
+    return [...fila.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map(m => plano(m[1]).trim());
+  };
+
+  test('la columna de la fecha dice la PRIMERA cuota, «la primera de 3», y no la última', () => {
+    const sol = Object.assign(PIDE(), { estado: 'contrapropuesta', contrapropuesta: propuestaGuardada(cuerpoMandado(ENTRADAS)) });
+    const { P } = crm({ solicitudes: [sol] });
+    const td = columnas(P, 77);
+    assert.equal(td.length, 6, td.join(' | '));
+    assert.equal(td[4], P.ev("fmtFecha('2026-11-30')") + ' la primera de 3');
+    assert.ok(td[4].indexOf(P.ev("fmtFecha('2027-01-31')")) < 0, 'la columna de la fecha dice la última cuota');
+  });
+
+  test('si el motor de hoy no da lo que aceptó, la fila lo dice en la columna del total: «él aceptó $X en otras cuotas»', () => {
+    const { sol } = solicitudAceptada();
+    /* La base guardó una cuota 2 con $1.000 más de costo, y el total con ellos:
+       el motor de hoy da $1.000 menos de lo que él aceptó. */
+    sol.contrapropuesta.cuotas[1].costo += 1000; sol.contrapropuesta.cuotas[1].total += 1000; sol.contrapropuesta.total += 1000;
+    const { P } = crm({ solicitudes: [sol] });
+    const plan = M.construirPlanACuotas(2000000, ENTRADAS, { fechaDesembolso: HOY });
+    const td = columnas(P, 77);
+    assert.equal(td[3], CS.pesos(plan.total_a_pagar) + ' él aceptó ' + CS.pesos(sol.contrapropuesta.total)
+      + ' en otras cuotas: revísala antes de desembolsar');
+    /* Y la misma, tal como la da el motor: sin aviso. */
+    const { sol: buena } = solicitudAceptada();
+    const Q = crm({ solicitudes: [buena] }).P;
+    assert.equal(columnas(Q, 77)[3], CS.pesos(plan.total_a_pagar));
   });
 });
