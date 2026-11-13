@@ -9826,6 +9826,9 @@ function traerConversaciones(){
       ? 'Los que tienen mensajes sin leer salen de primeros'
       : 'Todavía no te ha escrito nadie';
     renderMensajes(); pintarAvisos();
+    /* 13-nov-2026 — los sin leer de cada fila de 📨 Solicitudes salen de esta
+       lista (sinLeerDeSolicitud): con la lista nueva, se repinta. */
+    try{ if(_solicitudes.length) renderBandeja(); }catch(e){}
   }).catch(e=>{
     /* El error se dice y la lista NO se vacía: si se borrara, un corte de señal
        se vería igual que "no te ha escrito nadie". */
@@ -10555,6 +10558,18 @@ function canalDeEntrada(c){
   if(conPendientes.length) return conPendientes[0];
   return (c&&c.ultimo_canal)||'servicio';
 }
+/* 13-nov-2026 — Y EL QUE PIDE QUIEN ABRE, SI NO HAY NADA PENDIENTE. Desde
+   📨 Solicitudes se habla de un crédito que alguien pidió, y eso va en
+   «Créditos nuevos»: abrir donde fue el último mensaje podía dejar a Joan
+   escribiendo de una propuesta en Cobranzas (con el candado de la Ley 2300
+   encima) o en Servicio. Lo sin leer sigue mandando, por lo mismo de arriba:
+   lo que el cliente escribió no se esconde detrás de otra pestaña. */
+function canalAlAbrir(c,pedido){
+  const s=(c&&c.sin_leer_canal)||{};
+  const canales=(CHAT.CANALES||[]).map(x=>x[0]);
+  if(!pedido||canales.indexOf(pedido)<0||canales.some(k=>Number(s[k]||0)>0)) return canalDeEntrada(c);
+  return pedido;
+}
 /* Las tres pestañas del Panel son LAS MISMAS que las del cliente, para que lo
    que Joan mira sea lo que el cliente mira. Cada una dice cuántos le faltan. */
 function pestanasCanal(c){
@@ -10605,7 +10620,7 @@ function abrirConversacion(ident,extra){
      no puede volver a escribir algo que Joan ya mandó o borró. */
   const {borrador,...sinBorrador}=x;
   _chatExtra={ident:_chatAbierta,extra:sinBorrador};
-  _chatCanal=canalDeEntrada(c);
+  _chatCanal=canalAlAbrir(c,x.canal);
   const sinJuntar=/^0\d{10}$/.test(_chatAbierta);
   const regla=CHAT.quienEs?CHAT.quienEs(c):(c.nombre||'Socio');
   /* 26-oct-2026 — y lo que este computador sabe (quienEscribeLocal): el mismo
@@ -10830,14 +10845,17 @@ function mandarFotoAlCliente(input){
    esta frase decía «pestaña Chat», que ahí no existía; con chat-1 las tres
    pantallas dicen «Chat». */
 const AVISO_SIN_PUSH='No le llega aviso al celular: lo ve cuando abra la app, en Chat.';
-function escribirlePorLaApp(desde,id,borrador){
+/* 13-nov-2026 — `opc.canal`: la pestaña que pide quien abre (ver canalAlAbrir).
+   📨 Solicitudes la pasa; los demás, no. */
+function escribirlePorLaApp(desde,id,borrador,opc){
+  const canal=(opc||{}).canal;
   if(!chatListo()) return alert('No cargó ../app/chat.js. Recarga con Ctrl+F5, y si sigue igual, Ajustes → 🧹 Soltar la copia guardada.');
   if(!sbListo()) return alert('El chat vive en la nube y este computador no la tiene conectada. Conéctala en Ajustes → 📲 Compartir con mis clientes.');
   if(desde==='ficha'){
     const s=DB.socios.find(x=>x.id===id); if(!s) return;
     const llave=PUENTE.llaveEnLaNube(s);
     if(!llave) return alert('Esta ficha no tiene cédula ni celular: no hay hilo donde escribirle.');
-    return abrirConversacion(llave,{nombre:s.nombre||'',borrador,
+    return abrirConversacion(llave,{nombre:s.nombre||'',borrador,canal,
       nota:(s.cuentaJunta?'':'Esto queda en el hilo de su ficha: lo lee cuando su cuenta de la app esté junta con ella. ')+AVISO_SIN_PUSH});
   }
   const r=registroPorId(id); if(!r) return;   // 3-nov-2026 — también los que trajo el chat (ver pedirFotosPorElChat)
@@ -10857,7 +10875,7 @@ function escribirlePorLaApp(desde,id,borrador){
     const c=(Array.isArray(lista)?lista:[])[0]||null;
     if(!c) return alert('La nube no encontró ese registro. Trae de nuevo los registrados (↻) y vuelve a intentar.');
     if(c.cuenta!==true) return alert(SIN_CUENTA_NO_SE_ESCRIBE);
-    return abrirHiloDeRegistro(r,cel,borrador);
+    return abrirHiloDeRegistro(r,cel,borrador,{canal});
   }).catch(e=>alert(/cuentas_de_registros/.test(errNube(e))
     ?'Para saber si tiene cuenta falta correr base/20261007_una_puerta.sql en el SQL Editor. Mientras tanto no te abro la conversación: escríbele por WhatsApp.'
     :'No pude preguntarle a la nube si ese celular tiene cuenta. '+errNube(e)));
@@ -10866,17 +10884,204 @@ const SIN_CUENTA_NO_SE_ESCRIBE='Este celular todavía no tiene cuenta en la app,
   +'Si le escribes por la app, lo leería el primero que abra una cuenta con ese número, y ese número no está verificado: '
   +'podría no ser esta persona. Por eso no te abro la conversación. Escríbele por WhatsApp («📲 Escribirle»). '
   +'Cuando ese celular tenga cuenta, este botón sí te la abre.';
-function abrirHiloDeRegistro(r,cel,borrador){
+/* 13-nov-2026 — `opc` ({nota, canal, alResolver}) y `borrador` como función del
+   hilo los usa 📨 Solicitudes (escribirleDesdeSolicitud): la nota de PlataChat
+   no es la de la app, el saludo no lleva nombre en un hilo '0' + celular, y lo
+   que contestó la nube se guarda para contar los sin leer de esa fila. */
+function abrirHiloDeRegistro(r,cel,borrador,opc){
+  const o=opc||{};
   return CHAT.hiloDeCelular(sbCfg(),cel).then(j=>{
     if(!j||j.ok!==true||!j.hilo) return alert('La nube no me dijo en qué conversación lee ese celular. No te abro una a ciegas.');
     const hilo=String(j.hilo);
+    if(typeof o.alResolver==='function') o.alResolver(hilo);
     /* Si la nube dice que es el hilo de una ficha (su cuenta ya está junta),
        el nombre es el de la ficha: Joan ya dijo que es esa persona. Si no, es
        el que escribió al registrarse, y se rotula. */
     const ficha=(hilo!==cel&&!/^0\d{10}$/.test(hilo))?DB.socios.find(s=>PUENTE.llaveEnLaNube(s)===hilo):null;
     const nom=String(r.nombre||'').replace(/\s+/g,' ').trim();
-    abrirConversacion(hilo,{nombre:ficha?ficha.nombre:(nom?nom+' (registrado, sin verificar)':''),nota:AVISO_SIN_PUSH,borrador});
+    abrirConversacion(hilo,{nombre:ficha?ficha.nombre:(nom?nom+' (registrado, sin verificar)':''),nota:o.nota||AVISO_SIN_PUSH,
+      borrador:typeof borrador==='function'?borrador(hilo,ficha||null):borrador,canal:o.canal});
   }).catch(e=>alert('No pude preguntarle a la nube en qué conversación lee ese celular. '+((e&&e.humano)||'Revisa el internet y vuelve a intentar.')));
+}
+
+/* ==========================================================================
+ * ESCRIBIRLE DESDE 📨 SOLICITUDES — 13 de noviembre de 2026
+ *
+ * Joan: «quiero que desde la pestaña de solicitudes yo le pueda escribir al
+ * cliente y no tenga que recurrir a WhatsApp».
+ *
+ * El chat ya existía (abrirConversacion, el canal único) y desde una solicitud
+ * no había cómo llegar a él: Joan copiaba el número y se iba a WhatsApp. Aquí
+ * NO hay un chat nuevo: «💬 Escribirle» abre el MISMO cuadro de 💬 Chat
+ * (historial, cuadro de texto, foto, el candado de Cobranzas) encima de la
+ * pestaña, sin moverse de ella, en la conversación que lee QUIEN PIDIÓ. Cuál
+ * es no la decide la pantalla: es la regla de la base para el hilo de una
+ * solicitud (llave_de_solicitud, base/20261005_platachat_solicitud.sql):
+ *
+ *   · con `celular` (play/ y PlataChat: es el de la sesión que pidió), lo que
+ *     diga llave_de_sesion de ese celular, preguntado a la nube como en
+ *     «💬 Escribirle por la app» de 📥 Registrados (chat_hilo_de_celular): la
+ *     ficha si su cuenta está junta, '0' + celular si es el número de una
+ *     ficha sin juntar, el celular si no. Ahí hubo cuenta por fuerza: la fila
+ *     la escribió una sesión con ese celular (celular_de_sesion), y por eso
+ *     aquí no se pregunta cuentas_de_registros, que es la reja de
+ *     📥 Registrados. El hueco que queda está en la base, no aquí:
+ *     borrar_cuenta_de_pruebas (base/20260922e) borra las solicitudes con
+ *     cedula = celular o = la cédula, no las de '0' + celular (PlataChat sin
+ *     juntar); esa fila sobreviviría a su cuenta;
+ *   · sin `celular` (app/socio.html, solicitar_por_sesion, que exige la cuenta
+ *     junta), la llave con que quedó, que es la de su ficha;
+ *   · pegada de un WhatsApp: no pasó por la app. Con ficha, el hilo de la
+ *     ficha, igual que «💬 Escribirle por la app» de la ficha y con su misma
+ *     nota; sin ficha no hay conversación donde alguien lea, y el botón lo
+ *     dice y deja WhatsApp.
+ *
+ * Abre en «Créditos nuevos» salvo que haya algo sin leer en otra pestaña (ver
+ * canalAlAbrir). No le llega aviso al celular, y se dice. Y nada sale solo:
+ * «💬 Avisarle por el chat» deja el mensaje ESCRITO en el cuadro; Joan lo lee,
+ * lo cambia si quiere, y toca Enviar.
+ * ======================================================================== */
+const AVISO_SIN_PUSH_PLATACHAT='No le llega aviso al celular: lo ve cuando abra PlataChat, en Chats.';
+/* Lo que contestó la nube, por celular, mientras esta pestaña esté abierta: con
+   eso el número de sin leer de la fila es el del hilo de verdad. En memoria,
+   nunca en el disco: la cuenta se puede juntar o soltar desde otro lado. */
+let _hiloDeCelular={};
+/* Por qué camino se le escribe a quien pidió. {via:'celular', cel} |
+   {via:'llave', llave} | {via:'ficha', ficha} | {via:null, porque, corto, tel}. */
+function chatDeSolicitud(s){
+  if(!s) return {via:null,corto:'esa solicitud ya no está aquí',porque:'Esa solicitud ya no está en la bandeja. Toca «↻ Buscar en la nube» y vuelve a intentar.'};
+  if(s.origen==='pegada'){
+    const cli=socioDeSolicitud(s);
+    if(cli) return {via:'ficha',ficha:cli};
+    return {via:null,tel:telDeSolicitud(s),corto:'llegó pegada de un WhatsApp, no por la app',
+      porque:'Esta solicitud llegó pegada de un WhatsApp: no pasó por la app y no la encuentro en tus fichas, así que no hay una cuenta donde alguien lea lo que escribas. Escríbele por WhatsApp.'};
+  }
+  const cel=telDiez(s.celular);
+  if(/^3\d{9}$/.test(cel)) return {via:'celular',cel};
+  const llave=String(s.cedula||'').replace(/\D/g,'');
+  if(llave) return {via:'llave',llave};
+  return {via:null,tel:'',corto:'no trae celular ni cédula',
+    porque:'Esta solicitud no trae celular ni cédula: no sé en qué conversación lee quien la pidió.'};
+}
+/* El hilo que este computador cree que es, SIN preguntarle a la nube: solo para
+   contar los sin leer de la fila (abrir la conversación siempre pregunta). Lo
+   que dijo la nube si ya se le preguntó; la ficha que ESTE computador juntó con
+   ese celular; y si no, la llave con que nació la solicitud ('0' + celular si
+   la base la marcó sin juntar: así nace el hilo de esa cuenta). Cuando se
+   equivoca es porque el hilo se mudó (se juntó desde el celular de Joan), y el
+   hilo viejo ya no está en la bandeja: no cuenta nada, no cuenta lo de otro. */
+function hiloSabidoDeSolicitud(s){
+  const d=chatDeSolicitud(s);
+  if(d.via==='ficha') return PUENTE.llaveEnLaNube(d.ficha);
+  if(d.via==='llave') return d.llave;
+  if(d.via!=='celular') return '';
+  if(_hiloDeCelular[d.cel]) return _hiloDeCelular[d.cel];
+  const junta=(DB.socios||[]).find(x=>x&&x.cuentaJunta&&diez(x.cuentaJunta.celular)===d.cel);
+  if(junta) return PUENTE.llaveEnLaNube(junta);
+  if(s.cuenta_sin_juntar===true) return '0'+d.cel;
+  return String(s.cedula||'').replace(/\D/g,'')||d.cel;
+}
+/* Lo que el cliente escribió y Joan no ha leído, con lo que trajo la última
+   vuelta de 💬 Chat (traerConversaciones). Sin esa lista, cero: no se inventa. */
+function sinLeerDeSolicitud(s){
+  const h=hiloSabidoDeSolicitud(s); if(!h) return 0;
+  const c=(_convs||[]).find(x=>String(x.cedula)===h);
+  return c?Math.max(0,Math.round(Number(c.sin_leer)||0)):0;
+}
+/* El botón, igual en la fila, en «Lo que pidió» de la ficha (`desdeFicha`: el
+   cuadro de la ficha se cierra primero, por lo de _fichaVista en cerrarModal) y
+   en el 🔔 del Tablero. En modo #equipo nada: esta bandeja es de Joan. La razón
+   del «Sin chat» va escrita, no en un title: en el teléfono el title no existe. */
+function botonEscribirleSolicitud(s,desdeFicha){
+  if(CARTERA_EQUIPO||!s) return '';
+  const d=chatDeSolicitud(s);
+  if(!d.via){
+    return '<span class="muted" style="font-size:12px;white-space:normal">💬 Sin chat: '+escHTML(d.corto)+'.'
+      +(d.tel?'':' Búscalo en el WhatsApp donde te llegó.')+'</span> '
+      +(d.tel?'<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="'+escHTML(waLink(d.tel,'Hola'))+'">📲 Escribirle por WhatsApp</a> ':'');
+  }
+  const n=sinLeerDeSolicitud(s);
+  return '<button class="btn btn-ghost btn-sm" onclick="'+(desdeFicha?'cerrarModal();':'')+'escribirleDesdeSolicitud(\''+escHTML(String(s.id))+'\')" '
+    +'title="Abre su chat aquí mismo, sin salir de esta pantalla. No le llega aviso al celular: lo ve cuando abra la app.">💬 Escribirle'
+    +(n?' · <b>'+n+' sin leer</b>':'')+'</button> ';
+}
+/* `propuesta` ({capital, total, fecha_pago} o {capital, total, cuotas:[{fecha,
+   total}]}): lo que se acaba de mandar, para dejar escrito el aviso (ver
+   ofrecerAvisarPorElChat). Sin ella, el cuadro sale vacío. */
+function escribirleDesdeSolicitud(id,propuesta){
+  /* La de recién mandada, si la vuelta de traerSolicitudes todavía no la trajo
+     de nuevo (la lista se reemplaza entera cuando contesta la nube). */
+  const r=_propuestaRecienMandada;
+  const s=_solicitudes.find(x=>String(x.id)===String(id))
+    ||(propuesta&&r&&r.id===String(id)?r.s:null);
+  const d=chatDeSolicitud(s);
+  if(!d.via) return alert(d.porque);
+  if(!chatListo()) return alert('No cargó ../app/chat.js. Recarga con Ctrl+F5, y si sigue igual, Ajustes → 🧹 Soltar la copia guardada.');
+  if(!sbListo()) return alert('El chat vive en la nube y este computador no la tiene conectada. Conéctala en Ajustes → 📲 Compartir con mis clientes.');
+  const borrador=(hilo,ficha)=>propuesta?avisoDePropuestaParaElChat(s,propuesta,hilo,ficha):undefined;
+  const canal='creditos';
+  if(d.via==='ficha') return escribirlePorLaApp('ficha',d.ficha.id,borrador(PUENTE.llaveEnLaNube(d.ficha),d.ficha),{canal});
+  const nota=String(s.app||'')==='platachat'?AVISO_SIN_PUSH_PLATACHAT:AVISO_SIN_PUSH;
+  if(d.via==='llave'){
+    const ficha=(DB.socios||[]).find(x=>PUENTE.llaveEnLaNube(x)===d.llave)||null;
+    return abrirConversacion(d.llave,{nombre:ficha?ficha.nombre:String(s.nombre||''),nota,borrador:borrador(d.llave,ficha),canal});
+  }
+  if(!CHAT.hiloDeCelular) return alert('Este navegador tiene una copia vieja de ../app/chat.js. Recarga con Ctrl+F5.');
+  const nom=String(s.nombre||'').replace(/\s+/g,' ').trim();
+  return abrirHiloDeRegistro({nombre:/^registrado$/i.test(nom)?'':nom},d.cel,borrador,
+    {nota,canal,alResolver:h=>{ _hiloDeCelular[d.cel]=h; }});
+}
+
+/* «💬 AVISARLE POR EL CHAT», DESPUÉS DE «MANDARLE ESTA PROPUESTA».
+   Mandar la propuesta la deja en su app, y nadie se lo dice: no le llega aviso
+   al celular. Este paso ofrece el chat con el mensaje escrito; NO lo manda. Es
+   lo que el cliente ve: pesos y fechas, nunca el %. Si su app no la puede
+   mostrar (laVeEnSuApp), el mensaje no lo manda a buscarla allá: le pone las
+   condiciones y le pide que conteste. En un hilo '0' + celular, sin nombre: no
+   se sabe si es la persona de esa ficha (ver abrirConversacion). */
+function primerNombreDeSolicitud(n){
+  const p=String(n||'').trim().split(/\s+/)[0]||'';
+  if(!p||/^registrado$/i.test(p)) return '';
+  return p.charAt(0).toUpperCase()+p.slice(1).toLowerCase();
+}
+function avisoDePropuestaParaElChat(s,cp,hilo,ficha){
+  const nom=/^0\d{10}$/.test(String(hilo||''))?'':primerNombreDeSolicitud(ficha?ficha.nombre:(s&&s.nombre));
+  const fecha=f=>fmtFecha(String(f||'').slice(0,10));
+  const cuotas=Array.isArray(cp&&cp.cuotas)&&cp.cuotas.length>1?cp.cuotas:null;
+  const partes=cuotas?cuotas.map(q=>COP(q.total)+' el '+fecha(q.fecha)):[];
+  const lista=partes.length>1?partes.slice(0,-1).join(', ')+' y '+partes[partes.length-1]:partes.join('');
+  const que=cuotas
+    ?'recibes '+COP(cp.capital)+' y lo pagas en '+cuotas.length+' cuotas: '+lista+'. En total devuelves '+COP(cp.total)+'.'
+    :'recibes '+COP(cp.capital)+' y devuelves '+COP(cp.total)+' el '+fecha(cp.fecha_pago)+'.';
+  const hola='Hola'+(nom?' '+nom:'');
+  return laVeEnSuApp(s)
+    ?hola+', ya te enviamos la propuesta de tu crédito: '+que+' Ábrela en '+(String(s.app||'')==='platachat'?'PlataChat':'la app')
+      +' para leer las condiciones y aceptarla. Si tienes alguna duda, escríbenos por aquí.'
+    :hola+', te escribimos con la propuesta de tu crédito: '+que+' ¿Estás de acuerdo? Respóndenos por aquí y te confirmamos los pasos.';
+}
+let _propuestaRecienMandada=null;
+function ofrecerAvisarPorElChat(id,cp){
+  if(CARTERA_EQUIPO) return;
+  const s=_solicitudes.find(x=>String(x.id)===String(id)); if(!s) return;
+  _propuestaRecienMandada={id:String(id),cp,s};
+  const nom=String(s.nombre||'').replace(/\s+/g,' ').trim();
+  const quien=nom&&!/^registrado$/i.test(nom)?nom:'Quien pidió';
+  const ve=laVeEnSuApp(s), d=chatDeSolicitud(s);
+  openModal('✓ Propuesta enviada',
+    '<div class="alerta info" style="margin-bottom:10px"><b>'+escHTML(quien)+'</b> '
+      +(ve?'la ve cuando abra su app. No le llega aviso al celular.':'no la va a ver en su app.')+'</div>'
+    +(ve?'':'<div class="alerta warn" style="margin-bottom:10px">⚠️ '+escHTML(NO_LA_VE_EN_SU_APP)+'</div>')
+    +(d.via
+      ?'<div class="help">Si quieres que se entere ya, avísale por el chat: te dejo el mensaje escrito, en pesos y sin porcentajes. Tú lo lees, lo cambias si quieres y lo mandas con «Enviar». No sale nada solo.</div>'
+      :'<div class="help">'+escHTML(d.porque)+'</div>')
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'
+    +(d.via?'<button class="btn btn-rojo" onclick="avisarPropuestaPorElChat()">💬 Avisarle por el chat</button>':'')
+    +'<button class="btn btn-ghost" onclick="cerrarModal()">Listo</button></div>');
+}
+function avisarPropuestaPorElChat(){
+  const p=_propuestaRecienMandada; if(!p) return;
+  cerrarModal();
+  escribirleDesdeSolicitud(p.id,p.cp);
 }
 
 /* ==========================================================================
@@ -23189,7 +23394,7 @@ function filaDeSolicitud(s){
       <td>${resp||espera?(s.fecha_corte?fmtFecha(s.fecha_corte):'—'):fmtFecha(q.corte)}${resp?'<div class="muted">última cuota</div>':espera?'<div class="muted">la que pidió</div>':q&&q.aCuotas?'<div class="muted">la primera de '+q.cuotas+'</div>':''}</td>
       <td style="text-align:right">
         ${cp||cpRaw||espera||proponerPrimero?`<button class="btn ${espera||proponerPrimero?'btn-rojo':'btn-ghost'} btn-sm" onclick="editarContrapropuesta('${s.id}')">✏️ ${espera||proponerPrimero?'Proponer':'Cambiar propuesta'}</button> `:''}${espera||proponerPrimero||((cp||cpRaw)&&s.estado!=='aceptada')?'':`<button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="crearDesdeSolicitud('${s.id}')">✓ ${resp?'Revisar préstamo':(cp||cpRaw)?'Desembolsar':'Crear crédito'}</button>`}
-        ${enlaceDeSolicitud(s)}<button class="btn btn-ghost btn-sm" onclick="verAparatosDeSolicitud('${s.id}')" title="Desde qué celular pidió (19-oct-2026)">📱</button>
+        ${botonEscribirleSolicitud(s)}${enlaceDeSolicitud(s)}<button class="btn btn-ghost btn-sm" onclick="verAparatosDeSolicitud('${s.id}')" title="Desde qué celular pidió (19-oct-2026)">📱</button>
         <button class="btn btn-ghost btn-sm" onclick="descartarSolicitud('${s.id}')">✕</button></td></tr>`;
 }
 
@@ -23299,10 +23504,12 @@ function pintarAvisoSolicitudesNuevas(){
     return '<b>'+quien+'</b> pidió '+(monto?'<b>'+COP(monto)+'</b>':'un crédito')+(edad?', '+escHTML(edad):'')+sinCedula;
   };
   const ver='<button class="btn btn-ghost btn-sm" onclick="irA(\'solicitudes\')">Ver</button>';
+  /* 13-nov-2026 — y «💬 Escribirle» en cada una, el mismo de la fila: se le
+     contesta sin ir a 📨 Solicitudes (ver ESCRIBIRLE DESDE 📨 SOLICITUDES). */
   e.innerHTML='<div class="alerta info" role="status">'+(nuevas.length===1
-    ? '🔔 '+linea(nuevas[0])+' · '+ver
+    ? '🔔 '+linea(nuevas[0])+' · '+ver+' · '+botonEscribirleSolicitud(nuevas[0])
     : '🔔 <b>'+nuevas.length+' solicitudes nuevas</b> · '+ver
-      +nuevas.slice(0,3).map(s=>'<div style="margin-top:4px">'+linea(s)+'</div>').join('')
+      +nuevas.slice(0,3).map(s=>'<div style="margin-top:4px">'+linea(s)+' '+botonEscribirleSolicitud(s)+'</div>').join('')
       +(nuevas.length>3?'<div class="muted" style="margin-top:4px">y '+(nuevas.length-3)+' más</div>':''))
     +'</div>';
 }
@@ -24277,7 +24484,9 @@ function filaLoQuePidio(s, x) {
     + (ya.length ? '<div class="alerta warn" style="margin-top:6px;white-space:normal">⚠️ <b>' + textoYaTieneCredito(s, sol, ya, true) + '</b> '
         + 'Si ese crédito es el de esta propuesta, no registres otro: ciérrala' + (laVeEnSuApp(sol) ? ', y su app deja de ofrecérsela.' : '.')
         + '<div style="margin-top:8px"><button class="btn btn-sm" onclick="cerrarPropuestaYaRegistrada(\'' + id + '\',\'' + escHTML(String(s.id)) + '\')">Ya tiene su crédito: cerrar la propuesta</button></div></div>' : '')
-    + '</span><span class="vv">' + accion + '</span></div>';
+    /* 13-nov-2026 — «💬 Escribirle», el de la fila de 📨 Solicitudes: a quien pidió,
+       en su conversación (ver ESCRIBIRLE DESDE 📨 SOLICITUDES). */
+    + '</span><span class="vv">' + accion + ' ' + botonEscribirleSolicitud(sol, true) + '</span></div>';
 }
 /* Cuando llegan las solicitudes de la nube (traerSolicitudes), la ficha que
    está abierta se repinta sola: si no, diría «Preguntando…» para siempre. */
@@ -24732,6 +24941,11 @@ function guardarContrapropuestaCuotas(id) {
     .then(j => {
       if (!j || j.ok !== true) return alert('La nube no aceptó la propuesta: ' + ((j && j.motivo) || 'sin motivo'));
       cerrarModal(); traerSolicitudes();
+      /* 13-nov-2026 — y en el mismo paso, el aviso por el chat (escrito, sin mandar).
+         Con red: la propuesta YA salió, y un fallo aquí no puede caer en el catch
+         de abajo y decir «no pude hablar con la nube» (Joan la mandaría otra vez). */
+      try { ofrecerAvisarPorElChat(s.id, { capital: p.capital, total: p.total,
+        cuotas: p.cuotas.map(q => ({ fecha: q.fecha, total: q.total })) }); } catch (e) { console.error(e); }
     })
     .catch(e => alert(errNube(e)));
 }
@@ -24937,6 +25151,10 @@ function guardarQuincenalACuotas(id) {
     .then(j => {
       if (!j || j.ok !== true) return alert('La nube no aceptó la propuesta: ' + ((j && j.motivo) || 'sin motivo'));
       cerrarModal(); traerSolicitudes();
+      /* 13-nov-2026 — y en el mismo paso, el aviso por el chat (escrito, sin mandar),
+         con red por lo mismo que en guardarContrapropuestaCuotas. */
+      try { ofrecerAvisarPorElChat(s.id, { capital: plan.total_capital, total: plan.total_a_pagar,
+        cuotas: plan.cuotas.map(q => ({ fecha: q.fecha_corte, total: q.total })) }); } catch (e) { console.error(e); }
     })
     /* Un 404 aquí es la migración sin correr, y se dice cuál: «vuelve a correr
        supabase.sql» mandaría a buscar donde no está. */
@@ -24966,7 +25184,10 @@ function guardarContrapropuesta(id){
   const ae=avisoContraEstimado(s,r.costo);
   if(!confirm('Mandarle a '+s.nombre+':\n\n• Recibe '+COP(r.capital)+'\n• Devuelve '+COP(r.total)+' el '+fmtFecha(r.fecha_pago)+' ('+r.dias+' días)\n• Tu costo: '+r.costo_pct+'% ('+COP(r.costo)+')'+(ae&&ae.supera?'\n\n⚠️ '+ae.aviso:'')+'\n\nLa propuesta vuelve a «esperando que acepte». ¿La mando?')) return;
   rpc('contrapropuesta_solicitud',{p_clave:sbCfg().clave,p_id:Number(s.id),p_capital:r.capital,p_costo_pct:r.costo_pct,p_dias:r.dias,p_texto:r.texto})
-    .then(j=>{ if(!j||j.ok!==true) return alert('La nube no aceptó la propuesta: '+((j&&j.motivo)||'sin motivo')); cerrarModal(); traerSolicitudes(); })
+    .then(j=>{ if(!j||j.ok!==true) return alert('La nube no aceptó la propuesta: '+((j&&j.motivo)||'sin motivo')); cerrarModal(); traerSolicitudes();
+      /* 13-nov-2026 — y en el mismo paso, el aviso por el chat (escrito, sin mandar),
+         con red por lo mismo que en guardarContrapropuestaCuotas. */
+      try{ ofrecerAvisarPorElChat(s.id,{capital:r.capital,total:r.total,fecha_pago:r.fecha_pago}); }catch(e){ console.error(e); } })
     .catch(e=>alert(errNube(e)));
 }
 /* La política del primer crédito, en Ajustes: lo que la base le ofrece a TODO
