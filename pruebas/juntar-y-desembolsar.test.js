@@ -113,7 +113,7 @@ describe('1. la fila: un botón, y nada de «que la vuelva a mandar»', () => {
     const h = fila(P);
     assert.match(h, /onclick="juntarYDesembolsar\('s1'\)"[^>]*>🔗 Juntar y desembolsar<\/button>/);
     assert.doesNotMatch(h, /crearDesdeSolicitud\('s1'\)/, 'siguió el botón que solo decía «júntale la cuenta»');
-    assert.match(plano(h), /Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona\. «🔗 Juntar y desembolsar» te muestra la ficha y la cuenta lado a lado/);
+    assert.match(plano(h), /Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona\. «🔗 Juntar y desembolsar» te deja compararlas aquí mismo y sigue con el crédito/);
   });
 
   test('esperando que acepte: «🔗 Juntar su cuenta», sin botón de desembolsar', () => {
