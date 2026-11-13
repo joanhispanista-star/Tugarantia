@@ -139,10 +139,15 @@
     var pago = pagoEntero(puente);
     var pagaron = {};
     lista(db && db.prestamos).forEach(function (p) { if (pago(p)) pagaron[p.socioId] = true; });
-    var porMuni = {}, porDepto = {}, sinUbicar = [], ubicados = 0;
+    /* `dudosos`: por municipio, cuántos sin ubicar escribieron un nombre que
+       puede ser ese (nombre repetido: «Mosquera» a secas es de Cundinamarca o
+       de Nariño). Sin eso, quien buscaba Mosquera leía «sin clientes» aunque
+       hubiera clientes que escribieron Mosquera. */
+    var porMuni = {}, porDepto = {}, sinUbicar = [], ubicados = 0, dudosos = {};
     lista(db && db.socios).forEach(function (s) {
       var l = L.lugarDeCliente(s, idx);
       if (l.estado !== 'ubicado') {
+        if (l.estado === 'ambiguo') lista(l.opciones).forEach(function (c) { dudosos[c] = (dudosos[c] || 0) + 1; });
         sinUbicar.push({ id: s.id, numero: s.numero, nombre: s.nombre, texto: l.texto, estado: l.estado,
           motivo: l.motivo, opciones: (l.opciones || []).map(function (c) {
             return (idx.nombre[c] || c) + ' (' + (idx.nombreDepto[c.slice(0, 2)] || c.slice(0, 2)) + ')';
@@ -162,7 +167,7 @@
       d.rango.min += v.min; d.rango.max += v.max;
       rango.min += v.min; rango.max += v.max;
     });
-    return { idx: idx, porMuni: porMuni, porDepto: porDepto, sinUbicar: sinUbicar, ubicados: ubicados, rango: rango,
+    return { idx: idx, porMuni: porMuni, porDepto: porDepto, sinUbicar: sinUbicar, dudosos: dudosos, ubicados: ubicados, rango: rango,
       total: lista(db && db.socios).length, reglaDePago: !!(puente && typeof puente.cerroConPerdida === 'function') };
   }
 
@@ -703,11 +708,15 @@
     var m = E.res.porMuni[c];
     var dep = deptoDeMuni(c);
     var base = (E.res.idx.nombre[c] || c) + (dep ? ' (' + dep + ')' : '');
-    if (!m) return base + ' · sin clientes';
+    /* Lo que no se pudo ubicar y puede ser de aquí, dicho: «sin clientes» a
+       secas sería falso (ver dudosos en resumir). Con «1–2», como toda cifra. */
+    var dud = (E.res.dudosos || {})[c] || 0;
+    var duda = dud ? ' · ' + cifra(dud) + ' sin ubicar (nombre repetido, abajo)' : '';
+    if (!m) return base + (dud ? ' · ninguno ubicado' : ' · sin clientes') + duda;
     if (E.vista === 'conquistas') {
-      return base + ' · ' + clientes(m.clientes) + ' · ' + (m.pagaron >= META ? '🏁 conquistado' : faltan(m.pagaron) + ' para conquistarlo');
+      return base + ' · ' + clientes(m.clientes) + ' · ' + (m.pagaron >= META ? '🏁 conquistado' : faltan(m.pagaron) + ' para conquistarlo') + duda;
     }
-    return base + ' · ' + clientes(m.clientes);
+    return base + ' · ' + clientes(m.clientes) + duda;
   }
   function nombreDepto(c) {
     var d = depto(c);
@@ -760,10 +769,10 @@
       return;
     }
     caja.innerHTML = E.sug.map(function (c, i) {
-      var m = E.res.porMuni[c], dep = deptoDeMuni(c);
+      var m = E.res.porMuni[c], dep = deptoDeMuni(c), dud = (E.res.dudosos || {})[c] || 0;
       return '<button type="button" class="mapa-sug-f' + (i === E.sugSel ? ' on' : '') + '" role="option" aria-selected="' + (i === E.sugSel) +
         '" data-mapa="buscado" data-c="' + esc(c) + '"><span>' + esc(muni(c).n) + (dep ? ' <small>' + esc(dep) + '</small>' : '') +
-        '</span><b>' + (m ? esc(cifra(m.clientes)) : '<i>sin clientes</i>') + '</b></button>';
+        '</span><b>' + (m ? esc(cifra(m.clientes)) : dud ? '<i>' + esc(cifra(dud)) + ' sin ubicar</i>' : '<i>sin clientes</i>') + '</b></button>';
     }).join('');
     caja.hidden = false;
   }

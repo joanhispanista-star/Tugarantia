@@ -1049,6 +1049,26 @@ describe('8 · que se vean los municipios (13-nov-2026)', () => {
     assert.match(M.sug.innerHTML, /data-c="25754"><span>Soacha <small>Cundinamarca<\/small><\/span><b>1–2<\/b>[\s\S]*data-c="25758"><span>Sopó <small>Cundinamarca<\/small><\/span><b>1–2<\/b>/);
   });
 
+  test('«Mosquera» a secas no deja a las dos Mosquera «sin clientes»: dice cuántos quedaron sin ubicar', async () => {
+    const db = carteraCon({ Mosquera: [6], Soacha: [4], Armenia: [1] });
+    const { MC, M, E } = await abrirCon(db);
+    M.entrada.value = 'mosq'; M.caja.oy.input({ target: M.entrada });
+    assert.doesNotMatch(M.sug.innerHTML, /sin clientes/, 'dice «sin clientes» donde hay clientes que escribieron Mosquera');
+    assert.match(M.sug.innerHTML, /data-c="25473"><span>Mosquera <small>Cundinamarca<\/small><\/span><b><i>6 sin ubicar<\/i><\/b>/);
+    assert.match(M.sug.innerHTML, /data-c="52473"><span>Mosquera <small>Nariño<\/small><\/span><b><i>6 sin ubicar<\/i><\/b>/);
+    M.caja.oy.keydown({ target: M.entrada, key: 'Enter', preventDefault() {} });
+    assert.equal(M.info.textContent, 'Mosquera (Cundinamarca) · ninguno ubicado · 6 sin ubicar (nombre repetido, abajo)');
+    /* Con «1–2» también aquí: Armenia a secas es de Antioquia o del Quindío. */
+    E.depto = null;
+    M.entrada.value = 'armenia'; M.caja.oy.input({ target: M.entrada });
+    assert.match(M.sug.innerHTML, /<b><i>1–2 sin ubicar<\/i><\/b>/);
+    assert.doesNotMatch(M.sug.innerHTML, /<i>1 sin ubicar/);
+    /* Y donde de verdad no hay nadie, sigue «sin clientes». */
+    assert.equal(MC._estado.res.dudosos['25754'], undefined);
+    M.entrada.value = 'tocaima'; M.caja.oy.input({ target: M.entrada });
+    assert.match(M.sug.innerHTML, /<b><i>sin clientes<\/i><\/b>/);
+  });
+
   /* ------------------------------------------------- 2 · el contraste medido */
   describe('el contraste, medido con los tokens de crm.html', () => {
     const CRM_HTML = leer('panel/crm.html');
