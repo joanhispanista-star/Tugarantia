@@ -3432,8 +3432,12 @@ describe('la bandeja de solicitudes recalcula, no le cree al cliente', () => {
       + 'abierta un día 14 nace con un día de plazo y el corte puede caer domingo');
   });
 
+  /* 13-nov-2026 — la fila salió de renderBandeja a filaDeSolicitud cuando la
+     bandeja se agrupó (📨 Solicitudes): se mira la fila donde vive ahora, y que
+     renderBandeja pinte con ella y no con otra. */
   test('la fila de la bandeja muestra lo que el Panel va a registrar', () => {
-    const f = cuerpo('renderBandeja');
+    assert.match(cuerpo('renderBandeja'), /filaDeSolicitud\(s\)/, 'la bandeja ya no pinta sus filas con filaDeSolicitud');
+    const f = cuerpo('renderBandeja') + cuerpo('filaDeSolicitud');
     assert.ok(!/\bs\.sobre_cupo\b/.test(f),
       'la fila volvió a pintar el aviso con el sobre_cupo del celular');
     assert.match(f, /revisarCupo\(\s*cli\s*,\s*q\.capital\s*\)/,
