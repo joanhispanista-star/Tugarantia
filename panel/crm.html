@@ -7071,12 +7071,30 @@ function fichaDelAlta(s,nombre,tel){
   else if(gv('qEmail')&&!s.email)s.email=gv('qEmail');
   return s;
 }
+/* 13-nov-2026 — POR ENCIMA DEL ESTÁNDAR, A CUOTAS: UNA SOLA PREGUNTA. Vivía
+   dentro de guardarRapidoACuotas, y la propuesta quincenal a cuotas
+   (guardarQuincenalACuotas) mandaba con una cuota al 50 % sin preguntarlo: el
+   mismo crédito exigía el sí aparte registrado a mano y no al proponerlo
+   (revisión del 13-nov). Ahora las dos preguntan con esta, con las mismas
+   palabras; solo cambia la pregunta del final, porque proponer no es
+   registrar. `ea` es la de eaDelPlanAlta (null si no cargó creditos.js).
+   Devuelve true si no hay nada por encima o si Joan dice que sí. */
+function confirmaCostoAltoDeCuotas(plan,cap,ea,pregunta){
+  if(!plan.sobre_estandar) return true;
+  const altas=plan.cuotas.filter(q=>q.pct>TASA_FIJA_PCT), usura=DB.config.tasaUsuraEA;
+  return confirm('COSTO POR ENCIMA DEL ESTÁNDAR en '+(altas.length===1?'la cuota ':'las cuotas ')
+    +altas.map(q=>q.numero+' ('+q.pct+'%)').join(', ')+' (el estándar es '+TASA_FIJA_PCT+'%).\n\n'
+    +(ea!=null?'Con estas fechas, el crédito entero equivale a '+fmtEA(ea)+' efectivo anual':'No pude calcular el efectivo anual con estas fechas (no cargó creditos.js)')
+    +(usura>0?' — el techo de usura que tienes anotado es '+usura+'%':'')+'.\n'
+    +'Cobrar por encima del techo legal es delito (art. 305 del Código Penal), y el responsable eres tú.\n\n'
+    +'Al cliente se le muestra en pesos: '+COP(plan.total_costo)+' de costo por '+COP(cap)+'.\n\n'+pregunta);
+}
 /* 16-oct-2026 — EL REGISTRO A CUOTAS. Las mismas rejas que guardarRapido, en
    el mismo orden y con las mismas palabras (las vigila un centinela gemelo en
    pruebas/credito-a-cuotas-crm.test.js):
      · el cupo, contra el capital entero, ANTES de tocar el DB;
      · por encima del estándar, un confirm APARTE con la efectiva anual real y
-       el art. 305;
+       el art. 305 (confirmaCostoAltoDeCuotas, la misma de la propuesta);
      · el confirm final con cada cuota en pesos y fecha, la marca de CIFRA
        REDONDA y «¿Lo registro?», ANTES del DB.prestamos.push.
    El plan sale del motor y se guarda con la forma del puente. */
@@ -7092,17 +7110,8 @@ function guardarRapidoACuotas(){
   if(!seguirAManoPese(s,abiertas,nombre)) return;
   const r=revisarCupo(s,cap);
   if(r&&(r.pasa||r.pasaSumando)&&!confirm(textoCupo(r)+'\n¿Lo registro igual?'))return;
-  const ea=eaDelPlanAlta(f,cap,plan), usura=DB.config.tasaUsuraEA;
   const avisos=avisosInhabilesCuotas(plan.inhabiles,creditoProvisionalAlta(cap,f,plan));
-  if(plan.sobre_estandar){
-    const altas=plan.cuotas.filter(q=>q.pct>TASA_FIJA_PCT);
-    if(!confirm('COSTO POR ENCIMA DEL ESTÁNDAR en '+(altas.length===1?'la cuota ':'las cuotas ')
-      +altas.map(q=>q.numero+' ('+q.pct+'%)').join(', ')+' (el estándar es '+TASA_FIJA_PCT+'%).\n\n'
-      +(ea!=null?'Con estas fechas, el crédito entero equivale a '+fmtEA(ea)+' efectivo anual':'No pude calcular el efectivo anual con estas fechas (no cargó creditos.js)')
-      +(usura>0?' — el techo de usura que tienes anotado es '+usura+'%':'')+'.\n'
-      +'Cobrar por encima del techo legal es delito (art. 305 del Código Penal), y el responsable eres tú.\n\n'
-      +'Al cliente se le muestra en pesos: '+COP(plan.total_costo)+' de costo por '+COP(cap)+'.\n\n¿Lo registro con este costo?')) return;
-  }
+  if(!confirmaCostoAltoDeCuotas(plan,cap,eaDelPlanAlta(f,cap,plan),'¿Lo registro con este costo?')) return;
   if(!confirm('Registrar el crédito A CUOTAS de '+nombre+':\n\n'
     +'• Capital: '+COP(cap)+(cap%1000!==0?'   ⚠️ OJO: NO ES UNA CIFRA REDONDA':'')+'\n'
     +plan.cuotas.map(q=>'• Cuota '+q.numero+': '+COP(q.total)+' el '+fechaCortaCuota(q.fecha_corte,true)
@@ -24856,7 +24865,7 @@ function previsualizarQuincenalACuotas() {
     <div class="calc-row"><span>Garantía que le deja <span class="muted">(si paga en fecha)</span></span><span class="v">${COP(plan.total_garantia)}</span></div>
     <div class="calc-row"><span>E.A. real, con estas fechas</span><span class="v ${sobreUsura ? 'ea-bad' : ''}">${ea == null ? '<span class="muted">no pude calcularla (falta creditos.js)</span>' : fmtEA(ea)}</span></div>
     ${sobreUsura ? `<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ Supera la usura de referencia (${usura}%).</div>` : ''}
-    ${plan.sobre_estandar ? `<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ Hay cuotas por encima del estándar del ${TASA_FIJA_PCT}%.</div>` : ''}
+    ${plan.sobre_estandar ? `<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ Hay cuotas por encima del estándar del ${TASA_FIJA_PCT}%: al mandarla te lo confirmo aparte.</div>` : ''}
     ${avisos.map(t => `<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ ${escHTML(t)} La fecha se queda como la pusiste.</div>`).join('')}
     ${avisoEstimadoHTML(plan.total_costo)}
     <div class="muted" style="font-size:12px;margin-top:6px">Un crédito a cuotas no se prorroga. Al cliente nunca se le muestra el %: solo pesos y fechas. Si la acepta, al desembolsar se registra con estas mismas fechas y estos mismos %.</div>`;
@@ -24877,6 +24886,9 @@ function guardarQuincenalACuotas(id) {
   const plan = a.plan;
   const avisos = avisosInhabilesCuotas(plan.inhabiles, creditoProvisionalPropuesta(a));
   const ae = avisoContraEstimado(s, plan.total_costo);
+  /* 13-nov-2026 — por encima del estándar, el sí aparte del registro a cuotas,
+     con su misma función y sus mismas palabras, ANTES de la pregunta final. */
+  if (!confirmaCostoAltoDeCuotas(plan, a.cap, eaDelPlanAlta(a.f, a.cap, plan), '¿La mando con este costo?')) return;
   if (!confirm('Mandarle a ' + s.nombre + ':\n\n'
     + '• Recibe ' + COP(a.cap) + '\n'
     + plan.cuotas.map(q => '• Cuota ' + q.numero + ': ' + COP(q.total) + ' el ' + fechaCortaCuota(q.fecha_corte, true)

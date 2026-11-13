@@ -278,6 +278,58 @@ describe('1. «Proponer»: «Un solo pago», «A cuotas» y «Con garantía · m
     assert.match(conf, /El 31-ene es domingo: si paga el primer día hábil \(1-feb\)/);
   });
 
+  /* 13-nov-2026 (revisión) — LA REJA DEL ESTÁNDAR. El registro a cuotas pide un
+     sí aparte cuando una cuota pasa del 20 %; la propuesta mandaba sin
+     preguntarlo. Ahora pregunta lo mismo, con la misma función: el texto es el
+     del registro, palabra por palabra, salvo la pregunta del final. */
+  test('una cuota por encima del estándar pide el MISMO sí aparte del registro a cuotas, antes de «¿La mando?»', () => {
+    const ALTAS = [{ fecha: '2026-11-30', pct: 25 }, { fecha: '2026-12-15', pct: 15 }, { fecha: '2027-01-31', pct: 30 }];
+    const { P, vistas, preguntas } = crm();
+    proponerACuotas(P, 2000000, ALTAS);
+    assert.match(vista(P), /Hay cuotas por encima del estándar del 20%: al mandarla te lo confirmo aparte/);
+    P.ev("guardarQuincenalACuotas('77')");
+    const aparte = preguntas.find(p => /^COSTO POR ENCIMA DEL ESTÁNDAR/.test(p));
+    assert.ok(aparte, 'no pidió el sí aparte: ' + preguntas.join('\n---\n'));
+    assert.match(aparte, /^COSTO POR ENCIMA DEL ESTÁNDAR en las cuotas 1 \(25%\), 3 \(30%\) \(el estándar es 20%\)/);
+    assert.match(aparte, /efectivo anual/);
+    assert.match(aparte, /art\. 305 del Código Penal/);
+    const plan = M.construirPlanACuotas(2000000, ALTAS, { fechaDesembolso: HOY });
+    assert.ok(aparte.indexOf('Al cliente se le muestra en pesos: ' + CS.pesos(plan.total_costo) + ' de costo por $2.000.000.') >= 0, aparte);
+    assert.match(aparte, /¿La mando con este costo\?$/);
+    assert.ok(preguntas.indexOf(aparte) < preguntas.findIndex(p => /¿La mando\?$/.test(p)), 'la aparte va ANTES de la final');
+    assert.equal(vistas.filter(x => x.fn === 'contrapropuesta_quincenal_a_cuotas').length, 1);
+
+    /* El registro a cuotas, con las mismas entradas y el mismo día: su sí aparte
+       es el mismo texto, hasta la pregunta del final. */
+    P.ev('nuevoCredito()');
+    poner(P, 'qNombre', 'Otro Prueba'); poner(P, 'qTel', '3001230097');
+    poner(P, 'qCap', 2000000); poner(P, 'qFecha', HOY);
+    P.ev("modoAlta('cuotas')");
+    poner(P, 'qaN', ALTAS.length); P.ev('filasAlta()');
+    ALTAS.forEach((x, i) => { poner(P, 'qaF' + (i + 1), x.fecha); poner(P, 'qaP' + (i + 1), x.pct); poner(P, 'qaK' + (i + 1), ''); });
+    P.ev('_alta.tocadas=true; guardarRapido()');
+    const delRegistro = preguntas.filter(p => /^COSTO POR ENCIMA DEL ESTÁNDAR/.test(p))[1];
+    assert.ok(delRegistro, 'el registro a cuotas no preguntó');
+    assert.equal(aparte.replace(/¿La mando con este costo\?$/, '¿Lo registro con este costo?'), delRegistro);
+
+    /* Si dice que no a la aparte, no sale nada ni se ve la pregunta final. */
+    const N = crm();
+    N.P.ctx.confirm = m => { N.preguntas.push(String(m)); return !/art\. 305/.test(String(m)); };
+    proponerACuotas(N.P, 2000000, ALTAS);
+    N.P.ev("guardarQuincenalACuotas('77')");
+    assert.ok(N.preguntas.some(p => /art\. 305/.test(p)), 'la aparte no se mostró');
+    assert.ok(!N.preguntas.some(p => /¿La mando\?$/.test(p)), 'después del NO a la aparte siguió a la final');
+    assert.equal(N.vistas.filter(x => x.fn === 'contrapropuesta_quincenal_a_cuotas').length, 0, 'mandó la propuesta después del NO');
+
+    /* Al estándar o por debajo, no hay aparte. */
+    const E = crm();
+    proponerACuotas(E.P, 2000000, ENTRADAS);
+    E.P.ev("guardarQuincenalACuotas('77')");
+    assert.ok(!E.preguntas.some(p => /COSTO POR ENCIMA DEL ESTÁNDAR/.test(p)));
+    assert.doesNotMatch(vista(E.P), /por encima del estándar/);
+    assert.equal(E.vistas.filter(x => x.fn === 'contrapropuesta_quincenal_a_cuotas').length, 1);
+  });
+
   test('sin la migración (404), dice cuál archivo falta y no manda nada', async () => {
     const { P, preguntas } = crm({ sinFuncion: 'contrapropuesta_quincenal_a_cuotas' });
     proponerACuotas(P, 2000000, ENTRADAS);

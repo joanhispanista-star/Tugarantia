@@ -647,11 +647,19 @@ describe('las rejas del registro a cuotas (centinela gemelo)', () => {
     assert.ok(f.indexOf('CIFRA REDONDA') >= 0, 'se perdió el aviso de cifra no redonda');
   });
 
+  /* 13-nov-2026 — la aparte salió a su propia función (confirmaCostoAltoDeCuotas)
+     para que la propuesta quincenal a cuotas pregunte lo mismo: el centinela
+     la sigue hasta allá y exige que el registro la llame ANTES de registrar. */
   test('por encima del estándar, la confirmación aparte con el año y el art. 305', () => {
-    const f = cuerpoDe('guardarRapidoACuotas');
+    const aparte = cuerpoDe('confirmaCostoAltoDeCuotas');
     ['POR ENCIMA DEL ESTÁNDAR', 'efectivo anual', 'art. 305'].forEach(t =>
-      assert.ok(f.indexOf(t) >= 0, 'falta «' + t + '» en la confirmación aparte'));
-    assert.ok(f.indexOf('POR ENCIMA DEL ESTÁNDAR') < f.indexOf('DB.prestamos.push'));
+      assert.ok(aparte.indexOf(t) >= 0, 'falta «' + t + '» en la confirmación aparte'));
+    assert.match(aparte, /if\(!plan\.sobre_estandar\) return true;/, 'la aparte tiene que dejar pasar lo que está al estándar');
+    const f = cuerpoDe('guardarRapidoACuotas');
+    const pregunta = f.indexOf("if(!confirmaCostoAltoDeCuotas(plan,cap,eaDelPlanAlta(f,cap,plan),'¿Lo registro con este costo?')) return;");
+    assert.ok(pregunta >= 0, 'el registro a cuotas ya no pide la aparte (o ya no frena con el no)');
+    assert.ok(pregunta < f.indexOf('DB.prestamos.push'));
+    assert.ok(pregunta < f.indexOf('¿Lo registro?'), 'la aparte va antes del confirm final');
   });
 
   test('guardarRapido entrega al de cuotas, y el de un solo pago conserva sus rejas', () => {
