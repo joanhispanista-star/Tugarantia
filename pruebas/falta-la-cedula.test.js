@@ -430,10 +430,16 @@ describe('5 · se actualiza sola, y lo que se pinta', () => {
     const { A: B } = await entrar({ mis_fotos_del_registro: SIN_CEDULA(),
       registro_archivos_guardar: () => new Promise(r => { soltar = () => r({ status: 200, cuerpo: GUARDADA('cedula_frente') }); }) });
     B.ev(CAMARA); B.ev('FLC.abrir()');
+    /* El paso de las fotos abierto: la cámara del sistema deja la página
+       oculta, y una recarga ahí se llevaría la foto al volver. */
+    assert.equal(B.ev('momentoSeguroSocio()'), false, 'recargaría con la cámara abierta');
     elegirFoto(B, 'cedula_frente'); await asentar(6);
     assert.equal(B.ev('momentoSeguroSocio()'), false, 'la recarga cortaría la foto subiendo');
     soltar(); await asentar(12);
-    assert.equal(B.ev('momentoSeguroSocio()'), true);
+    assert.match(tarjeta(B), /Recibimos el frente/);
+    assert.equal(B.ev('momentoSeguroSocio()'), false, 'todavía falta el respaldo, con el paso abierto');
+    B.ev('FLC.cerrar()');
+    assert.equal(B.ev('momentoSeguroSocio()'), true, '«Ahora no» no lo soltó');
   });
 
   test('sin porcentajes ni imágenes en lo que ve el cliente', async () => {

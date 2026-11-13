@@ -589,10 +589,15 @@
       });
     }
 
-    /** ¿Hay algo a medias que una recarga se llevaría? */
+    /** ¿Hay algo a medias que una recarga se llevaría? El permiso marcado sin
+     *  guardar, una foto subiendo, y también el paso de las fotos abierto: con
+     *  la cámara del sistema la página queda oculta, que es justo cuando SE
+     *  ACTUALIZA SOLA recarga, y la foto se perdería al volver. «Ahora no» lo
+     *  suelta. */
     function aMedias() {
       if (ui.guardando) return true;
       if (Object.keys(ui.subiendo).some(function (k) { return ui.subiendo[k]; })) return true;
+      if (ui.modo === 'fotos' && debeAvisar()) return true;
       return ui.modo === 'permiso' && ui.permiso;
     }
     /** «Salir»: nada de esta cuenta se queda para la siguiente. */
