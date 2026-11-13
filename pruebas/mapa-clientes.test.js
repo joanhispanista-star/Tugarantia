@@ -867,6 +867,11 @@ describe('8 · que se vean los municipios (13-nov-2026)', () => {
     assert.equal(10 + izq.dx - 50, 0, 'por la izquierda, el texto empieza en el borde');
     assert.equal(990 + der.dx + 50, 1000, 'por la derecha, termina en el borde');
     assert.equal(centro.dx, 0, 'la que cabe no se mueve');
+    /* Corrida hacia adentro puede caer encima de la vecina (Girardot sobre
+       «Fusagasugá 4» a 390): antes de quedarse encima, prueba dos renglones
+       arriba y abajo. Cinco en el mismo punto: ninguna tapa a otra. */
+    const cinco = Array.from({ length: 5 }, () => ({ x: 500, y: 500, w: 100, h: 16, siempre: true }));
+    assert.deepEqual(MC.colocarEtiquetas(cinco, vb, 1).map(r => r.dy), [0, -16, 16, -32, 32]);
     /* En Cundinamarca abierta, Girardot (en el borde de la ventana) se lee entero. */
     const db = carteraCon({ Girardot: [1], Soacha: [4] });
     const { M, E } = await abrirCon(db, { estado: { depto: '25' } });

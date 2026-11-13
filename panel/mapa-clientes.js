@@ -279,7 +279,9 @@
      clientes muestra primero: el orden sale de lo VISIBLE, como las listas).
      Cada una ocupa su ancho y alto en píxeles, que en el mapa son `s` veces
      eso. Una etiqueta «siempre» (las de un departamento abierto) se pone
-     aunque choque: prueba primero en su sitio, después encima y debajo, y si
+     aunque choque: prueba primero en su sitio, después encima y debajo (uno y
+     dos renglones: con uno solo, Girardot corrido hacia adentro quedaba encima
+     de «Fusagasugá 4» en Cundinamarca a 390), y si
      no hay hueco se queda en su sitio. Las demás solo salen si no tapan a una
      ya puesta. Lo que queda fuera de la ventana no cuenta. Y la que se sale
      por un lado de la ventana (su punto adentro, el texto afuera) se corre
@@ -306,7 +308,7 @@
         else if (x1 > vb[0] + vb[2]) dx = vb[0] + vb[2] - x1;
       }
       x0 += dx; x1 += dx;
-      var opciones = e.siempre ? [0, -h, h] : [0];
+      var opciones = e.siempre ? [0, -h, h, -2 * h, 2 * h] : [0];
       for (var i = 0; i < opciones.length; i++) {
         var b = [x0, e.y + opciones[i] - h / 2, x1, e.y + opciones[i] + h / 2];
         if (!choca(b)) { puestas.push(b); r.push({ ver: true, dy: opciones[i], dx: dx }); return; }
