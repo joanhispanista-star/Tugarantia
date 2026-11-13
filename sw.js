@@ -2252,7 +2252,8 @@
    · EN EL CRM: un bloque en 📥 Registrados, el chip «📄 Subió extractos» en 📨
      Solicitudes y, en la ficha que viene de un registro, los archivos y el resumen
      de Joan (cuánto le entra al mes y si es regular, guardado en la ficha). Solo
-     Joan, con su clave.
+     Joan, con su clave. «🗑 Borrar sus extractos» y «🚫 Borrar a alguien que lo
+     pidió» se los llevan, con el resumen de toda ficha con ese celular.
    · LA POLÍTICA (sección «extractos», y «no hacemos perfiles» dicho como es) y los
      términos (los extractos tampoco suben la garantía prestada), con la fecha de
      publicación 19-nov-2026, que es también la versión de la autorización

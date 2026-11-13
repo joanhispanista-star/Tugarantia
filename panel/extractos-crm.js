@@ -228,8 +228,45 @@
       '</select></div>' +
       '<button class="btn btn-ghost btn-sm" data-extractos-resumen="' + esc(socioId) + '" ' +
         'onclick="guardarResumenExtractos(this.getAttribute(\'data-extractos-resumen\'))">💾 Guardar el resumen en la ficha</button>' +
+      /* 13-nov-2026 (remate) — quitarlo. La política promete que, si la persona
+         pide por el chat que se borren sus extractos, «borramos también lo que
+         anotamos de ellos»; y sin este botón no había cómo: «Guardar» rechaza
+         los dos campos vacíos y «🗑 Borrar sus extractos» solo sale mientras
+         queda su autorización en la base. Solo aparece si hay algo anotado. */
+      (lineaResumen(x) ? ' <button class="btn btn-ghost btn-sm" data-extractos-quitar="' + esc(socioId) + '" ' +
+        'onclick="quitarResumenExtractos(this.getAttribute(\'data-extractos-quitar\'))">🗑 Quitar el resumen</button>' : '') +
       '<div class="muted" style="font-size:12px;margin-top:6px">Se guarda en esta ficha, con tu cartera: tu equipo no lo ve en su app. ' +
         'Solo la plata y si es regular: no anotes nombres de quien le manda o a quien le paga.</div>';
+  }
+
+  /**
+   * 13-nov-2026 (remate) — lo que dice «🚫 Borrar a alguien que lo pidió» de
+   * sus extractos, después de borrarlos. `r`: {archivos, autorizaciones} si la
+   * base los borró, {falta: true} si la base todavía no tiene esta parte (y
+   * entonces no puede haber ninguno), {error} si no se pudo, o null si este
+   * CRM no pudo ni preguntar (la parte de los extractos no cargó o la nube no
+   * está conectada). `resumenes`: en cuántas fichas se quitó lo que Joan anotó
+   * de ellos. Dice lo que pasó y, sobre todo, lo que NO: un «Listo» que calla
+   * los extractos de quien pidió que lo borraran es justo lo que no puede ser.
+   */
+  function lineaSuprimir(r, resumenes) {
+    var n = Number(resumenes) || 0;
+    var resumen = n ? (n === 1 ? 'tu resumen de ellos en su ficha' : 'tu resumen de ellos en sus ' + n + ' fichas') : '';
+    var arch = r ? (Number(r.archivos) || 0) : 0, aut = r ? (Number(r.autorizaciones) || 0) : 0;
+    if (!r) {
+      return '\n\nSus extractos, si los subió, NO se borraron: este CRM no pudo preguntar por ellos (la nube no está conectada o no ' +
+        'cargó esa parte). Recarga y vuelve a tocar «🚫 Borrar a alguien que lo pidió» con el mismo celular.' +
+        (resumen ? ' Sí quité ' + resumen + '.' : '');
+    }
+    if (r.error) {
+      return '\n\nSus extractos NO se borraron (' + r.error + '): bórralos desde 📥 Registrados → 📄 Extractos que subieron → ' +
+        '🗑 Borrar sus extractos.' + (resumen ? ' Sí quité ' + resumen + '.' : '');
+    }
+    if (arch || aut) {
+      return '\n\nTambién borré sus extractos: ' + arch + ' archivo(s)' + (aut ? ' y su autorización' : '') +
+        (resumen ? ', y ' + resumen : '') + '.';
+    }
+    return resumen ? '\n\nNo tenía extractos en la nube; quité ' + resumen + '.' : '';
   }
 
   /**
@@ -351,6 +388,7 @@
     normalizarResumen: normalizarResumen,
     lineaResumen: lineaResumen,
     resumenHTML: resumenHTML,
+    lineaSuprimir: lineaSuprimir,
     bloque: bloque,
     motivoEnPalabras: motivoEnPalabras
   };

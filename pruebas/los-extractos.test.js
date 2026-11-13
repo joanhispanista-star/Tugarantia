@@ -564,6 +564,81 @@ describe('7 · el CRM los ve, con la clave de Joan; el equipo no', () => {
     const malo = await XC.traer(rpc({ ok: true, id: 42, tipo: 'pdf', base64: Buffer.from('<svg></svg>').toString('base64') }), 'c', 42);
     assert.deepEqual([malo.ok, malo.motivo], [false, 'no_coincide']);
   });
+  /* 13-nov-2026 (remate) — «🚫 Borrar a alguien que lo pidió» llamaba a
+     equipo_suprimir y a pension_borrar, nunca a extracto_borrar, y su «Listo»
+     no nombraba los extractos: quien pidió que lo borraran seguía con ellos. */
+  const RESUMEN = { mensual: 1250000, regular: 'irregular', anotado_en: '2026-11-19T16:00:00Z' };
+  const conAlertas = P => P.ev("confirm = function () { return true; }; window.__alertas = []; alert = function (m) { window.__alertas.push(String(m)); };");
+  const alertas = P => JSON.parse(P.ev('JSON.stringify(window.__alertas)'));
+  const resumenDe = (P, id) => P.ev('JSON.stringify((DB.socios.find(function (x) { return x.id === "' + id + '"; }) || {}).extractoResumen || null)');
+  function suprimir(P) {
+    P.ev('suprimirDesdeBases()');
+    P.ev("document.getElementById('supCel').value = '" + CEL + "'; document.getElementById('supComo').value = 'por el chat de la app el 19-nov';");
+    P.ev('confirmarSuprimir()');
+  }
+  test('🚫 Borrar a alguien que lo pidió: también borra sus extractos y tu resumen en TODA ficha con ese celular, y el «Listo» lo dice', async () => {
+    const P = abrirPanel({});
+    conNube(P, { equipo_suprimir: { ok: true, es_cliente: false, copias_pendientes: 0, del_equipo: 0, de_joan: 1 },
+                 pension_borrar: { ok: true, archivos: 0, autorizaciones: 0 },
+                 extracto_borrar: { ok: true, celular: CEL, archivos: 2, autorizaciones: 1 },
+                 equipo_agregados: {} });
+    /* La del registro, una hecha a mano con el mismo celular, y la de otra persona. Ninguna abierta. */
+    P.cargarCartera({ socios: [
+      { id: 'C1', nombre: 'Ana De Mentira', telefono: CEL, origen: 'registro_abierto', extractoResumen: RESUMEN },
+      { id: 'C2', nombre: 'Ana (a mano)', telefono: '57 ' + CEL, extractoResumen: RESUMEN },
+      { id: 'C3', nombre: 'Beto Inventado', telefono: '3009998877', extractoResumen: RESUMEN }], prestamos: [] });
+    conAlertas(P);
+    suprimir(P);
+    assert.match(plano(P.elems.mBody.innerHTML), /Y sus extractos, si los subió, también, con tu resumen de ellos en cualquier ficha con ese celular/);
+    await asentar(40);
+    const b = rpcs(P).filter(x => x.fn === 'extracto_borrar');
+    assert.equal(b.length, 1, 'no borró sus extractos');
+    assert.deepEqual([b[0].c.p_clave, b[0].c.p_celular], [CLAVE, CEL]);
+    const listo = alertas(P).filter(a => /^Listo/.test(a));
+    assert.equal(listo.length, 1, 'el «Listo» salió ' + listo.length + ' veces');
+    assert.match(listo[0], /También borré sus extractos: 2 archivo\(s\) y su autorización, y tu resumen de ellos en sus 2 fichas\./);
+    assert.equal(resumenDe(P, 'C1'), 'null', 'el resumen de la ficha del registro se quedó');
+    assert.equal(resumenDe(P, 'C2'), 'null', 'el resumen de la ficha hecha a mano se quedó');
+    assert.notEqual(resumenDe(P, 'C3'), 'null', 'borró el resumen de otra persona');
+  });
+  test('🚫 si la nube no deja borrar sus extractos, el «Listo» dice que NO y dónde hacerlo; y si es cliente, también se van', async () => {
+    const P = abrirPanel({});
+    conNube(P, { equipo_suprimir: { ok: true, es_cliente: true, copias_pendientes: 0 },
+                 pension_borrar: { ok: true, archivos: 0, autorizaciones: 0 },
+                 extracto_borrar: { ok: false, motivo: 'celular' }, equipo_agregados: {} });
+    P.cargarCartera({ socios: [{ id: 'C1', nombre: 'Ana De Mentira', telefono: CEL, origen: 'registro_abierto', extractoResumen: RESUMEN }], prestamos: [] });
+    conAlertas(P);
+    suprimir(P);
+    await asentar(40);
+    const a = alertas(P);
+    assert.equal(a.length, 1);
+    assert.match(a[0], /^Es cliente/);
+    assert.match(a[0], /Sus extractos NO se borraron \(celular\): bórralos desde 📥 Registrados → 📄 Extractos que subieron → 🗑 Borrar sus extractos\. Sí quité tu resumen de ellos en su ficha\./);
+    assert.equal(resumenDe(P, 'C1'), 'null');
+    /* Y lo que se dice en cada caso, sin callar ninguno. */
+    assert.equal(XC.lineaSuprimir({ falta: true }, 0), '');
+    assert.match(XC.lineaSuprimir(null, 0), /NO se borraron: este CRM no pudo preguntar por ellos/);
+    assert.match(XC.lineaSuprimir({ archivos: 0, autorizaciones: 0 }, 1), /No tenía extractos en la nube; quité tu resumen de ellos en su ficha\./);
+  });
+  test('«🗑 Borrar sus extractos» se lleva el resumen de toda ficha con ese celular, y la ficha tiene «🗑 Quitar el resumen»', async () => {
+    const P = abrirPanel({});
+    conNube(P, { extracto_borrar: { ok: true, celular: CEL, archivos: 1, autorizaciones: 1 }, extracto_resumen: { ok: true, espacio: null, personas: [] } });
+    P.cargarCartera({ socios: [
+      { id: 'C1', nombre: 'Ana De Mentira', telefono: CEL, origen: 'registro_abierto', extractoResumen: RESUMEN },
+      { id: 'C3', nombre: 'Beto Inventado', telefono: '3009998877', extractoResumen: RESUMEN }], prestamos: [] });
+    conAlertas(P);
+    P.ev('borrarExtractosDe("' + CEL + '")');   // desde 📥 Registrados, sin ninguna ficha abierta
+    await asentar(20);
+    assert.equal(resumenDe(P, 'C1'), 'null', 'el resumen se quedó porque su ficha no estaba abierta');
+    assert.notEqual(resumenDe(P, 'C3'), 'null');
+    assert.match(alertas(P)[0], /^Listo: borré 1 archivo\(s\) de sus extractos y su autorización, y tu resumen de ellos en su ficha\.$/);
+    /* El botón: solo con algo anotado, y quita solo el resumen. */
+    assert.match(XC.resumenHTML(RESUMEN, 'C3'), /data-extractos-quitar="C3"[^>]*onclick="quitarResumenExtractos\(this\.getAttribute\('data-extractos-quitar'\)\)">🗑 Quitar el resumen</);
+    assert.equal(/Quitar el resumen/.test(XC.resumenHTML(null, 'C3')), false);
+    P.ev('quitarResumenExtractos("C3")');
+    assert.equal(resumenDe(P, 'C3'), 'null');
+    assert.equal(rpcs(P).filter(x => x.fn === 'extracto_borrar').length, 1, 'quitar el resumen tocó la nube');
+  });
   test('la base: lo de Joan solo con su clave (anon), lo del cliente solo con su sesión; ninguna del equipo', () => {
     const t = leer('base/20261113c_los_extractos.sql').replace(/--[^\n]*/g, '');
     ['extracto_resumen(text)', 'extracto_de(text, text)', 'extracto_archivo(text, bigint)', 'extracto_borrar(text, text)'].forEach(f => {

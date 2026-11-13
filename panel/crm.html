@@ -19463,7 +19463,8 @@ function suprimirDesdeBases() {
     <p class="sub">La Ley 1581 da 15 días hábiles. Se borra como prospecto, con su información adicional, sus gestiones (las del
       equipo y las tuyas), contactos y citas: de la nube (lo que subió tu equipo, lo que publicaste tú, la copia de tu Panel y las
       copias viejas que dejaron los choques entre tus aparatos) y de este computador. Queda anotado, sin el número, para que nadie
-      lo vuelva a agregar. Si se registró y subió su historia laboral del fondo de pensiones, esa también se borra.</p>
+      lo vuelva a agregar. Si se registró y subió su historia laboral del fondo de pensiones, esa también se borra. Y sus
+      extractos, si los subió, también, con tu resumen de ellos en cualquier ficha con ese celular.</p>
     <div class="field"><label>Celular</label><input id="supCel" inputmode="numeric" placeholder="3001234567"></div>
     <div class="field"><label>¿Cómo lo pidió?</label><input id="supComo" placeholder="Ej: por el chat de la app el 3-nov">
       <div class="help">Queda guardado: es la prueba de que se borró porque lo pidió.</div></div>
@@ -19513,11 +19514,14 @@ function confirmarSuprimir() {
     }
     return primera;
   };
-  const listo = (r, hp) => {
-    const pension = !hp || hp.falta ? '' : hp.error
+  const listo = (r, hp, hx) => {
+    const pension = (!hp || hp.falta ? '' : hp.error
       ? '\n\nSu historia laboral del fondo de pensiones NO se borró (' + hp.error + '): bórrala desde 📥 Registrados → 📄 Fondo de pensiones.'
       : (Number(hp.archivos) || Number(hp.autorizaciones))
-        ? '\n\nTambién borré su historia laboral del fondo de pensiones: ' + Number(hp.archivos || 0) + ' archivo(s) y su autorización.' : '';
+        ? '\n\nTambién borré su historia laboral del fondo de pensiones: ' + Number(hp.archivos || 0) + ' archivo(s) y su autorización.' : '')
+      /* 13-nov-2026 (remate) — y lo de sus extractos, dicho igual: borrados, o
+         que NO y por qué (suprimirExtractosDe, en 📄 LOS EXTRACTOS). */
+      + (hx || '');
     TIENE_EQUIPO[cel] = { no_contactar: true, desde: new Date().toISOString() };
     const faltan = quedan > 0 ? '\n\nQuedan ' + quedan.toLocaleString('es-CO') + ' copias viejas de tu Panel en la nube con su número ' +
       '(de cuando chocaron dos de tus aparatos). Vuelve a tocar «🚫 Borrar a alguien que lo pidió» con el mismo celular para terminarlas.' : '';
@@ -19544,14 +19548,19 @@ function confirmarSuprimir() {
   /* 28-oct-2026 — y su historia laboral del fondo de pensiones: ningún
      deber de guardarla (no es un soporte del crédito), así que se va también
      si es cliente. Lo que pasó se dice en el «Listo». */
-  let hp = null;
+  let hp = null, hx = null;
   return llamar().then(r => seguir(r, 1))
     .then(r => borrarPensionAntes(cel).then(x => { hp = x; return r; }))
-    .then(r => listo(r, hp))
+    /* 13-nov-2026 (remate) — y sus extractos, por la misma razón (no son
+       soporte del crédito), con lo que anotaste de ellos en cualquier ficha
+       con ese celular. Nunca rechaza: devuelve la línea del «Listo». */
+    .then(r => (typeof suprimirExtractosDe === 'function' ? suprimirExtractosDe(cel)
+      : Promise.resolve('\n\nSus extractos, si los subió, NO se borraron: falta la parte de los extractos de este CRM.')).then(x => { hx = x; return r; }))
+    .then(r => listo(r, hp, hx))
     .then(() => traerSubidoPorElEquipo())
     .catch(e => {
       /* Si la primera ya entró, lo demás está borrado: se dice qué falta. */
-      if (primera) return listo(primera);
+      if (primera) return listo(primera, hp, hx);
       alert('No lo borré: ' + (e && e.sinNube ? e.message : errNube(e)));
     });
 }
@@ -25871,6 +25880,12 @@ if (/^#equipo(?:$|&)/.test(location.hash || '')) { try { pintarPuertaEquipo(); }
  * daría a una sesión del equipo. Las reglas de abrir un archivo que escribió
  * un desconocido viven en panel/extractos-crm.js.
  *
+ * Y SE BORRAN CUANDO LO PIDEN (remate del mismo día): «🗑 Borrar sus
+ * extractos» y «🚫 Borrar a alguien que lo pidió» (confirmarSuprimir llama a
+ * suprimirExtractosDe, aquí abajo) se llevan los archivos, la autorización y
+ * el resumen de TODA ficha con ese celular, y el «Listo» lo dice; la ficha
+ * tiene además «🗑 Quitar el resumen».
+ *
  * POR QUÉ SE ENVUELVE Y NO SE TOCA. renderRegistros (📥 Registrados),
  * filaDeSolicitud (la fila de 📨 Solicitudes) y verCliente (la ficha) los están
  * cambiando al mismo tiempo otras ramas (la del buscador de la historia laboral
@@ -25939,27 +25954,81 @@ function verArchivoExtracto(id){
     if(r.tipo!=='pdf'&&caja) caja.innerHTML='';
   }).catch(e=>{ if(caja) caja.innerHTML='<div class="alerta warn">No pude traerlo: '+escHTML(errNube(e))+'</div>'; });
 }
-/* La ficha de ESA persona, si es la que se está mirando y viene de su
-   registro: la del celular `tel` (celularDeFotosDe). Ahí vive el resumen. */
-function fichaDeExtractos(tel){
-  try{
-    const s=(DB.socios||[]).find(c=>c&&String(c.id)===String(_fichaVista));
-    return (s&&vieneDeRegistro(s)&&telDiez(celularDeFotosDe(s))===telDiez(tel))?s:null;
-  }catch(e){ return null; }
+/* 13-nov-2026 (remate) — LAS FICHAS DE ESE CELULAR, todas y no solo la que se
+   está mirando: el resumen vive en la ficha (s.extractoResumen) y la persona
+   que pide que borren sus extractos no sabe ni le importa qué ficha tiene
+   Joan abierta. Antes solo se borraba el de la ficha abierta, y el aviso
+   decía «bórralo desde la ficha», donde no había cómo. Cuenta el celular de
+   la ficha, su WhatsApp y el de su registro (celularDeFotosDe). */
+function fichasConCelular(tel){
+  const t=telDiez(tel); if(t.length!==10) return [];
+  return (DB.socios||[]).filter(s=>{
+    if(!s) return false;
+    let c=''; try{ c=celularDeFotosDe(s); }catch(e){}
+    return telDiez(s.telefono)===t||telDiez(s.whatsappNumero)===t||telDiez(c)===t;
+  });
 }
-/* Lo que pide quien los retira por el chat. Si se está mirando su ficha, lo
-   que Joan anotó de ellos (el resumen) se va también: la política lo dice. */
+/* Quita lo que Joan anotó de sus extractos en todas esas fichas. Devuelve cuántas. */
+function quitarResumenesDe(tel){
+  let n=0;
+  try{
+    fichasConCelular(tel).forEach(s=>{ if(s.extractoResumen){ delete s.extractoResumen; n++; } });
+    if(n) guardar();
+  }catch(e){}
+  return n;
+}
+/* Lo que pide quien los retira por el chat: sus archivos, su autorización y
+   lo que Joan anotó de ellos (la política: «pedirnos por el chat que los
+   borremos, y entonces borramos también lo que anotamos de ellos»). */
 function borrarExtractosDe(tel){
   const X=extractosCRM(); if(!X||!sbListo()) return;
-  const quien=nombreDeRegistroPorTel(tel)||tel, s=fichaDeExtractos(tel);
-  if(!confirm('BORRAR los extractos de '+quien+': sus archivos y su autorización'+(s&&s.extractoResumen?', y tu resumen en su ficha':'')+
+  const quien=nombreDeRegistroPorTel(tel)||tel;
+  const conResumen=fichasConCelular(tel).filter(s=>s.extractoResumen).length;
+  if(!confirm('BORRAR los extractos de '+quien+': sus archivos y su autorización'+(conResumen?', y tu resumen de ellos en su ficha':'')+
     '. Es lo que pide quien los retira por el chat. No se puede deshacer. ¿Los borro?')) return;
   X.borrar(rpc,sbCfg().clave,tel).then(j=>{
     if(!j||j.ok!==true) return alert('No se borró: '+((j&&j.motivo)||'la nube dijo que no.'));
-    if(s&&s.extractoResumen){ delete s.extractoResumen; guardar(); }
-    alert('Listo: borré '+Number(j.archivos||0)+' archivo(s) de sus extractos y su autorización'+(s?'':'. Si tenía un resumen en su ficha, bórralo desde la ficha')+'.');
+    const n=quitarResumenesDe(tel);
+    alert('Listo: borré '+Number(j.archivos||0)+' archivo(s) de sus extractos y su autorización'+(n?', y tu resumen de ellos en su ficha':'')+'.');
     cerrarModal(); traerExtractos();
   }).catch(e=>alert('No pude borrar: '+errNube(e)));
+}
+/* 13-nov-2026 (remate) — PARA «🚫 BORRAR A ALGUIEN QUE LO PIDIÓ»
+   (confirmarSuprimir, que la llama después de la historia laboral). Antes no
+   tocaba los extractos: quien pidió que lo borraran seguía con sus archivos y
+   su autorización en extracto_archivos mientras existiera su cuenta, y el
+   «Listo» no los nombraba. Nunca rechaza: devuelve la línea que va en el
+   «Listo» (ExtractosCRM.lineaSuprimir), que dice lo que se borró o que NO y
+   por qué. El resumen de las fichas se quita aunque la nube falle: es de este
+   computador, y la persona pidió que se fuera. */
+function suprimirExtractosDe(cel){
+  const X=extractosCRM();
+  if(!X){
+    const n=quitarResumenesDe(cel);
+    return Promise.resolve('\n\nSus extractos, si los subió, NO se borraron: no cargó la parte de los extractos de este CRM. Recarga y vuelve a '+
+      'tocar «🚫 Borrar a alguien que lo pidió» con el mismo celular.'+(n?' Sí quité tu resumen de ellos en su ficha.':''));
+  }
+  if(!sbListo()) return Promise.resolve(X.lineaSuprimir(null,quitarResumenesDe(cel)));
+  return X.borrar(rpc,sbCfg().clave,cel)
+    .then(j=>(j&&j.ok===true)?j:{error:(j&&j.motivo)||'la nube dijo que no'},
+          e=>/todavía no tiene/.test(errNube(e))?{falta:true}:{error:errNube(e)})
+    .then(r=>{
+      const n=quitarResumenesDe(cel);
+      /* El chip de 📨 Solicitudes y el bloque de 📥 Registrados se vuelven a
+         pedir en la próxima pintada. */
+      if(!r.error){ try{ if(_extractos) delete _extractos[telDiez(cel)]; }catch(e){} }
+      _extractosPedidoEn=0;
+      return X.lineaSuprimir(r,n);
+    });
+}
+/* «🗑 Quitar el resumen» de la ficha: lo que Joan anotó, y nada más (los
+   archivos, si quedan, se borran con «🗑 Borrar sus extractos»). */
+function quitarResumenExtractos(socioId){
+  const s=(DB.socios||[]).find(c=>c&&String(c.id)===String(socioId)); if(!s||!s.extractoResumen) return;
+  if(!confirm('Quitar de esta ficha tu resumen de sus extractos (cuánto le entra y si es regular). No se puede deshacer. ¿Lo quito?')) return;
+  delete s.extractoResumen;
+  guardar();
+  pintarExtractosEnLaFicha(s.id);
 }
 /* La caja de la ficha, debajo de la del fondo de pensiones (o de las fotos de
    la nube). Se crea aquí y no en la plantilla de la ficha: ver «POR QUÉ SE
