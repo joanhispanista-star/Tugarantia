@@ -567,6 +567,11 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
 <script src="../app/motor.js?v=141"></script>
 <script src="../app/ficha.js"></script>
 <script src="../app/cumplimiento.js?v=141"></script>
+<!-- 13-nov-2026 — «Falta tu cédula» en la cuenta: la misma tarjeta de la app
+     instalada (app/socio.html), que avisa sin frenar nada y sube por
+     registro_archivos_guardar con la compresión de esta página. Va con versión:
+     si no llega, la guardia de abajo lo dice. -->
+<script src="../app/falta-la-cedula.js?v=144"></script>
 <!-- El hilo del chat se pinta con el mismo código que en la app quincenal: la
      marca de «esto te lo contestó una máquina» y el «leído» son reglas, no
      adorno, y no se escriben dos veces. -->
@@ -699,7 +704,10 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
    antes de la primera foto ya no se pierden la selfie, la ubicación ni el permiso.
    Si alguien dice que se le borró todo al volver de la cámara, esta fecha dice si
    tenía la versión que lo arregla. */
-var VERSION_PLAY = '2026-11-09';
+/* 13-nov-2026 — en la cuenta, «Tu información está incompleta: falta la foto de tu
+   cédula» con «Subir mi cédula» (app/falta-la-cedula.js), sin frenar nada. Si
+   alguien dice que no vio el aviso, esta fecha dice si tenía la versión que avisa. */
+var VERSION_PLAY = '2026-11-13';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
@@ -5718,7 +5726,9 @@ var SUBIDA_SUELTA = null;
 var LECTURAS_QUE_NO_FRENAN = ['chat_leer_sesion', 'chat_sin_leer_sesion', 'chat_foto_sesion_ver',
                               'mi_cuenta', 'mi_registro', 'mi_solicitud',
                               /* 22-oct-2026 — las cuentas del registro, al aceptar: solo lee. */
-                              'mis_cuentas_de_pago'];
+                              'mis_cuentas_de_pago',
+                              /* 13-nov-2026 — qué fotos de su registro llegaron (FALTA TU CÉDULA): solo lee. */
+                              'mis_fotos_del_registro'];
 /* Devuelve la MISMA promesa: quien llama sigue con su .then y su .catch como
    siempre. El conteo va en una rama aparte que se traga el error (no deja
    una promesa rechazada sin atender). */
@@ -12848,6 +12858,56 @@ function barraPestanas() {
   }).join('') + '</div>';
 }
 
+/* ===========================================================================
+ * FALTA TU CÉDULA — 13 de noviembre de 2026
+ *
+ * Joan: el cliente que no puso la cédula al registrarse tiene que ver un
+ * botón o una alerta antes de pedir el crédito, o incluso antes. Es la misma
+ * tarjeta de la app instalada (app/falta-la-cedula.js; ver FALTA TU CÉDULA en
+ * app/socio.html), arriba de las pestañas de la cuenta, así que se ve en
+ * Crédito, donde se pide. NO FRENA NADA: la cédula no es obligatoria
+ * (decisión de Joan del 3-nov; Decreto 1377 de 2013, art. 6).
+ *
+ * Lo de esta página que usa, y nada más: la sesión (rpcSesion, suelta: el
+ * módulo calla solo lo que llega de otra cuenta), comprimirImagen (la misma
+ * compresión de la cédula del registro) y la cola de fotos: mientras las del
+ * registro esperan en este teléfono, van en camino y no se piden (lo que pasó
+ * con ellas lo dice #avisoFotos). En PlataChat no sale: su cuenta es otra
+ * pantalla (decisión de Joan: PlataChat no cambia).
+ * ======================================================================== */
+var FLC = (function () {
+  var F = window.FaltaLaCedula;
+  if (!F || typeof F.crear !== 'function') return null;
+  try {
+    return F.crear({
+      nombre: 'FLC',
+      U: U,
+      rpc: function (fn, cuerpo) { return rpcSesion(fn, cuerpo, SESION, true); },
+      credenciales: function () {
+        return Promise.resolve(SESION && SESION.access_token && CFG.url && CFG.anon
+          ? { url: CFG.url, anon: CFG.anon, token: SESION.access_token } : null);
+      },
+      /* El fetch de la página, por su nombre: el del permiso (/auth/v1/user)
+         sale por la misma red que todo lo demás. */
+      fetch: function (u, op) { return fetch(u, op); },
+      escritura: escrituraEnCamino,
+      quien: celularDeSesion,
+      caja: function () { return $('faltaCedula'); },
+      porId: $,
+      comprimir: function (f) { return comprimirImagen(f, F.LADO_MAXIMO, F.CALIDAD); },
+      enCamino: function () { var c = celularDeSesion(); return !!(c && colaDe(c)); },
+      almacen: function () { try { return localStorage; } catch (e) { return null; } },
+      irAlChat: function () { CANAL = 'servicio'; irA('chat'); },
+      textoVencida: 'Se cerró tu sesión. Entra otra vez y vuelve a intentar.'
+    });
+  } catch (e) { return null; }
+})();
+function montarFaltaCedula() {
+  if (!FLC || MARCA === 'platachat' || !SESION || !SESION.access_token) return;
+  var ses = SESION;
+  FLC.cargar().then(function () { if (SESION === ses && VISTA === 'cuenta') FLC.pintar(); });
+}
+
 function pintarCuenta(sesion) {
   if (sesion) SESION = sesion;
   VISTA = 'cuenta';
@@ -12866,6 +12926,9 @@ function pintarCuenta(sesion) {
   $('cuerpo').innerHTML = '<div id="tabs">' + barraPestanas() + '</div>' +
     avisoResponsablePlay() +
     '<div id="avisoFotos">' + avisoDeFotos('cuenta', '') + '</div>' +
+    /* 13-nov-2026 — «Falta tu cédula», arriba de las pestañas: se ve en
+       Crédito, que es donde pide (ver FALTA TU CÉDULA). */
+    '<div id="faltaCedula"></div>' +
     '<div id="avisoPension"></div>' +
     '<div id="lamina"></div>' + pie();
   /* La ficha se pide UNA vez al abrir y se reparte a las cuatro láminas. Pedirla
@@ -12873,6 +12936,7 @@ function pintarCuenta(sesion) {
   cargarFicha();
   irA(TAB);
   subidaEnSegundoPlano();
+  montarFaltaCedula();   // 13-nov-2026 — después de arrancar la cola: lo que espera ahí no se pide
   /* 28-oct-2026 — la historia laboral que quedó en la cola de ESTA cuenta
      (la señal se cayó al abrirla): se vuelve a intentar con su sesión. */
   subirLaHistoriaLaboralYDecirlo();
@@ -13873,6 +13937,8 @@ function salirDeCuenta() {
   /* 22-oct-2026 — y sus cuentas de pago: las del registro que trajo
      mis_cuentas_de_pago y la que estaba escribiendo al aceptar. */
   CUENTAS_DEL_REGISTRO = {}; DESTINOS = {};
+  /* 13-nov-2026 — y lo que se sabía de su cédula (FALTA TU CÉDULA). */
+  if (FLC) FLC.soltar();
   MI_REGISTRO = ''; AVISO_RESPONSABLE_PLAY_CERRADO = false;
   LEIDAS = { servicio: 0, cobranza: 0, creditos: 0 };
   /* 20-oct-2026, revisión (F7; regla 3) — y nada del registro de esta cuenta
@@ -14475,6 +14541,8 @@ function momentoSeguroPlay() {
      suelta), así que las dos preguntas valen igual aquí. Es lo que PlataChat
      ya hacía con destinoAMediasPC antes de Plata y Yo. */
   if (casillaDeLaPropuestaMarcada() || destinoAMedias()) return false;
+  /* 13-nov-2026 — y el permiso de la cédula marcado o su foto subiendo (FALTA TU CÉDULA). */
+  if (FLC && FLC.aMedias()) return false;
   if (TAB === 'historial') return true;
   if (TAB === 'credito') return sinTeclear('csNota') && sinTeclear('csMontoLibre');
   return false;

@@ -470,6 +470,8 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
        calladas y ninguna prueba se queja. Lo encontro el centinela de arriba el
        dia que se escribio, no una persona mirando. */
     ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
+    /* 13-nov-2026 — «Falta tu cédula» en la cuenta (app/falta-la-cedula.js). */
+    ctx.FaltaLaCedula = require(path.join(RAIZ, 'app', 'falta-la-cedula.js'));
     /* 21-oct-2026 — se actualiza sola. Con require (Node no tiene service
        worker) es el controlador que no hace nada: lo que esta vitrina prueba no
        cuelga de él, pero la página lo carga y el centinela de abajo lo pide. */

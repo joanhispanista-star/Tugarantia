@@ -446,12 +446,98 @@ describe('5 · se actualiza sola, y lo que se pinta', () => {
     });
   });
 
-  test('la página pide el módulo con ?v=144, y sw.js lo precarga igual', () => {
+  test('la página pide el módulo con ?v=144, y sw.js lo precarga igual (la página de socio)', () => {
     const SOCIO = leer('app/socio.html'), SW = leer('sw.js');
     assert.match(SOCIO, /<script src="falta-la-cedula\.js\?v=144"><\/script>/);
     assert.match(SOCIO, /<script src="propuesta-en-la-app\.js\?v=144"><\/script>/);
     assert.match(SW, /'app\/falta-la-cedula\.js\?v=144'/);
     assert.match(SW, /'app\/propuesta-en-la-app\.js\?v=144'/);
     assert.match(leer('app/falta-la-cedula.js'), /^[\s\S]*?\(function \(\) \{ try \{ var s = document\.currentScript;/);
+  });
+});
+
+/* ---- play/: la cuenta de la puerta pública ------------------------------ */
+const { abrirPlay } = require('./banco-play.js');
+/* fetch de mentira DENTRO de la página: las RPC por su nombre, y la cuenta
+   (/auth/v1/user) como «auth:GET» y «auth:PUT». Lo que no está en `resp`
+   contesta 404, como una base sin esa función. */
+const FETCH_PLAY = "window.__l = []; fetch = function (u, op) { var s = String(u);" +
+  " var fn = (/rpc.([a-z_]+)$/.exec(s) || [, ''])[1] || (/auth.v1.user$/.test(s) ? 'auth:' + ((op && op.method) || 'GET') : '');" +
+  " window.__l.push({ u: s, fn: fn, c: op && op.body ? JSON.parse(op.body) : null, auth: (op && op.headers && op.headers.Authorization) || '' });" +
+  " var r = window.__resp[fn]; var st = r === undefined ? 404 : (r && r.__estado) || 200; var t = st === 200 ? JSON.stringify(r) : '{}';" +
+  " return Promise.resolve({ ok: st === 200, status: st, json: function () { return Promise.resolve(JSON.parse(t)); }, text: function () { return Promise.resolve(t); } }); };";
+async function enPlay(resp, antes) {
+  const P = abrirPlay();
+  P.ev('window.__resp = ' + JSON.stringify(resp) + ';' + FETCH_PLAY);
+  if (antes) P.ev(antes);
+  P.ev('pintarCuenta({ access_token: "token-play", user: { email: "' + CORREO + '", user_metadata: {} } })');
+  await asentar(16);
+  return { P, l: () => JSON.parse(P.ev('JSON.stringify(window.__l)')), caja: () => plano(P.ev("document.getElementById('faltaCedula').innerHTML")) };
+}
+
+describe('6 · la cuenta de play/, con la misma tarjeta', () => {
+  test('arriba de las pestañas: «Tu información está incompleta», con la sesión de la cuenta', async () => {
+    const { l, caja, P } = await enPlay({ mis_fotos_del_registro: SIN_CEDULA() });
+    const p = l().filter(x => x.fn === 'mis_fotos_del_registro');
+    assert.equal(p.length, 1, 'no le preguntó a la base');
+    assert.equal(p[0].auth, 'Bearer token-play');
+    assert.match(caja(), /Tu información está incompleta: falta la foto de tu cédula, por los dos lados\./);
+    assert.match(caja(), /Subir mi cédula/);
+    /* La caja va antes de la lámina: se ve en Crédito, donde se pide. */
+    const cuerpo = P.ev("document.getElementById('cuerpo').innerHTML");
+    assert.ok(cuerpo.indexOf('id="faltaCedula"') >= 0 && cuerpo.indexOf('id="faltaCedula"') < cuerpo.indexOf('id="lamina"'));
+    /* Solo lee: no frena la recarga sola. */
+    assert.ok(JSON.parse(P.ev('JSON.stringify(LECTURAS_QUE_NO_FRENAN)')).indexOf('mis_fotos_del_registro') >= 0);
+  });
+
+  test('sin la función en la base (404) no dice nada; con las fotos del registro todavía en la cola, tampoco', async () => {
+    assert.equal((await enPlay({})).caja().trim(), '');
+    const { caja, l } = await enPlay({ mis_fotos_del_registro: SIN_CEDULA() },
+      "colaDe = function (c) { return c === '3001112222' ? { cedula_frente: 'data:image/jpeg;base64,QQ==' } : null; };");
+    assert.ok(l().some(x => x.fn === 'mis_fotos_del_registro'));
+    assert.equal(caja().trim(), '', 'pide la cédula que va en camino desde este teléfono');
+  });
+
+  test('sube con la compresión de play/ (comprimirImagen 900 / 0,6) y por registro_archivos_guardar con su sesión', async () => {
+    const { P, l, caja } = await enPlay({ mis_fotos_del_registro: SIN_CEDULA(), registro_archivos_guardar: GUARDADA('cedula_frente') },
+      "comprimirImagen = function (f, max, q) { window.__cmp = [max, q]; return Promise.resolve('data:image/jpeg;base64,UExBWQ=='); };");
+    P.ev('FLC.abrir()');
+    P.ev("FLC.foto({ files: [{ name: 'c.jpg' }], value: 'x' }, 'cedula_frente')");
+    await asentar(12);
+    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__cmp)')), [900, 0.6]);
+    const s = l().filter(x => x.fn === 'registro_archivos_guardar');
+    assert.equal(s.length, 1);
+    assert.deepEqual(s[0].c, { p_archivos: { cedula_frente: 'data:image/jpeg;base64,UExBWQ==' }, p_huella: {} });
+    assert.equal(s[0].auth, 'Bearer token-play');
+    assert.match(caja(), /Recibimos el frente/);
+  });
+
+  test('el permiso, por la cuenta de esta sesión, antes de subir', async () => {
+    const { P, l } = await enPlay({ mis_fotos_del_registro: SIN_CEDULA({ sensibles: false }),
+      'auth:GET': { email: CORREO, user_metadata: { autorizacion: { version: '2026-10-19', momento: '2026-11-08T15:20:00.000Z', general: true, sensibles: false } } },
+      'auth:PUT': { email: CORREO } });
+    P.ev('FLC.abrir()');
+    P.ev('FLC.marcarPermiso(true); FLC.guardarPermiso()');
+    await asentar(12);
+    const put = l().filter(x => x.fn === 'auth:PUT');
+    assert.equal(put.length, 1);
+    assert.equal(put[0].auth, 'Bearer token-play');
+    assert.equal(put[0].c.data.autorizacion.sensibles, true);
+    assert.equal(put[0].c.data.autorizaciones.length, 2);
+    assert.equal(l().filter(x => x.fn === 'registro_archivos_guardar').length, 0, 'subió algo sin una foto');
+  });
+
+  test('«Salir» suelta lo que se sabía; y con el permiso marcado no es momento de recargar', async () => {
+    const { P } = await enPlay({ mis_fotos_del_registro: SIN_CEDULA({ sensibles: false }) });
+    P.ev("irA('historial')");
+    assert.equal(P.ev('momentoSeguroPlay()'), true);
+    P.ev('FLC.abrir(); FLC.marcarPermiso(true)');
+    assert.equal(P.ev('momentoSeguroPlay()'), false, 'la recarga se llevaría el permiso marcado');
+    P.ev('salirDeCuenta()');
+    assert.equal(P.ev('FLC.estado().estado'), 'sin_preguntar');
+  });
+
+  test('play/ pide el módulo con ?v=144', () => {
+    assert.match(leer('play/index.html'), /<script src="\.\.\/app\/falta-la-cedula\.js\?v=144"><\/script>/);
   });
 });
