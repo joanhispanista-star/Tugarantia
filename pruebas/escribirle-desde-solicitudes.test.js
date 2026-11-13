@@ -451,6 +451,13 @@ describe('4. lo que escribió y no has leído, en su fila', () => {
     assert.doesNotMatch(plano(filaDe(P, 503)), /sin leer/, 'inventó un número donde no hay mensajes');
   }));
 
+  test('el botón no se parte en tres renglones: «💬 Escribirle» y «· N sin leer» van cada uno entero', con({
+    convs: [conv('3200000501', 1)]
+  }, ({ P }) => {
+    assert.match(filaDe(P, 501), /<span style="white-space:nowrap">💬 Escribirle<\/span> <span style="white-space:nowrap">· <b>1 sin leer<\/b><\/span><\/button>/);
+    assert.match(filaDe(P, 502), /<span style="white-space:nowrap">💬 Escribirle<\/span><\/button>/);
+  }));
+
   test('sin columna celular: cuenta el hilo \'0\' + celular, no los sin leer de la ficha antigua de ese número', con(Object.assign({}, CON_VIEJA, {
     convs: [conv('3100000044', 3), conv('03100000044', 1)]
   }), ({ P }) => {
@@ -499,7 +506,7 @@ describe('5. el mismo botón en la ficha y en el 🔔 del Tablero', () => {
 
   test('«Lo que pidió» de la ficha: cierra la ficha y abre su chat', con({}, ({ P }) => {
     const h = P.ev("loQuePidioHTML(DB.socios.find(x => x.id === 'F1'))");
-    assert.match(h, /onclick="cerrarModal\(\);escribirleDesdeSolicitud\('504'\)"[^>]*>💬 Escribirle/);
+    assert.match(h, /onclick="cerrarModal\(\);escribirleDesdeSolicitud\('504'\)"[^>]*>(?:<span[^>]*>)?💬 Escribirle/);
     assert.match(h, /onclick="cerrarModal\(\);escribirleDesdeSolicitud\('505'\)"/);
   }));
 

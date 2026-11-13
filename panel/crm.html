@@ -11023,8 +11023,11 @@ function botonEscribirleSolicitud(s,desdeFicha){
   }
   const n=sinLeerDeSolicitud(s);
   return '<button class="btn btn-ghost btn-sm" onclick="'+(desdeFicha?'cerrarModal();':'')+'escribirleDesdeSolicitud(\''+escHTML(String(s.id))+'\')" '
-    +'title="Abre su chat aquí mismo, sin salir de esta pantalla. No le llega aviso al celular: lo ve cuando abra la app.">💬 Escribirle'
-    +(n?' · <b>'+n+' sin leer</b>':'')+'</button> ';
+    +'title="Abre su chat aquí mismo, sin salir de esta pantalla. No le llega aviso al celular: lo ve cuando abra la app.">'
+    /* Cada pedazo entero: en una columna angosta el botón se partía en tres
+       renglones (el 💬 solo arriba y «1 sin leer» en dos). Así, a lo más dos. */
+    +'<span style="white-space:nowrap">💬 Escribirle</span>'
+    +(n?' <span style="white-space:nowrap">· <b>'+n+' sin leer</b></span>':'')+'</button> ';
 }
 /* `propuesta` ({capital, total, fecha_pago} o {capital, total, cuotas:[{fecha,
    total}]}): lo que se acaba de mandar, para dejar escrito el aviso (ver
