@@ -2885,7 +2885,12 @@ function pintarCuentaDelToque(r,s,conBoton,soloJuntar){
       if(faltaSubirParaJuntar(s)){
         const otras=fichasQueChocanCon(s), no=otras.length?null:porQueNoSubeSola();
         if(otras.length||(no.porque&&!no.esperar)){ b.innerHTML=bloqueNoSube(r,s,otras,no); return; }
-        notaSinSubir='<div class="alerta info" style="margin-bottom:10px">☁ Su ficha todavía no subió a la nube desde este computador: al tocar, la subo primero (es automático, unos segundos) y después la junto como siempre.</div>';
+        /* 14-nov-2026 — si es de las fichas en discusión, sube igual (es la que
+           Joan está tocando), y se dice antes qué va a ver el cliente. */
+        const disc=suFichaEnDiscusion(s);
+        notaSinSubir='<div class="alerta info" style="margin-bottom:10px">☁ Su ficha todavía no subió a la nube desde este computador: al tocar, la subo primero (es automático, unos segundos) y después la junto como siempre.'
+          +(disc?' Ojo: '+(disc==='nube-mas-nueva'?'la nube tiene algo más nuevo de su ficha (lo que anotaste en el celular)':'su ficha no coincide con la de la nube (la tocaste aquí y en el celular)')
+            +'. Su app va a mostrar lo de este computador; lo de la nube no se borra y lo decides cuando quieras.':'')+'</div>';
       }
       if(pideClave){
         b.innerHTML=`${espera?'<div class="alerta warn" style="margin-bottom:10px">'+escHTML(textoTrasClave())+'</div>':''}<div class="alerta warn" style="margin-bottom:10px">Un toque no basta con esta cuenta: mirando no se sabe quién tiene
@@ -3057,7 +3062,21 @@ function juntarCuentaEnLaNube(r,s,llave,por,rev,nombre){
    Lo que cambia: el toque corre él mismo la subida automática —vuelta(true),
    lo mismo que el clic en la línea de Ajustes, con todas sus puertas— y
    después junta por la nube como siempre. Si este computador no puede subir
-   la ficha, el cuadro lo dice ANTES de que Joan llame: el porqué y qué hacer. */
+   la ficha, el cuadro lo dice ANTES de que Joan llame: el porqué y qué hacer.
+
+   14-nov-2026 — CON FICHAS EN DISCUSIÓN, LA SUYA SUBE IGUAL. El cliente
+   siguiente no pudo: «Hay 23 fichas de tu cartera en discusión con la nube:
+   en cuanto decidas en ☁ Subir (paso 7), suben solos», y el crédito sin
+   registrar. Joan: «eso de subir a la nube manualmente quítalo, quiero que
+   sea automático… desde la propuesta que el cliente acepte yo poder registrar
+   [y] unir el historial con el usuario rápidamente». Ahora el toque sube SOLO
+   la ficha de este cliente (HistorialesAuto.subirUna), aunque la cartera
+   tenga fichas en discusión, con tal de que esté emparejada con la nube; y
+   después junta por la nube como siempre: la nube sigue mirando la clave
+   nueva, el recado, el celular de otra ficha y la ficha con otra cuenta, y el
+   crédito sigue esperando a que junte. Si su ficha es una de las que están en
+   discusión, el cuadro lo dice antes: su app va a mostrar lo de este
+   computador, y lo del celular sigue en la nube para decidirlo después. */
 
 /* ¿La reja va a decir que no? Sus mismas condiciones, con la llave de HOY de
    la ficha, que es la que lleva el toque. */
@@ -3093,6 +3112,9 @@ function textoPlano(h){
    hoy (habilitado, que se borra al importar un respaldo), o la comparación
    con la nube diciendo ahora que sí (NubeCRM.libroAlDia). Las palabras, las de
    la línea de Ajustes (textoCinta). */
+/* Lo que contesta NubeCRM.libroAlDia con la cartera ya emparejada: los mismos
+   de LIBRO_EMPAREJADO en historiales-auto.js, que es quien decide. */
+const LIBRO_EMPAREJADO_JUNTAR=['al-dia','en-discusion','nube-mas-nueva','comparando','sin-comparar'];
 function porQueNoSubeSola(){
   const H=window.HistorialesAuto;
   if(!H||typeof H.vuelta!=='function') return {porque:'este CRM tiene una versión vieja de la subida de historiales: recárgalo con Ctrl+Shift+R'};
@@ -3115,6 +3137,10 @@ function porQueNoSubeSola(){
   try{ lib=(window.NubeCRM&&typeof NubeCRM.libroAlDia==='function')?NubeCRM.libroAlDia():{ok:false,motivo:'sin-modulo'}; }catch(err){ lib=null; }
   lib=lib||{ok:false,motivo:'error'};
   if(lib.ok) return {porque:null};
+  /* 14-nov-2026 — CON FICHAS EN DISCUSIÓN, LA SUYA SUBE IGUAL (arriba): con la
+     cartera ya emparejada, subirUna la sube aunque falte decidir otras fichas
+     o la comparación venga en camino. */
+  if(typeof H.subirUna==='function'&&LIBRO_EMPAREJADO_JUNTAR.indexOf(String(lib.motivo||''))>=0) return {porque:null};
   let t='';
   try{
     const c=H._puro&&typeof H._puro.textoCinta==='function'?H._puro.textoCinta({ultimo:{fase:'esperando-libro',motivo:String(lib.motivo||''),
@@ -3137,7 +3163,14 @@ function subirSuFichaSiFalta(s,avisar){
   if(!faltaSubirParaJuntar(s)||fichasQueChocanCon(s).length) return Promise.resolve(false);
   const no=porQueNoSubeSola(); if(no.porque&&!no.esperar) return Promise.resolve(false);
   const H=window.HistorialesAuto, decir=t=>{ if(avisar) avisar(t); };
-  const una=()=>{ decir('☁ Subiendo su ficha a la nube…'); return Promise.resolve().then(()=>H.vuelta(true)).catch(()=>null); };
+  /* 14-nov-2026 — solo SU ficha (subirUna), aunque otras esperen decisión. Lo
+     que contestó se guarda: si no subió, porQueNoSubio dice por qué. Sin
+     subirUna (un historiales-auto.js viejo) es la vuelta de siempre. */
+  const una=()=>{ decir('☁ Subiendo su ficha a la nube…');
+    return Promise.resolve().then(()=>typeof H.subirUna==='function'?H.subirUna(s.id):H.vuelta(true))
+      .then(r=>{ _subidaUna={socio:s.id,res:r||null}; },()=>{ _subidaUna=null; }); };
+  const otraVez=()=>{ const r=_subidaUna&&_subidaUna.socio===s.id?_subidaUna.res:null;
+    return !r||!r.fase||r.fase==='error'||r.fase==='sin-llegar'; };
   let libro=Promise.resolve();
   if(no.esperar&&window.NubeCRM&&typeof NubeCRM.libroAlDiaEsperando==='function'){
     decir('☁ Comparando tu cartera con la nube…');
@@ -3146,7 +3179,8 @@ function subirSuFichaSiFalta(s,avisar){
   }
   return libro.then(()=>{
     if(porQueNoSubeSola().porque) return true;
-    return una().then(()=>{ if(faltaSubirParaJuntar(s)&&!porQueNoSubeSola().porque) return una(); }).then(()=>true);
+    _subidaUna=null;
+    return una().then(()=>{ if(faltaSubirParaJuntar(s)&&!porQueNoSubeSola().porque&&otraVez()) return una(); }).then(()=>true);
   });
 }
 /* Lo que se dice si, después de intentarlo, su ficha sigue sin subir. */
@@ -3157,6 +3191,11 @@ function porQueNoSubio(s){
     +'). La nube las tomaría por la misma persona, y juntar ahora podría darle a esta cuenta lo de otra. Arréglalo en las fichas (ponle la cédula a quien no la tiene, junta las repetidas o corrige el número) y vuelve a tocar.';
   const no=porQueNoSubeSola();
   if(no.porque) return 'Este computador no está subiendo las fichas de tus clientes a la nube, y sin subir la suya no la junto: '+textoPlano(no.porque)+'.';
+  /* 14-nov-2026 — lo que contestó subirUna, si es algo que reintentar no arregla. */
+  const u=_subidaUna&&_subidaUna.socio===s.id?_subidaUna.res:null;
+  if(u&&!u.ok&&u.motivo&&['fila','nada','chocan','esperando-libro','sin-guardar','sin-senal','sin-config','sello-roto'].indexOf(u.fase)>=0){
+    return 'Su ficha no subió a la nube, y sin ella no la junto: '+textoPlano(u.motivo);
+  }
   let l1='';
   try{ const e=window.HistorialesAuto.estado(); l1=e&&e.cinta&&e.cinta.l1?textoPlano(e.cinta.l1):''; }catch(err){ l1=''; }
   return 'Intenté subir su ficha y la nube todavía no la confirmó'+(l1?' ('+l1+')':'')+'. Vuelve a tocar en un momento.';
@@ -3191,6 +3230,18 @@ function bloqueNoSube(r,s,otras,no){
    abrirJuntarCuenta marca su modal, cerrarModal lo borra, y
    pintarCuentaDelToque pinta solo en el suyo. */
 let _modalJuntar=null, _vecesJuntar=0;
+/* 14-nov-2026 — lo último que contestó la subida de UNA ficha: {socio, res}. */
+let _subidaUna=null;
+/* 14-nov-2026 — ¿su ficha es de las que esperan decisión? Lo dice
+   NubeCRM.libroPorCliente cuando ya sabe de quién es cada cosa: 'en-discusion',
+   'nube-mas-nueva' o null (mientras compara, no se sabe y no se dice). */
+function suFichaEnDiscusion(s){
+  try{
+    if(!s||!window.NubeCRM||typeof NubeCRM.libroPorCliente!=='function') return null;
+    const r=NubeCRM.libroPorCliente()||{}, c=r.clientes&&r.clientes[s.id];
+    return c?(c.enDiscusion?'en-discusion':c.masNueva?'nube-mas-nueva':null):null;
+  }catch(err){ return null; }
+}
 function modalJuntarSigue(r,s,vez){
   return !!(vez!=null&&_modalJuntar&&_modalJuntar.vez===vez&&_modalJuntar.reg===String(r.id)&&_modalJuntar.socio===s.id
     &&document.getElementById('juntarBoton'));
@@ -26450,6 +26501,9 @@ function entrar(){ const retomada=_retomandoDueno===true, campoPin=document.getE
          nube-crm.js dice que esta cartera es la de hoy (emparejada y sin
          fichas en discusión). Sin nube-crm.js, NO: no hay quién lo compruebe. */
       libroAlDia:()=>(window.NubeCRM&&typeof NubeCRM.libroAlDia==='function')?NubeCRM.libroAlDia():{ok:false,motivo:'sin-modulo'},
+      /* 14-nov-2026 — y cliente por cliente: con fichas en discusión suben los
+         demás (historiales-auto.js, CLIENTE POR CLIENTE). */
+      libroPorCliente:()=>(window.NubeCRM&&typeof NubeCRM.libroPorCliente==='function')?NubeCRM.libroPorCliente():{ok:false,motivo:'sin-modulo'},
       sinCinta:sinCintaPropia, alPintar:pintarNubeTodo }); }catch(e){}
     try{ if(!CARTERA_EQUIPO && !_oyendoCartera && typeof window.addEventListener==='function'){ _oyendoCartera=true; window.addEventListener('storage', alEscribirOtraPagina); } }catch(e){}
     /* 15-oct-2026 — LA CARTERA DEL EQUIPO SE PUBLICA SOLA. Acá por lo mismo que
@@ -26748,7 +26802,7 @@ setTimeout(function(){ if(!window.NubeCRM){ var b=document.getElementById('nubeB
 <!-- 7-oct-2026 — LOS HISTORIALES SUBEN SOLOS. Va después del bloque grande por
      la misma razón que nube-crm.js: arranca desde entrar() y usa loteMigracion,
      sbCfg y el sello, que ese bloque declara. -->
-<script src="historiales-auto.js?v=139"></script>
+<script src="historiales-auto.js?v=147"></script>
 <script>
 /* 7-oct-2026 — la misma RECETA E para los historiales: si historiales-auto.js
    no llegó, la línea de Ajustes quedaría vacía, y vacía no se distingue de

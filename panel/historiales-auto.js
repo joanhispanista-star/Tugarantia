@@ -84,6 +84,31 @@
  *   encontró nada más nuevo allá que acá. Si lo encontró, la línea lo dice
  *   («la nube tiene N fichas más nuevas») y manda a juntarlas en ☁ Subir.
  *
+ * 14-nov-2026 — CLIENTE POR CLIENTE, Y LA FICHA QUE JOAN ESTÁ JUNTANDO.
+ *   Con 23 fichas en discusión (tocadas aquí y en el celular) esta pieza no
+ *   le subía a NADIE, y el toque de «Juntar y desembolsar» de un cliente se
+ *   quedaba sin su ficha arriba: Joan no podía registrar el crédito que el
+ *   cliente ya había aceptado. Joan: «eso de subir a la nube manualmente
+ *   quítalo, quiero que sea automático». Dos cambios:
+ *   1. Mientras la cartera no está comprobada entera, la vuelta pregunta
+ *      cliente por cliente (cfg.libroPorCliente → NubeCRM.libroPorCliente, la
+ *      misma pregunta con que el equipo se publica desde el 22-oct): suben
+ *      solos los que coinciden con la nube o solo le agregan, y esperan los
+ *      que tienen algo en discusión o algo más nuevo allá. Lo que no se puede
+ *      atar a un cliente (un ajuste en discusión, que le cambia la cuenta a
+ *      todos) los frena a todos, como antes. Subir así NO enciende la subida
+ *      para siempre (habilitado): cada vuelta vuelve a preguntar, hasta que la
+ *      cartera entera quede comprobada.
+ *   2. subirUna(socioId): la ficha del cliente que Joan está juntando sube
+ *      aunque esté en discusión, porque es Joan quien actúa sobre ESE cliente
+ *      y es aquí donde le va a registrar el crédito. Sube solo esa —un
+ *      respaldo viejo no le cambia nada a nadie más— y con todas las demás
+ *      puertas: el sello, lo no guardado, la señal, la conexión, el freno de
+ *      la clave (no lo salta: cada intento gasta el de todos) y una cartera ya
+ *      emparejada con la nube. Lo de la nube no se toca: la discusión sigue
+ *      para que Joan la decida cuando quiera, y el cuadro de crm.html le dice
+ *      antes que la app del cliente va a mostrar lo de este computador.
+ *
  * DOS FICHAS, UNA FILA: NO SUBEN
  *   sincronizar_socios identifica a cada cliente por su cédula o, si no tiene,
  *   por su celular. Cuando un cliente CON cédula sube, la nube borra la fila
@@ -195,7 +220,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (entorno) {
   'use strict';
 
-  var VERSION = '2026-10-23';
+  var VERSION = '2026-11-14';
   var E = entorno || {};
   var G = (typeof globalThis !== 'undefined') ? globalThis : {};
 
@@ -575,8 +600,21 @@
       extra += ' · ' + plural(num(pl.borrados), 'ficha que borraste sigue en la nube', 'fichas que borraste siguen en la nube') +
         ' (la subida no borra)';
     }
+    /* 14-nov-2026 — los que la vuelta dejó esperando (CLIENTE POR CLIENTE): la
+       línea no dice «al día» sin contarlos. */
+    var ap = objeto(x.apartados), nAp = num(ap.n);
+    if (nAp) {
+      extra += ' · ' + (nAp === 1 ? 'espera 1 cliente cuya ficha' : 'esperan ' + nAp + ' clientes cuyas fichas') +
+        (ap.motivo === 'nube-mas-nueva'
+          ? (nAp === 1 ? ' tiene' : ' tienen') + ' algo más nuevo en la nube (lo del celular): ' + (nAp === 1 ? 've' : 'ven') +
+            ' lo último que subió hasta que lo juntes en <a href="subir.html" target="_blank" rel="noopener">☁ Subir</a> (paso 6)'
+          : ' no ' + (nAp === 1 ? 'coincide' : 'coinciden') + ' con la nube (' + (nAp === 1 ? 'la tocaste' : 'las tocaste') +
+            ' aquí y en el celular): ' + (nAp === 1 ? 've' : 'ven') + ' lo último que subió hasta que elijas en ' +
+            '<a href="subir.html" target="_blank" rel="noopener">☁ Subir</a> (paso 7)') +
+        '; si juntas su cuenta, su ficha sube igual';
+    }
     var cola = (n ? ' · ' + esperan : '') + extra;
-    var hayQueVer = pl && (num(pl.retenidos) || num(pl.chocan));
+    var hayQueVer = pl && (num(pl.retenidos) || num(pl.chocan) || nAp);
 
     if (x.fase === 'apagado') return c('apagado', 'neutro', '', '');
     if (x.enVuelta) {
@@ -678,7 +716,7 @@
     if (!num(pl.total)) {
       return c('nada', 'neutro', 'Todavía no hay clientes para subir', 'necesitan celular o cédula en su ficha' + extra);
     }
-    return c('al-dia', hayQueVer ? 'ojo' : 'calma', venAlDia,
+    return c('al-dia', hayQueVer ? 'ojo' : 'calma', venAlDia + (nAp ? ', menos ' + plural(nAp, 'cliente', 'clientes') : ''),
       (hayQueVer ? 'nada más esperando subir' : 'nada esperando subir') +
       (num(pl.grupo) ? ' · las cifras del grupo se refrescan cada 6 h' : '') + extra);
   }
@@ -817,6 +855,9 @@
   /* La última clave que la nube rechazó y cuándo: aparte de _ultimo, para que
      otro aviso (sin señal, otra pestaña) no borre la espera de 15 min. */
   var _freno = null;
+  /* 14-nov-2026 — los clientes que la última vuelta dejó esperando (CLIENTE
+     POR CLIENTE, arriba): {ids, n, motivo, congeladas, fichas}, o null. */
+  var _apartados = null;
   var _quietud = null, _primera = null, _reintento = null, _ocupadoT = null, _pintarT = null;
   var _reloj = null, _periodico = null;
 
@@ -835,6 +876,35 @@
       return objeto(cfg.libroAlDia());
     } catch (e) { return { ok: false, motivo: 'sin-modulo' }; }
   }
+  /* 14-nov-2026 — ¿QUIÉNES NO PUEDEN SUBIR TODAVÍA? (CLIENTE POR CLIENTE,
+     arriba). Solo cuando lo que falta son fichas concretas: en discusión o más
+     nuevas en la nube. Devuelve {ids, n, motivo, congeladas, fichas}, o null si
+     no se puede decir de quién es lo que falta (sin la pregunta, o con algo que
+     no se ata a ningún cliente): entonces esperan todos, como antes. Si lo que
+     falta para saberlo es la comparación con la nube (viene en camino, o falló
+     y espera), devuelve {ids: null, motivo, espera, detalle}: la línea dice eso,
+     que es lo que de verdad se espera, y no «decide en ☁ Subir». */
+  function porCliente(lib) {
+    var m = texto(objeto(lib).motivo);
+    if (m !== 'en-discusion' && m !== 'nube-mas-nueva') return null;
+    if (typeof cfg.libroPorCliente !== 'function') return null;
+    var r;
+    try { r = objeto(cfg.libroPorCliente()); } catch (e) { return null; }
+    var rm = texto(r.motivo);
+    if (rm === 'comparando' || rm === 'sin-comparar') return { ids: null, motivo: rm, espera: num(r.espera), detalle: texto(r.detalle) };
+    if (r.ok || (rm !== 'en-discusion' && rm !== 'nube-mas-nueva') || num(r.sinCliente)) return null;
+    var ids = {};
+    Object.keys(objeto(r.clientes)).forEach(function (k) { ids[String(k)] = true; });
+    var n = Object.keys(ids).length;
+    if (!n) return null;
+    return { ids: ids, n: n, motivo: rm, congeladas: num(r.congeladas), fichas: num(r.fichas) };
+  }
+  /* Lo que contesta NubeCRM.libroAlDia con la cartera YA emparejada con la nube
+     (su fase 'lista'): con estas, la ficha que Joan junta puede subir sola
+     (subirUna). Con las demás —emparejando, la nube con otra cartera, sin
+     sesión, el navegador lleno— todavía no se sabe si esta cartera es la de
+     hoy, y no sube ni una. */
+  var LIBRO_EMPAREJADO = { 'al-dia': true, 'en-discusion': true, 'nube-mas-nueva': true, 'comparando': true, 'sin-comparar': true };
   function frenoPuesto(con) {
     var c = con || conexion();
     return !!(_freno && c.ok && _freno.claveDe === c.huellaClave &&
@@ -881,7 +951,8 @@
       fase: _apagado ? 'apagado' : null, ultimo: _ultimo, enVuelta: _enVuelta, subiendo: _subiendo,
       plan: _plan, esperando: _quietud != null, ocupado: _ocupado, cambio: _cambio, enLinea: enLinea(),
       ultimaSubida: est.ultimaSubida, ultimaRevision: est.ultimaRevision, grupoEn: est.grupoEn,
-      habilitado: !!est.habilitado, habilitadoPor: est.habilitadoPor, version: VERSION, ahora: ahora()
+      habilitado: !!est.habilitado, habilitadoPor: est.habilitadoPor, version: VERSION, ahora: ahora(),
+      apartados: _apartados ? { n: _apartados.n, motivo: _apartados.motivo } : null
     };
   }
   function estado() {
@@ -895,10 +966,12 @@
    * =======================================================================*/
   /* El pedazo se anota SOLO acá, con la respuesta buena en la mano. El del
      botón, además, enciende la subida sola en este computador. */
-  function anotar(pedazo, manual) {
+  function anotar(pedazo, manual, una) {
     var est = leerEstado();
     pedazo.forEach(function (e) { est.socios[e.id] = e.rec; });
-    est.ultimaSubida = iso();
+    /* 14-nov-2026 — «tus clientes ven lo de las 8:51» habla de todos: la ficha
+       que sube sola (subirUna) no lo mueve. */
+    if (!una) est.ultimaSubida = iso();
     if (manual) {
       if (!est.habilitado) est.habilitadoPor = 'boton';
       est.habilitado = est.habilitado || iso(); est.pausa = null;
@@ -941,12 +1014,18 @@
 
   function subir(plan, con, op) {
     var manual = !!(op && op.manual);
+    /* 14-nov-2026 — `una`: la ficha que Joan está juntando, sola (subirUna). No
+       dice nada de los demás: ni las cifras del grupo, ni la última revisión,
+       ni cuántos esperan, ni la hora de «tus clientes ven»; y lo que la línea
+       esperaba antes (la cartera por comprobar) lo sigue esperando. */
+    var una = !!(op && op.una);
     var envio = plan.enviar;
     /* Las cifras del grupo quedan al día para todos si esta vuelta las lleva a
        todos los que les faltaban (o no le faltaban a nadie). */
-    var conGrupo = manual || plan.grupoListo || !plan.grupo.length;
+    var conGrupo = !una && (manual || plan.grupoListo || !plan.grupo.length);
     var res = { ok: false, total: envio.length, subidos: 0, aceptados: 0, confirmados: [], fase: null, motivo: '',
                 chocan: plan.chocan.map(function (c) { return c.nombre; }) };
+    var previo = _ultimo;
     _enVuelta = true; _subiendo = envio.length; _ultimo = null;
     pintar();
     var cadena = Promise.resolve(true);
@@ -957,7 +1036,7 @@
         /* Antes de cada pedazo, otra vez la puerta: si otra página escribió la
            cartera mientras subía, lo que falta se calculó de una DB vieja. */
         var p = puerta();
-        if (p === 'sello-roto' || (p === 'otra-pestana' && !manual)) {
+        if (p === 'sello-roto' || (p === 'otra-pestana' && !manual && !una)) {
           _ultimo = { fase: p, cuando: iso() }; res.fase = p; return false;
         }
         return enviarPedazo(con, pz.map(function (e) { return e.item; })).then(function (r) {
@@ -976,7 +1055,7 @@
             res.fase = 'parcial';
             return false;
           }
-          anotar(pz, manual);
+          anotar(pz, manual, una);
           _freno = null;
           res.subidos += pz.length;
           res.aceptados += num(k.aceptados);
@@ -988,7 +1067,11 @@
     });
     _promesa = cadena.then(function (todo) {
       res.ok = !!todo && !res.fase;
-      if (res.ok) {
+      if (res.ok && una) {
+        /* Un fallo de antes (la nube caída, la clave) ya no es cierto: subió. */
+        _ultimo = (previo && previo.fase === 'esperando-libro') ? previo : null;
+        _fallosNube = 0;
+      } else if (res.ok) {
         var est = leerEstado();
         if (conGrupo) est.grupoEn = iso();
         est.ultimaRevision = iso();
@@ -1004,14 +1087,14 @@
       return res;
     }).then(function (r) {
       _enVuelta = false; _subiendo = 0; _promesa = null;
-      if (_plan) {
+      if (_plan && !una) {
         var resta = Math.max(0, r.total - r.subidos);
         _plan.pendientes = manual ? (r.ok ? 0 : resta) : resta;
         if (manual && r.ok) { _plan.retenidos = 0; _plan.grupo = 0; }
         if (!manual && r.ok && conGrupo) _plan.grupo = 0;
       }
       if (!r.ok && !r.motivo) r.motivo = textoDeFallo(_ultimo || { fase: r.fase });
-      programarReintento();
+      if (!(una && r.ok)) programarReintento();
       /* Un cambio cuyos 90 s se cumplieron con esta subida en el aire se topó
          con vuelta() ocupada y se quedó sin reloj: sin esto esperaba hasta la
          vuelta de 30 min con la línea diciendo «nada esperando subir». */
@@ -1072,21 +1155,30 @@
        nube y sin fichas en discusión. Mientras no, espera y lo dice. Ni el
        clic en la línea se salta esa comprobación: es lo que protege a los
        clientes de una cartera vieja. */
-    var est0 = leerEstado();
+    var est0 = leerEstado(), aparte = null;
     if (!est0.habilitado) {
       var lib = libroAlDia();
-      if (!lib.ok) {
-        _ultimo = { fase: 'esperando-libro', motivo: texto(lib.motivo), congeladas: num(lib.congeladas),
-                    fichas: num(lib.fichas), espera: num(lib.espera), detalle: texto(lib.detalle),
+      /* 14-nov-2026 — CLIENTE POR CLIENTE (arriba): si lo que falta son
+         fichas de clientes concretos, suben los demás. */
+      if (!lib.ok) aparte = porCliente(lib);
+      if (!lib.ok && !(aparte && aparte.ids)) {
+        var ver = aparte || lib;
+        aparte = null;
+        _apartados = null;
+        _ultimo = { fase: 'esperando-libro', motivo: texto(ver.motivo), congeladas: num(lib.congeladas),
+                    fichas: num(lib.fichas), espera: num(ver.espera), detalle: texto(ver.detalle),
                     pausa: texto(objeto(est0.pausa).motivo) };
         pintar();
         return Promise.resolve(estado());
       }
-      est0.habilitado = iso();
-      est0.habilitadoPor = 'solo';
-      est0.pausa = null;
-      guardarEstado(est0);
+      if (lib.ok) {
+        est0.habilitado = iso();
+        est0.habilitadoPor = 'solo';
+        est0.pausa = null;
+        guardarEstado(est0);
+      }
     }
+    _apartados = aparte;
     if (sinGuardar()) { _ultimo = { fase: 'sin-guardar', cuando: iso() }; pintar(); return Promise.resolve(estado()); }
     if (!enLinea()) { _ultimo = { fase: 'sin-senal', cuando: iso() }; programarReintento(); pintar(); return Promise.resolve(estado()); }
     if (!porOrden && frenoPuesto(con)) {
@@ -1099,6 +1191,16 @@
       }
       pintar();
       return Promise.resolve(estado());
+    }
+
+    /* 14-nov-2026 — los que esperan no viajan, ni por sus cifras del grupo: lo
+       de la nube puede ser más nuevo que lo de acá (ver CLIENTE POR CLIENTE). */
+    if (aparte) {
+      var sube = function (e) { return !aparte.ids[e.id]; };
+      plan.enviar = plan.enviar.filter(sube);
+      plan.propios = plan.propios.filter(sube);
+      plan.grupo = plan.grupo.filter(sube);
+      _plan = resumirPlan(plan, false);
     }
 
     if (!plan.enviar.length) {
@@ -1152,6 +1254,68 @@
     return subir(plan, con, { manual: true });
   }
 
+  /**
+   * 14-nov-2026 — LA FICHA QUE JOAN ESTÁ JUNTANDO, SOLA (CLIENTE POR CLIENTE,
+   * arriba). La llama el toque de crm.html antes de juntar la cuenta del
+   * cliente con su ficha: sin su fila en la nube no hay con qué juntarla.
+   * Devuelve lo mismo que subirTodo; `fase` dice por qué no subió.
+   */
+  function subirUna(socioId) {
+    var id = texto(socioId);
+    function fallo(fase, motivo) {
+      return { ok: false, fase: fase, total: 0, subidos: 0, aceptados: 0, confirmados: [], chocan: [],
+               motivo: motivo || textoDeFallo({ fase: fase }) };
+    }
+    if (_apagado || !_configurado) return Promise.resolve(fallo('apagado'));
+    if (_enVuelta && _promesa) return _promesa.then(function () { return subirUna(id); });
+    if (esEquipo()) { apagar(); return Promise.resolve(fallo('apagado')); }
+    /* «otra-pestana» sí deja, como el botón: Joan está tocando en ESTA. */
+    var p = puerta();
+    if (p === 'sello-roto') { _ultimo = { fase: p, cuando: iso() }; pintar(); return Promise.resolve(fallo(p)); }
+    if (sinGuardar()) return Promise.resolve(fallo('sin-guardar', 'Tu cartera no se pudo guardar en este navegador, y no subo lo que no quedó guardado.'));
+    if (!enLinea()) return Promise.resolve(fallo('sin-senal'));
+    var con = conexion();
+    if (!con.ok) return Promise.resolve(fallo('sin-config', textoDeFallo({ fase: 'sin-config', motivo: con.motivo })));
+    /* El freno de la clave NO se salta, ni por orden de Joan: cada intento con
+       la clave mala gasta uno de los 10 que la nube les da a todos cada 15 min. */
+    if (frenoPuesto(con)) return Promise.resolve(fallo('clave'));
+    if (!leerEstado().habilitado) {
+      var lib = libroAlDia();
+      if (!lib.ok && !LIBRO_EMPAREJADO[texto(lib.motivo)]) {
+        var t = textoCinta({ ultimo: { fase: 'esperando-libro', motivo: texto(lib.motivo), detalle: texto(lib.detalle) } });
+        return Promise.resolve(fallo('esperando-libro', texto(t.l2).split(' · ')[0]));
+      }
+    }
+    latir();
+    var plan;
+    try { plan = armarPlan(true); }
+    catch (e) { return Promise.resolve(fallo('error', 'No pude armar el paquete de su ficha (' + texto(e && e.message).slice(0, 80) + ').')); }
+    var una = null;
+    plan.enviar.forEach(function (x) { if (x.id === id) una = x; });
+    if (!una) {
+      var choca = plan.chocan.some(function (c) { return c.id === id; });
+      return Promise.resolve(fallo(choca ? 'chocan' : 'nada', choca
+        ? 'Su ficha tiene el mismo celular o la misma cédula que otra ficha de tu cartera: la nube las tomaría por la misma persona.'
+        : 'Su ficha no tiene celular ni cédula, y sin uno de los dos no sube.'));
+    }
+    /* LA FILA QUE OTRA FICHA TODAVÍA OCUPA (planDeSubida): allá basta con que
+       la otra viaje primero; aquí viaja sola, así que no sube. */
+    var regs = leerEstado().socios, otro = null;
+    if (una.cel && una.cel !== una.ident) {
+      Object.keys(regs).forEach(function (k) {
+        if (k !== id && plan.vivos[k] && texto(objeto(regs[k]).k) === una.cel) otro = k;
+      });
+    }
+    if (otro != null) {
+      var suyo = null;
+      plan.enviar.forEach(function (x) { if (x.id === otro) suyo = x; });
+      return Promise.resolve(fallo('fila', 'Su celular es todavía la llave con que ' + (suyo ? suyo.nombre : 'otra ficha de tu cartera') +
+        ' vive en la nube: si son la misma persona, junta las dos fichas; si no, corrige el número.'));
+    }
+    return subir({ enviar: [una], propios: [una], grupo: [], grupoListo: false, retenidos: [], chocan: [],
+                   total: 1, vivos: plan.vivos, llaves: plan.llaves }, con, { una: true });
+  }
+
   /* importar() de crm.html: entró una cartera entera de un archivo. Las huellas
      describen la de antes y la del respaldo suele ser VIEJA: la subida sola se
      pausa hasta que el respaldo quede emparejado con la nube sin discusión
@@ -1165,6 +1329,7 @@
     desprogramar(_quietud); _quietud = null;
     _cambio = false;
     _plan = null;
+    _apartados = null;
     if (_configurado && !_apagado) {
       /* 22-oct-2026 — ya no espera al botón: espera a que el respaldo quede
          emparejado con la nube sin discusión (lo mira libroCambio y el reloj). */
@@ -1180,16 +1345,22 @@
     if (_apagado || !_configurado || _enVuelta) return;
     if (!_ultimo || _ultimo.fase !== 'esperando-libro') return;
     var lib = libroAlDia();
+    /* 14-nov-2026 — CLIENTE POR CLIENTE: si ya se sabe de quiénes es lo que
+       falta, suben los demás. La vuelta deja la línea fuera de «esperando», así
+       que esto no se repite en cada repintada. */
+    var pc = lib.ok ? null : porCliente(lib);
+    if (pc && pc.ids) { vuelta(false); return; }
     if (!lib.ok) {
       /* 23-oct-2026 — lo que se espera puede cambiar sin que esto suba nada:
          «comparando» pasa a «la nube tiene N fichas más nuevas» cuando vuelve
          la traída. Si la línea se quedara con lo de antes, diría que sigue
          comparando algo que ya se sabe. */
-      var cambio = texto(lib.motivo) !== texto(_ultimo.motivo) || num(lib.fichas) !== num(_ultimo.fichas) ||
-                   num(lib.congeladas) !== num(_ultimo.congeladas) || texto(lib.detalle) !== texto(_ultimo.detalle);
+      var ver = pc || lib;
+      var cambio = texto(ver.motivo) !== texto(_ultimo.motivo) || num(lib.fichas) !== num(_ultimo.fichas) ||
+                   num(lib.congeladas) !== num(_ultimo.congeladas) || texto(ver.detalle) !== texto(_ultimo.detalle);
       if (cambio) {
-        _ultimo = { fase: 'esperando-libro', motivo: texto(lib.motivo), congeladas: num(lib.congeladas),
-                    fichas: num(lib.fichas), espera: num(lib.espera), detalle: texto(lib.detalle), pausa: _ultimo.pausa };
+        _ultimo = { fase: 'esperando-libro', motivo: texto(ver.motivo), congeladas: num(lib.congeladas),
+                    fichas: num(lib.fichas), espera: num(ver.espera), detalle: texto(ver.detalle), pausa: _ultimo.pausa };
         pintar();
       }
       return;
@@ -1280,8 +1451,10 @@
           '<b>📲 ' + t.l1 + '</b><div class="l2">' + t.l2 + '</div>' +
           /* 22-oct-2026 — decía «desde la primera vez que tocas ☁ Subir
              historiales». Ya no hay que tocar nada (YA NO ES DEL BOTÓN). */
-          '<div class="l3">Los historiales de tus clientes suben solos en cuanto este computador está emparejado con la nube ' +
-          'y sin fichas en discusión (así compruebo que es tu cartera de hoy): al entrar, tras 90 s sin cambios, al volver la señal y cada 30 min. ' +
+          '<div class="l3">Los historiales de tus clientes suben solos en cuanto este computador está emparejado con la nube, ' +
+          'cliente por cliente: el que no coincide con la nube (lo tocaste aquí y en el celular) espera a que elijas, y los demás suben igual ' +
+          '(así compruebo que es tu cartera de hoy): al entrar, tras 90 s sin cambios, al volver la señal y cada 30 min. ' +
+          'Al juntar la cuenta de un cliente, su ficha sube en ese momento. ' +
           (r.habilitadoPor === 'solo' ? 'Aquí se encendió sola. ' : '') +
           'Sube solo el cliente que cambió; las cifras del grupo se refrescan para todos cada 6 h. ' +
           'En Avanzado, «☁ Subir historiales» sube a todos ya. ' +
@@ -1447,6 +1620,7 @@
     libroCambio: libroCambio,
     vuelta: vuelta,
     subirTodo: subirTodo,
+    subirUna: subirUna,
     estado: estado,
     accion: accion,
     apagar: apagar,

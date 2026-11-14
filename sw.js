@@ -2330,9 +2330,23 @@
    nuevos). CACHE y VERSION_SITIO suben a v146 en las cinco páginas que se actualizan
    solas. NO HAY BASE NUEVA. La regla de los ?v= se mide contra lo publicado:
    TG_PUBLICADO=main. */
-/* 14-nov-2026, v147 — SALE DESPUÉS DE v146 (main = e5088b4). Rama v147-revision. Lo que la
-   revisión adversaria le encontró a «su ficha sube sola al tocar» ya publicada, y el rojo de
-   GitHub:
+/* 14-nov-2026, v147 — SALE DESPUÉS DE v146 (main = e5088b4). Rama v147-revision.
+   PRIMERO, LO QUE PIDIÓ JOAN ESTA MAÑANA: con 23 fichas en discusión (tocadas en el computador
+   y en el celular) los historiales no le subían a NADIE y «Juntar y desembolsar» no podía subir
+   la ficha del cliente, así que el crédito aceptado no se podía registrar. Joan: «eso de subir
+   a la nube manualmente quítalo, quiero que sea automático».
+   · historiales-auto.js (?v=147): CLIENTE POR CLIENTE. Con la cartera sin comprobar entera,
+     suben solos los clientes que coinciden con la nube y esperan solo los de la discusión (o
+     con algo más nuevo allá), contados en la línea. Un ajuste en discusión sigue frenando a
+     todos. Y subirUna(socioId): la ficha que Joan está juntando sube sola, aunque esté en
+     discusión, con todas las demás puertas (sello, lo no guardado, señal, conexión, el freno
+     de la clave, la cartera emparejada).
+   · crm.html: el toque usa subirUna y después junta POR LA NUBE como siempre (la nube sigue
+     mirando la identidad, y el crédito sigue esperando a que junte). Si su ficha es de las que
+     están en discusión, el cuadro lo dice antes: su app va a mostrar lo de este computador.
+   Pruebas: pruebas/cliente-por-cliente.test.js y el último bloque de juntar-y-desembolsar.
+   Y lo que la revisión adversaria le encontró a «su ficha sube sola al tocar» ya publicada, y
+   el rojo de GitHub:
    · Lo de ESTE toque se toma al tocar (el cuadro, la revisión, la solicitud pendiente): si
      mientras sube su ficha Joan cierra el cuadro, dice «No es la misma persona» o abre el de
      otro cliente, el toque NO junta al terminar y lo dice; y no se sigue con una solicitud que
@@ -2349,8 +2363,9 @@
    · pruebas/el-fondo-de-pensiones.test.js: el rojo de GitHub (la anotación de la v146 lo
      nombró). Esperaba 400 vueltas a la huella del pantallazo, y en GitHub, con menos núcleos
      y el mapa pesado al lado, no alcanzaban; ahora espera hasta 15 s. La app estaba bien.
-   Solo cambia panel/crm.html (sin ?v= nuevos). CACHE y VERSION_SITIO suben a v147. NO HAY
-   BASE NUEVA. La regla de los ?v= se mide contra lo publicado: TG_PUBLICADO=main. */
+   Cambian panel/crm.html y panel/historiales-auto.js (su ?v= sube a 147, en crm.html y en la
+   lista de abajo). CACHE y VERSION_SITIO suben a v147. NO HAY BASE NUEVA. La regla de los ?v=
+   se mide contra lo publicado: TG_PUBLICADO=main. */
 const CACHE = 'tugarantia-v147';
 const BASE = new URL('./', self.location).pathname;
 
@@ -2418,7 +2433,7 @@ const ARCHIVOS = [
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
   'panel/nube-crm.js?v=143',   // 4-nov-2026 — ?v=143: una nota sobre la pestaña vieja; la regla mira el texto (ver la nota de v143)
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
-  'panel/historiales-auto.js?v=139',
+  'panel/historiales-auto.js?v=147',
   /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132.
      13-nov-2026 — ?v=145: v145 le cambió una señal (la cuenta abierta días DESPUÉS
      del registro ya no es «lo normal»), y sin la versión en la dirección una

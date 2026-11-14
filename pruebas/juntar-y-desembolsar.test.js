@@ -652,6 +652,20 @@ function conHistoriales(P, op) {
     algoCambio: function () {}
   };`);
   P.ev('window.HistorialesAuto')._puro = { textoCinta: TEXTO_CINTA };
+  /* 14-nov-2026 — op.una: el historiales-auto.js de hoy, con subirUna. Sube solo
+     la ficha que le piden (lo de alVolver para ESE id); op.unaFallas, lo que
+     contesta mal cada llamada, en orden. */
+  if (op.una) {
+    P.ev('window.__hist.unas = []; window.__hist.unaFallas = ' + JSON.stringify(op.unaFallas || []));
+    P.ev(`window.HistorialesAuto.subirUna = function (id) {
+      window.__hist.unas.push(id);
+      var f = window.__hist.unaFallas.shift();
+      if (f) return Promise.resolve({ ok: false, fase: f.fase, motivo: f.motivo || '' });
+      var a = window.__hist.alVolver || {};
+      if (a[id]) window.__hist.conf[id] = a[id];
+      return Promise.resolve({ ok: true, total: 1, subidos: 1, confirmados: [id] });
+    };`);
+  }
 }
 /* La cartera según nube-crm.js. libroAlDiaEsperando contesta lo de op.despues. */
 function conLibro(P, r, despues) {
@@ -1016,5 +1030,101 @@ describe('revisión de v146: lo que pasa mientras sube, la mesa con la cédula, 
     const b = plano(P.elems.juntarBoton.innerHTML);
     assert.match(b, /no junto su cuenta, y su solicitud no queda en su ficha\./);
     assert.doesNotMatch(b, /registro el crédito/);
+  });
+});
+
+/* ============================================================================
+ * CON FICHAS EN DISCUSIÓN, LA SUYA SUBE IGUAL (14-nov). El cliente siguiente
+ * no pudo: «Hay 23 fichas de tu cartera en discusión con la nube: en cuanto
+ * decidas en ☁ Subir (paso 7), suben solos», y el crédito sin registrar. Joan:
+ * «eso de subir a la nube manualmente quítalo, quiero que sea automático».
+ * Con el historiales-auto.js de hoy (subirUna), el toque sube SOLO su ficha y
+ * junta por la nube como siempre. Fallan contra 952e5fc salvo las que vigilan
+ * que lo que no está emparejado siga frenando.
+ * ==========================================================================*/
+const EN_DISCUSION_23 = { ok: false, motivo: 'en-discusion', congeladas: 23 };
+const conPorCliente = (P, r) => P.ev('NubeCRM.libroPorCliente = function () { return ' + JSON.stringify(r) + '; }');
+
+describe('con fichas en discusión, la suya sube igual: registrar desde la propuesta sin subir nada a mano', () => {
+  test('con 23 fichas en discusión, el cuadro ofrece el toque; el toque sube SOLO su ficha, junta por la nube y registra el crédito', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false, una: true });
+    conLibro(P, EN_DISCUSION_23);
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    const b = P.elems.juntarBoton.innerHTML;
+    assert.doesNotMatch(plano(b), /no está subiendo|paso 7|☁ Subir/, 'mandó a subir o a decidir a mano');
+    assert.match(plano(b), /al tocar, la subo primero \(es automático, unos segundos\) y después la junto como siempre\./);
+    assert.match(b, /onclick="juntarConUnToque\('41','C1',false\)"/);
+    await tocar(P, toqueDe(P));
+    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__hist.unas)')), ['C1'], 'no subió su ficha sola');
+    assert.equal(vueltas(P), 0, 'corrió la vuelta de todos en vez de subir solo la suya');
+    assert.equal(P.ev('!!window.__hist.subirTodo'), false, 'subió a todos con el botón de Ajustes');
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 1, 'no juntó por la nube');
+    assert.equal(creditos(P).length, 1, 'no registró el crédito: ' + avisos(P));
+  });
+
+  test('si su ficha es de las que están en discusión, el cuadro lo dice antes: su app va a mostrar lo de este computador', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false, una: true });
+    conLibro(P, EN_DISCUSION_23);
+    conPorCliente(P, { ok: false, motivo: 'en-discusion', congeladas: 23, clientes: { C1: { enDiscusion: true } } });
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    const b = plano(P.elems.juntarBoton.innerHTML);
+    assert.match(b, /Ojo: su ficha no coincide con la de la nube \(la tocaste aquí y en el celular\)\. Su app va a mostrar lo de este computador; lo de la nube no se borra y lo decides cuando quieras\./);
+    await tocar(P, toqueDe(P));
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 1);
+    assert.equal(creditos(P).length, 1, 'no registró el crédito: ' + avisos(P));
+  });
+
+  test('…y si lo más nuevo de su ficha está en la nube (lo del celular), también lo dice', async () => {
+    const { P } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false, una: true });
+    conLibro(P, { ok: false, motivo: 'nube-mas-nueva', fichas: 2 });
+    conPorCliente(P, { ok: false, motivo: 'nube-mas-nueva', fichas: 2, clientes: { C1: { masNueva: true } } });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    assert.match(plano(P.elems.juntarBoton.innerHTML), /Ojo: la nube tiene algo más nuevo de su ficha \(lo que anotaste en el celular\)\. Su app va a mostrar lo de este computador/);
+  });
+
+  test('con la cartera sin emparejar todavía, sigue sin ofrecer el toque y dice por qué', async () => {
+    const { P } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false, una: true });
+    conLibro(P, { ok: false, motivo: 'falta-emparejar' });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    const b = plano(P.elems.juntarBoton.innerHTML);
+    assert.doesNotMatch(P.elems.juntarBoton.innerHTML, /juntarConUnToque\(/);
+    assert.match(b, /Por qué: Estoy emparejando tu cartera con la nube/);
+  });
+
+  test('si su ficha no puede subir sola (otra ficha vive en la nube con su celular): no junta, no registra, dice por qué y no reintenta', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false, una: true,
+      unaFallas: [{ fase: 'fila', motivo: 'Su celular es todavía la llave con que Ana Primera vive en la nube: si son la misma persona, junta las dos fichas; si no, corrige el número.' }] });
+    conLibro(P, EN_DISCUSION_23);
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    await tocar(P, toqueDe(P));
+    assert.equal(P.ev('window.__hist.unas.length'), 1, 'reintentó algo que reintentar no arregla');
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 0);
+    assert.equal(creditos(P).length, 0);
+    assert.match(avisos(P), /Su ficha no subió a la nube, y sin ella no la junto: Su celular es todavía la llave con que Ana Primera vive en la nube/);
+  });
+
+  test('una nube que falló una vez se reintenta una sola vez, y entonces junta y registra', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false, una: true, unaFallas: [{ fase: 'error', motivo: 'La nube respondió 500' }] });
+    conLibro(P, EN_DISCUSION_23);
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    await tocar(P, toqueDe(P));
+    assert.equal(P.ev('window.__hist.unas.length'), 2);
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 1);
+    assert.equal(creditos(P).length, 1, 'no registró el crédito: ' + avisos(P));
   });
 });
