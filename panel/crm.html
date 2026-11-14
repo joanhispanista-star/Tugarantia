@@ -3113,10 +3113,12 @@ function juntarCuentaEnLaNube(r,s,llave,por,rev,nombre){
    abierto, el celular ya junto con otra ficha y la ficha junta con otra
    cuenta; y juntar con una ficha que no subió puede unir la cuenta con la
    fila de otra persona. Dos intentos quedaron por el camino, y no deben
-   volver: registrar el crédito sin juntar (la revisión adversaria mostró que
-   así se saltaban todas esas señales y un impostor podía cobrar), y un botón
-   «☁ Subir su ficha ahora» (era subir a mano con otro nombre, y subía a
-   todos aunque la cartera no estuviera comprobada).
+   volver: registrar el crédito sin juntar desde el toque (la revisión
+   adversaria mostró que así se saltaban todas esas señales y un impostor
+   podía cobrar), y un botón «☁ Subir su ficha ahora» (era subir a mano con
+   otro nombre, y subía a todos aunque la cartera no estuviera comprobada).
+   (14-nov, v148) Lo primero tiene UNA excepción, decisión de Joan con un
+   cliente a su lado: CON EL CLIENTE AL LADO, con sus tres casillas.
    Lo que cambia: el toque corre él mismo la subida automática —vuelta(true),
    lo mismo que el clic en la línea de Ajustes, con todas sus puertas— y
    después junta por la nube como siempre. Si este computador no puede subir
@@ -24621,7 +24623,9 @@ function cuentasDeLaFicha(){
  * llevaría la plata. Si la nube junta, sigue sin cambiar de pantalla con el
  * crédito que aceptó (crearDesdeSolicitud, con todas sus rejas: la constancia,
  * la vencida, el motor a cuotas). Si la nube no junta, o pide la clave nueva,
- * no se registra nada y se dice por qué.
+ * no se registra nada y se dice por qué; desde el 14-nov (v148), si el cliente
+ * está con Joan, el cuadro ofrece además registrarlo sin juntar, con tres
+ * casillas (ver CON EL CLIENTE AL LADO).
  * ======================================================================== */
 /* Lo que sigue cuando ESE toque junte: {sol, socio, reg, en}. Se compara la
    ficha Y el registro, caduca en 30 minutos, y un toque abierto por cualquier
