@@ -2330,7 +2330,28 @@
    nuevos). CACHE y VERSION_SITIO suben a v146 en las cinco páginas que se actualizan
    solas. NO HAY BASE NUEVA. La regla de los ?v= se mide contra lo publicado:
    TG_PUBLICADO=main. */
-const CACHE = 'tugarantia-v146';
+/* 14-nov-2026, v147 — SALE DESPUÉS DE v146 (main = e5088b4). Rama v147-revision. Lo que la
+   revisión adversaria le encontró a «su ficha sube sola al tocar» ya publicada, y el rojo de
+   GitHub:
+   · Lo de ESTE toque se toma al tocar (el cuadro, la revisión, la solicitud pendiente): si
+     mientras sube su ficha Joan cierra el cuadro, dice «No es la misma persona» o abre el de
+     otro cliente, el toque NO junta al terminar y lo dice; y no se sigue con una solicitud que
+     se abrió durante la espera (seguirTrasJuntar con solEsperada).
+   · La mesa decide con la llave de ANTES del cruce: si la nube ya conoce la ficha por ella
+     (una ficha antigua sin cédula a la que el cruce le carga la cédula), junta con ella como
+     en v145 y registra; si no, sube la ficha ya cruzada y junta con la llave y el nombre de
+     ahora. En v146 subía y juntaba con la de antes: no juntaba, no registraba, y decía que
+     la nube «todavía no la confirmó».
+   · Con la clave de sincronización (o la llave anon) rechazada, el toque no insiste: cada
+     vuelta por orden de Joan gastaba un intento del freno que la nube les da a todos.
+   · La comparación con la nube se espera 60 s como mucho, y el botón dice «Comparando…».
+   · El cuadro que no deja juntar habla del crédito solo si hay uno aceptado.
+   · pruebas/el-fondo-de-pensiones.test.js: el rojo de GitHub (la anotación de la v146 lo
+     nombró). Esperaba 400 vueltas a la huella del pantallazo, y en GitHub, con menos núcleos
+     y el mapa pesado al lado, no alcanzaban; ahora espera hasta 15 s. La app estaba bien.
+   Solo cambia panel/crm.html (sin ?v= nuevos). CACHE y VERSION_SITIO suben a v147. NO HAY
+   BASE NUEVA. La regla de los ?v= se mide contra lo publicado: TG_PUBLICADO=main. */
+const CACHE = 'tugarantia-v147';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

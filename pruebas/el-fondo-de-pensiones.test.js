@@ -1158,7 +1158,18 @@ describe('«Abrir mi cuenta» con algo todavía en camino no pierde lo ya guarda
   /* Hasta que no quede nada en camino (y lo que llegó, guardado donde vaya). Vale
      con el código de antes y con el de ahora: así la prueba falla por lo que
      queda, no por cómo se espera. */
-  const terminado = async g => { assert.ok(await hasta(() => !g.enCamino(), 400), 'lo que iba en camino no terminó'); await hasta(() => false, 30); };
+  /* 14-nov-2026 — con tope de TIEMPO, no de vueltas. Con 400 vueltas de
+     setImmediate esta prueba pasaba aquí y salía roja en GitHub (la anotación
+     de la v146 lo dijo: «lo que iba en camino no terminó»). Allá corre con
+     menos núcleos y junto a las pruebas pesadas del mapa, y la huella del
+     pantallazo (crypto.subtle, en el pool de hilos de Node) no alcanzaba a
+     volver en 400 vueltas. Nada estaba mal en la app: la espera era corta. */
+  const terminado = async g => {
+    const hastaMs = Date.now() + 15000;
+    while (g.enCamino() && Date.now() < hastaMs) await new Promise(r => setTimeout(r, 5));
+    assert.ok(!g.enCamino(), 'lo que iba en camino no terminó (en 15 s)');
+    await hasta(() => false, 30);
+  };
 
   test('«Ir a mi cuenta» enseguida, mientras se prepara: el PDF ya guardado y el pantallazo que llega después suben juntos, una vez cada uno', async () => {
     const idb = idbDeMentira();

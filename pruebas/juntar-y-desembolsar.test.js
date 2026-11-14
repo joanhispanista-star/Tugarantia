@@ -634,18 +634,19 @@ const TEXTO_CINTA = crearHistoriales({})._puro.textoCinta;
 function conHistoriales(P, op) {
   op = op || {};
   P.ev('window.__hist = ' + JSON.stringify({ conf: op.conf || {}, ultimo: op.ultimo || null, habilitado: op.habilitado !== false,
-    alVolver: op.alVolver || {}, vueltas: 0 }));
+    alVolver: op.alVolver || {}, vueltas: 0, cinta: op.cinta || null, lenta: !!op.lenta }));
   P.ev(`window.HistorialesAuto = {
     configurado: function () { return true; },
     habilitado: function () { return !!window.__hist.habilitado; },
     llaveConfirmada: function (id) { return window.__hist.conf[id] || null; },
-    estado: function () { return { ultimo: window.__hist.ultimo, cinta: { l1: 'Tus clientes ven lo de hace 2 h', l2: '' } }; },
+    estado: function () { return { ultimo: window.__hist.ultimo, cinta: window.__hist.cinta || { l1: 'Tus clientes ven lo de hace 2 h', l2: '' } }; },
     vuelta: function (porOrden) {
       window.__hist.vueltas++;
       window.__hist.porOrden = porOrden;
       var a = window.__hist.alVolver || {};
-      Object.keys(a).forEach(function (k) { window.__hist.conf[k] = a[k]; });
-      return Promise.resolve({});
+      var subir = function () { Object.keys(a).forEach(function (k) { window.__hist.conf[k] = a[k]; }); return {}; };
+      if (window.__hist.lenta) return new Promise(function (listo) { window.__soltarVuelta = function () { listo(subir()); }; });
+      return Promise.resolve(subir());
     },
     subirTodo: function () { window.__hist.subirTodo = true; return Promise.resolve({ ok: true, confirmados: [] }); },
     algoCambio: function () {}
@@ -885,5 +886,135 @@ describe('su ficha sube sola al tocar, y el crédito sigue esperando a que la nu
     const crm = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
     assert.doesNotMatch(crm, /\{sinJuntar:|op\.sinJuntar|registrarSinJuntar|subirFichaParaJuntar|bloqueSubirParaJuntar/);
     assert.match(crm, /function crearDesdeSolicitud\(id,idFicha\)\{/);
+  });
+});
+
+/* ============================================================================
+ * LA REVISIÓN DE v146 (14-nov, v147). Lo que la revisión adversaria le encontró
+ * a «su ficha sube sola al tocar», ya publicada.
+ * ==========================================================================*/
+describe('revisión de v146: lo que pasa mientras sube, la mesa con la cédula, la clave rechazada', () => {
+  test('si Joan cierra el cuadro mientras sube su ficha, el toque NO junta al terminar', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {}, lenta: true });
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    P.ev('juntarConUnToque(' + JSON.stringify('41') + ',' + JSON.stringify('C1') + ',false)');
+    await asentar();
+    assert.equal(vueltas(P), 1, 'precondición: está subiendo');
+    P.ev('cerrarModal()');
+    P.ev('window.__soltarVuelta()');
+    await asentar(24);
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 0, 'juntó después de que Joan cerró el cuadro');
+    assert.equal(creditos(P).length, 0);
+    assert.match(avisos(P), /No junté la cuenta de Jorge Antiguo: cerraste su cuadro \(o abriste otro\) mientras subía su ficha\. Su ficha ya quedó arriba en la nube\. Si es él, vuelve a abrir su cuadro y toca «juntar»\./);
+  });
+
+  test('…y si abre el cuadro de OTRO cliente mientras sube, tampoco junta al primero', async () => {
+    const ANA = { id: 'C2', numero: 9, nombre: 'Ana Segunda', cedula: '', telefono: '3005556666', whatsappIgual: true,
+      referencia: { nombre: '', telefono: '' }, gestiones: [] };
+    const REG2 = Object.assign({}, REG, { id: 42, nombre: 'Ana Segunda', telefono: '3005556666', datos: { nombres: 'Ana', apellidos: 'Segunda', celular: '3005556666' } });
+    const { P, N } = montar({ socios: [JORGE, ANA], registros: [REG, REG2],
+      nube: { cuentas_de_registros: c => [Object.assign({}, CUENTA, { registro_id: c.p_ids[0], celular: c.p_ids[0] === 42 ? '3005556666' : CEL })] } });
+    conHistoriales(P, { conf: { C2: '3005556666' }, lenta: true });
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("abrirJuntarCuenta('41','C1')");
+    await asentar();
+    P.ev("juntarConUnToque('41','C1',false)");
+    await asentar();
+    P.ev('cerrarModal()');
+    P.ev("abrirJuntarCuenta('42','C2')");
+    await asentar();
+    P.ev('window.__soltarVuelta()');
+    await asentar(24);
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 0, 'juntó a Jorge desde el cuadro de Ana');
+    assert.match(P.elems.juntarBoton.innerHTML, /juntarConUnToque\('42','C2'/, 'el cuadro de Ana quedó tocado');
+  });
+
+  test('una solicitud que no estaba pendiente al tocar no se registra (la abrió mientras subía)', () => {
+    const { P } = montar({ solicitudes: [ACEPTADA(), ACEPTADA({ id: 's2' })] });
+    P.ev("_trasJuntar = { sol: 's2', socio: 'C1', reg: '41', en: Date.now() }");
+    assert.equal(P.ev("seguirTrasJuntar('41','C1',{ok:true,texto:'junta'},'s1')"), false);
+    assert.equal(creditos(P).length, 0);
+    assert.equal(P.ev('_trasJuntar && _trasJuntar.sol'), 's2', 'se comió lo pendiente de la otra');
+  });
+
+  test('la mesa: llenarle la cédula a una ficha que ya subió por su celular junta con el celular y registra, sin subir', async () => {
+    const CON_CEDULA = Object.assign({}, REG, { cedula: '79111222' });
+    const { P, N } = montar({ registros: [CON_CEDULA] });
+    conHistoriales(P, { conf: { C1: CEL } });
+    P.ev("window.__hist.alVolver = { C1: '79111222' }");
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    P.ev("mesaDeCruce('41','C1',true)");
+    await asentar();
+    P.ev("marcadosDelCruce = () => ['cedula']");
+    P.ev("document.getElementById('cruceVerif').checked = true");
+    P.ev("aplicarCruce('41','C1')");
+    await asentar(24);
+    assert.equal(P.ev('DB.socios[0].cedula'), '79111222', 'precondición: el cruce le cargó la cédula');
+    assert.equal(vueltas(P), 0, 'subió una ficha que la nube ya conocía');
+    const j = llamadasA(N, 'vincular_cuenta_joan');
+    assert.equal(j.length, 1, 'no juntó: ' + avisos(P));
+    assert.equal(j[0].c.p_ficha, CEL, 'no juntó con la llave que la nube conoce');
+    assert.equal(creditos(P).length, 1, 'el crédito que en v145 se registraba no se registró');
+    assert.doesNotMatch(avisos(P), /todavía no la confirmó/);
+  });
+
+  test('la mesa: una ficha que nunca subió se sube ya cruzada y se junta con la llave y el nombre de ahora', async () => {
+    const CON_CEDULA = Object.assign({}, REG, { cedula: '79111222' });
+    const { P, N } = montar({ registros: [CON_CEDULA] });
+    conHistoriales(P, { conf: {} });
+    P.ev("window.__hist.alVolver = { C1: '79111222' }");
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    P.ev("mesaDeCruce('41','C1',true)");
+    await asentar();
+    P.ev("marcadosDelCruce = () => ['cedula']");
+    P.ev("document.getElementById('cruceVerif').checked = true");
+    P.ev("aplicarCruce('41','C1')");
+    await asentar(24);
+    assert.equal(vueltas(P), 1);
+    const j = llamadasA(N, 'vincular_cuenta_joan');
+    assert.equal(j.length, 1, 'no juntó: ' + avisos(P));
+    assert.equal(j[0].c.p_ficha, '79111222');
+    assert.equal(j[0].c.p_nombre, 'Jorge Antiguo');
+    assert.equal(creditos(P).length, 1);
+  });
+
+  test('con la clave de sincronización rechazada no insiste (cada intento gasta el freno de todos) y lo dice antes', async () => {
+    const { P } = montar();
+    conHistoriales(P, { conf: {}, ultimo: { fase: 'clave' },
+      cinta: { l1: 'La nube no aceptó tu clave de sincronización', l2: 'Revísala en Ajustes y toca «Guardar conexión» · pruebo otra vez sola en 15 min' } });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    assert.doesNotMatch(P.elems.juntarBoton.innerHTML, /juntarConUnToque\(/);
+    assert.match(plano(P.elems.juntarBoton.innerHTML), /Por qué: La nube no aceptó tu clave de sincronización: Revísala en Ajustes y toca «Guardar conexión»\./);
+    P.ev("juntarConUnToque('41','C1',false)");
+    await asentar(16);
+    assert.equal(vueltas(P), 0, 'gastó un intento con la clave mala');
+  });
+
+  test('desde 📥 Registrados, el cuadro que no deja juntar no habla de ningún crédito', async () => {
+    const { P } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false });
+    conLibro(P, { ok: false, motivo: 'nube-mas-nueva', fichas: 1 });
+    P.ev("abrirJuntarCuenta('41','C1')");
+    await asentar();
+    const b = plano(P.elems.juntarBoton.innerHTML);
+    assert.match(b, /y sin subir la suya no junto su cuenta\. No lo llames todavía\./);
+    assert.doesNotMatch(b, /crédito/);
+  });
+
+  test('sin aceptar todavía, dice que su solicitud no queda en su ficha, no «el crédito»', async () => {
+    const { P } = montar({ solicitudes: [SOL()] });
+    conHistoriales(P, { conf: {}, habilitado: false });
+    conLibro(P, { ok: false, motivo: 'nube-mas-nueva', fichas: 1 });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    const b = plano(P.elems.juntarBoton.innerHTML);
+    assert.match(b, /no junto su cuenta, y su solicitud no queda en su ficha\./);
+    assert.doesNotMatch(b, /registro el crédito/);
   });
 });
