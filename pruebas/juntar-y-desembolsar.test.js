@@ -622,8 +622,10 @@ describe('segunda revisión', () => {
  * toque corre la subida automática y después junta POR LA NUBE como siempre
  * (la nube sigue mirando la clave nueva, el celular de otra ficha, etc.); si
  * este computador no puede subirla, el cuadro lo dice antes de llamar. El
- * crédito NUNCA se registra sin juntar (la revisión mostró que así cobraba un
- * impostor).
+ * crédito no se registra sin juntar desde el toque (la revisión mostró que así
+ * cobraba un impostor). Desde el 14-nov (v148) hay UNA excepción, decisión de
+ * Joan: con el cliente a su lado y las tres casillas marcadas
+ * (pruebas/con-el-cliente-al-lado.test.js).
  * La subida automática (historiales-auto.js) no corre en el banco: aquí va una
  * de mentira con lo que el CRM le pregunta, y el texto de la línea de Ajustes
  * es el de verdad (textoCinta).
@@ -695,7 +697,8 @@ describe('su ficha sube sola al tocar, y el crédito sigue esperando a que la nu
     await asentar();
     const b = P.elems.juntarBoton.innerHTML;
     assert.match(plano(b), /Su ficha todavía no subió a la nube desde este computador: al tocar, la subo primero \(es automático, unos segundos\) y después la junto como siempre\./);
-    assert.match(b, /onclick="juntarConUnToque\('41','C1',false\)">🔗 Sí, es la misma persona: juntar<\/button>/);
+    /* (v148) El toque de una aceptada también registra el crédito, y lo dice. */
+    assert.match(b, /onclick="juntarConUnToque\('41','C1',false\)">🔗 Sí, es la misma persona: juntar y registrar el crédito<\/button>/);
     assert.doesNotMatch(b, /Subir historiales|Subir su ficha|Avanzado/, 'le pidió subir algo a mano');
     assert.equal(vueltas(P), 0, 'subió antes del toque');
     await tocar(P, toqueDe(P));
@@ -896,10 +899,23 @@ describe('su ficha sube sola al tocar, y el crédito sigue esperando a que la nu
     assert.doesNotMatch(plano(P.elems.juntarBoton.innerHTML), /no subió a la nube/);
   });
 
-  test('nunca hay un camino que registre el crédito sin juntar', () => {
+  /* 14-nov-2026 (v148) — Esta guarda decía «nunca hay un camino que registre el
+     crédito sin juntar». Joan la cambió ese día, con un cliente a su lado: «Sí,
+     registrarlo igual», porque él lo verifica en persona (CON EL CLIENTE AL
+     LADO, crm.html). Lo que sigue prohibido son los dos intentos que tumbó la
+     revisión de v146 (registrar sin juntar desde el toque, y subir a mano); y el
+     ÚNICO camino sin juntar es el de las tres casillas: una sola llamada con
+     {enPersona:true}, dentro de confirmarEnPersona, que mira las casillas antes. */
+  test('el único camino que registra el crédito sin juntar es «en persona», con sus tres casillas', () => {
     const crm = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
     assert.doesNotMatch(crm, /\{sinJuntar:|op\.sinJuntar|registrarSinJuntar|subirFichaParaJuntar|bloqueSubirParaJuntar/);
-    assert.match(crm, /function crearDesdeSolicitud\(id,idFicha\)\{/);
+    assert.match(crm, /function crearDesdeSolicitud\(id,idFicha,op\)\{/);
+    const llamadas = crm.match(/crearDesdeSolicitud\([^)]*\{enPersona:true\}\)/g) || [];
+    assert.equal(llamadas.length, 1, 'hay más de una puerta que registra sin juntar: ' + llamadas.join(' | '));
+    const confirmar = /function confirmarEnPersona\(idSol,idFicha\)\{([\s\S]*?)\n\}/.exec(crm);
+    assert.ok(confirmar, 'falta confirmarEnPersona');
+    assert.match(confirmar[1], /^\s*if\(!enPersonaMarcadas\(\)\) return/, 'registra sin mirar las tres casillas');
+    assert.match(confirmar[1], /crearDesdeSolicitud\(idSol,idFicha,\{enPersona:true\}\)/);
   });
 });
 

@@ -2390,7 +2390,26 @@
    Cambian panel/crm.html y panel/historiales-auto.js (su ?v= sube a 147, en crm.html y en la
    lista de abajo). CACHE y VERSION_SITIO suben a v147. NO HAY BASE NUEVA. La regla de los ?v=
    se mide contra lo publicado: TG_PUBLICADO=main. */
-const CACHE = 'tugarantia-v147';
+/* 14-nov-2026, v148 — SALE DESPUÉS DE v147 (main = 463a30f). Rama v148-en-persona.
+   CON EL CLIENTE AL LADO. Joan, con un cliente sentado a su lado, no pudo registrarle el
+   crédito que aceptó: «¿Es la misma persona?» solo ofrecía Cerrar («sigue sin tener un botón
+   para registrar»). A «si la nube no logra juntar la cuenta, ¿el botón igual debe registrar
+   el crédito?» contestó «Sí, registrarlo igual»: él lo verifica en persona. Esto deshace,
+   SOLO para ese caso, «el crédito solo con la cuenta junta» del 13-nov.
+   · crm.html: cuando juntar no se puede ahora (la ficha no sube, la nube pide la clave nueva
+     o su hora) o la nube ya dijo que no a esa solicitud, el cuadro ofrece «✍️ Está conmigo:
+     registrar el crédito sin juntar». Abre tres casillas (su cédula; la propuesta aceptada en
+     SU celular; la cuenta a la que se le gira, dicha por él), y sin las tres no registra. Con
+     ellas, crearDesdeSolicitud con todas sus rejas (constancia, vencida, cuotas, cupo); el
+     crédito lleva `sinJuntar`, y la ficha queda por juntar con el registro de la solicitud
+     (se junta sola cuando la nube la deje, con todo lo que la nube mira).
+   · No se ofrece con la ficha junta con OTRA cuenta (esa cuenta vería el crédito), ni al
+     equipo. Juntar sigue siendo lo primero, y su botón dice ahora que también registra.
+   Pruebas: pruebas/con-el-cliente-al-lado.test.js (17, fallan con v147), y la guarda de
+   juntar-y-desembolsar dice ahora que el ÚNICO camino sin juntar es el de las tres casillas.
+   Solo cambia panel/crm.html (ningún .js de la página nuevo ni cambiado: sin ?v= nuevos).
+   CACHE y VERSION_SITIO suben a v148. NO HAY BASE NUEVA. TG_PUBLICADO=main. */
+const CACHE = 'tugarantia-v148';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
