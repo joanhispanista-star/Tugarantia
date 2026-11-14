@@ -930,8 +930,10 @@ describe('los enganches de crm.html y sw.js', () => {
   const SW = fs.readFileSync(path.join(RAIZ, 'sw.js'), 'utf8');
 
   test('el <script src> va después del bloque grande y de nube-crm.js, antes del service worker', () => {
-    /* 23-oct-2026 — los dos se piden con la versión en la dirección (ver sw.js, v139). */
-    const i = CRM.indexOf('<script src="historiales-auto.js?v=139"></script>');
+    /* 23-oct-2026 — los dos se piden con la versión en la dirección (ver sw.js, v139).
+       14-nov-2026: con la versión que sea, como nube-crm.js (que suba la versión cuando el
+       archivo cambia lo vigila pruebas/la-pagina-nueva-no-corre-con-un-js-viejo.test.js). */
+    const i = CRM.search(/<script src="historiales-auto\.js\?v=\d+"><\/script>/);
     assert.ok(i > 0, 'crm.html no carga historiales-auto.js con su versión');
     assert.ok(i > CRM.search(/<script src="nube-crm\.js\?v=\d+"><\/script>/));   // 4-nov-2026: con la versión que sea
     assert.ok(i > CRM.indexOf('function entrar(){'));
