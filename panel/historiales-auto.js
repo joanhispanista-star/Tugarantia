@@ -108,6 +108,20 @@
  *      emparejada con la nube. Lo de la nube no se toca: la discusión sigue
  *      para que Joan la decida cuando quiera, y el cuadro de crm.html le dice
  *      antes que la app del cliente va a mostrar lo de este computador.
+ *   La revisión adversaria del mismo día (antes de publicar) encontró cuatro
+ *   cosas aquí, y quedaron así:
+ *   · Los que esperan no viajan, pero la reja de LA FILA QUE OTRA FICHA
+ *     TODAVÍA OCUPA los sigue viendo (planDeSubida, o.fuera). Quitarlos del
+ *     plan ya armado dejaba subir a la ficha cuyo celular es la llave de la
+ *     que espera, y la nube le quitaba la fila (su unión y su chat).
+ *   · SUELTAS: la ficha que Joan juntó (subirUna, o soltar desde crm.html al
+ *     juntar su cuenta) deja de esperar. Si no, el crédito que se le registra
+ *     enseguida no le llegaba a su app hasta decidir TODO en ☁ Subir. Sube
+ *     también cuando esperan todos (subirSueltas), ella sola.
+ *   · Quien trajo a uno de los que esperan también espera: su paquete cuenta
+ *     si su referido pagó, con la ficha de acá, que es la que no coincide.
+ *   · libroCambio no vuelve a preguntar lo ya dicho: con un ajuste en
+ *     discusión, cada repintada traía la nube entera cada 5 min, para nada.
  *
  * DOS FICHAS, UNA FILA: NO SUBEN
  *   sincronizar_socios identifica a cada cliente por su cédula o, si no tiene,
@@ -351,7 +365,10 @@
          sin discusión) o 'boton' (Ajustes → Avanzado). La barra lo dice. */
       habilitadoPor: e.habilitadoPor || null,
       /* Por qué se pausó, si se pausó: {motivo:'respaldo', en}. */
-      pausa: e.pausa || null
+      pausa: e.pausa || null,
+      /* 14-nov-2026 (revisión) — LAS QUE JOAN JUNTÓ: {socioId: iso}. Ver
+         SUELTAS, en porCliente. Un respaldo importado las olvida (carteraReemplazada). */
+      sueltas: objeto(e.sueltas)
     };
   }
   function guardarEstado(est) {
@@ -449,6 +466,15 @@
     todos.forEach(function (t) {
       var x = t.x, id = t.id, rec = t.rec;
       if (choque[id]) { chocan.push({ id: id, nombre: texto(x.nombre) || 'Socio', motivo: choque[id] }); return; }
+      /* 14-nov-2026 (revisión) — LOS QUE ESPERAN (o.fuera, CLIENTE POR CLIENTE)
+         no viajan, pero SIGUEN en `todos`: la reja de LA FILA QUE OTRA FICHA
+         TODAVÍA OCUPA (abajo) tiene que verlos. Quitarlos después del plan,
+         como se hacía, dejaba subir sola a la ficha cuyo celular es la llave
+         con que la que espera vive en la nube, y la nube le quitaba la fila
+         (su unión y su chat) a la que espera. `o.solo`, al revés: viajan
+         solo esas (subirSueltas), con la misma reja. */
+      if (objeto(o.fuera)[id]) return;
+      if (o.solo && !objeto(o.solo)[id]) return;
       /* 7-oct-2026 — NINGÚN CÓDIGO VIAJA, ni solo ni con el botón. Joan apagó
          los códigos de acceso (base/20261007_una_puerta.sql): el cliente entra
          con su celular y su contraseña, y la nube ya no deja usar un código
@@ -603,15 +629,28 @@
     /* 14-nov-2026 — los que la vuelta dejó esperando (CLIENTE POR CLIENTE): la
        línea no dice «al día» sin contarlos. */
     var ap = objeto(x.apartados), nAp = num(ap.n);
-    if (nAp) {
-      extra += ' · ' + (nAp === 1 ? 'espera 1 cliente cuya ficha' : 'esperan ' + nAp + ' clientes cuyas fichas') +
+    /* (revisión) quien trajo a uno de ellos espera por eso, no por su ficha:
+       se cuenta aparte, o la línea decía que su ficha no coincide. */
+    var nTrajo = Math.min(num(ap.trajo), nAp), nDir = nAp - nTrajo;
+    if (nDir) {
+      extra += ' · ' + (nDir === 1 ? 'espera 1 cliente cuya ficha' : 'esperan ' + nDir + ' clientes cuyas fichas') +
         (ap.motivo === 'nube-mas-nueva'
-          ? (nAp === 1 ? ' tiene' : ' tienen') + ' algo más nuevo en la nube (lo del celular): ' + (nAp === 1 ? 've' : 'ven') +
+          ? (nDir === 1 ? ' tiene' : ' tienen') + ' algo más nuevo en la nube (lo del celular): ' + (nDir === 1 ? 've' : 'ven') +
             ' lo último que subió hasta que lo juntes en <a href="subir.html" target="_blank" rel="noopener">☁ Subir</a> (paso 6)'
-          : ' no ' + (nAp === 1 ? 'coincide' : 'coinciden') + ' con la nube (' + (nAp === 1 ? 'la tocaste' : 'las tocaste') +
-            ' aquí y en el celular): ' + (nAp === 1 ? 've' : 'ven') + ' lo último que subió hasta que elijas en ' +
+          : ' no ' + (nDir === 1 ? 'coincide' : 'coinciden') + ' con la nube (' + (nDir === 1 ? 'la tocaste' : 'las tocaste') +
+            ' aquí y en el celular): ' + (nDir === 1 ? 've' : 'ven') + ' lo último que subió hasta que elijas en ' +
             '<a href="subir.html" target="_blank" rel="noopener">☁ Subir</a> (paso 7)') +
         '; si juntas su cuenta, su ficha sube igual';
+    }
+    if (nTrajo) {
+      extra += ' · ' + (nTrajo === 1 ? 'espera 1 cliente que trajo a otro' : 'esperan ' + nTrajo + ' clientes que trajeron a otros') +
+        ' con la ficha por decidir: su garantía cuenta si ' + (nTrajo === 1 ? 'ese referido pagó' : 'esos referidos pagaron') +
+        ', y eso se sabe cuando decidas';
+    }
+    /* (revisión) mientras los demás esperan, las fichas que juntaste suben. */
+    var nSu = (u.fase === 'esperando-libro' && LIBRO_EMPAREJADO[texto(u.motivo)]) ? num(x.sueltas) : 0;
+    if (nSu) {
+      extra += ' · ' + (nSu === 1 ? 'la ficha del cliente que juntaste sube igual' : 'las fichas de los ' + nSu + ' clientes que juntaste suben igual');
     }
     var cola = (n ? ' · ' + esperan : '') + extra;
     var hayQueVer = pl && (num(pl.retenidos) || num(pl.chocan) || nAp);
@@ -892,12 +931,51 @@
     try { r = objeto(cfg.libroPorCliente()); } catch (e) { return null; }
     var rm = texto(r.motivo);
     if (rm === 'comparando' || rm === 'sin-comparar') return { ids: null, motivo: rm, espera: num(r.espera), detalle: texto(r.detalle) };
-    if (r.ok || (rm !== 'en-discusion' && rm !== 'nube-mas-nueva') || num(r.sinCliente)) return null;
-    var ids = {};
-    Object.keys(objeto(r.clientes)).forEach(function (k) { ids[String(k)] = true; });
-    var n = Object.keys(ids).length;
-    if (!n) return null;
-    return { ids: ids, n: n, motivo: rm, congeladas: num(r.congeladas), fichas: num(r.fichas) };
+    if (r.ok || (rm !== 'en-discusion' && rm !== 'nube-mas-nueva')) return null;
+    if (num(r.sinCliente)) return null;
+    /* SUELTAS (revisión del 14-nov) — la ficha que Joan juntó (subirUna la
+       subió, o la nube juntó su cuenta) ya muestra en su app lo de este
+       computador, como le avisó el cuadro. Retenerla no protege nada: solo se
+       comía el crédito que se le registra enseguida y lo que se le anote
+       después. Deja de esperar hasta que la cartera quede comprobada (y
+       entonces ya no espera nadie) o entre un respaldo. No se olvida cuando
+       sale de la discusión: con algo que no se ata a ningún cliente esperan
+       todos, y ella tiene que seguir subiendo (subirSueltas). */
+    var directos = objeto(r.clientes), sueltas = leerEstado().sueltas;
+    var ids = {}, n = 0, trajo = 0;
+    Object.keys(directos).forEach(function (k) { if (!sueltas[k]) { ids[String(k)] = true; n++; } });
+    /* QUIEN LOS TRAJO también espera: su paquete cuenta si su referido pagó
+       (referidos, y los 5.000 de su garantía: app/puente.js referidosDe), y
+       eso sale de la ficha de ACÁ del referido, que es la que no coincide.
+       Subirlo le bajaba la garantía con lo que la nube ya sabía pagado. */
+    lista(objeto(leerJSON(LLAVE_CARTERA, null)).socios).forEach(function (s) {
+      var por = (s && s.referidoPor != null) ? String(s.referidoPor) : '';
+      if (por && directos[String(s.id)] && !ids[por] && !sueltas[por]) { ids[por] = true; trajo++; }
+    });
+    if (!Object.keys(directos).length) return null;
+    return { ids: ids, n: n + trajo, trajo: trajo, motivo: rm, congeladas: num(r.congeladas), fichas: num(r.fichas) };
+  }
+  /* crm.html, al juntar una cuenta (juntarCuentaEnLaNube): su ficha deja de
+     esperar aunque ya hubiera subido antes (entonces subirUna no corre). Con la
+     subida ya encendida no hay nadie esperando y no se anota nada. */
+  function soltar(socioId) {
+    var id = texto(socioId), est = leerEstado();
+    if (!id || est.habilitado || est.sueltas[id]) return;
+    est.sueltas[id] = iso();
+    guardarEstado(est);
+  }
+  /* Mientras los demás esperan la comparación o la decisión (algo que no se ata
+     a ningún cliente), las sueltas suben solas, ellas y nadie más. Sin cartera
+     emparejada, ni una. */
+  function subirSueltas(con, lib) {
+    if (!LIBRO_EMPAREJADO[texto(objeto(lib).motivo)]) return null;
+    var est = leerEstado(), solo = {}, hay = false;
+    Object.keys(est.sueltas).forEach(function (k) { solo[k] = true; hay = true; });
+    if (!hay || sinGuardar() || !enLinea() || frenoPuesto(con)) return null;
+    var plan;
+    try { plan = armarPlan(false, { solo: solo }); } catch (e) { return null; }
+    if (!plan.enviar.length) return null;
+    return subir(plan, con, { una: true });
   }
   /* Lo que contesta NubeCRM.libroAlDia con la cartera YA emparejada con la nube
      (su fase 'lista'): con estas, la ficha que Joan junta puede subir sola
@@ -911,11 +989,16 @@
               ahora() - num(_freno.ms) < REINTENTO_CLAVE_MS - 1000);
   }
 
-  function armarPlan(manual) {
-    if (typeof cfg.lote !== 'function') throw new Error('crm.html no le pasó el lote');
-    var lote = lista(cfg.lote(true));
+  /* `op` (14-nov-2026): {fuera} los que esperan, {solo} los únicos que viajan
+     (ver planDeSubida), {lote} el que ya armó esta misma vuelta, para no
+     armarlo dos veces. */
+  function armarPlan(manual, op) {
+    var o = objeto(op);
+    if (!o.lote && typeof cfg.lote !== 'function') throw new Error('crm.html no le pasó el lote');
+    var lote = o.lote || lista(cfg.lote(true));
     var est = leerEstado();
-    var plan = planDeSubida(lote, est.socios, { manual: manual, ahora: ahora(), grupoEn: est.grupoEn });
+    var plan = planDeSubida(lote, est.socios, { manual: manual, ahora: ahora(), grupoEn: est.grupoEn, fuera: o.fuera, solo: o.solo });
+    plan.lote = lote;
     var cuantos = plan.total;
     try { if (cfg.cuantos) cuantos = num(cfg.cuantos()); } catch (e) { cuantos = plan.total; }
     plan.sinLlave = Math.max(0, cuantos - plan.total);
@@ -952,7 +1035,8 @@
       plan: _plan, esperando: _quietud != null, ocupado: _ocupado, cambio: _cambio, enLinea: enLinea(),
       ultimaSubida: est.ultimaSubida, ultimaRevision: est.ultimaRevision, grupoEn: est.grupoEn,
       habilitado: !!est.habilitado, habilitadoPor: est.habilitadoPor, version: VERSION, ahora: ahora(),
-      apartados: _apartados ? { n: _apartados.n, motivo: _apartados.motivo } : null
+      apartados: _apartados ? { n: _apartados.n, trajo: num(_apartados.trajo), motivo: _apartados.motivo } : null,
+      sueltas: est.habilitado ? 0 : Object.keys(est.sueltas).length
     };
   }
   function estado() {
@@ -972,9 +1056,13 @@
     /* 14-nov-2026 — «tus clientes ven lo de las 8:51» habla de todos: la ficha
        que sube sola (subirUna) no lo mueve. */
     if (!una) est.ultimaSubida = iso();
+    /* (revisión) La que subió sola ya muestra lo de este computador: deja de
+       esperar (SUELTAS, en porCliente), o el crédito que se le registra
+       enseguida no le llegaba a su app. */
+    if (una && !est.habilitado) pedazo.forEach(function (e) { est.sueltas[e.id] = iso(); });
     if (manual) {
       if (!est.habilitado) est.habilitadoPor = 'boton';
-      est.habilitado = est.habilitado || iso(); est.pausa = null;
+      est.habilitado = est.habilitado || iso(); est.pausa = null; est.sueltas = {};
     }
     guardarEstado(est);
   }
@@ -1168,13 +1256,18 @@
         _ultimo = { fase: 'esperando-libro', motivo: texto(ver.motivo), congeladas: num(lib.congeladas),
                     fichas: num(lib.fichas), espera: num(ver.espera), detalle: texto(ver.detalle),
                     pausa: texto(objeto(est0.pausa).motivo) };
+        /* (revisión) Las que Joan juntó suben igual, ellas solas (SUELTAS, en
+           porCliente): aquí iba a esperar también el crédito que acaba de
+           registrarles. La línea sigue diciendo lo que esperan los demás. */
+        var van = subirSueltas(con, lib);
         pintar();
-        return Promise.resolve(estado());
+        return van ? van.then(function () { return estado(); }) : Promise.resolve(estado());
       }
       if (lib.ok) {
         est0.habilitado = iso();
         est0.habilitadoPor = 'solo';
         est0.pausa = null;
+        est0.sueltas = {};   // ya no espera nadie: no hay nada que soltar
         guardarEstado(est0);
       }
     }
@@ -1196,10 +1289,15 @@
     /* 14-nov-2026 — los que esperan no viajan, ni por sus cifras del grupo: lo
        de la nube puede ser más nuevo que lo de acá (ver CLIENTE POR CLIENTE). */
     if (aparte) {
-      var sube = function (e) { return !aparte.ids[e.id]; };
-      plan.enviar = plan.enviar.filter(sube);
-      plan.propios = plan.propios.filter(sube);
-      plan.grupo = plan.grupo.filter(sube);
+      /* (revisión) Se arma de nuevo con ellos fuera, no se filtra: así la reja
+         de la fila ocupada los ve (planDeSubida, o.fuera). Mismo lote. */
+      try { plan = armarPlan(false, { fuera: aparte.ids, lote: plan.lote }); }
+      catch (e) {
+        _ultimo = { fase: 'error', motivo: 'No pude armar los paquetes de tus clientes (' + texto(e && e.message).slice(0, 80) + ')',
+                    cuando: iso(), ms: ahora() };
+        pintar();
+        return Promise.resolve(estado());
+      }
       _plan = resumirPlan(plan, false);
     }
 
@@ -1348,7 +1446,16 @@
     /* 14-nov-2026 — CLIENTE POR CLIENTE: si ya se sabe de quiénes es lo que
        falta, suben los demás. La vuelta deja la línea fuera de «esperando», así
        que esto no se repite en cada repintada. */
-    var pc = lib.ok ? null : porCliente(lib);
+    /* (revisión) Lo ya dicho no se vuelve a preguntar en cada repintada: con
+       algo que no se ata a ningún cliente, porCliente contesta null y la línea
+       queda con lo de libroAlDia, y cada pregunta con la comparación vencida
+       traía la nube entera (12 veces por hora, para nada). Se pregunta si
+       libroAlDia cambió, o si lo dicho fue «comparando»/«sin-comparar» (su
+       motivo es otro). La vuelta (90 s tras un cambio, 30 min) sigue
+       preguntando cliente por cliente. */
+    var igual = !lib.ok && texto(lib.motivo) === texto(_ultimo.motivo) &&
+                num(lib.congeladas) === num(_ultimo.congeladas) && num(lib.fichas) === num(_ultimo.fichas);
+    var pc = (lib.ok || igual) ? null : porCliente(lib);
     if (pc && pc.ids) { vuelta(false); return; }
     if (!lib.ok) {
       /* 23-oct-2026 — lo que se espera puede cambiar sin que esto suba nada:
@@ -1621,6 +1728,7 @@
     vuelta: vuelta,
     subirTodo: subirTodo,
     subirUna: subirUna,
+    soltar: soltar,
     estado: estado,
     accion: accion,
     apagar: apagar,

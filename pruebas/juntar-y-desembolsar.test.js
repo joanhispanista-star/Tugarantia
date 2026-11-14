@@ -1128,3 +1128,109 @@ describe('con fichas en discusión, la suya sube igual: registrar desde la propu
     assert.equal(creditos(P).length, 1, 'no registró el crédito: ' + avisos(P));
   });
 });
+
+/* 14-nov-2026 (revisión adversaria de v147) — el «Ojo» que no salía con la
+   comparación vencida, el toque que no volvía a mirar, la clave nueva que
+   prometía «se junta sola» sin subir su ficha, y la ficha que al juntarse
+   seguía esperando (soltar). Todas fallan contra b970593. */
+const DISC_C1 = { ok: false, motivo: 'en-discusion', congeladas: 23, clientes: { C1: { enDiscusion: true } } };
+const SIN_DISC = { ok: false, motivo: 'en-discusion', congeladas: 23, clientes: { C9: { enDiscusion: true } } };
+/* libroPorCliente contesta 'comparando' hasta que alguien espera la comparación;
+   entonces, lo de `despues` (o sigue sin saber, si no viene). */
+function comparacionVencida(P, despues) {
+  P.ev('window.__esperas = 0; window.__pc = { ok: false, motivo: "comparando" }; window.__pcDespues = ' + JSON.stringify(despues || null));
+  P.ev(`NubeCRM.libroPorCliente = function () { return window.__pc; };
+    NubeCRM.libroAlDiaEsperando = function () { window.__esperas++; if (window.__pcDespues) window.__pc = window.__pcDespues; return Promise.resolve(window.__libro); };`);
+}
+
+describe('revisión de v147: el cuadro dice lo de su ficha antes del toque, y lo que sube después le llega', () => {
+  test('con la comparación vencida, el cuadro la espera ANTES de ofrecer el toque, y sale el «Ojo»', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false, una: true });
+    conLibro(P, EN_DISCUSION_23);
+    comparacionVencida(P, DISC_C1);
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar(40);
+    assert.equal(P.ev('window.__esperas'), 1, 'no esperó la comparación');
+    assert.match(plano(P.elems.juntarBoton.innerHTML), /Ojo: su ficha no coincide con la de la nube \(la tocaste aquí y en el celular\)\. Su app va a mostrar lo de este computador/);
+    await tocar(P, toqueDe(P));
+    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__hist.unas)')), ['C1']);
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 1);
+    assert.equal(creditos(P).length, 1, 'no registró el crédito: ' + avisos(P));
+  });
+
+  test('si la comparación no llega, el cuadro lo dice («no pude comparar…») y el toque sigue', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false, una: true });
+    conLibro(P, EN_DISCUSION_23);
+    comparacionVencida(P, null);
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar(40);
+    assert.match(plano(P.elems.juntarBoton.innerHTML), /Ojo: no pude comparar su ficha con la nube; si la tocaste en el celular, su app va a mostrar lo de este computador./);
+    await tocar(P, toqueDe(P));
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 1);
+    assert.equal(creditos(P).length, 1, 'no registró el crédito: ' + avisos(P));
+  });
+
+  test('si al tocar se sabe algo que el cuadro no dijo, no sube ni junta: lo dice, el cuadro lo muestra, y el segundo toque sigue', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false, una: true });
+    conLibro(P, EN_DISCUSION_23);
+    conPorCliente(P, SIN_DISC);
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    assert.doesNotMatch(plano(P.elems.juntarBoton.innerHTML), /Ojo/, 'precondición: el cuadro no tenía nada que decir');
+    conPorCliente(P, DISC_C1);
+    await tocar(P, toqueDe(P));
+    assert.equal(P.ev('window.__hist.unas.length'), 0, 'subió su ficha sin que Joan lo supiera');
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 0);
+    assert.equal(creditos(P).length, 0);
+    assert.match(avisos(P), /Todavía no subí su ficha ni la junté, porque acabo de ver algo que no te había dicho. Ojo: su ficha no coincide con la de la nube/);
+    assert.match(plano(P.elems.juntarBoton.innerHTML), /Ojo: su ficha no coincide con la de la nube/);
+    await tocar(P, toqueDe(P));
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 1);
+    assert.equal(creditos(P).length, 1, 'el segundo toque no registró: ' + avisos(P));
+  });
+
+  test('el «Ojo» sale aunque su ficha ya hubiera subido antes (al juntar deja de esperar igual)', async () => {
+    const { P } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false, una: true });
+    P.ev('window.__hist.conf = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    conLibro(P, EN_DISCUSION_23);
+    conPorCliente(P, DISC_C1);
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    const b = plano(P.elems.juntarBoton.innerHTML);
+    assert.doesNotMatch(b, /todavía no subió/);
+    assert.match(b, /Ojo: su ficha no coincide con la de la nube/);
+  });
+
+  test('al juntar, su ficha deja de esperar (HistorialesAuto.soltar): el crédito que se registra le llega a su app', async () => {
+    const { P } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false, una: true });
+    P.ev('window.__hist.sueltas = []; window.HistorialesAuto.soltar = function (id) { window.__hist.sueltas.push(id); };');
+    conLibro(P, EN_DISCUSION_23);
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    await tocar(P, toqueDe(P));
+    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__hist.sueltas)')), ['C1']);
+    assert.equal(creditos(P).length, 1, 'no registró el crédito: ' + avisos(P));
+  });
+
+  test('con la clave nueva, su ficha sube en ese momento: así «una hora después se junta sola» es verdad', async () => {
+    const { P } = montar({ nube: { clave_temporal_joan: { ok: true, clave: 'PRUEBA-123' } } });
+    conHistoriales(P, { conf: {}, habilitado: false, una: true });
+    conLibro(P, EN_DISCUSION_23);
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    P.ev("claveNuevaYJuntar('41','C1',false)");
+    await asentar(24);
+    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__hist.unas)')), ['C1'], 'dio la clave sin subir su ficha');
+    assert.equal(P.ev("HistorialesAuto.llaveConfirmada('C1')"), llaveDe(P));
+  });
+});

@@ -17,7 +17,10 @@
  *   2. lo que no se puede atar a un cliente (un ajuste en discusión) sigue
  *      frenando a todos, como antes;
  *   3. subirUna sube SOLO la ficha del cliente que Joan está juntando, aunque
- *      esté en discusión, y con las demás puertas puestas.
+ *      esté en discusión, y con las demás puertas puestas;
+ *   4. lo que encontró la revisión adversaria del mismo día (bloque 4): la
+ *      fila de la que espera, la ficha que Joan juntó (suelta), quien trajo a
+ *      uno de los que esperan, y la nube entera traída cada 5 min para nada.
  * Las pruebas de 1 y 3 fallan contra 952e5fc (v147, sin publicar), salvo
  * «cuando la discusión se resuelve», que vigila el final de siempre; las de 2
  * vigilan que lo de antes siga igual.
@@ -78,10 +81,11 @@ function montar(o) {
   P.elems.modal.classList.contains = () => false;
   P.ctx._libro = o.libro || { ok: true, motivo: 'al-dia' };
   P.ctx._porCliente = o.porCliente || null;
+  P.ctx._nPC = 0;
   P.ev(`window.NubeCRM = { configurar: function () {}, apagar: function () {}, algoCambio: function () {}, accion: function () {},
     estado: function () { return { fase: 'lista', cinta: { fase: 'al-dia', clase: 'calma', l1: 'Tu cartera GUARDADA está en la nube', l2: '' } }; },
     libroAlDia: function () { return _libro; }` +
-    ('porCliente' in o ? ', libroPorCliente: function () { return _porCliente; }' : '') + ' };');
+    ('porCliente' in o ? ', libroPorCliente: function () { _nPC++; return _porCliente; }' : '') + ' };');
   vm.runInContext(FUENTE_HIST, P.ctx, { filename: 'historiales-auto.js' });
   P.ev('document.getElementById("pinInput").value = DB.config.pin');
   P.ev('entrar()');
@@ -234,4 +238,111 @@ describe('3 · la ficha del cliente que Joan junta sube sola, aunque esté en di
     assert.equal(m.srv.lotes.length, 2);
     assert.equal(cinta(m).fase, 'al-dia');
   });
+});
+
+/* 14-nov-2026 (revisión adversaria de v147) — todas fallan contra b970593. */
+const cambiar = (m, js) => m.P.ev(js + '; guardar()');
+async function trasQuietud(m) { m.t.disparar(90000); await listo(m); await ticks(); }
+const subidosDesde = (m, i) => m.srv.lotes.slice(i).flat().map(x => x.cedula).sort();
+
+describe('4 · lo que encontró la revisión', () => {
+  test('la que espera sigue ocupando su fila: la ficha cuyo celular es su llave en la nube no sube sola ni le quita la fila', async () => {
+    /* C1 espera, y vive en la nube con la llave 3000000002, que es el celular de C2. */
+    const m = montar({ libro: { ok: false, motivo: 'en-discusion', congeladas: 2 }, porCliente: DISCUSION_C1,
+      estado: { v: 1, socios: { C1: { h: 'vieja', c: '', g: '', k: '3000000002' } } } });
+    await primera(m);
+    assert.deepEqual(subidos(m), ['1000000'], 'subió la ficha que le quita la fila (su unión y su chat) a la que espera');
+  });
+
+  test('la ficha que subirUna subió deja de esperar: lo que se le anota después (el crédito) sube en la vuelta', async () => {
+    const m = montar({ libro: { ok: false, motivo: 'en-discusion', congeladas: 2 }, porCliente: DISCUSION_C1 });
+    await primera(m);
+    assert.deepEqual(subidos(m), ['1000000', '1000002']);
+    assert.equal((await m.P.ev("HistorialesAuto.subirUna('C1')")).ok, true);
+    const i = m.srv.lotes.length;
+    cambiar(m, "DB.socios[1].nombre = 'Socio 1 con su crédito nuevo'");
+    await trasQuietud(m);
+    assert.deepEqual(subidosDesde(m, i), ['1000001'], 'el crédito registrado tras juntar no le llegó a su app');
+    assert.doesNotMatch(plano(cinta(m).l2), /espera 1 cliente/);
+  });
+
+  test('con algo que no se ata a ningún cliente (todos esperan), la ficha que Joan juntó sube igual, ella sola, y la línea lo dice', async () => {
+    const m = montar({ libro: { ok: false, motivo: 'en-discusion', congeladas: 1 }, porCliente: UN_AJUSTE });
+    await primera(m);
+    assert.equal(m.srv.llamadas, 0);
+    assert.equal((await m.P.ev("HistorialesAuto.subirUna('C1')")).ok, true);
+    const i = m.srv.lotes.length;
+    cambiar(m, "DB.socios[1].nombre = 'Socio 1 con su crédito nuevo'; DB.socios[0].nombre = 'Socio 0 cambiado'");
+    await trasQuietud(m);
+    assert.deepEqual(subidosDesde(m, i), ['1000001'], 'subió a otro, o no subió la suya');
+    const c = cinta(m);
+    assert.equal(c.fase, 'esperando-libro', 'la línea dejó de decir que los demás esperan');
+    assert.match(plano(c.l2), /la ficha del cliente que juntaste sube igual/);
+    assert.ok(!estadoH(m).habilitado);
+  });
+
+  test('al juntar su cuenta deja de esperar aunque su ficha ya hubiera subido antes (soltar, que llama crm.html)', async () => {
+    const m = montar({ libro: { ok: false, motivo: 'en-discusion', congeladas: 2 }, porCliente: DISCUSION_C1 });
+    await primera(m);
+    m.P.ev("HistorialesAuto.soltar('C1')");
+    const i = m.srv.lotes.length;
+    cambiar(m, "DB.socios[1].nombre = 'Socio 1 con su crédito nuevo'");
+    await trasQuietud(m);
+    assert.deepEqual(subidosDesde(m, i), ['1000001']);
+  });
+
+  test('con la subida ya encendida, soltar no anota nada (no hay nadie esperando)', async () => {
+    const m = montar({ libro: { ok: true, motivo: 'al-dia' } });
+    await primera(m);
+    m.P.ev("HistorialesAuto.soltar('C1')");
+    assert.deepEqual(estadoH(m).sueltas || {}, {});
+  });
+
+  test('quien trajo a uno de los que esperan también espera (su garantía cuenta si su referido pagó), y la línea lo cuenta aparte', async () => {
+    const c = cartera(3, 1); c.socios[1].referidoPor = 'C0';
+    const m = montar({ cartera: c, libro: { ok: false, motivo: 'en-discusion', congeladas: 2 }, porCliente: DISCUSION_C1 });
+    await primera(m);
+    assert.deepEqual(subidos(m), ['1000002'], 'subió a quien lo trajo con la cuenta de referidos de la ficha que no coincide');
+    const x = cinta(m);
+    assert.match(plano(x.l2), /espera 1 cliente cuya ficha no coincide con la nube/);
+    assert.match(plano(x.l2), /espera 1 cliente que trajo a otro con la ficha por decidir: su garantía cuenta si ese referido pagó/);
+    assert.match(x.l1, /, menos 2 clientes$/);
+  });
+
+  test('con algo que no se ata a ningún cliente, las repintadas no vuelven a preguntar cliente por cliente (traía la nube entera)', async () => {
+    const m = montar({ libro: { ok: false, motivo: 'en-discusion', congeladas: 1 }, porCliente: UN_AJUSTE });
+    await primera(m);
+    const n = m.P.ctx._nPC;
+    for (let k = 0; k < 10; k++) m.P.ev('HistorialesAuto.libroCambio()');
+    assert.equal(m.P.ctx._nPC, n, 'preguntó en cada repintada');
+    m.P.ctx._libro = { ok: false, motivo: 'en-discusion', congeladas: 2 };
+    m.P.ev('HistorialesAuto.libroCambio()');
+    assert.equal(m.P.ctx._nPC, n + 1, 'no volvió a preguntar cuando cambió lo que hay en discusión');
+  });
+
+  test('la suelta sigue suelta aunque salga de la discusión (con un ajuste en discusión esperan todos); con la cartera comprobada o un respaldo, se olvidan', async () => {
+    const m = montar({ libro: { ok: false, motivo: 'en-discusion', congeladas: 2 }, porCliente: DISCUSION_C1 });
+    await primera(m);
+    await m.P.ev("HistorialesAuto.subirUna('C1')");
+    assert.ok(estadoH(m).sueltas.C1, 'precondición: quedó suelta');
+    m.P.ctx._porCliente = UN_AJUSTE;
+    await m.P.ev('HistorialesAuto.vuelta(true)'); await listo(m); await ticks();
+    assert.ok(estadoH(m).sueltas.C1, 'se olvidó al salir de la discusión');
+    m.P.ctx._libro = { ok: true, motivo: 'al-dia' };
+    await m.P.ev('HistorialesAuto.vuelta(true)'); await listo(m); await ticks();
+    assert.ok(estadoH(m).habilitado);
+    assert.deepEqual(estadoH(m).sueltas, {}, 'con la cartera comprobada siguen sueltas');
+    await m.P.ev("HistorialesAuto.carteraReemplazada('respaldo')");
+    assert.deepEqual(estadoH(m).sueltas || {}, {});
+  });
+
+  test('un respaldo importado olvida las sueltas', async () => {
+    const m = montar({ libro: { ok: false, motivo: 'en-discusion', congeladas: 2 }, porCliente: DISCUSION_C1 });
+    await primera(m);
+    await m.P.ev("HistorialesAuto.subirUna('C1')");
+    assert.ok(estadoH(m).sueltas.C1);
+    m.P.ev("HistorialesAuto.carteraReemplazada('respaldo')");
+    assert.deepEqual(estadoH(m).sueltas || {}, {});
+  });
+
 });

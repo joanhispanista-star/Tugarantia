@@ -2344,7 +2344,16 @@
    · crm.html: el toque usa subirUna y después junta POR LA NUBE como siempre (la nube sigue
      mirando la identidad, y el crédito sigue esperando a que junte). Si su ficha es de las que
      están en discusión, el cuadro lo dice antes: su app va a mostrar lo de este computador.
-   Pruebas: pruebas/cliente-por-cliente.test.js y el último bloque de juntar-y-desembolsar.
+   · La revisión adversaria de ESTO, antes de publicar (7 hallazgos reales, ninguno registraba
+     sin juntar): los que esperan siguen ocupando su fila (la ficha cuyo celular es su llave
+     no sube y no le quita la unión); la ficha que Joan juntó deja de esperar (SUELTAS), así
+     el crédito que se le registra le llega a su app aunque los demás esperen; quien trajo a
+     uno de los que esperan también espera (su garantía cuenta si su referido pagó); el «Ojo»
+     del cuadro ya no calla con la comparación vencida (la espera antes de ofrecer el toque, y
+     el toque vuelve a mirar); la clave nueva sube su ficha en el momento («una hora después
+     se junta sola» no era verdad); y la línea no trae la nube entera cada 5 min para nada.
+   Pruebas: pruebas/cliente-por-cliente.test.js (su bloque 4 es la revisión) y los dos últimos
+   bloques de juntar-y-desembolsar.
    Y lo que la revisión adversaria le encontró a «su ficha sube sola al tocar» ya publicada, y
    el rojo de GitHub:
    · Lo de ESTE toque se toma al tocar (el cuadro, la revisión, la solicitud pendiente): si
