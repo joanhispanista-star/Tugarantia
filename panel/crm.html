@@ -3316,7 +3316,7 @@ function bloqueNoSube(r,s,otras,no){
   return `<div class="alerta warn" style="margin-bottom:10px">☁ Este computador no está subiendo las fichas de tus clientes a la nube, y sin subir la suya ${queNo}. No lo llames todavía.</div>
     <div class="alerta info" style="margin-bottom:10px">Por qué: ${no.porque}.</div>
     <div class="muted" style="margin-bottom:10px">Mientras tanto, tus clientes ven en su app lo de la última vez que subió. Cuando eso se resuelva, vuelve a abrir este cuadro.</div>
-    <button class="btn btn-ghost" onclick="cerrarModal()">Cerrar</button>${enP}`;
+    ${enP?enP+'<div style="margin-top:12px">':''}<button class="btn btn-ghost" onclick="cerrarModal()">Cerrar</button>${enP?'</div>':''}`;
 }
 /* DE QUÉ MODAL ES CADA RESPUESTA. La nube puede tardar en contestar por la
    cuenta: si mientras tanto Joan cerró y abrió el toque de OTRO cliente, la
@@ -27228,7 +27228,7 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
    cuando alguien sospechaba.
    VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
    él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v147';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v148';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }
