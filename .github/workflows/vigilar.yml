@@ -52,9 +52,18 @@ jobs:
 
       # No hay package.json ni dependencias a propósito: el corredor de pruebas
       # es el nativo de Node y el proyecto no tiene node_modules.
+      # 13-nov-2026 (v146) — además de la salida de siempre, el TAP en un
+      # archivo: si algo sale rojo, el paso de abajo lo convierte en anotaciones,
+      # que se leen SIN iniciar sesión en GitHub (los registros no). La v145
+      # salió roja aquí y verde en el computador de Joan, y el porqué no se pudo
+      # leer. Ver herramientas/anotar-rojos.js.
       - name: Las pruebas
-        run: node --test
+        run: node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination=../pruebas.tap
         working-directory: pruebas
+
+      - name: Los rojos, a la vista sin iniciar sesión
+        if: failure()
+        run: node herramientas/anotar-rojos.js pruebas.tap
 
       # `always()` para que el aviso de la usura salga aunque las pruebas hayan
       # fallado por otra cosa: son dos noticias distintas y las dos hacen falta.

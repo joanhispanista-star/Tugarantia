@@ -2298,7 +2298,39 @@
    escribir: borrar_cuenta_de_pruebas no borra las solicitudes ni los mensajes de una
    cuenta de PlataChat sin juntar (la llave '0'+celular). La regla de los ?v= se mide
    contra lo publicado: TG_PUBLICADO=main. */
-const CACHE = 'tugarantia-v145';
+/* 13-nov-2026 (noche), v146 — SALE DESPUÉS DE v145 (main = 610ab7a). Rama
+   v146-subir-y-juntar. Con un cliente real, el primer cliente real del botón: Joan tocó «🔗
+   Juntar y desembolsar», lo llamó, tocó «juntar» y le salió «No la junté: este
+   computador todavía no subió el historial de esta ficha…», con la instrucción de ir a
+   Ajustes → Avanzado → ☁ Subir historiales. Joan: «yo no quiero estar subiendo cosas a
+   la nube manualmente… quiero registrar un crédito que fue hecho desde la parte de
+   contrapropuesta».
+   · SU FICHA SUBE SOLA AL TOCAR (panel/crm.html): el toque de «¿Es la misma persona?»,
+     la mesa («compararlos») y «🔗 Juntar su cuenta» de la ficha corren primero la
+     subida automática (HistorialesAuto.vuelta(true), lo mismo que el clic en la línea
+     de Ajustes, con todas sus puertas) y después juntan POR LA NUBE como siempre; con
+     la cuenta junta sigue el crédito que aceptó y el «💸 Ya puedes girarle…».
+   · El crédito NUNCA se registra sin juntar: la nube es la que mira la clave nueva, el
+     recado abierto, el celular ya junto con otra ficha y la ficha junta con otra
+     cuenta. (Un intento lo registraba sin juntar; la revisión adversaria mostró que así
+     cobraba un impostor. Otro ponía un botón «☁ Subir su ficha ahora»: era subir a mano,
+     y subía a todos aunque la cartera no estuviera comprobada. Los dos se quitaron.)
+   · Si este computador no puede subir la ficha —la misma puerta de la subida sola:
+     cartera sin comprobar (un respaldo recién importado), la nube con algo más nuevo,
+     fichas en discusión, la cartera sin guardar, sin conexión— o si otra ficha tiene su
+     mismo celular o cédula, el cuadro lo dice ANTES de que Joan llame, con el porqué
+     (las palabras de la línea de Ajustes) y sin ofrecer nada que termine juntando. Si
+     la comparación con la nube viene en camino, el toque la espera.
+   · Lo que la nube contesta tarde se pinta solo en el modal que lo pidió: la respuesta
+     de un cliente ya no pinta su «juntar» en el modal de otro.
+   · vigilar.yml escribe el TAP: si algo sale rojo en GitHub, herramientas/anotar-rojos.js
+     lo deja en anotaciones que se leen sin iniciar sesión (la v145 salió roja allá y
+     verde aquí, y el porqué no se pudo leer).
+   Solo cambia panel/crm.html (ningún .js de la página nuevo ni cambiado: sin ?v=
+   nuevos). CACHE y VERSION_SITIO suben a v146 en las cinco páginas que se actualizan
+   solas. NO HAY BASE NUEVA. La regla de los ?v= se mide contra lo publicado:
+   TG_PUBLICADO=main. */
+const CACHE = 'tugarantia-v146';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

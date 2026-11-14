@@ -207,7 +207,13 @@ describe('juntar no une la cuenta con la fila de nube de otra persona', () => {
     P.ev("juntarConUnToque('41','C1')");
     await asentar();
     assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 0, 'juntó una ficha cuya fila de nube puede ser de otro');
-    assert.match(avisos(P), /comparte\s+celular o cédula con otra/);
+    /* 13-nov (v146): antes el aviso mandaba a Joan a Ajustes a subir los
+       historiales a mano. Ahora el toque intenta subir la ficha solo y, si
+       este computador no puede, dice por qué (aquí: la subida de este banco
+       no tiene vuelta, como un CRM viejo). Los demás casos están en
+       juntar-y-desembolsar.test.js. */
+    assert.match(avisos(P), /No la junté\.\n\nEste computador no está subiendo las fichas de tus clientes a la nube, y sin subir la suya no la junto: /);
+    assert.doesNotMatch(avisos(P), /Avanzado|Subir historiales/);
     conHistoriales(P, { C1: '3001112222' });
     P.ev("juntarConUnToque('41','C1')");
     await asentar(16);

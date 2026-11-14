@@ -79,7 +79,8 @@ function montar(o) {
   o = o || {};
   const N = nube(Object.assign({ cuentas_de_registros: [CUENTA],
     vincular_cuenta_joan: { ok: true, ya_estaba: false, nombre: 'Jorge Antiguo', celular: CEL } }, o.nube || {}));
-  const P = abrirPanel({ red: N.red });
+  /* `envolverRed`: para retener una respuesta de la nube (la carrera del modal). */
+  const P = abrirPanel({ red: o.envolverRed ? o.envolverRed(N.red) : N.red });
   P.almacen.joan_socios_sb = JSON.stringify({ url: 'https://prueba.supabase.co', anon: 'llave-anon', clave: CLAVE });
   P.cargarCartera({ socios: (o.socios || [JORGE]).map(x => JSON.parse(JSON.stringify(x))), prestamos: [], config: { negocio: 'Tu Garantía' } });
   P.ctx.open = () => {};
@@ -610,5 +611,279 @@ describe('segunda revisión', () => {
     const dia = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     assert.equal(P.ev('diaLocalISO(' + JSON.stringify(iso) + ')'), dia);
     assert.ok(P.ev('fmtFechaHora(' + JSON.stringify(iso) + ')').startsWith(P.ev('fmtFecha(' + JSON.stringify(dia) + ')')));
+  });
+});
+
+/* ============================================================================
+ * SU FICHA SUBE SOLA AL TOCAR (13-nov, noche, v146). Con un cliente real: Joan lo
+ * llamó, tocó «juntar» y le salió «No la junté: este computador todavía no
+ * subió el historial de esta ficha…», con la instrucción de ir a Ajustes.
+ * Joan: «yo no quiero estar subiendo cosas a la nube manualmente». Ahora el
+ * toque corre la subida automática y después junta POR LA NUBE como siempre
+ * (la nube sigue mirando la clave nueva, el celular de otra ficha, etc.); si
+ * este computador no puede subirla, el cuadro lo dice antes de llamar. El
+ * crédito NUNCA se registra sin juntar (la revisión mostró que así cobraba un
+ * impostor).
+ * La subida automática (historiales-auto.js) no corre en el banco: aquí va una
+ * de mentira con lo que el CRM le pregunta, y el texto de la línea de Ajustes
+ * es el de verdad (textoCinta).
+ * ==========================================================================*/
+const { crear: crearHistoriales } = require('../panel/historiales-auto.js');
+const TEXTO_CINTA = crearHistoriales({})._puro.textoCinta;
+/* op.alVolver: {idFicha: llave} que la vuelta confirma (la ficha «sube»). */
+function conHistoriales(P, op) {
+  op = op || {};
+  P.ev('window.__hist = ' + JSON.stringify({ conf: op.conf || {}, ultimo: op.ultimo || null, habilitado: op.habilitado !== false,
+    alVolver: op.alVolver || {}, vueltas: 0 }));
+  P.ev(`window.HistorialesAuto = {
+    configurado: function () { return true; },
+    habilitado: function () { return !!window.__hist.habilitado; },
+    llaveConfirmada: function (id) { return window.__hist.conf[id] || null; },
+    estado: function () { return { ultimo: window.__hist.ultimo, cinta: { l1: 'Tus clientes ven lo de hace 2 h', l2: '' } }; },
+    vuelta: function (porOrden) {
+      window.__hist.vueltas++;
+      window.__hist.porOrden = porOrden;
+      var a = window.__hist.alVolver || {};
+      Object.keys(a).forEach(function (k) { window.__hist.conf[k] = a[k]; });
+      return Promise.resolve({});
+    },
+    subirTodo: function () { window.__hist.subirTodo = true; return Promise.resolve({ ok: true, confirmados: [] }); },
+    algoCambio: function () {}
+  };`);
+  P.ev('window.HistorialesAuto')._puro = { textoCinta: TEXTO_CINTA };
+}
+/* La cartera según nube-crm.js. libroAlDiaEsperando contesta lo de op.despues. */
+function conLibro(P, r, despues) {
+  P.ev('window.__libro = ' + JSON.stringify(r) + '; window.__libroDespues = ' + JSON.stringify(despues || null));
+  P.ev(`window.NubeCRM = {
+    libroAlDia: function () { return window.__libro; },
+    libroAlDiaEsperando: function () { if (window.__libroDespues) window.__libro = window.__libroDespues; return Promise.resolve(window.__libro); }
+  };`);
+}
+const llaveDe = P => String(P.ev('PUENTE.llaveEnLaNube(DB.socios[0])'));
+const toqueDe = P => /juntarConUnToque\('([^']+)','([^']+)',(true|false)\)/.exec(P.elems.juntarBoton.innerHTML);
+async function tocar(P, m) {
+  P.ev('juntarConUnToque(' + JSON.stringify(m[1]) + ',' + JSON.stringify(m[2]) + ',' + m[3] + ')');
+  await asentar(24);
+}
+const vueltas = P => P.ev('window.__hist.vueltas');
+const CON_CC = Object.assign({}, JORGE, { cedula: '79111222' });
+const OTRA = { id: 'C2', numero: 9, nombre: 'Otra Persona', cedula: '79111222', telefono: '3009998888', whatsappIgual: true,
+  referencia: { nombre: '', telefono: '' }, gestiones: [] };
+
+describe('su ficha sube sola al tocar, y el crédito sigue esperando a que la nube junte', () => {
+  test('el cuadro dice que al tocar la sube primero; el toque la sube, junta por la nube y registra lo que aceptó', async () => {
+    const { P, N, preguntas } = montar();
+    conHistoriales(P, { conf: {} });
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    const b = P.elems.juntarBoton.innerHTML;
+    assert.match(plano(b), /Su ficha todavía no subió a la nube desde este computador: al tocar, la subo primero \(es automático, unos segundos\) y después la junto como siempre\./);
+    assert.match(b, /onclick="juntarConUnToque\('41','C1',false\)">🔗 Sí, es la misma persona: juntar<\/button>/);
+    assert.doesNotMatch(b, /Subir historiales|Subir su ficha|Avanzado/, 'le pidió subir algo a mano');
+    assert.equal(vueltas(P), 0, 'subió antes del toque');
+    await tocar(P, toqueDe(P));
+    assert.equal(vueltas(P), 1, 'el toque no corrió la subida');
+    assert.equal(P.ev('window.__hist.porOrden'), true, 'la vuelta no fue la del clic');
+    assert.equal(P.ev('!!window.__hist.subirTodo'), false, 'subió a todos con el botón de Ajustes');
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 1, 'no juntó por la nube');
+    const p = creditos(P);
+    assert.equal(p.length, 1, 'no siguió con el crédito: ' + avisos(P));
+    assert.equal(p[0].capital, 1200000);
+    const fin = preguntas.find(m => /registrado para Jorge Antiguo/.test(m));
+    assert.match(fin, /💸 Ya puedes girarle \$1\.200\.000 a Nequi 300 111 2233, a nombre de Jorge Antiguo/);
+  });
+
+  test('la nube sigue mirando todo: si al juntar dice que ese celular es de otra ficha, no registra nada', async () => {
+    const { P, N } = montar({ nube: { vincular_cuenta_joan: { ok: false, motivo: 'telefono_con_otra_ficha' } } });
+    conHistoriales(P, { conf: {} });
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    await tocar(P, toqueDe(P));
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 1, 'no le preguntó a la nube');
+    assert.equal(creditos(P).length, 0, 'registró con un «no» de la nube');
+    assert.match(avisos(P), /No la junté\.[\s\S]*Y sin juntarla no registro el crédito\./);
+  });
+
+  test('si la subida no alcanza a confirmarla: no junta, no registra, y lo dice sin mandar a Ajustes', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {} });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    await tocar(P, toqueDe(P));
+    assert.equal(vueltas(P), 2, 'no lo intentó una segunda vez');
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 0);
+    assert.equal(creditos(P).length, 0);
+    assert.match(avisos(P), /No la junté\.\n\nIntenté subir su ficha y la nube todavía no la confirmó \(Tus clientes ven lo de hace 2 h\)\. Vuelve a tocar en un momento\.\n\nY sin juntarla no registro el crédito\./);
+    assert.doesNotMatch(avisos(P), /Avanzado|Subir historiales/);
+  });
+
+  test('si la nube tiene fichas más nuevas: el cuadro lo dice ANTES, sin toque, y no sube nada', async () => {
+    const { P } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false });
+    conLibro(P, { ok: false, motivo: 'nube-mas-nueva', fichas: 2 });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    const b = P.elems.juntarBoton.innerHTML;
+    assert.doesNotMatch(b, /juntarConUnToque\(|claveNuevaYJuntar\(|mesaDeCruce\(/, 'ofreció algo que termina juntando');
+    assert.match(plano(b), /Este computador no está subiendo las fichas de tus clientes a la nube, y sin subir la suya no junto su cuenta ni registro el crédito\. No lo llames todavía\./);
+    assert.match(plano(b), /Por qué: La nube tiene 2 fichas más nuevas que esta cartera/);
+    assert.match(b, /onclick="cerrarModal\(\)">Cerrar/);
+    assert.equal(vueltas(P), 0);
+  });
+
+  test('tras importar un respaldo (cartera sin comprobar): no ofrece el toque ni sube nada', async () => {
+    const { P } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false, ultimo: { fase: 'esperando-libro', motivo: 'falta-emparejar', pausa: 'respaldo' } });
+    conLibro(P, { ok: false, motivo: 'falta-emparejar' });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    assert.doesNotMatch(P.elems.juntarBoton.innerHTML, /juntarConUnToque\(/);
+    assert.match(plano(P.elems.juntarBoton.innerHTML), /Por qué: Estoy emparejando tu cartera con la nube/);
+    /* Y si igual llegara un toque (un modal viejo), no sube a ciegas. */
+    P.ev("juntarConUnToque('41','C1',false)");
+    await asentar(16);
+    assert.equal(vueltas(P), 0);
+    assert.equal(creditos(P).length, 0);
+    assert.match(avisos(P), /No la junté\.\n\nEste computador no está subiendo las fichas de tus clientes a la nube, y sin subir la suya no la junto: Estoy emparejando/);
+  });
+
+  test('«comparando»: el toque espera la comparación y, si está al día, sube y junta', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false });
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    conLibro(P, { ok: false, motivo: 'comparando' }, { ok: true, motivo: 'al-dia' });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    const m = toqueDe(P);
+    assert.ok(m, 'mientras compara, el toque se ofrece (espera la comparación)');
+    await tocar(P, m);
+    assert.equal(vueltas(P), 1);
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 1);
+    assert.equal(creditos(P).length, 1);
+  });
+
+  test('si otra ficha tiene su misma cédula: lo dice antes, nombra cuál, sin toque y sin subir', async () => {
+    const { P } = montar({ socios: [CON_CC, OTRA] });
+    conHistoriales(P, { conf: {} });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    const b = P.elems.juntarBoton.innerHTML;
+    assert.match(plano(b), /Su ficha no puede subir a la nube: otra ficha tiene su mismo celular o su misma cédula \( CL-0009 · Otra Persona \)/);
+    assert.match(plano(b), /Hasta entonces su cuenta no se junta y el crédito no se registra\./);
+    assert.doesNotMatch(b, /juntarConUnToque\(/);
+    assert.match(b, /verCliente\('C2'\)/);
+    P.ev("juntarConUnToque('41','C1',false)");
+    await asentar(16);
+    assert.equal(vueltas(P), 0, 'intentó subir una ficha que choca');
+    assert.match(avisos(P), /Su ficha no sube a la nube: otra ficha tiene su mismo celular o su misma cédula \(CL-0009 · Otra Persona\)/);
+  });
+
+  test('con la cartera sin guardar no sube: lo dice antes', async () => {
+    const { P } = montar();
+    conHistoriales(P, { conf: {} });
+    P.ev('_libroSinGuardar = true');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    assert.doesNotMatch(P.elems.juntarBoton.innerHTML, /juntarConUnToque\(/);
+    assert.match(plano(P.elems.juntarBoton.innerHTML), /Por qué: tu cartera no se pudo guardar en este navegador, y no subo lo que no quedó guardado/);
+  });
+
+  test('desde 📥 Registrados también sube sola y junta', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {} });
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("abrirJuntarCuenta('41','C1')");
+    await asentar();
+    await tocar(P, toqueDe(P));
+    assert.equal(vueltas(P), 1);
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 1);
+    assert.equal(P.ev('DB.socios[0].cuentaJunta.celular'), CEL);
+  });
+
+  test('la mesa («compararlos») también sube sola antes de juntar, y registra lo que aceptó', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {} });
+    P.ev('window.__hist.alVolver = { C1: ' + JSON.stringify(llaveDe(P)) + ' }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    P.ev("mesaDeCruce('41','C1',true)");
+    await asentar();
+    P.ev("aplicarCruce('41','C1')");
+    await asentar(24);
+    assert.equal(vueltas(P), 1);
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 1);
+    assert.equal(creditos(P).length, 1, 'no registró: ' + avisos(P));
+  });
+
+  test('la mesa sin poder subir: no registra, y el porqué no manda a Ajustes', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {}, habilitado: false });
+    conLibro(P, { ok: false, motivo: 'nube-mas-nueva', fichas: 1 });
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    P.ev("mesaDeCruce('41','C1',true)");
+    await asentar();
+    P.ev("aplicarCruce('41','C1')");
+    await asentar(24);
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 0);
+    assert.equal(creditos(P).length, 0);
+    assert.match(avisos(P), /Este computador no está subiendo las fichas de tus clientes a la nube, y sin subir la suya no la junto: La nube tiene 1 ficha más nueva/);
+    assert.doesNotMatch(avisos(P), /Subir historiales|Avanzado/);
+  });
+
+  test('una respuesta tardía de la nube no pinta el toque de un cliente en el cuadro de OTRO', async () => {
+    const ANA = { id: 'C2', numero: 9, nombre: 'Ana Segunda', cedula: '', telefono: '3005556666', whatsappIgual: true,
+      referencia: { nombre: '', telefono: '' }, gestiones: [] };
+    const REG2 = Object.assign({}, REG, { id: 42, nombre: 'Ana Segunda', telefono: '3005556666', datos: { nombres: 'Ana', apellidos: 'Segunda', celular: '3005556666' } });
+    let soltar = null;
+    const envolverRed = base => (url, cfg) => {
+      const fn = (/\/rpc\/([a-z_]+)$/.exec(url) || [])[1];
+      let c = null; try { c = JSON.parse(cfg.body); } catch (e) { c = null; }
+      if (fn === 'cuentas_de_registros' && c && c.p_ids[0] === 41 && !soltar) return new Promise(r => { soltar = () => r(base(url, cfg)); });
+      return base(url, cfg);
+    };
+    const { P, N } = montar({ socios: [JORGE, ANA], registros: [REG, REG2], envolverRed,
+      nube: { cuentas_de_registros: c => [Object.assign({}, CUENTA, { registro_id: c.p_ids[0], celular: c.p_ids[0] === 42 ? '3005556666' : CEL })] } });
+    P.ev("abrirJuntarCuenta('41','C1')");
+    await asentar();
+    P.ev('cerrarModal()');
+    P.ev("abrirJuntarCuenta('42','C2')");
+    await asentar();
+    assert.match(P.elems.juntarBoton.innerHTML, /juntarConUnToque\('42','C2'/, 'precondición: el toque de Ana');
+    soltar();
+    await asentar(16);
+    assert.doesNotMatch(P.elems.juntarBoton.innerHTML, /juntarConUnToque\('41','C1'/, 'pintó el toque de Jorge en el cuadro de Ana');
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 0);
+  });
+
+  test('con su ficha ya arriba, nada cambia: ni nota ni subida', async () => {
+    const { P, N } = montar();
+    conHistoriales(P, { conf: {} });
+    P.ev('window.__hist.conf.C1 = ' + JSON.stringify(llaveDe(P)));
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    assert.doesNotMatch(plano(P.elems.juntarBoton.innerHTML), /no subió a la nube/);
+    await tocar(P, toqueDe(P));
+    assert.equal(vueltas(P), 0);
+    assert.equal(llamadasA(N, 'vincular_cuenta_joan').length, 1);
+    assert.equal(creditos(P).length, 1);
+  });
+
+  test('en un computador que no sube historiales (la reja no aplica), el toque es el de siempre', async () => {
+    const { P } = montar();
+    P.ev('window.HistorialesAuto = { configurado: function () { return false; }, llaveConfirmada: function () { return null; } }');
+    P.ev("juntarYDesembolsar('s1')");
+    await asentar();
+    assert.match(P.elems.juntarBoton.innerHTML, /🔗 Sí, es la misma persona: juntar/);
+    assert.doesNotMatch(plano(P.elems.juntarBoton.innerHTML), /no subió a la nube/);
+  });
+
+  test('nunca hay un camino que registre el crédito sin juntar', () => {
+    const crm = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
+    assert.doesNotMatch(crm, /\{sinJuntar:|op\.sinJuntar|registrarSinJuntar|subirFichaParaJuntar|bloqueSubirParaJuntar/);
+    assert.match(crm, /function crearDesdeSolicitud\(id,idFicha\)\{/);
   });
 });
