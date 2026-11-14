@@ -21,6 +21,11 @@
  *   4. lo que encontró la revisión adversaria del mismo día (bloque 4): la
  *      fila de la que espera, la ficha que Joan juntó (suelta), quien trajo a
  *      uno de los que esperan, y la nube entera traída cada 5 min para nada.
+ *   5. lo que encontró la segunda revisión (bloque 5): quien «trajo» a uno de
+ *      los que esperan tiene que ser una ficha de esta cartera. Lo demás de esa
+ *      revisión tiene su archivo: la-suelta-caduca, el-ojo-tras-un-respaldo,
+ *      la-fila-de-la-ficha-sin-cedula, respaldo-con-subida-en-el-aire,
+ *      el-respaldo-pausa-cliente-por-cliente y el-cuadro-no-se-queda-comparando.
  * Las pruebas de 1 y 3 fallan contra 952e5fc (v147, sin publicar), salvo
  * «cuando la discusión se resuelve», que vigila el final de siempre; las de 2
  * vigilan que lo de antes siga igual.
@@ -345,4 +350,26 @@ describe('4 · lo que encontró la revisión', () => {
     assert.deepEqual(estadoH(m).sueltas || {}, {});
   });
 
+});
+
+describe('5 · lo que encontró la segunda revisión', () => {
+  test('un referidoPor que no es de esta cartera (su referidor se borró) no cuenta como «cliente que trajo a otro»', async () => {
+    /* Borrar una ficha la manda a papeleraSocios y no limpia el referidoPor de
+       sus referidos: la línea contaba a alguien que ya no existe ni sube. */
+    const c = cartera(3, 1); c.socios[1].referidoPor = 'C9';
+    const m = montar({ cartera: c, libro: { ok: false, motivo: 'en-discusion', congeladas: 2 }, porCliente: DISCUSION_C1 });
+    await primera(m);
+    assert.deepEqual(subidos(m), ['1000000', '1000002']);
+    const x = cinta(m);
+    assert.match(x.l1, /, menos 1 cliente$/, 'contó a un cliente que no existe: ' + x.l1);
+    assert.doesNotMatch(plano(x.l2), /trajo a otro/, 'dice que espera un cliente que trajo a otro: ' + plano(x.l2));
+  });
+
+  test('CONTROL: si quien lo trajo sí es de la cartera, espera y se cuenta', async () => {
+    const c = cartera(3, 1); c.socios[1].referidoPor = 'C0';
+    const m = montar({ cartera: c, libro: { ok: false, motivo: 'en-discusion', congeladas: 2 }, porCliente: DISCUSION_C1 });
+    await primera(m);
+    assert.deepEqual(subidos(m), ['1000002']);
+    assert.match(cinta(m).l1, /, menos 2 clientes$/);
+  });
 });

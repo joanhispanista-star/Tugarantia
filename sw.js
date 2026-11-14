@@ -2354,6 +2354,21 @@
      se junta sola» no era verdad); y la línea no trae la nube entera cada 5 min para nada.
    Pruebas: pruebas/cliente-por-cliente.test.js (su bloque 4 es la revisión) y los dos últimos
    bloques de juntar-y-desembolsar.
+   · La SEGUNDA revisión, también antes de publicar: 5 hallazgos comprobados, los 8 que no
+     alcanzó a comprobar y 1 de sus 4 menores (ninguno registraba sin juntar). La ficha sin
+     cédula cuya llave es la fila de otra espera: la cuenta de la otra veía su nombre y su
+     deuda (lo que falta lo cierra la nube: PLAN-FILA-SIN-CEDULA.md, sin aplicar). La suelta
+     caduca a las 12 h. Con un respaldo importado esperan todos, como antes, y el «Ojo» nombra
+     el respaldo, no el celular. Un respaldo que entra con una subida en el aire no se mezcla
+     con ella. El cuadro ya no se queda en «Comparando…» si la nube falla la segunda vez. La
+     mesa de cruce, «🔗 Juntar su cuenta» y la clave nueva desde la ficha dicen el «Ojo». «Se
+     junta sola desde las HH:MM» solo si su ficha subió. El crédito registrado a quien ya
+     tenía la cuenta junta dice si su app todavía no lo muestra. Y la línea no cuenta como
+     «cliente que trajo a otro» a una ficha borrada.
+     Pruebas: la-suelta-caduca, el-ojo-tras-un-respaldo, la-fila-de-la-ficha-sin-cedula,
+     respaldo-con-subida-en-el-aire, el-respaldo-pausa-cliente-por-cliente,
+     el-cuadro-no-se-queda-comparando, el-ojo-en-todas-las-puertas y el bloque 5 de
+     cliente-por-cliente.
    Y lo que la revisión adversaria le encontró a «su ficha sube sola al tocar» ya publicada, y
    el rojo de GitHub:
    · Lo de ESTE toque se toma al tocar (el cuadro, la revisión, la solicitud pendiente): si

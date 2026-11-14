@@ -2845,7 +2845,10 @@ function pintarCuentaDelToque(r,s,conBoton,soloJuntar,yaComparo){
       const c=(Array.isArray(lista)?lista:[])[0]||null;
       const caja=document.getElementById('juntarCuenta'), b=document.getElementById('juntarBoton');
       if(!caja) return;
-      if(!c){ caja.innerHTML='<div class="alerta warn">La nube no encontró ese registro. Trae de nuevo los registrados.</div>'; return; }
+      /* (segunda revisión, 14-nov) El botón también: si este repintado viene de
+         la espera de la comparación, se quedaba en «☁ Comparando su ficha con
+         la nube…» para siempre, sin Cerrar (ver quitarEsperaDelBoton). */
+      if(!c){ caja.innerHTML='<div class="alerta warn">La nube no encontró ese registro. Trae de nuevo los registrados.</div>'; quitarEsperaDelBoton(conBoton,b); return; }
       const llave=PUENTE.llaveEnLaNube(s), k=UP.claveNuevaPara(c,llave,Date.now());
       const pideClave=UP.requiereClaveNueva(c)&&!k.lista;
       /* 13-nov-2026 (revisión) — una clave nueva ya dada (desde aquí, desde un
@@ -2865,8 +2868,22 @@ function pintarCuentaDelToque(r,s,conBoton,soloJuntar,yaComparo){
         ?escHTML('Tócalo solo si lo llamaste al número de su FICHA ('+(UP.bonito(waNum(s))||'—')+') y te dijo él mismo qué pidió'
           +(conCuenta?' y a qué cuenta le consignas':'')+'. Que la cédula, el celular o el registro coincidan no lo prueba.')
         :escHTML(UP.textoConfirmacion(c.verificacion,c.celular,waNum(s)));
+      /* 14-nov-2026 (segunda revisión) — LA MESA TAMBIÉN DICE EL «OJO». Su «Es
+         la misma persona» sube la ficha y junta la cuenta como el toque
+         (aplicarCruce), y al juntar la deja suelta: callarlo aquí era juntar a
+         ciegas una ficha en discusión. No espera la comparación (la mesa no
+         tiene un cuadro que repintar): si está vencida, dice que no pudo
+         comparar, y al tocar subirSuFichaSiFalta la espera y, si sale algo que
+         esto no dijo, no sube ni junta y lo dice. Lo dicho queda en _mesaOjo. */
+      let ojoMesa='';
+      if(!conBoton&&c.cuenta){
+        const discM=suFichaEnDiscusion(s), tM=textoOjoFicha(discM);
+        _mesaOjo={reg:String(r.id),socio:s.id,disc:discM};
+        if(tM) ojoMesa='<div class="alerta info" style="margin-top:8px">☁ '+escHTML(tM)+'</div>';
+      }
       caja.innerHTML=bloqueCuentaDelToque(c,s)
         +(c.cuenta&&!conBoton?'<div class="alerta info" style="margin-top:8px">'+confirmacion+'</div>':'')
+        +ojoMesa
         +(c.cuenta&&!conBoton&&pideClave?'<div class="alerta warn" style="margin-top:8px">Con esta cuenta, «Es la misma persona» guarda el cruce '
           +'de los datos, pero la cuenta NO se junta todavía: queda por juntar en su ficha, con «🔑 Clave nueva al número de su ficha».</div>':'');
       if(!conBoton||!b) return;
@@ -2954,7 +2971,17 @@ function pintarCuentaDelToque(r,s,conBoton,soloJuntar,yaComparo){
       const caja=document.getElementById('juntarCuenta'); if(!caja) return;
       caja.innerHTML='<div class="alerta warn">No pude preguntar por la cuenta. '+escHTML(errNube(e))
         +(/cuentas_de_registros/.test(errNube(e))?' Falta correr <b>base/20261007_una_puerta.sql</b> en el SQL Editor.':'')+'</div>';
+      if(modalJuntarSigue(r,s,vez)) quitarEsperaDelBoton(conBoton,document.getElementById('juntarBoton'));
     });
+}
+/* 14-nov-2026 (segunda revisión) — cuando la segunda pregunta a la nube (la
+   que repinta el cuadro tras esperar la comparación, o tras el «Ojo» del
+   toque) falla o ya no trae el registro, la caja lo dice, pero el botón
+   seguía con lo de antes: «☁ Comparando su ficha con la nube…» sin botón ni
+   Cerrar, o un toque viejo. Se deja Cerrar: volver a abrir «🔗 Juntar y
+   desembolsar» pregunta de nuevo. Solo en el cuadro (la mesa no tiene botón). */
+function quitarEsperaDelBoton(conBoton,b){
+  if(conBoton&&b) b.innerHTML='<button class="btn btn-ghost" onclick="cerrarModal()">Cerrar</button>';
 }
 /* 7-oct-2026 (segunda vuelta) — sin el renglón del «código de verificación…
    mira si te llegó por WhatsApp desde ese número»: play/ dejó de pedirle a
@@ -3052,7 +3079,9 @@ function juntarCuentaEnLaNube(r,s,llave,por,rev,nombre){
         /* 14-nov-2026 (revisión) — su ficha deja de esperar a que se decidan
            las fichas en discusión (SUELTAS, historiales-auto.js): lo que se le
            registre desde ya, empezando por el crédito, le llega a su app. */
-        if(H&&typeof H.soltar==='function'){ try{ H.soltar(s.id); }catch(e){} }
+        /* (verificación) con la llave que la reja vio confirmada: si mientras la
+           nube juntaba entró un respaldo, no se suelta en la cartera importada. */
+        if(H&&typeof H.soltar==='function'){ try{ H.soltar(s.id,llave); }catch(e){} }
         return {ok:true,j:j,texto:j.ya_estaba
           ?'Su cuenta ya estaba junta con esta ficha: no cambió nada.'
           :'Su cuenta (el '+UP.bonito(j.celular)+') quedó junta con '+codCliente(s)+'. Desde ya ve su historial al entrar con su celular y su contraseña, y le llegó el aviso en su chat.'
@@ -3114,6 +3143,17 @@ function faltaSubirParaJuntar(s){
   if(!s||!H||!H.llaveConfirmada||(typeof H.configurado==='function'&&!H.configurado())) return false;
   const k=H.llaveConfirmada(s.id);
   return !k||String(k)!==String(PUENTE.llaveEnLaNube(s));
+}
+/* 14-nov-2026 (segunda revisión) — LA HORA DE LA CLAVE NUEVA, DICHA SIN
+   PROMETER. «Su cuenta se junta sola desde las HH:MM» solo es verdad si su
+   ficha ya subió: juntarCuentasPendientes no toma una ficha cuya llave la nube
+   no confirmó, y con fichas en discusión la vuelta solo sube las sueltas. El
+   cuadro ya lo decía así (sinSubir); la ficha y 📨 Solicitudes, no. */
+function horaDeJuntarse(s,iso){
+  const hh=fmtFechaHora(iso).slice(-5);
+  return faltaSubirParaJuntar(s)
+    ?'se puede juntar desde las '+hh+'; si a esa hora no se juntó sola, toca «🔗 Juntar su cuenta» en su ficha'
+    :'su cuenta se junta sola desde las '+hh+' con este computador abierto';
 }
 /* Las otras fichas que la nube tomaría por esta: las reglas de fichasQueChocan
    (historiales-auto.js) sobre lo mismo que sube loteMigracion. Chocan si
@@ -3276,6 +3316,10 @@ function bloqueNoSube(r,s,otras,no){
 let _modalJuntar=null, _vecesJuntar=0;
 /* 14-nov-2026 — lo último que contestó la subida de UNA ficha: {socio, res}. */
 let _subidaUna=null;
+/* 14-nov-2026 (segunda revisión) — lo que la mesa de cruce le dijo a Joan de
+   su ficha (pintarCuentaDelToque sin botón): {reg, socio, disc}. aplicarCruce
+   se lo pasa a subirSuFichaSiFalta como `vio`, igual que el cuadro. */
+let _mesaOjo=null;
 /* 14-nov-2026 — ¿su ficha es de las que esperan decisión? Lo dice
    NubeCRM.libroPorCliente cuando ya sabe de quién es cada cosa: 'en-discusion',
    'nube-mas-nueva' o null (mientras compara, no se sabe y no se dice). */
@@ -3295,9 +3339,21 @@ function suFichaEnDiscusion(s){
   }catch(err){ return null; }
 }
 /* El «Ojo» del cuadro, con las palabras de cada caso ('' si no hay nada). */
+/* (verificación de la revisión, 14-nov) Con un respaldo importado y la cartera
+   sin comprobar (la pausa 'respaldo' de historiales-auto.js), la ficha de aquí
+   es la que trajo el archivo: lo que no coincide con la nube puede ser un pago
+   o un crédito que el respaldo no tenía, sin que el celular tocara nada. «La
+   tocaste aquí y en el celular» le escondía a Joan que, al juntar, su app
+   vuelve a mostrar lo viejo (un pago que ya vio). */
+function delRespaldoSinComprobar(){
+  try{ const H=window.HistorialesAuto, e=H&&typeof H.estado==='function'?H.estado():null; return !!(e&&e.pausa==='respaldo'); }catch(err){ return false; }
+}
 function textoOjoFicha(disc){
-  if(disc==='sin-saber') return 'Ojo: no pude comparar su ficha con la nube; si la tocaste en el celular, su app va a mostrar lo de este computador.';
   if(!disc) return '';
+  if(delRespaldoSinComprobar()) return disc==='sin-saber'
+    ?'Ojo: no pude comparar su ficha con la nube, y la de aquí es la del respaldo que importaste: si la nube tiene algo más nuevo (un pago o un crédito que el respaldo no tenía), su app va a mostrar lo del respaldo.'
+    :'Ojo: su ficha no coincide con la de la nube, y la de aquí es la del respaldo que importaste, que puede ser más vieja (un pago o un crédito que el respaldo no tenía). Su app va a mostrar lo de este computador, o sea lo del respaldo; lo de la nube no se borra y lo decides en ☁ Subir.';
+  if(disc==='sin-saber') return 'Ojo: no pude comparar su ficha con la nube; si la tocaste en el celular, su app va a mostrar lo de este computador.';
   return 'Ojo: '+(disc==='nube-mas-nueva'?'la nube tiene algo más nuevo de su ficha (lo que anotaste en el celular)':'su ficha no coincide con la de la nube (la tocaste aquí y en el celular)')
     +'. Su app va a mostrar lo de este computador; lo de la nube no se borra y lo decides cuando quieras.';
 }
@@ -3393,10 +3449,16 @@ function claveNuevaYJuntar(idReg,idSocio,soloJuntar){
     if(!c||!c.cuenta) return alert('Ese registro no tiene una cuenta en la app a la que cambiarle la contraseña.');
     const cel=diez(c.celular), destino=diez(waNum(s));
     if(destino.length!==10) return alert('La ficha de '+(s.nombre||'este cliente')+' no tiene un WhatsApp de 10 dígitos: no hay a dónde mandar la clave nueva. Complétalo primero.');
+    /* 14-nov-2026 (segunda revisión) — desde su ficha no hay cuadro que haya
+       dicho el «Ojo» (ojoDelModal da undefined): va en el confirm, y lo dicho
+       es lo que la subida vuelve a mirar. Desde el cuadro ya lo dijo él. */
+    const vioCuadro=ojoDelModal(idReg,s.id), vio=vioCuadro===undefined?suFichaEnDiscusion(s):vioCuadro;
+    const ojo=vioCuadro===undefined?textoOjoFicha(vio):'';
     if(!confirm('Darle una contraseña nueva a la cuenta del '+UP.bonito(cel)+' y mandársela por WhatsApp al número de la FICHA de '
       +(s.nombre||'este cliente')+': '+UP.bonito(destino)+'.\n\n'
       +'Quien esté adentro de esa cuenta queda afuera, y solo entra quien reciba tu WhatsApp. Una hora después la cuenta se junta sola con la ficha (con este computador abierto).'
       +(destino!==cel?'\n\nOJO: el número de la ficha NO es el de la cuenta. La clave le llega al dueño de la ficha, y el mensaje le dice con qué celular entrar.':'')
+      +(ojo?'\n\n'+ojo:'')
       +'\n\n¿Sigo?')) return;
     return rpc('clave_temporal_joan',{p_clave:sbCfg().clave,p_celular:cel,p_ficha:PUENTE.llaveEnLaNube(s)}).then(j=>{
       if(!j||j.ok!==true) return alert('No cambié la contraseña. '+UP.textoMotivo(j));
@@ -3408,7 +3470,7 @@ function claveNuevaYJuntar(idReg,idSocio,soloJuntar){
                  ficha sin subir, y con fichas en discusión la vuelta no la sube.
                  Joan acaba de actuar sobre ESTE cliente: sube ella sola (con
                  todas las puertas de subirUna) y lo que vio en el cuadro. */
-              subirSuFichaSiFalta(s2,null,ojoDelModal(idReg,s2.id)); }
+              subirSuFichaSiFalta(s2,null,vio); }
       /* 13-nov-2026 — si venía de «🔗 Juntar y desembolsar», el crédito no sigue
          solo: lo que aceptó lo eligió quien estaba adentro antes de esta clave. */
       const txtClave=esperaTrasJuntar(idReg,s.id)?textoTrasClave():'';
@@ -3482,13 +3544,20 @@ function juntarPendienteAhora(id){
   const s=DB.socios.find(x=>x.id===id); if(!s||!s.cuentaPorJuntar||!unaPuertaLista()) return;
   const cp=s.cuentaPorJuntar;
   if(cp.noAntesDe&&Date.now()<Date.parse(cp.noAntesDe)){
+    /* (segunda revisión del 14-nov) «A esa hora se junta sola» solo si su
+       ficha ya subió: juntarCuentasPendientes no toma una ficha sin subir. */
     return alert('Le diste una clave nueva al número de su ficha. Se puede juntar desde las '+fmtFechaHora(cp.noAntesDe).slice(-5)
-      +': hasta entonces, la sesión de quien estuviera adentro con ese número todavía vale. A esa hora se junta sola con este computador abierto.');
+      +': hasta entonces, la sesión de quien estuviera adentro con ese número todavía vale. '
+      +(faltaSubirParaJuntar(s)?'Su ficha todavía no subió a la nube desde este computador: si a esa hora no se juntó sola, vuelve a tocar aquí.'
+        :'A esa hora se junta sola con este computador abierto.'));
   }
   /* (revisión del 14-nov) El «Ojo» del cuadro, también aquí: lo que se sabe
      sin esperar (si la comparación está vencida, el toque la espera y, si
-     sale algo que esto no dijo, no sube y lo dice). */
-  const disc=suFichaEnDiscusion(s), ojo=disc==='sin-saber'?'':textoOjoFicha(disc);
+     sale algo que esto no dijo, no sube y lo dice).
+     (segunda revisión) Con la comparación vencida también se dice («no pude
+     comparar…»): callarlo era juntar y soltar su ficha sin una palabra, si ya
+     había subido (entonces el toque no espera nada). */
+  const disc=suFichaEnDiscusion(s), ojo=textoOjoFicha(disc);
   if(!confirm('Juntar la cuenta de '+(s.nombre||'este cliente')+' con su ficha.\n\n'
     +(cp.motivo?'Lo que dijo la nube: '+cp.motivo+'\n\n':'')
     +(ojo?ojo+'\n\n':'')
@@ -6660,7 +6729,7 @@ function verCliente(id){
   const bloqueCuenta=`<div class="info-row con-botones"><span class="k">Su cuenta en la app
        <div class="muted">${cj?'Junta desde este computador con el '+escHTML(UP?UP.bonito(cj.celular):cj.celular)+' el '+fmtFecha(cj.fecha)
          :cpj?(cpj.motivo?'La nube no juntó su cuenta sola: falta tu toque (lo que dice abajo)'
-               :esperaClave?'Le diste una clave nueva al número de su ficha: su cuenta se junta sola desde las '+escHTML(fmtFechaHora(cpj.noAntesDe).slice(-5))
+               :esperaClave?'Le diste una clave nueva al número de su ficha: '+escHTML(horaDeJuntarse(s,cpj.noAntesDe))
                :'Por juntar: se junta sola cuando su historial suba a la nube')
          :'Este computador no la ha juntado. «🔗 Ver en la nube» dice si está junta; si ya se registró, «🔗 Buscar su registro» lo trae para juntarla.'}</div></span>
        <span class="vv"><button class="btn btn-ghost btn-sm" onclick="cuentaDeLaFicha('${s.id}')" title="Pregunta a la nube con qué cuenta está junta, y deja deshacerla">🔗 Ver en la nube</button>
@@ -23003,6 +23072,9 @@ function aplicarCruce(idReg,idSocio,op){
   op=op||{};
   const r=registroPorId(idReg), s=DB.socios.find(x=>x.id===idSocio);
   if(!r||!s) return;
+  /* 14-nov-2026 (segunda revisión) — lo que la mesa le dijo de su ficha
+     (_mesaOjo): la subida que sigue lo vuelve a mirar, como el toque. */
+  const vioMesa=_mesaOjo&&_mesaOjo.reg===String(idReg)&&_mesaOjo.socio===s.id?_mesaOjo.disc:undefined;
   /* 7-oct-2026 — la llave de la ficha en la nube ANTES de tocar nada: si el
      cruce le carga la cédula, la nube la sigue conociendo por la de antes
      hasta la próxima subida, y juntar la cuenta se lo pregunta con esta. Y su
@@ -23142,9 +23214,17 @@ function aplicarCruce(idReg,idSocio,op){
   const llaveDespues=PUENTE.llaveEnLaNube(s), celDespues=String(waNum(s)||s.telefono||'').replace(/\D/g,'');
   if(llaveDespues!==llaveAntes&&(llaveAntes!==celDespues||!UP.mismoNombre(nombreAntes,s.nombre))){
     const anotada=quedaPorJuntar(null);
+    /* 14-nov-2026 (segunda revisión) — «se junta sola… (unos minutos)» solo si
+       su ficha sube con la llave nueva, y con fichas en discusión la vuelta no
+       la sube (no es suelta): la promesa era falsa justo hoy. Sube ella sola,
+       como tras la clave nueva (claveNuevaYJuntar), y juntarCuentasPendientes
+       la junta en cuanto la nube le confirme la llave. Si algo la frena (otra
+       ficha con su número, la reja de la fila), lo dice su ficha. */
+    if(anotada) subirSuFichaSiFalta(s,null,vioMesa);
     alert(resumen+'\n\n'+(anotada
-      ?'Su cuenta en la app se junta sola cuando su historial suba a la nube con los datos nuevos '
-        +'(unos minutos, con este computador abierto). Juntarla ahora la dejaría pegada a la fila de antes, que ya no se actualiza. '
+      ?'Su cuenta en la app se junta sola cuando su historial suba a la nube con los datos nuevos: lo subo ya '
+        +'(unos minutos, con este computador abierto; si no se juntó, tócalo en su ficha, «🔗 Juntar su cuenta», y te dice por qué). '
+        +'Juntarla ahora la dejaría pegada a la fila de antes, que ya no se actualiza. '
         +'Si la nube ve algo raro, su ficha te lo dice.'
       :'Su cuenta en la app NO se junta: esta ficha ya está junta con otra cuenta. Mírala en su ficha («🔗 Ver en la nube»).')
       +sinCreditoTrasJuntar(idReg,s.id));
@@ -23163,7 +23243,7 @@ function aplicarCruce(idReg,idSocio,op){
   const H=window.HistorialesAuto, rev=_juntarRev, solAlTocar=esperaTrasJuntar(idReg,s.id)?_trasJuntar.sol:null;
   const conocida=!H||!H.llaveConfirmada||(typeof H.configurado==='function'&&!H.configurado())
     ||String(H.llaveConfirmada(s.id)||'')===String(llaveAntes);
-  (conocida?Promise.resolve(false):subirSuFichaSiFalta(s))
+  (conocida?Promise.resolve(false):subirSuFichaSiFalta(s,null,vioMesa))
     .then(()=>conocida||faltaSubirParaJuntar(s)
       ?juntarCuentaEnLaNube(r,s,llaveAntes,'crm',rev,nombreAntes)
       :juntarCuentaEnLaNube(r,s,PUENTE.llaveEnLaNube(s),'crm',rev,s.nombre||''))
@@ -24688,7 +24768,7 @@ function queSigueSinJuntar(idSocio,res,s){
   if(m==='pide_toque'||m==='necesita_clave_nueva'||(cpj&&cpj.pideClave))
     return 'Lo que sigue: «🔑 Clave nueva al número de su ficha»'+(anotada?' (en su ficha)':'')+'. '+textoTrasClaveDe(s);
   if(m==='clave_reciente'||(cpj&&cpj.noAntesDe&&Date.parse(cpj.noAntesDe)>Date.now()&&!cpj.motivo))
-    return (cpj&&cpj.noAntesDe?'Ya le diste una clave nueva: su cuenta se junta sola desde las '+fmtFechaHora(cpj.noAntesDe).slice(-5)+' con este computador abierto. '
+    return (cpj&&cpj.noAntesDe?'Ya le diste una clave nueva: '+horaDeJuntarse(s2,cpj.noAntesDe)+'. '
       :'Ya le diste una clave nueva: su cuenta se junta sola cuando pase su hora, con este computador abierto. ')+textoTrasClaveDe(s);
   if(m==='ficha_con_otra_cuenta')
     return 'En su ficha, «🔗 Ver en la nube» te muestra con cuál está junta. No le prestes con esta solicitud hasta aclararlo.';
@@ -24747,6 +24827,27 @@ function sinCreditoTrasJuntar(idReg,idSocio){
 }
 /* 13-nov-2026 — «me avisas para poder desembolsar»: el registro termina
    diciendo cuánto girar y a dónde, que es lo que Joan hace después. */
+/* 14-nov-2026 (segunda revisión) — EL CRÉDITO QUE SU APP TODAVÍA NO MUESTRA.
+   A quien juntaste hoy, su ficha sube aunque otras esperen (una suelta). Pero
+   si su cuenta ya estaba junta de antes y su ficha está en discusión (o la
+   nube tiene algo más nuevo de ella), espera como las demás: el crédito queda
+   registrado aquí y su app no lo muestra hasta que decidas en ☁ Subir. Antes
+   el aviso callaba, y la línea le ofrecía «si juntas su cuenta» a quien ya la
+   tenía junta. Que registrar también la suelte es decisión de Joan: hoy solo
+   se dice. */
+function notaSuAppTrasCredito(cli){
+  const H=window.HistorialesAuto;
+  if(!cli||!cli.cuentaJunta||!H) return '';
+  try{
+    if(typeof H.habilitado==='function'&&H.habilitado()) return '';
+    if(typeof H.esSuelta==='function'&&H.esSuelta(cli.id)) return '';
+  }catch(e){ return ''; }
+  const disc=suFichaEnDiscusion(cli);
+  if(disc!=='en-discusion'&&disc!=='nube-mas-nueva') return '';
+  return '\n\n☁ Su app todavía no lo muestra: su ficha es de las que esperan '
+    +(disc==='nube-mas-nueva'?'(la nube tiene algo más nuevo de ella, lo del celular): le llega cuando lo juntes en ☁ Subir (paso 6).'
+      :'(no coincide con la de la nube): le llega cuando elijas en ☁ Subir (paso 7).');
+}
 function textoParaGirar(cap,dst,cli,s){
   const nom=(cli&&cli.nombre)||'el cliente';
   if(dst) return '💸 Ya puedes girarle '+COP(cap)+' a '+destinoEnPalabras(dst)+', a nombre de '+nom
@@ -24924,7 +25025,7 @@ function crearDesdeSolicitud(id,idFicha){
   if(!quedoEnDisco()){ render(); return; }
   marcarEnNube(s,'atendida'); quitarSolicitud(id);
   render();
-  if(confirmarExito('✓ Crédito '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n'+textoParaGirar(q.capital,dst,cli,s)+'\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
+  if(confirmarExito('✓ Crédito '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n'+textoParaGirar(q.capital,dst,cli,s)+notaSuAppTrasCredito(cli)+'\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
 }
 
 /* 13-nov-2026 — LA QUINCENAL A CUOTAS, OTRA VEZ CON EL MOTOR. Lo que el cliente
@@ -25000,7 +25101,7 @@ function desembolsarQuincenalACuotas(s,cli){
   if(!quedoEnDisco()){ render(); return; }
   marcarEnNube(s,'atendida'); quitarSolicitud(String(s.id));
   render();
-  if(confirmarExito('✓ Crédito a cuotas '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n'+textoParaGirar(cap,dst,cli,s)+'\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
+  if(confirmarExito('✓ Crédito a cuotas '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n'+textoParaGirar(cap,dst,cli,s)+notaSuAppTrasCredito(cli)+'\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
 }
 
 /* La ficha de un cliente nuevo, con TODO lo que declaró al registrarse — el

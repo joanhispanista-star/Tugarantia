@@ -117,11 +117,38 @@
  *   · SUELTAS: la ficha que Joan juntó (subirUna, o soltar desde crm.html al
  *     juntar su cuenta) deja de esperar. Si no, el crédito que se le registra
  *     enseguida no le llegaba a su app hasta decidir TODO en ☁ Subir. Sube
- *     también cuando esperan todos (subirSueltas), ella sola.
+ *     también cuando esperan todos (subirSueltas), ella sola. Vale 12 horas
+ *     (SUELTA_MS): sin caducar, lo que Joan le cobraba después en el celular
+ *     quedaba debajo de lo de este computador para siempre.
  *   · Quien trajo a uno de los que esperan también espera: su paquete cuenta
  *     si su referido pagó, con la ficha de acá, que es la que no coincide.
  *   · libroCambio no vuelve a preguntar lo ya dicho: con un ajuste en
  *     discusión, cada repintada traía la nube entera cada 5 min, para nada.
+ *   Y la segunda revisión (el mismo día, antes de publicar), cinco más:
+ *   · Con la pausa de un RESPALDO importado no se sube cliente por cliente:
+ *     esperan todos, como antes (solo suben las sueltas). Cada paquete lleva
+ *     las cifras del grupo y los referidos de la cartera ENTERA, y con un
+ *     respaldo viejo los que «coinciden» subían con lo del respaldo: a todos
+ *     les bajaba «créditos pagados», y a quien trajo a alguien que el respaldo
+ *     no tiene, su referido pagado y sus 5.000 de garantía.
+ *   · La suelta caduca a las 12 horas (SUELTA_MS, arriba).
+ *   · Un respaldo que entra mientras una subida está en el aire: lo que
+ *     contesta la nube era de la cartera de antes y no se anota (ni huella ni
+ *     suelta) en la importada. Se ve por `reemplazos`, que va en el estado
+ *     guardado para que lo vea también otra pestaña; y soltar(id, llave) solo
+ *     suelta si esa llave sigue siendo la confirmada.
+ *   · LA FILA QUE OTRA FICHA TODAVÍA OCUPA, también para la ficha SIN cédula
+ *     (planDeSubida y subirUna): su upsert cae en la fila de su celular, y si
+ *     esa es la llave con que otra ficha vive hoy en la nube, la cuenta de la
+ *     otra pasaba a ver su nombre y su deuda. Espera siempre. Lo que el
+ *     cliente solo no cierra (cuando la otra sube con su llave nueva, su fila
+ *     vieja se queda en la nube con su unión, y este computador ya no la
+ *     recuerda) lo cierra una migración de sincronizar_socios que no está
+ *     aplicada: PLAN-FILA-SIN-CEDULA.md.
+ *   · Quien «trajo» a uno de los que esperan cuenta solo si es una ficha de
+ *     esta cartera: borrar una ficha no limpia el referidoPor de sus referidos.
+ *   Y esSuelta(id), para que crm.html diga cuándo un crédito recién registrado
+ *   todavía no le llega a la app de quien ya tenía la cuenta junta.
  *
  * DOS FICHAS, UNA FILA: NO SUBEN
  *   sincronizar_socios identifica a cada cliente por su cédula o, si no tiene,
@@ -264,6 +291,9 @@
   /* Un casillero del freno de clave_ok. Ver LA CLAVE EQUIVOCADA, arriba. */
   var REINTENTO_CLAVE_MS = 15 * 60000;
   var GRUPO_MS = 6 * 3600000;
+  /* Cuánto vale una SUELTA desde que Joan la juntó (ver LA SUELTA CADUCA, en
+     porCliente): lo que se le registra ese día, no lo que venga después. */
+  var SUELTA_MS = 12 * 3600000;
   var REVISION_MS = 30 * 60000;
   var RELOJ_MS = 30000;
   /* Una llamada que no contesta en 40 s se corta y se cuenta como error. Sin
@@ -368,7 +398,12 @@
       pausa: e.pausa || null,
       /* 14-nov-2026 (revisión) — LAS QUE JOAN JUNTÓ: {socioId: iso}. Ver
          SUELTAS, en porCliente. Un respaldo importado las olvida (carteraReemplazada). */
-      sueltas: objeto(e.sueltas)
+      sueltas: objeto(e.sueltas),
+      /* 14-nov-2026 (verificación) — cuántas carteras enteras entraron (un
+         respaldo): carteraReemplazada lo sube. Una subida que salió antes y
+         contesta después ya no anota nada (subir). En el estado y no en
+         memoria: el respaldo puede entrar por otra pestaña. */
+      reemplazos: num(e.reemplazos)
     };
   }
   function guardarEstado(est) {
@@ -504,27 +539,58 @@
     var grupoListo = grupo.length > 0 && (isNaN(tg) || (num(o.ahora) - tg) >= GRUPO_MS);
     var enviar = propios.concat(grupoListo ? grupo : []);
 
-    /* LA FILA QUE OTRA FICHA TODAVÍA OCUPA. Si el celular de X es la llave con
-       que OTRA ficha Y vive hoy en la nube (Y estrenó cédula y todavía no
-       subió), subir X primero le roba a Y su fila. Si Y viaja en esta misma
-       subida, basta con que vaya antes (abajo); si no viaja, X espera. */
-    var ocupada = {}, van = {}, fila = {};
-    todos.forEach(function (t) { if (t.rec && t.rec.k) ocupada[t.rec.k] = t.id; });
+    /* LA FILA QUE OTRA FICHA TODAVÍA OCUPA. Si X cae en la fila con que OTRA
+       ficha Y vive hoy en la nube (la llave que la nube le confirmó, rec.k),
+       le roba esa fila. Cae de dos maneras:
+         · su upsert, en la fila de SU llave (X sin cédula: su celular). La
+           nube conserva la unión de la fila (el coalesce del on conflict) y le
+           pone encima el nombre y los datos de X: la cuenta de Y pasa a ver la
+           ficha de X. Ninguna subida le libera antes esa fila (la mudanza de Y
+           lee la fila de SU celular de hoy, y si fuera esta, X y Y ya chocan
+           por 'celular'): X espera siempre.
+         · su mudanza (X con cédula), que lee y BORRA la fila de su celular: la
+           nube le corta la unión a Y (20261007c) y se lleva la fila. Basta con
+           que Y la mude antes, y eso pasa solo si Y viaja en esta subida CON
+           ESE celular hoy (sincronizar_socios lee `where cedula = cel`, el
+           celular de hoy) y va primero (abajo). Si no, X espera.
+       14-nov-2026 (verificación) — antes solo se miraba el celular de X con
+       cédula, y bastaba con que Y viajara: X sin cédula caía en la fila (y la
+       unión) de la que espera, y Y con otro celular no liberaba nada. */
+    var ocupada = {}, celDe = {}, van = {}, fila = {}, antes = {}, porCedula = {};
+    todos.forEach(function (t) { celDe[t.id] = t.cel; if (t.rec && t.rec.k) ocupada[t.rec.k] = t.id; });
     enviar.forEach(function (e) { van[e.id] = true; });
     enviar.forEach(function (e) {
+      var suya = ocupada[e.ident];
+      if (suya != null && suya !== e.id) { fila[e.id] = suya; porCedula[e.id] = e.ident !== e.cel; return; }
       var otro = (e.cel && e.cel !== e.ident) ? ocupada[e.cel] : null;
-      if (otro != null && otro !== e.id && !van[otro]) fila[e.id] = true;
+      if (otro == null || otro === e.id) return;
+      if (van[otro] && celDe[otro] === e.cel) antes[e.id] = otro;
+      else fila[e.id] = otro;
     });
+    /* Si la que tenía que mudar la fila espera, la que la necesitaba también. */
+    for (var sigue = true; sigue;) {
+      sigue = false;
+      Object.keys(antes).forEach(function (x) { if (fila[antes[x]] && !fila[x]) { fila[x] = antes[x]; sigue = true; } });
+    }
     if (Object.keys(fila).length) {
       var libre = function (e) { return !fila[e.id]; };
-      enviar.forEach(function (e) { if (fila[e.id]) chocan.push({ id: e.id, nombre: e.nombre, motivo: 'fila' }); });
+      enviar.forEach(function (e) {
+        if (fila[e.id]) chocan.push({ id: e.id, nombre: e.nombre, motivo: 'fila', con: fila[e.id], cual: porCedula[e.id] ? 'cedula' : 'celular' });
+      });
       propios = propios.filter(libre); grupo = grupo.filter(libre);
       retenidos = retenidos.filter(libre); enviar = enviar.filter(libre);
     }
     /* Las que estrenan llave, primero: mudan su fila antes de que la reclame
        otra con ese celular (sincronizar_socios va en orden, en una sola
-       transacción por pedazo, y los pedazos van uno tras otro). */
-    enviar = enviar.filter(function (e) { return e.migra; }).concat(enviar.filter(function (e) { return !e.migra; }));
+       transacción por pedazo, y los pedazos van uno tras otro). Y antes que
+       todas, la que libera la fila que otra de esta subida necesita: si las
+       dos estrenaban llave, iban en el orden de la cartera. (La que libera
+       nunca necesita a otra: su celular es su propia fila vieja.) */
+    var libera = {};
+    Object.keys(antes).forEach(function (x) { if (!fila[x]) libera[antes[x]] = true; });
+    enviar = enviar.filter(function (e) { return libera[e.id]; })
+      .concat(enviar.filter(function (e) { return !libera[e.id] && e.migra; }))
+      .concat(enviar.filter(function (e) { return !libera[e.id] && !e.migra; }));
     return {
       propios: propios, grupo: grupo, grupoListo: grupoListo, retenidos: retenidos, chocan: chocan,
       enviar: enviar, total: Object.keys(vivos).length, vivos: vivos, llaves: llaves
@@ -632,6 +698,11 @@
     /* (revisión) quien trajo a uno de ellos espera por eso, no por su ficha:
        se cuenta aparte, o la línea decía que su ficha no coincide. */
     var nTrajo = Math.min(num(ap.trajo), nAp), nDir = nAp - nTrajo;
+    /* (segunda revisión, 14-nov) Esta frase culpa al celular, y no hace falta
+       otra para el respaldo: con la pausa de un respaldo importado nadie se
+       aparta cliente por cliente (vuelta), así que aquí no llega. La línea dice
+       «Importaste un respaldo» y el «Ojo» del cuadro de crm.html nombra la
+       causa (delRespaldoSinComprobar). */
     if (nDir) {
       extra += ' · ' + (nDir === 1 ? 'espera 1 cliente cuya ficha' : 'esperan ' + nDir + ' clientes cuyas fichas') +
         (ap.motivo === 'nube-mas-nueva'
@@ -940,17 +1011,31 @@
        después. Deja de esperar hasta que la cartera quede comprobada (y
        entonces ya no espera nadie) o entre un respaldo. No se olvida cuando
        sale de la discusión: con algo que no se ata a ningún cliente esperan
-       todos, y ella tiene que seguir subiendo (subirSueltas). */
-    var directos = objeto(r.clientes), sueltas = leerEstado().sueltas;
+       todos, y ella tiene que seguir subiendo (subirSueltas).
+       LA SUELTA CADUCA (verificación del mismo día): lo de arriba vale el día
+       del toque. Si después la nube recibe algo más nuevo de ese cliente (lo
+       que Joan le cobra esa noche en el celular), lo de este computador ya no
+       es lo último, y sin caducar no volvía a esperar nunca: al día siguiente
+       subía al poner el PIN, con la comparación en camino, el crédito sin el
+       pago y un día más de mora (la mora viaja hecha), cada día, y la línea
+       no lo contaba. Vale SUELTA_MS (sueltasVigentes); después espera como
+       cualquiera, y juntar otra vez su cuenta la vuelve a soltar. */
+    var directos = objeto(r.clientes), sueltas = sueltasVigentes(leerEstado());
     var ids = {}, n = 0, trajo = 0;
     Object.keys(directos).forEach(function (k) { if (!sueltas[k]) { ids[String(k)] = true; n++; } });
     /* QUIEN LOS TRAJO también espera: su paquete cuenta si su referido pagó
        (referidos, y los 5.000 de su garantía: app/puente.js referidosDe), y
        eso sale de la ficha de ACÁ del referido, que es la que no coincide.
        Subirlo le bajaba la garantía con lo que la nube ya sabía pagado. */
-    lista(objeto(leerJSON(LLAVE_CARTERA, null)).socios).forEach(function (s) {
+    /* (segunda revisión, 14-nov) Solo si quien trajo es una ficha de esta
+       cartera: borrar una ficha (va a papeleraSocios) no limpia el referidoPor
+       de sus referidos, y la línea contaba como «cliente que trajo a otro» que
+       espera a alguien que ya no existe ni sube («menos 2 clientes»). */
+    var socios = lista(objeto(leerJSON(LLAVE_CARTERA, null)).socios), deLaCartera = {};
+    socios.forEach(function (s) { if (s && s.id != null) deLaCartera[String(s.id)] = true; });
+    socios.forEach(function (s) {
       var por = (s && s.referidoPor != null) ? String(s.referidoPor) : '';
-      if (por && directos[String(s.id)] && !ids[por] && !sueltas[por]) { ids[por] = true; trajo++; }
+      if (por && deLaCartera[por] && directos[String(s.id)] && !ids[por] && !sueltas[por]) { ids[por] = true; trajo++; }
     });
     if (!Object.keys(directos).length) return null;
     return { ids: ids, n: n + trajo, trajo: trajo, motivo: rm, congeladas: num(r.congeladas), fichas: num(r.fichas) };
@@ -958,11 +1043,26 @@
   /* crm.html, al juntar una cuenta (juntarCuentaEnLaNube): su ficha deja de
      esperar aunque ya hubiera subido antes (entonces subirUna no corre). Con la
      subida ya encendida no hay nadie esperando y no se anota nada. */
-  function soltar(socioId) {
+  /* (verificación del 14-nov) `llave`: la que la reja de juntarCuentaEnLaNube
+     vio confirmada antes de llamar a la nube. Si ya no es la de este estado
+     (entró un respaldo mientras la nube juntaba, y el estado olvidó las
+     huellas), no se suelta nada en la cartera importada. */
+  function soltar(socioId, llave) {
     var id = texto(socioId), est = leerEstado();
-    if (!id || est.habilitado || est.sueltas[id]) return;
+    if (!id || est.habilitado || sueltasVigentes(est)[id]) return;
+    if (llave != null && texto(objeto(est.socios[id]).k) !== texto(llave)) return;
     est.sueltas[id] = iso();
     guardarEstado(est);
+  }
+  /* Las sueltas que todavía valen (LA SUELTA CADUCA, en porCliente). Las
+     vencidas se quedan en el estado sin contar: juntar otra vez las renueva. */
+  function sueltasVigentes(est) {
+    var s = objeto(objeto(est).sueltas), out = {}, ya = ahora();
+    Object.keys(s).forEach(function (k) {
+      var t = Date.parse(texto(s[k]));
+      if (!isNaN(t) && ya - t < SUELTA_MS) out[k] = s[k];
+    });
+    return out;
   }
   /* Mientras los demás esperan la comparación o la decisión (algo que no se ata
      a ningún cliente), las sueltas suben solas, ellas y nadie más. Sin cartera
@@ -970,7 +1070,7 @@
   function subirSueltas(con, lib) {
     if (!LIBRO_EMPAREJADO[texto(objeto(lib).motivo)]) return null;
     var est = leerEstado(), solo = {}, hay = false;
-    Object.keys(est.sueltas).forEach(function (k) { solo[k] = true; hay = true; });
+    Object.keys(sueltasVigentes(est)).forEach(function (k) { solo[k] = true; hay = true; });
     if (!hay || sinGuardar() || !enLinea() || frenoPuesto(con)) return null;
     var plan;
     try { plan = armarPlan(false, { solo: solo }); } catch (e) { return null; }
@@ -1036,7 +1136,11 @@
       ultimaSubida: est.ultimaSubida, ultimaRevision: est.ultimaRevision, grupoEn: est.grupoEn,
       habilitado: !!est.habilitado, habilitadoPor: est.habilitadoPor, version: VERSION, ahora: ahora(),
       apartados: _apartados ? { n: _apartados.n, trajo: num(_apartados.trajo), motivo: _apartados.motivo } : null,
-      sueltas: est.habilitado ? 0 : Object.keys(est.sueltas).length
+      sueltas: est.habilitado ? 0 : Object.keys(sueltasVigentes(est)).length,
+      /* (verificación, 14-nov) Por qué está pausada, aunque la vuelta no esté
+         esperando ('respaldo' mientras el respaldo importado no quede
+         comprobado): la línea y el «Ojo» de crm.html lo dicen con su causa. */
+      pausa: est.habilitado ? null : (texto(objeto(est.pausa).motivo) || null)
     };
   }
   function estado() {
@@ -1114,6 +1218,9 @@
     var res = { ok: false, total: envio.length, subidos: 0, aceptados: 0, confirmados: [], fase: null, motivo: '',
                 chocan: plan.chocan.map(function (c) { return c.nombre; }) };
     var previo = _ultimo;
+    /* (verificación del 14-nov) La cartera con que sale esta subida: ver abajo,
+       antes de anotar. */
+    var reemplazos0 = leerEstado().reemplazos;
     _enVuelta = true; _subiendo = envio.length; _ultimo = null;
     pintar();
     var cadena = Promise.resolve(true);
@@ -1141,6 +1248,19 @@
           if (k.aceptados != null && k.aceptados < pz.length) {
             _ultimo = { fase: 'parcial', aceptados: k.aceptados, de: pz.length, cuando: iso() };
             res.fase = 'parcial';
+            return false;
+          }
+          /* (verificación del 14-nov) ENTRÓ UN RESPALDO MIENTRAS ESTE PEDAZO IBA
+             EN EL AIRE: aquí (importar() de crm.html corre entero, con su
+             confirm y su alert, antes de que se atienda la respuesta) o en otra
+             pestaña. Lo que confirma es de la cartera de ANTES: anotarlo dejaba
+             en la importada su huella y, con `una`, la SUELTA que el respaldo
+             acababa de olvidar, y ya emparejado subía la ficha vieja del
+             respaldo aunque estuviera en discusión. No se anota nada, y la línea
+             sigue con lo que dijo carteraReemplazada. */
+          if (leerEstado().reemplazos !== reemplazos0) {
+            res.fase = 'reemplazada';
+            res.motivo = 'Entró un respaldo mientras subía: lo que iba en camino era de la cartera de antes, y no lo cuento como subido.';
             return false;
           }
           anotar(pz, manual, una);
@@ -1247,8 +1367,16 @@
     if (!est0.habilitado) {
       var lib = libroAlDia();
       /* 14-nov-2026 — CLIENTE POR CLIENTE (arriba): si lo que falta son
-         fichas de clientes concretos, suben los demás. */
-      if (!lib.ok) aparte = porCliente(lib);
+         fichas de clientes concretos, suben los demás. Con la pausa de un
+         respaldo importado, NO (revisión 2): el respaldo es casi siempre una
+         cartera VIEJA, y cada paquete lleva las cifras del grupo y los
+         referidos sacados de la cartera entera, con las fichas viejas que
+         esperan y sin las que solo están en la nube. Subir a «los que
+         coinciden» le bajaba a todos «créditos pagados» a lo del respaldo, y a
+         quien trajo a alguien que el respaldo no tiene, su referido pagado.
+         Esperan todos, como antes, hasta que la cartera quede comprobada (eso
+         quita la pausa, abajo). Las que Joan junta suben igual (SUELTAS). */
+      if (!lib.ok && !objeto(est0.pausa).motivo) aparte = porCliente(lib);
       if (!lib.ok && !(aparte && aparte.ids)) {
         var ver = aparte || lib;
         aparte = null;
@@ -1390,26 +1518,37 @@
     catch (e) { return Promise.resolve(fallo('error', 'No pude armar el paquete de su ficha (' + texto(e && e.message).slice(0, 80) + ').')); }
     var una = null;
     plan.enviar.forEach(function (x) { if (x.id === id) una = x; });
+    /* LA FILA QUE OTRA FICHA TODAVÍA OCUPA (planDeSubida). El nombre de la
+       otra sale del lote: puede no viajar (choca, o espera). */
+    function porLaFila(otro, cual) {
+      var suyo = null;
+      lista(plan.lote).forEach(function (x) { if (x && x.socioId != null && String(x.socioId) === String(otro)) suyo = x; });
+      return Promise.resolve(fallo('fila', (cual === 'cedula' ? 'Su cédula' : 'Su celular') + ' es todavía la llave con que ' +
+        (suyo ? texto(suyo.nombre) || 'Socio' : 'otra ficha de tu cartera') +
+        ' vive en la nube: si son la misma persona, junta las dos fichas; si no, corrige el número.'));
+    }
     if (!una) {
-      var choca = plan.chocan.some(function (c) { return c.id === id; });
-      return Promise.resolve(fallo(choca ? 'chocan' : 'nada', choca
+      var ch = null;
+      plan.chocan.forEach(function (c) { if (c.id === id) ch = c; });
+      /* 14-nov-2026 (verificación) — la que planDeSubida apartó por la fila no
+         «tiene el mismo celular que otra ficha»: su llave es la fila de otra. */
+      if (ch && ch.motivo === 'fila') return porLaFila(ch.con, ch.cual);
+      return Promise.resolve(fallo(ch ? 'chocan' : 'nada', ch
         ? 'Su ficha tiene el mismo celular o la misma cédula que otra ficha de tu cartera: la nube las tomaría por la misma persona.'
         : 'Su ficha no tiene celular ni cédula, y sin uno de los dos no sube.'));
     }
-    /* LA FILA QUE OTRA FICHA TODAVÍA OCUPA (planDeSubida): allá basta con que
-       la otra viaje primero; aquí viaja sola, así que no sube. */
-    var regs = leerEstado().socios, otro = null;
-    if (una.cel && una.cel !== una.ident) {
-      Object.keys(regs).forEach(function (k) {
-        if (k !== id && plan.vivos[k] && texto(objeto(regs[k]).k) === una.cel) otro = k;
-      });
-    }
-    if (otro != null) {
-      var suyo = null;
-      plan.enviar.forEach(function (x) { if (x.id === otro) suyo = x; });
-      return Promise.resolve(fallo('fila', 'Su celular es todavía la llave con que ' + (suyo ? suyo.nombre : 'otra ficha de tu cartera') +
-        ' vive en la nube: si son la misma persona, junta las dos fichas; si no, corrige el número.'));
-    }
+    /* Allá basta con que la otra viaje primero con ese celular; aquí viaja
+       sola, así que no sube si su llave (sin cédula: su celular) o el celular
+       que su mudanza lee son la fila de otra. 14-nov-2026 (verificación) —
+       antes solo se miraba el celular de la ficha con cédula. */
+    var regs = leerEstado().socios, otro = null, cual = '';
+    Object.keys(regs).forEach(function (k) {
+      var rk = texto(objeto(regs[k]).k);
+      if (k === id || !plan.vivos[k] || !rk) return;
+      if (rk === una.ident) { otro = k; cual = (una.ident === una.cel) ? 'celular' : 'cedula'; }
+      else if (una.cel && rk === una.cel) { otro = k; cual = 'celular'; }
+    });
+    if (otro != null) return porLaFila(otro, cual);
     return subir({ enviar: [una], propios: [una], grupo: [], grupoListo: false, retenidos: [], chocan: [],
                    total: 1, vivos: plan.vivos, llaves: plan.llaves }, con, { una: true });
   }
@@ -1423,7 +1562,8 @@
     var est = leerEstado();
     _mem = null;
     guardarEstado({ v: 1, socios: {}, ultimaSubida: est.ultimaSubida, ultimaRevision: null, grupoEn: null,
-                    habilitado: null, habilitadoPor: null, pausa: { motivo: texto(motivo) || 'otra', en: iso() } });
+                    habilitado: null, habilitadoPor: null, pausa: { motivo: texto(motivo) || 'otra', en: iso() },
+                    reemplazos: est.reemplazos + 1 });
     desprogramar(_quietud); _quietud = null;
     _cambio = false;
     _plan = null;
@@ -1455,7 +1595,9 @@
        preguntando cliente por cliente. */
     var igual = !lib.ok && texto(lib.motivo) === texto(_ultimo.motivo) &&
                 num(lib.congeladas) === num(_ultimo.congeladas) && num(lib.fichas) === num(_ultimo.fichas);
-    var pc = (lib.ok || igual) ? null : porCliente(lib);
+    /* (revisión 2) Con la pausa del respaldo la vuelta no sube cliente por
+       cliente: preguntarlo aquí solo traería la nube para nada. */
+    var pc = (lib.ok || igual || objeto(leerEstado().pausa).motivo) ? null : porCliente(lib);
     if (pc && pc.ids) { vuelta(false); return; }
     if (!lib.ok) {
       /* 23-oct-2026 — lo que se espera puede cambiar sin que esto suba nada:
@@ -1729,6 +1871,11 @@
     subirTodo: subirTodo,
     subirUna: subirUna,
     soltar: soltar,
+    /* (segunda revisión, 14-nov) Si su ficha sube aunque los demás esperen
+       (una suelta vigente). crm.html lo pregunta al registrarle un crédito a
+       quien ya tenía la cuenta junta: si no es suelta y su ficha espera, su
+       app no lo muestra todavía, y el aviso lo dice. */
+    esSuelta: function (socioId) { var est = leerEstado(); return !est.habilitado && !!sueltasVigentes(est)[texto(socioId)]; },
     estado: estado,
     accion: accion,
     apagar: apagar,
