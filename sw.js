@@ -2409,7 +2409,27 @@
    juntar-y-desembolsar dice ahora que el ÚNICO camino sin juntar es el de las tres casillas.
    Solo cambia panel/crm.html (ningún .js de la página nuevo ni cambiado: sin ?v= nuevos).
    CACHE y VERSION_SITIO suben a v148. NO HAY BASE NUEVA. TG_PUBLICADO=main. */
-const CACHE = 'tugarantia-v148';
+/* 14-nov-2026, v149 — SALE DESPUÉS DE v148 (main = 6e359e2). Rama pista-niveles.
+   LA PISTA DE LOS MUNDOS. Joan: «quiero que la página del cliente tenga una pestaña con una
+   pista interactiva donde muestra el nivel, que se vea más gamificado… como si cada nivel
+   fuera un mundo diferente». Vio tres tandas de bocetos y eligió: «Sí, la A así».
+   · app/socio.html: una sexta pestaña, «Pista», entre Mi garantía e Historial. Abre en el
+     mundo del nivel del cliente (una isla que flota, con la pista encima) y lo pone en el
+     punto de su garantía. Cada crédito pagado es una piedra; con sello si se pagó en la
+     fecha. Al tocar un mundo, una hoja con lo que lo abre.
+   · Es crédito: nada invita a pedir («Pedir no suma: suma pagar»); el nivel no cambia el
+     crédito, y la hoja lo dice leyendo al motor; la garantía no se llama plata, y no se
+     muestra a nadie más. «Te faltan» es la frase de Inicio y «en fecha», la del Historial.
+   · app/pista-niveles.js y app/pista-niveles.css, NUEVOS: sin versión en la dirección (ver
+     la lista de abajo). Si no llegan, la pestaña no se ofrece y la app abre igual.
+   · La barra de abajo pasa a seis pestañas: cada una mide su palabra (pista-niveles.css).
+   Pruebas: pruebas/pista-niveles.test.js (70). No se tocan motor.js ni puente.js.
+   SALE SIN HABERSE VISTO EN UN TELÉFONO DE VERDAD: solo en Chrome sin ventana, en claro y
+   en oscuro. Si algo se ve mal, se deshace con un revert de esta versión: es adorno.
+   CACHE y VERSION_SITIO suben a v149. NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   OJO CON EL NÚMERO: la rama mapa-detallado también preparó «v149» y no ha salido. La que
+   salga segunda toma el número siguiente (su nota lo dice igual). */
+const CACHE = 'tugarantia-v149';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -2635,7 +2655,7 @@ const ARCHIVOS = [
      Nuevos: sin versión en la dirección, como los de arriba. La página se
      protege sola si no llegan (la pestaña no se ofrece; y si llega el guion
      sin la hoja, dice que no terminó de bajar en vez de pintar a medias).
-     ESTA LÍNEA NO SUBE CACHE ni VERSION_SITIO: eso lo hace quien publique. */
+     Salen con v149 (ver su nota, arriba). */
   'app/pista-niveles.js',
   'app/pista-niveles.css',
   /* 10-nov-2026 — la pestaña «🗺️ Mapa»: sus dos guiones y su hoja los pide crm.html, así que
