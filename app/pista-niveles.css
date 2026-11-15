@@ -1,0 +1,183 @@
+/* ============================================================================
+ * LA PISTA DE LOS MUNDOS — la hoja de estilos de la pestaña «Pista»
+ * 14 de noviembre de 2026. El dibujo y los textos están en pista-niveles.js.
+ *
+ * TODO LLEVA EL PREFIJO pn-. La página ya tiene .estado, .sello, .riel y .lema
+ * con otro significado, y una regla de aquí no puede cambiarle la cara a otra
+ * pantalla. Los colores son los tokens de la página (--laca, --amarillo,
+ * --papel…), así que el modo oscuro sale solo.
+ *
+ * LA LEY DE LA PALETA SE CUMPLE ASÍ:
+ *   · el mundo y los pagos van sobre laca (es lo que es del socio), y ahí vive
+ *     el amarillo: lo recorrido, el marcador, los sellos;
+ *   · en papel no hay amarillo: la cifra de la hoja va en --amarillo-tinta
+ *     (la clase .oro-tinta de la página) y lo demás en tinta;
+ *   · el rojo no aparece: es de la pestaña activa y del botón de avanzar;
+ *   · el ámbar tampoco: aquí nada es mora.
+ * Los --pn-m1…5 son el METAL de cada mundo (medalla, filete, etiquetas), como
+ * los --oro-* son el de la marca: no se usan para nada más.
+ *   m1 luz · m2 claro · m3 medio · m4 sombra · m5 hondo · mx acento
+ * ==========================================================================*/
+
+/* La señal de que esta hoja llegó: pista-niveles.js la busca antes de pintar
+   (cssLlego). Sin estilos, la pestaña sería un montón de dibujos sueltos. */
+:root{--pn-listo:1}
+
+.pn-m-hierro{--pn-m1:#E9E4DE;--pn-m2:#B9B1AA;--pn-m3:#857D76;--pn-m4:#514A45;--pn-m5:#24201E;--pn-mx:#F08A3C}
+.pn-m-aluminio{--pn-m1:#FFFFFF;--pn-m2:#DCE3EA;--pn-m3:#AAB6C2;--pn-m4:#6F7C89;--pn-m5:#36414C;--pn-mx:#9CCBFF}
+.pn-m-bronce{--pn-m1:#FBDDB8;--pn-m2:#E2A86F;--pn-m3:#B97A41;--pn-m4:#7A4A22;--pn-m5:#3F230D;--pn-mx:#6FB3A2}
+.pn-m-plata{--pn-m1:#FFFFFF;--pn-m2:#E6EAEE;--pn-m3:#BBC2C9;--pn-m4:#7F8891;--pn-m5:#3E454C;--pn-mx:#D6E6FF}
+.pn-m-oro{--pn-m1:#FFF6D6;--pn-m2:#F8D677;--pn-m3:#E2A93A;--pn-m4:#A86E14;--pn-m5:#5E3C05;--pn-mx:#FFE7A3}
+.pn-m-platino{--pn-m1:#FFFFFF;--pn-m2:#E6EBE9;--pn-m3:#BEC6C3;--pn-m4:#858D8A;--pn-m5:#3F4644;--pn-mx:#7DF2C9}
+.pn-m-diamante{--pn-m1:#FFFFFF;--pn-m2:#DCF6FF;--pn-m3:#93D6F0;--pn-m4:#3F93B8;--pn-m5:#173F55;--pn-mx:#F2B8FF}
+.pn-m-materia{--pn-m1:#E4DAFF;--pn-m2:#A991FF;--pn-m3:#6E4DF2;--pn-m4:#3A2496;--pn-m5:#150A36;--pn-mx:#FF8AD8}
+.pn-m-misterio{--pn-m1:#A8A8A8;--pn-m2:#7A7A7A;--pn-m3:#4E4E4E;--pn-m4:#2E2E2E;--pn-m5:#141414;--pn-mx:#BDBDBD}
+
+/* ---------- el mundo: tres capas ----------
+   Fondo, isla y frente, apiladas. Solo la isla se mueve, y solo con
+   transform: el teléfono la desliza sin volver a pintarla, que es lo que lo
+   hace barato en uno de gama baja. El alto lo da el padding-top que pone el
+   dibujo (sirve también en navegadores sin aspect-ratio). */
+.pn-capas{position:relative;display:block;width:100%;height:0;overflow:hidden}
+.pn-capas > .pn-capa{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+.pn-isla{animation:pn-flota 7s ease-in-out infinite;will-change:transform}
+@keyframes pn-flota{0%,100%{transform:translateY(0)}50%{transform:translateY(-1%)}}
+.pn-pulso{transform-box:fill-box;transform-origin:center;animation:pn-pulso 2.2s ease-out infinite}
+@keyframes pn-pulso{0%{transform:scale(.55);opacity:.95}100%{transform:scale(1.55);opacity:0}}
+/* Quien pide menos movimiento no ve flotar la isla ni latir el marcador. */
+@media (prefers-reduced-motion:reduce){
+  .pn-isla{animation:none}
+  .pn-pulso{animation:none;opacity:.45}
+  .pn-hoja{animation:none}
+}
+
+/* ---------- la medalla ---------- */
+.pn-medalla{width:52px;height:54px;flex:none;display:block;overflow:visible}
+.pn-medalla.pn-chica{width:36px;height:37.5px}
+.pn-medalla.pn-media{width:44px;height:46px}
+.pn-medalla.pn-grande-m{width:68px;height:71px}
+
+/* ---------- el mundo en grande ---------- */
+.pn-hero{overflow:hidden;margin-top:var(--e3);padding:0}
+/* el filete de abajo es del metal del mundo, no del amarillo */
+.pn-hero::after{z-index:3;background:linear-gradient(90deg,transparent,
+  color-mix(in srgb, var(--pn-m2) 70%, transparent) 25%, var(--pn-m1) 50%,
+  color-mix(in srgb, var(--pn-m2) 70%, transparent) 75%, transparent)}
+.pn-lienzo{position:relative}
+.pn-lienzo::after{content:'';position:absolute;left:0;right:0;bottom:0;height:30px;pointer-events:none;
+  background:linear-gradient(180deg,transparent,var(--laca))}
+.pn-cabeza{position:absolute;left:0;right:0;top:0;padding:14px 14px 40px;display:flex;gap:12px;align-items:center;z-index:2;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--laca) 72%, transparent) 0%,
+    color-mix(in srgb, var(--laca) 30%, transparent) 60%, transparent)}
+.pn-cabeza h2{font-size:30px;line-height:1.02;color:var(--blanco-laca);
+  text-shadow:0 2px 14px color-mix(in srgb, var(--sombra) 55%, transparent)}
+.pn-cabeza h2.pn-largo{font-size:21px;line-height:1.08}
+.pn-etq{font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;font-weight:800;
+  color:color-mix(in srgb, var(--pn-m2) 92%, transparent)}
+.pn-lema{font-family:ui-serif,"New York","Iowan Old Style",Georgia,serif;font-style:italic;font-size:14px;
+  color:color-mix(in srgb, var(--pn-m1) 82%, transparent)}
+.pn-estado{position:absolute;top:14px;right:14px;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;
+  border-radius:99px;white-space:nowrap;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;line-height:1.2;
+  color:var(--amarillo);border:1px solid color-mix(in srgb, var(--amarillo) 50%, transparent);
+  background:color-mix(in srgb, var(--laca) 62%, transparent)}
+.pn-estado::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+
+.pn-pie{position:relative;z-index:2;padding:4px 16px 18px}
+.pn-grande{font-size:15px;line-height:1.4;color:var(--blanco-laca)}
+/* la primera negrita de la frase es la cifra: va en el amarillo de lo construido */
+.pn-grande b:first-of-type{color:var(--amarillo);font-size:19px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.pn-progreso{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;margin-top:12px}
+.pn-riel{position:relative;height:8px;border-radius:99px;background:color-mix(in srgb, var(--luz) 13%, transparent);
+  box-shadow:inset 0 1px 2px color-mix(in srgb, var(--sombra) 60%, transparent)}
+.pn-riel i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;
+  background:linear-gradient(90deg, color-mix(in srgb, var(--amarillo) 70%, var(--laca)), var(--amarillo));
+  box-shadow:0 0 12px color-mix(in srgb, var(--amarillo) 45%, transparent)}
+.pn-riel b{position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;
+  background:var(--amarillo);border:3px solid var(--laca);
+  box-shadow:0 0 0 2px color-mix(in srgb, var(--amarillo) 45%, transparent)}
+/* el mundo que sigue, con su candado: todavía no es tuyo */
+.pn-cerrado{position:relative;display:block}
+.pn-cerrado .pn-medalla{filter:grayscale(.5) brightness(.72)}
+.pn-cerrado::after{content:'';position:absolute;right:-3px;bottom:-1px;width:15px;height:15px;border-radius:50%;
+  background:var(--laca) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='4' y='7' width='8' height='6' rx='1.3' fill='%23FBF7F4'/><path d='M5.6 7V5.4a2.4 2.4 0 0 1 4.8 0V7' fill='none' stroke='%23FBF7F4' stroke-width='1.5'/></svg>") center/11px no-repeat;
+  box-shadow:0 0 0 1.5px color-mix(in srgb, var(--luz) 30%, transparent)}
+.pn-cifras{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;margin-top:7px;font-variant-numeric:tabular-nums;
+  color:color-mix(in srgb, var(--blanco-laca) 60%, transparent)}
+.pn-cifras b{color:var(--blanco-laca)}
+
+/* ---------- lo que te mueve, y los sellos ---------- */
+.pn-p{margin:var(--e2) 0 0;font-size:14.5px}
+.pn-sellos{margin-top:var(--e3);padding:12px 14px}
+.pn-cabeza-s{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.pn-cabeza-s span{font-size:12px;color:color-mix(in srgb, var(--blanco-laca) 62%, transparent);white-space:nowrap}
+.pn-fila-s{display:flex;justify-content:space-around;position:relative;margin-top:10px}
+.pn-fila-s::before{content:'';position:absolute;left:14%;right:14%;top:14px;
+  border-top:2px dashed color-mix(in srgb, var(--amarillo) 32%, transparent)}
+.pn-sello{display:flex;flex-direction:column;align-items:center;gap:2px;position:relative;z-index:1;min-width:0;flex:1}
+.pn-sello svg{width:30px;height:30px;display:block}
+.pn-d{font-size:12.5px;font-weight:700;margin-top:3px;white-space:nowrap}
+.pn-q{font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;white-space:nowrap;
+  color:color-mix(in srgb, var(--blanco-laca) 58%, transparent)}
+.pn-si .pn-q{color:color-mix(in srgb, var(--amarillo) 85%, transparent)}
+.pn-vacio{margin:var(--e2) 0 0;font-size:13px;color:color-mix(in srgb, var(--blanco-laca) 66%, transparent)}
+
+/* ---------- los mundos, en fila ---------- */
+.pn-fila{overflow-x:auto;margin:6px calc(var(--e4) * -1) 0;padding:0 var(--e4);scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.pn-fila::-webkit-scrollbar{display:none}
+.pn-tira{display:flex;gap:4px;width:max-content;position:relative;padding:8px 0 4px}
+/* el hilo que une las medallas: en tinta hasta donde vas, en línea lo que falta */
+.pn-tira::before{content:'';position:absolute;top:33px;left:37px;right:37px;height:3px;border-radius:3px;
+  background:linear-gradient(90deg, var(--tinta) var(--pn-hecho,0%), var(--linea) var(--pn-hecho,0%))}
+.pn-mundo{flex:none;width:74px;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;
+  border:0;background:transparent;font-family:inherit;cursor:pointer;padding:0;color:var(--tinta)}
+.pn-anillo{border-radius:50%;padding:3px;background:var(--papel)}
+.pn-aqui .pn-anillo{box-shadow:0 0 0 2px var(--tinta)}
+.pn-nm{font-size:11px;font-weight:700;line-height:1.15;text-align:center;margin-top:2px}
+.pn-rq{font-size:10px;color:var(--gris);font-variant-numeric:tabular-nums;line-height:1.2;text-align:center;white-space:nowrap}
+.pn-aqui .pn-rq{color:var(--amarillo-tinta);font-weight:800}
+.pn-delante .pn-medalla{filter:grayscale(.55) opacity(.72)}
+.pn-velado .pn-medalla{filter:grayscale(1) opacity(.45)}
+
+/* ---------- la hoja de un mundo ----------
+   Fija sobre la pantalla, por encima de la barra de pestañas (z-index 20). */
+.pn-velo{position:fixed;top:0;right:0;bottom:0;left:0;z-index:40;background:color-mix(in srgb, var(--laca) 58%, transparent)}
+.pn-hoja{position:fixed;left:0;right:0;bottom:0;z-index:41;max-width:520px;margin:0 auto;background:var(--papel);color:var(--tinta);
+  max-height:calc(100vh - 48px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  border-radius:24px 24px 0 0;box-shadow:0 -18px 40px -18px color-mix(in srgb, var(--laca) 60%, transparent);
+  padding-bottom:env(safe-area-inset-bottom);animation:pn-hoja .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes pn-hoja{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.pn-lienzo-h{position:relative;background:var(--laca);border-radius:24px 24px 0 0;overflow:hidden}
+.pn-lienzo-h::after{content:'';position:absolute;top:0;right:0;bottom:0;left:0;pointer-events:none;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--laca) 45%, transparent), transparent 40%, transparent 70%,
+    color-mix(in srgb, var(--laca) 35%, transparent))}
+.pn-asa{position:absolute;top:8px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:4px;z-index:2;
+  background:color-mix(in srgb, var(--luz) 60%, transparent)}
+.pn-cuerpo-h{position:relative;padding:10px 20px 16px}
+/* la medalla monta sobre el borde del paisaje; el título va a su derecha */
+.pn-borde-medalla{position:absolute;left:16px;top:-44px;z-index:2;border-radius:50%;padding:4px;background:var(--papel)}
+.pn-titulo-h{padding-left:90px;min-height:40px}
+.pn-titulo-h h3{font-size:26px;margin-top:1px;line-height:1.1}
+.pn-lema-h{font-family:ui-serif,"New York","Iowan Old Style",Georgia,serif;font-style:italic;font-size:14.5px;color:var(--gris)}
+.pn-bloque{margin-top:var(--e3);padding-top:var(--e3);border-top:1px solid var(--linea)}
+.pn-bloque.pn-dos{display:grid;grid-template-columns:1.15fr 1fr;gap:var(--e3)}
+.pn-bloque.pn-dos > div + div{border-left:1px solid var(--linea);padding-left:var(--e3)}
+.pn-k{font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:700;color:var(--gris)}
+.pn-bloque p{margin:var(--e1) 0 0;font-size:14px}
+.pn-falta{font-size:30px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1.05;margin-top:3px}
+.pn-falta2{font-size:19px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1;margin-top:5px}
+.pn-nota{font-size:12.5px}
+.pn-cerrar{margin-top:var(--e3);padding:12px}
+
+/* ---------- la barra de pestañas, con una más ----------
+   Con «Pista» son seis. Repartidas en partes iguales (flex:1), «Calculadora»
+   y «Mi garantía» ya no cabían en su sexto de pantalla: en 360 px «Mi
+   garantía» se partía en dos renglones, y hasta los 412 px seguía justo. Así
+   que cada pestaña mide lo que mide su palabra y el resto se reparte (auto),
+   nada se parte (nowrap) y, por debajo de 400 px, la letra baja medio punto.
+   Va por #nav para ganarle a la regla de la página, que se escribe después. */
+@media (max-width:479px){
+  #nav button{flex:1 1 auto;white-space:nowrap;padding-left:1px;padding-right:1px}
+}
+@media (max-width:399px){
+  #nav button{font-size:10.5px;letter-spacing:-.25px}
+}

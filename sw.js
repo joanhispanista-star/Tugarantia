@@ -2631,6 +2631,13 @@ const ARCHIVOS = [
   'app/fondos-pension.js',
   'app/historia-laboral.js',
   'panel/historia-laboral-crm.js',
+  /* 14-nov-2026 — la pestaña «Pista» de app/socio.html: su guion y su hoja.
+     Nuevos: sin versión en la dirección, como los de arriba. La página se
+     protege sola si no llegan (la pestaña no se ofrece; y si llega el guion
+     sin la hoja, dice que no terminó de bajar en vez de pintar a medias).
+     ESTA LÍNEA NO SUBE CACHE ni VERSION_SITIO: eso lo hace quien publique. */
+  'app/pista-niveles.js',
+  'app/pista-niveles.css',
   /* 10-nov-2026 — la pestaña «🗺️ Mapa»: sus dos guiones y su hoja los pide crm.html, así que
      llegan JUNTO con él (sin señal, la pestaña dice que el mapa no cargó en vez de romper).
      El mapa en sí (el JSON de panel/mapa/, ~600 KB desde v145) NO va aquí: se pide al abrir

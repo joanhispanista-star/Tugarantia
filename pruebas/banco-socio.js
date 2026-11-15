@@ -74,7 +74,11 @@ function abrirSocio(o) {
   };
   const elem = id => (elems[id] = elems[id] || {
     id, value: '', textContent: '', innerHTML: '', disabled: false, dataset: {}, style: {},
-    classList: clases(['pCargando', 'pCuenta'].indexOf(id) >= 0 ? ['oculto'] : []),
+    /* 14-nov-2026 — navPista: el botón de «Pista» nace con class="oculto" en la
+       página, igual que pCargando y pCuenta. Sin esto el banco lo daría por
+       visible aunque su archivo no llegara, y no se podría probar que una
+       pestaña sin con qué pintarse no se ofrece. */
+    classList: clases(['pCargando', 'pCuenta', 'navPista'].indexOf(id) >= 0 ? ['oculto'] : []),
     _oyentes: {},
     addEventListener(t, fn) { (this._oyentes[t] = this._oyentes[t] || []).push(fn); },
     querySelectorAll: () => [], querySelector: () => null, focus() {}, scrollTop: 0, scrollHeight: 0

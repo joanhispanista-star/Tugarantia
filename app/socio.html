@@ -49,6 +49,10 @@
      pantalla ya salió rota en las otras una vez (`.mc-back`). No trae colores
      propios — se pinta con los tokens de esta página. -->
 <link rel="stylesheet" href="chat.css">
+<!-- 14-nov-2026 — la pestaña «Pista» (pista-niveles.js). Todo lo suyo lleva el
+     prefijo pn- y se pinta con los tokens de esta página. Trae además la
+     regla que deja caber SEIS pestañas en la barra de abajo. -->
+<link rel="stylesheet" href="pista-niveles.css">
 <style>
 /* ==========================================================================
  * LA LEY DE LA PALETA — 2 de agosto de 2026
@@ -1001,12 +1005,21 @@ setTimeout(function () {
     <button data-t="inicio" class="on">Inicio</button>
     <button data-t="calc">Calculadora</button>
     <button data-t="garantia">Mi garantía</button>
+    <!-- 14-nov-2026 — «Pista»: el mundo del nivel. Nace oculta y la enciende
+         el bloque de abajo SOLO si pista-niveles.js llegó: una pestaña que no
+         tiene con qué pintarse no se ofrece. -->
+    <button data-t="pista" id="navPista" class="oculto">Pista</button>
     <button data-t="historial">Historial</button>
     <!-- 26-oct-2026 (chat-1) — «Chat», la palabra que usa Joan, y el número de
          lo que le falta por leer (#chNavN, « (2)»), que late en toda la app y
          no solo dentro de la pestaña. Sin número cuando no se sabe. -->
     <button data-t="chat">Chat<span id="chNavN"></span></button>
   </nav>
+  <!-- 14-nov-2026 — aquí pinta pista-niveles.js la hoja de un mundo. Va FUERA
+       de #cuerpo a propósito: el panel de cada pestaña entra con una animación
+       que usa transform y, mientras dura, lo «fijo» de adentro se ancla al
+       panel y no a la pantalla. irA la vacía al cambiar de pestaña. -->
+  <div id="pnHoja"></div>
 </div>
 
 <script src="motor.js?v=141"></script>
@@ -1061,6 +1074,12 @@ setTimeout(function () {
      subida por registro_archivos_guardar, la misma de play/. Si no llega, la
      página no arranca (va con versión: ver la guardia de abajo). -->
 <script src="falta-la-cedula.js?v=144"></script>
+<!-- 14-nov-2026 — LA PISTA DE LOS MUNDOS: la pestaña «Pista». Va SIN versión
+     en la dirección a propósito: es un archivo nuevo (no hay copia vieja con
+     la que mezclarse) y es adorno, no plata; si no llega, la guardia de abajo
+     no frena la app y la pestaña simplemente no se ofrece. El día que cambie
+     le toca su ?v= como a los demás (ya firma su llegada). -->
+<script src="pista-niveles.js"></script>
 <script src="sesion-socio.js?v=143"></script>
 <script src="ver-como.js"></script>
 <!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
@@ -2282,15 +2301,18 @@ function entradaMotor() {
 }
 
 function irA(tab) {
+  if (tab === 'pista' && !window.PistaNiveles) tab = 'inicio';   // 14-nov-2026 — sin su archivo no hay pista: a Inicio, entero
   TAB = tab;
   PANTALLA = tab;   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   pararChat();      // 26-oct-2026 — el hilo que se movía solo se para al salir de Chat (arrancarChat lo vuelve a armar)
+  cerrarPista();    // 14-nov-2026 — la hoja de un mundo vive fuera del panel (#pnHoja): repintar no se la lleva, hay que quitarla
   var b = $('nav').querySelectorAll('button');
   for (var i = 0; i < b.length; i++) b[i].classList.toggle('on', b[i].dataset.t === tab);
   $('cuerpo').innerHTML = '<div class="panel">' +
     (tab === 'inicio' ? vistaInicio() :
      tab === 'calc' ? vistaCalculadora() :
      tab === 'garantia' ? vistaGarantia() :
+     tab === 'pista' ? vistaPista() :
      tab === 'chat' ? vistaChat() : vistaHistorial()) + '</div>';
   if (tab === 'calc') sincronizarCalc();
   if (tab === 'chat') arrancarChat();
@@ -4504,6 +4526,32 @@ function vecesTexto(n) {
   var k = Math.max(0, Math.round(Number(n) || 0));
   return k === 1 ? 'una vez' : (k === 2 ? 'dos veces' : k + ' veces');
 }
+
+/* ============================ PISTA ============================
+   14-nov-2026 — Joan: «quiero que la página del cliente tenga una pestaña con
+   una pista interactiva donde muestra el nivel… como si cada nivel fuera un
+   mundo diferente». El dibujo, los textos y sus reglas viven en
+   app/pista-niveles.js; esta página solo le pasa lo que YA sabe, para que no
+   haya dos cuentas de lo mismo: la garantía y los créditos del paquete, la
+   frase de «te faltan» (la misma de Inicio, textoProximoNivel) y los centavos
+   que se vuelven garantía (centavosDeGarantia).
+   La hoja de un mundo NO se pinta dentro de la pestaña sino en #pnHoja, que
+   está fuera de #cuerpo (ahí se dice por qué); repintar la pestaña no se la
+   lleva, y por eso irA la quita antes (cerrarPista).
+   No está en la lista de SE ACTUALIZA SOLA (PANTALLAS_SEGURAS): con la pista
+   abierta la app no se recarga; espera a Inicio, Historial o Mi garantía. */
+function vistaPista() {
+  if (!window.PistaNiveles) return '';   // irA ya desvió a Inicio; esto es por si alguien la llama a mano
+  return window.PistaNiveles.vista({
+    nombre: S.nombre, garantia: S.garantia, creditos: S.creditos,
+    frase: textoProximoNivel(), centavos: centavosDeGarantia()
+  }) + pie();
+}
+function cerrarPista() {
+  if (window.PistaNiveles && window.PistaNiveles.abierta()) window.PistaNiveles.cerrar();
+}
+/* La pestaña se ofrece SOLO si su archivo llegó (ver #navPista). */
+if (window.PistaNiveles && $('navPista')) $('navPista').classList.remove('oculto');
 
 /* ========================== HISTORIAL ========================== */
 function vistaHistorial() {
