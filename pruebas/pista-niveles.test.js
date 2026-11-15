@@ -236,7 +236,7 @@ describe('5 · lo que dice la pestaña', () => {
   const H = PN.vista(EJEMPLO), T = plano(H);
 
   test('abre en su mundo, con su nombre, y dice cuánto falta para el que sigue', () => {
-    assert.ok(T.startsWith('Mundo 2 de 9 Aluminio El cielo Aquí estás'), T.slice(0, 80));
+    assert.ok(T.startsWith('Mundo 2 de 9 Aquí estás Aluminio El cielo'), T.slice(0, 80));
     assert.ok(T.includes('Te faltan ' + COP(102400) + ' de garantía para pasar a Bronce'));
     assert.ok(T.includes(COP(200000) + ' vas en ' + COP(297600) + ' ' + COP(400000)));
   });
@@ -277,14 +277,14 @@ describe('6 · los casos de las puntas', () => {
 
   test('la cuenta nueva: Hierro, sin pagos, y se dice qué va a aparecer ahí', () => {
     const t = plano(PN.vista({ nombre: 'Nueva', garantia: 100000, creditos: [] }));
-    assert.ok(t.startsWith('Mundo 1 de 9 Hierro La forja Aquí estás'));
+    assert.ok(t.startsWith('Mundo 1 de 9 Aquí estás Hierro La forja'));
     assert.ok(t.includes('Tus pagos en Hierro Todavía no hay ninguno. Aquí queda una piedra por cada crédito que pagues; con sello, si lo pagas en la fecha.'));
     assert.equal(/\d de \d en fecha/.test(t), false, 'cuenta sellos de pagos que no existen');
   });
 
   test('el último mundo: no hay «te faltan», ni meta, ni candado', () => {
     const h = PN.vista({ nombre: 'Tope', garantia: 30000000, creditos: [] }), t = plano(h);
-    assert.ok(t.startsWith('Mundo 9 de 9 Misterio'));
+    assert.ok(t.startsWith('Mundo 9 de 9 Aquí estás Misterio'));
     assert.ok(t.includes('Estás en el nivel más alto.'));
     assert.equal(/Te faltan/.test(t), false);
     assert.equal(h.includes('pn-cerrado'), false, 'pinta el candado de un mundo siguiente que no existe');
@@ -566,7 +566,7 @@ describe('11 · la pestaña en la app: lo mismo que dicen las otras pantallas', 
     const A = await app(paqueteDe(historia()));
     A.ev("irA('pista')");
     const t = plano(cuerpo(A)), nivel = A.ev('S.nivel'), g = A.ev('S.garantia');
-    assert.ok(t.startsWith('Mundo ' + (M.NIVELES.indexOf(nivel) + 1) + ' de 9 ' + M.nombreNivel(nivel)), t.slice(0, 60));
+    assert.ok(t.startsWith('Mundo ' + (M.NIVELES.indexOf(nivel) + 1) + ' de 9 Aquí estás ' + M.nombreNivel(nivel)), t.slice(0, 60));
     assert.ok(t.includes('vas en ' + COP(g)));
     assert.equal(A.ev('TAB'), 'pista');
     assert.deepEqual(A.avisos, []);

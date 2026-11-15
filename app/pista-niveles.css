@@ -76,7 +76,11 @@
   color:color-mix(in srgb, var(--pn-m2) 92%, transparent)}
 .pn-lema{font-family:ui-serif,"New York","Iowan Old Style",Georgia,serif;font-style:italic;font-size:14px;
   color:color-mix(in srgb, var(--pn-m1) 82%, transparent)}
-.pn-estado{position:absolute;top:14px;right:14px;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;
+/* «Mundo 2 de 9» a la izquierda y «Aquí estás» a la derecha, en un renglón que
+   se parte solo cuando no caben (320 px, o un nombre de nivel muy largo). */
+.pn-titulos{flex:1;min-width:0}
+.pn-arriba{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;margin-bottom:2px}
+.pn-estado{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;
   border-radius:99px;white-space:nowrap;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;line-height:1.2;
   color:var(--amarillo);border:1px solid color-mix(in srgb, var(--amarillo) 50%, transparent);
   background:color-mix(in srgb, var(--laca) 62%, transparent)}

@@ -1233,11 +1233,14 @@
       : 'Estás en el nivel más alto.');
     return '<div class="laca pn-hero ' + mu.clase + '">' +
       '<div class="pn-lienzo">' + mundo(e.nivel, W, H, op) +
+        /* «Aquí estás» va en el mismo renglón de «Mundo 2 de 9» y, si no cabe,
+           baja sola al siguiente: puesta fija en la esquina se montaba sobre
+           el rótulo en un teléfono de 320 px, y sobre un nombre largo en todos. */
         '<div class="pn-cabeza">' + medalla(e.nivel) +
-          '<div><div class="pn-etq">Mundo ' + (e.i + 1) + ' de ' + e.filas.length + '</div>' +
+          '<div class="pn-titulos"><div class="pn-arriba"><span class="pn-etq">Mundo ' + (e.i + 1) + ' de ' + e.filas.length + '</span>' +
+          '<span class="pn-estado">Aquí estás</span></div>' +
           '<h2' + (nombre.length > 10 ? ' class="pn-largo"' : '') + '>' + esc(nombre) + '</h2>' +
-          '<div class="pn-lema">' + esc(mu.lema) + '</div></div>' +
-          '<span class="pn-estado">Aquí estás</span></div></div>' +
+          '<div class="pn-lema">' + esc(mu.lema) + '</div></div></div></div>' +
       '<div class="pn-pie"><div class="pn-grande">' + frase + '</div>' +
         (e.sig
           ? '<div class="pn-progreso">' + medalla(e.nivel, 'pn-chica') +
