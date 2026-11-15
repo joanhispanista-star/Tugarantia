@@ -55,11 +55,39 @@
  *   · EL BUSCADOR («Buscar municipio…»): lo encuentra, abre su departamento,
  *     lo centra y lo resalta (irAMunicipio()).
  *
- * El mapa (590 KB) NO va en la precarga del service worker: se pide la
- * primera vez que Joan abre la pestaña y queda en memoria mientras el CRM
- * esté abierto. El service worker lo guarda al pasar (caché-primero para lo
- * que no es html/js/css), así que la segunda vez sale de ahí. Por eso, cuando
- * el archivo cambia, cambia de NOMBRE (la «b» del 13-nov): con el mismo, el
+ * 14-nov-2026 — «MEJORAR EL MAPA DEL CRM QUE SE VEA MUCHO MÁS DETALLADO»
+ * (Joan). Con los bocetos delante escogió Bogotá y la Sabana por dentro, con
+ * las calles debajo. Lo que se hizo, y dónde:
+ *   · BOGOTÁ POR LOCALIDADES (vistaBogota()): la mitad de una cartera que
+ *     nace en la Sabana caía en «Bogotá» como una sola mancha, pintada hasta
+ *     el páramo de Sumapaz. Ahora se abre en sus 20 localidades, con sus
+ *     vecinos (Soacha, Mosquera, Funza…) al lado. La localidad sale de
+ *     «Ciudad» y «Barrio» de la ficha (panel/mapa-lugares.js): el barrio, que
+ *     el registro pide obligatorio, estaba en cada ficha y el mapa no lo
+ *     miraba. Sigue siendo ZONAS, NUNCA PUNTOS: el barrio no se pinta ni se
+ *     cuenta, solo dice la localidad; y el GPS sigue sin leerse.
+ *   · TOCAR BOGOTÁ ES ENTRAR, en el mapa o en una lista y en las dos vistas
+ *     (el oyente de clic de escuchar()).
+ *   · EL «1–2», UN PISO MÁS ABAJO: las localidades pasan por cifra() y
+ *     faltan() como los municipios, y el total de Bogotá es ahora la suma de
+ *     lo que se ve de sus partes (resumir()): exacto, dejaba despejar una
+ *     localidad restando.
+ *   · LAS CALLES (teselas() y ponerTeselas()): OpenStreetMap, en gris y
+ *     debajo de las zonas, con su crédito a la vista y un botón para
+ *     quitarlas. De la cartera no sale nada: cada tesela pide un pedazo de
+ *     mapa, con lo que manda cualquier imagen (la IP, el navegador y el
+ *     sitio de donde viene, que OpenStreetMap pide).
+ *   · MÁS CERCA: en Bogotá el zoom llega a 1,4 km (E.min); lo demás, igual.
+ *   · EL BUSCADOR también encuentra localidades y barrios (buscar()).
+ *   · CONQUISTAS: una localidad se conquista como un municipio, y Bogotá
+ *     sigue contando como UNO de los 1.122.
+ *
+ * Los mapas (Colombia, 590 KB, y desde el 14-nov Bogotá por dentro, 128 KB)
+ * NO van en la precarga del service worker: se piden juntos la primera vez
+ * que Joan abre la pestaña y quedan en memoria mientras el CRM esté abierto.
+ * El service worker los guarda al pasar (caché-primero para lo que no es
+ * html/js/css), así que la segunda vez salen de ahí. Por eso, cuando un
+ * archivo cambia, cambia de NOMBRE (la «b» del 13-nov): con el mismo, el
  * service worker seguiría sirviendo el de antes.
  *
  * Sin librerías: SVG escrito a mano, una sola asignación de innerHTML por
@@ -67,7 +95,7 @@
  * mueve el viewBox y prende o apaga etiquetas.
  * ===========================================================================*/
 /* La firma de llegada: el CRM pide este archivo con la versión en la
-   dirección (…?v=145). Ver «¿LLEGÓ LO QUE PEDÍ?» en las páginas. */
+   dirección (…?v=150). Ver «¿LLEGÓ LO QUE PEDÍ?» en las páginas. */
 (function () { try { var s = document.currentScript; if (s && s.src) (window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();
 
 (function (raiz, fabrica) {
@@ -78,8 +106,36 @@
   'use strict';
 
   var URL_MAPA = 'mapa/colombia-2026-11b.json';
+  /* 14-nov-2026 — Bogotá por dentro: sus 20 localidades, los vecinos de la
+     Sabana con el borde fino y la lista de barrios. Lo arma
+     herramientas/mapa-bogota.js; ver panel/mapa/FUENTES.md. */
+  var URL_BOGOTA = 'mapa/bogota-2026-11.json';
   var META = 3;   // clientes con un crédito pagado entero para conquistar un municipio
   var CREDITOS = 'Límites: DANE, vía geoBoundaries (CC BY 4.0) y OCHA/HDX (CC BY-IGO)';
+  /* LAS CALLES (14-nov-2026): las teselas de OpenStreetMap, debajo de las
+     zonas de Bogotá. Las pide el navegador de quien mira, una por una, y en su
+     dirección solo van tres números: el zoom y la casilla (z/x/y) de la
+     VENTANA que se está viendo. De un cliente no sale nada: ni su barrio, ni
+     su localidad, ni cuántos hay (ver teselas(), que solo recibe la ventana).
+     Las condiciones de OpenStreetMap (operations.osmfoundation.org/policies/
+     tiles), y dónde se cumplen:
+       · el crédito a la vista, sobre el mapa y con su enlace: .mapa-osm;
+       · solo lo que se está mirando, nada de bajar por adelantado ni para
+         usar sin señal: ponerTeselas() pide las de la ventana y ya (y el
+         service worker no las guarda: deja pasar lo que no es de este sitio);
+       · la caché es la del navegador, con los encabezados que ellos mandan.
+     Es un servidor gratis y sin garantía: si no contesta, el mapa sigue igual
+     sin calles, y lo dice. */
+  var URL_TESELAS = 'https://tile.openstreetmap.org/';
+  var URL_OSM = 'https://www.openstreetmap.org/copyright';
+  var CREDITOS_OSM = '© colaboradores de OpenStreetMap';
+  /* Entre qué zooms se piden, y cuántas como mucho de una vez: una ventana
+     del CRM son unas doce, y un monitor grande (o el navegador alejado) pide
+     más. Entonces se baja un zoom, cuatro veces menos y un poco más
+     borrosas, antes que quedarse sin calles sin decirlo; nunca más de
+     TESELAS_MAX. Si ni en Z_MIN caben, es un error de cuenta, y antes que
+     pedirle cien imágenes a un servidor ajeno no se pide ninguna. */
+  var Z_MIN = 6, Z_MAX = 17, TESELAS_MAX = 36;
 
   /* EL ZOOM. Cada ＋ o － acerca o aleja 1,6 veces. Lo más cerca que se
      llega es una ventana de 100 unidades del mapa (unos 23 km): más adentro,
@@ -134,8 +190,37 @@
   function medio(r) { var x = r || { min: 0, max: 0 }; return (x.min + x.max) / 2; }
   function porNombre(a, b) { return String(a).localeCompare(String(b), 'es'); }
 
-  function resumir(db, mapa, puente) {
+  /* El buscador de Bogotá se arma una vez por archivo, no en cada pintada:
+     son unos 2.800 nombres de barrio con sus familias. */
+  var INDICE_BOGOTA = { de: null, idx: null };
+  function indiceDeBogota(bogota) {
+    if (!bogota || !lista(bogota.localidades).length) return null;
+    /* Se anota DESPUÉS de armarlo. Antes se anotaba primero, y si
+       L.indiceBogota reventaba (un mapa-lugares.js viejo con este archivo
+       nuevo: la revisión de v150 lo reprodujo), la pintada siguiente
+       encontraba «ya armado» un índice que no existía y seguía como si no
+       hubiera Bogotá por dentro: con su total EXACTO, que es lo que el «1–2»
+       de las localidades no deja ver. */
+    if (INDICE_BOGOTA.de !== bogota) { var nuevo = L.indiceBogota(bogota); INDICE_BOGOTA.de = bogota; INDICE_BOGOTA.idx = nuevo; }
+    return INDICE_BOGOTA.idx;
+  }
+
+  /* `bogota` es el archivo de Bogotá (o nada: entonces Bogotá es un municipio
+     más, como antes del 14-nov). Con él, cada cliente de Bogotá cae además
+     en su LOCALIDAD, por lo que escribió en «Ciudad» y «Barrio»
+     (L.localidadDeCliente), o queda «sin localidad», que sigue siendo Bogotá.
+
+     Y EL TOTAL DE BOGOTÁ PASA A SER LA SUMA DE LO QUE SE VE DE SUS PARTES
+     (`rangos`), como el de un departamento. No es un adorno: con «Bogotá 9»
+     exacto en una pantalla y «Kennedy 4, Suba 3, Bosa 1–2» en otra, restando
+     sale que Bosa tiene 2. Es la misma resta que el revisor del 9-nov hizo
+     con los departamentos, un piso más abajo. Por eso todo lo que la pestaña
+     muestra, colorea u ordena de un municipio sale de `rangos`, no de su
+     cifra: para los demás municipios es lo de siempre (exacto, o «1–2»). */
+  function resumir(db, mapa, puente, bogota) {
     var idx = L.indice(mapa.municipios, mapa.departamentos);
+    var idxB = indiceDeBogota(bogota);
+    var porLoc = {}, sinLoc = [], dudososLoc = {};
     var pago = pagoEntero(puente);
     var pagaron = {};
     lista(db && db.prestamos).forEach(function (p) { if (pago(p)) pagaron[p.socioId] = true; });
@@ -159,33 +244,85 @@
       var d = porDepto[l.depto] || (porDepto[l.depto] = { clientes: 0, pagaron: 0, rango: { min: 0, max: 0 } });
       m.clientes++; d.clientes++;
       if (pagaron[s.id]) { m.pagaron++; d.pagaron++; }
+      if (idxB && l.codigo === idxB.municipio) {
+        var q = L.localidadDeCliente(s, idxB, idx);
+        if (q.estado === 'ubicado') {
+          var k = porLoc[q.codigo] || (porLoc[q.codigo] = { clientes: 0, pagaron: 0 });
+          k.clientes++;
+          if (pagaron[s.id]) k.pagaron++;
+        } else {
+          sinLoc.push({ id: s.id, numero: s.numero, nombre: s.nombre, texto: q.texto, estado: q.estado, municipio: q.municipio || '',
+            pago: !!pagaron[s.id], registro: q.registro || '', en: q.en || '', tambienBarrio: !!q.tambienBarrio,
+            homonima: q.homonima ? idxB.nombre[q.homonima] || q.homonima : '',
+            homonimaEn: lista(q.homonimaEn).map(function (c) { return idxB.nombre[c] || c; }),
+            opciones: lista(q.opciones).map(function (c) { return idxB.nombre[c] || c; }) });
+          /* Como `dudosos` un piso más abajo: la localidad que puede ser la de
+             un sin localidad no dice «sin clientes». */
+          if (q.estado === 'ambiguo' || q.estado === 'choque') {
+            lista(q.opciones).forEach(function (c) { dudososLoc[c] = (dudososLoc[c] || 0) + 1; });
+          }
+        }
+      }
     });
+    /* Lo que se ve de cada municipio. El que tiene partes, la suma de lo que
+       se ve de ellas (los sin localidad son una parte más). */
+    var rangos = {};
+    Object.keys(porMuni).forEach(function (c) { rangos[c] = visible(porMuni[c].clientes); });
+    if (idxB && porMuni[idxB.municipio]) {
+      var rb = visible(sinLoc.length);
+      Object.keys(porLoc).forEach(function (c) { var v = visible(porLoc[c].clientes); rb = { min: rb.min + v.min, max: rb.max + v.max }; });
+      rangos[idxB.municipio] = rb;
+    }
+    /* Y lo mismo con los que PAGARON: si Bogotá se conquistara con su cifra
+       exacta, «Conquistas» de Colombia y «Conquistas» de Bogotá se restarían
+       (Bogotá «faltan 1–2» con dos localidades de «faltan 1–2» dice que en
+       cada una pagó exactamente 1). Ver conquistaDe(). */
+    var pagos = {};
+    Object.keys(porMuni).forEach(function (c) { pagos[c] = visible(porMuni[c].pagaron); });
+    if (idxB && porMuni[idxB.municipio]) {
+      var pb = visible(sinLoc.filter(function (x) { return x.pago; }).length);
+      Object.keys(porLoc).forEach(function (c) { var v = visible(porLoc[c].pagaron); pb = { min: pb.min + v.min, max: pb.max + v.max }; });
+      pagos[idxB.municipio] = pb;
+    }
     /* Los totales que se muestran: la suma de lo visible de cada municipio. */
     var rango = { min: 0, max: 0 };
     Object.keys(porMuni).forEach(function (c) {
-      var v = visible(porMuni[c].clientes), d = porDepto[c.slice(0, 2)];
+      var v = rangos[c], d = porDepto[c.slice(0, 2)];
       d.rango.min += v.min; d.rango.max += v.max;
       rango.min += v.min; rango.max += v.max;
     });
     return { idx: idx, porMuni: porMuni, porDepto: porDepto, sinUbicar: sinUbicar, dudosos: dudosos, ubicados: ubicados, rango: rango,
+      rangos: rangos, pagos: pagos, bogota: idxB ? { idx: idxB, porLoc: porLoc, sinLoc: sinLoc, dudososLoc: dudososLoc } : null,
       total: lista(db && db.socios).length, reglaDePago: !!(puente && typeof puente.cerroConPerdida === 'function') };
   }
 
+  /* Si un municipio está conquistado, de lo que se VE de los que pagaron:
+     'si' (seguro que 3 o más), 'no3' (nadie), 'no12' (1–2) o 'duda'. La duda
+     solo le pasa a Bogotá, cuando sus partes suman entre 2 y 4 (dos con
+     «faltan 1–2» y ninguna conquistada): decir «conquistado» o «faltan 1–2»
+     delataría cuántos pagaron en cada una, así que dice «falta 1 o ninguno»,
+     se pinta «con clientes» y no se cuenta entre los conquistados. */
+  function conquistaDe(res, c) {
+    var r = (res.pagos && res.pagos[c]) || visible((res.porMuni[c] || {}).pagaron);
+    return r.min >= META ? 'si' : r.max === 0 ? 'no3' : r.max < META ? 'no12' : 'duda';
+  }
+  function textoFaltan(q) { return q === 'no3' ? 'faltan ' + META : q === 'no12' ? 'faltan 1–2' : 'falta 1 o ninguno'; }
   function conquistas(res, mapa) {
     var conquistados = [], porConquistar = [];
     Object.keys(res.porMuni).forEach(function (c) {
       var m = res.porMuni[c];
-      var fila = { c: c, clientes: m.clientes, pagaron: m.pagaron };
-      if (m.pagaron >= META) conquistados.push(fila); else porConquistar.push(fila);
+      var fila = { c: c, clientes: m.clientes, pagaron: m.pagaron, q: conquistaDe(res, c) };
+      if (fila.q === 'si') conquistados.push(fila); else porConquistar.push(fila);
     });
     /* El orden, solo con lo que se ve: primero lo más cerca de conquistarse
        («faltan 1–2» antes que «faltan 3»), después los que más clientes
        muestran y, en empate, el abecedario. Nunca la cifra exacta: con ella,
        el «faltan 1–2» de 2 pagados quedaba encima del de 1. */
-    var clase = function (p) { return p >= META ? 2 : p > 0 ? 1 : 0; };
+    var clase = function (q) { return q === 'si' ? 3 : q === 'duda' ? 2 : q === 'no12' ? 1 : 0; };
     var nombre = function (c) { return (res.idx && res.idx.nombre[c]) || c; };
+    var seVe = function (x) { return medio((res.rangos && res.rangos[x.c]) || visible(x.clientes)); };
     var orden = function (a, b) {
-      return (clase(b.pagaron) - clase(a.pagaron)) || (medio(visible(b.clientes)) - medio(visible(a.clientes))) ||
+      return (clase(b.q) - clase(a.q)) || (seVe(b) - seVe(a)) ||
         porNombre(nombre(a.c), nombre(b.c)) || porNombre(a.c, b.c);
     };
     conquistados.sort(orden); porConquistar.sort(orden);
@@ -253,10 +390,12 @@
   /* La ventana nunca sale del mapa ni lo achica (no hay «más lejos que
      todo»), y guarda siempre la proporción de la de base: el <svg> mide su
      alto por la del viewBox, y otra proporción lo haría saltar de tamaño. */
-  function anchoMinimo(base) { return Math.min(ANCHO_MIN, base[2]); }
-  function limitar(vb, base) {
+  /* `min`: lo más cerca que deja la vista (14-nov: Bogotá, con sus bordes
+     finos y las calles, deja llegar a 6 unidades; las demás siguen en 100). */
+  function anchoMinimo(base, min) { return Math.min(min > 0 ? min : ANCHO_MIN, base[2]); }
+  function limitar(vb, base, min) {
     if (vb[2] >= base[2]) return base.slice();
-    var w = Math.max(vb[2], anchoMinimo(base));
+    var w = Math.max(vb[2], anchoMinimo(base, min));
     var h = w * base[3] / base[2];
     var cx = vb[0] + vb[2] / 2, cy = vb[1] + vb[3] / 2;
     var x = Math.min(Math.max(cx - w / 2, base[0]), base[0] + base[2] - w);
@@ -268,12 +407,56 @@
     return true;
   }
   /* Acercar `factor` veces dejando quieto el punto del mapa `p`. */
-  function acercar(vb, base, factor, p) {
-    var w = Math.min(Math.max(vb[2] / factor, anchoMinimo(base)), base[2]);
+  function acercar(vb, base, factor, p, min) {
+    var w = Math.min(Math.max(vb[2] / factor, anchoMinimo(base, min)), base[2]);
     var f = vb[2] / w;
     var punto = p || [vb[0] + vb[2] / 2, vb[1] + vb[3] / 2];
-    return limitar([punto[0] - (punto[0] - vb[0]) / f, punto[1] - (punto[1] - vb[1]) / f, w, w * base[3] / base[2]], base);
+    return limitar([punto[0] - (punto[0] - vb[0]) / f, punto[1] - (punto[1] - vb[1]) / f, w, w * base[3] / base[2]], base, min);
   }
+
+  /* LAS TESELAS QUE CUBREN UNA VENTANA DEL MAPA (ver «LAS CALLES», arriba).
+     Recibe la ventana [x, y, ancho, alto] en unidades del mapa, cuántas
+     unidades mide un píxel y la proyección del archivo de Bogotá. NADA MÁS: de
+     aquí salen las direcciones que se le piden a OpenStreetMap, y a esta
+     función no le llega ni un dato de la cartera.
+     El zoom es el que deja una tesela (256 px) más o menos a su tamaño. Cada
+     una se pone con sus esquinas exactas en el mapa: el mundo de las teselas
+     es Mercator y el de este mapa no, pero dentro de una tesela la diferencia
+     es de menos de un píxel, y así dos vecinas quedan pegadas. */
+  function teselas(ventana, s, proy) {
+    if (!proy || !(proy.kx > 0) || !(proy.ky > 0) || !(s > 0) || !(ventana[2] > 0) || !(ventana[3] > 0)) return [];
+    var z = Math.round(Math.log(360 * proy.kx / (256 * s)) / Math.LN2);
+    z = Math.max(Z_MIN, Math.min(Z_MAX, z));
+    /* Un número que no es número no baja nunca hasta Z_MIN: sin esto, una
+       proyección rota colgaba la pestaña en el bucle de abajo. */
+    if (!(z >= Z_MIN)) return [];
+    var n = Math.pow(2, z), c0, c1, h0, h1;
+    /* Del mapa a grados (al este y al norte), y de grados a casilla. */
+    var este = function (x) { return proy.ox + (x - proy.m) / proy.kx; };
+    var norte = function (y) { return proy.oy - (y - proy.m) / proy.ky; };
+    var columna = function (g) { return Math.floor((g + 180) / 360 * n); };
+    var hilera = function (g) { var rad = g * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * n); };
+    var esteDe = function (c) { return c / n * 360 - 180; };
+    var norteDe = function (h) { var k = Math.PI - 2 * Math.PI * h / n; return 180 / Math.PI * Math.atan(0.5 * (Math.exp(k) - Math.exp(-k))); };
+    for (;;) {
+      n = Math.pow(2, z);
+      c0 = columna(este(ventana[0])); c1 = columna(este(ventana[0] + ventana[2]));
+      h0 = hilera(norte(ventana[1])); h1 = hilera(norte(ventana[1] + ventana[3]));
+      if ((c1 - c0 + 1) * (h1 - h0 + 1) <= TESELAS_MAX) break;
+      if (z <= Z_MIN) return [];
+      z--;
+    }
+    var r = [];
+    for (var c = c0; c <= c1; c++) {
+      for (var h = h0; h <= h1; h++) {
+        var x0 = proy.m + (esteDe(c) - proy.ox) * proy.kx, x1 = proy.m + (esteDe(c + 1) - proy.ox) * proy.kx;
+        var y0 = proy.m + (proy.oy - norteDe(h)) * proy.ky, y1 = proy.m + (proy.oy - norteDe(h + 1)) * proy.ky;
+        r.push({ z: z, x: c, y: h, mx: x0, my: y0, mw: x1 - x0, mh: y1 - y0 });
+      }
+    }
+    return r;
+  }
+  function urlDeTesela(t) { return URL_TESELAS + t.z + '/' + t.x + '/' + t.y + '.png'; }
 
   /* LAS ETIQUETAS QUE CABEN. `ets` va en orden de prioridad (lo que más
      clientes muestra primero: el orden sale de lo VISIBLE, como las listas).
@@ -313,7 +496,10 @@
         var b = [x0, e.y + opciones[i] - h / 2, x1, e.y + opciones[i] + h / 2];
         if (!choca(b)) { puestas.push(b); r.push({ ver: true, dy: opciones[i], dx: dx }); return; }
       }
-      if (e.siempre) { puestas.push([x0, e.y - h / 2, x1, e.y + h / 2]); r.push({ ver: true, dy: 0, dx: dx }); return; }
+      /* La que `cede` (las de Bogotá: con 150 clientes, quince fijas en el
+         centro se montaban) se apaga; vuelve al acercar. Van de más a menos
+         clientes, así que cede la que menos muestra. */
+      if (e.siempre && !e.cede) { puestas.push([x0, e.y - h / 2, x1, e.y + h / 2]); r.push({ ver: true, dy: 0, dx: dx }); return; }
       r.push({ ver: false, dy: 0, dx: 0 });
     });
     return r;
@@ -323,28 +509,46 @@
   /* ------------------------------------------------------------------------
    * LA PANTALLA
    * ---------------------------------------------------------------------- */
-  var E = { mapa: null, pidiendo: null, error: '', vista: 'deptos', depto: null, o: null, res: null,
+  var E = { mapa: null, bogota: null, pidiendo: null, error: '', vista: 'deptos', depto: null, o: null, res: null,
     /* Lo del zoom y las etiquetas de la vista pintada (se rehace en cada pintar()). */
     z: null, vb0: null, ets: [], dedos: {}, gesto: null, cuadro: 0,
+    /* 14-nov — lo de la vista de Bogotá: sus zonas (la forma fina y el punto
+       del nombre de cada localidad y cada vecino), lo más cerca que deja el
+       zoom de la vista pintada, si las calles están puestas (no se guarda:
+       cada vez que se abre el CRM vuelven puestas) y la cuenta de las teselas
+       que llegaron y las que no. */
+    zonas: null, min: ANCHO_MIN, calles: true, tes: { reloj: 0, bien: 0, mal: 0 },
     /* La rueda: si el ratón se movió de verdad sobre el mapa después del
        último scroll de la página (ver «LA RUEDA ES DE LA PÁGINA»). */
     ratonListo: false, ultimoScroll: 0, ultimoZoom: 0, trasArrastre: 0,
     sug: [], sugSel: -1, globo: null, porCodigo: null, normas: null, observador: null, ultPos: null,
     reloj: function () { return Date.now(); } };
 
+  /* SON DOS ARCHIVOS Y VAN JUNTOS (14-nov): Colombia y Bogotá por dentro. Si
+     falta cualquiera no hay mapa, y el aviso de abrir() ofrece reintentar. No
+     se pinta «con lo que llegó»: sin el de Bogotá su total saldría exacto y
+     con él, en rango, y dos pantallas distintas de la misma cartera son justo
+     lo que deja despejar una cifra restando (ver resumir()). */
   function traerMapa(pedir) {
-    if (E.mapa) return Promise.resolve(E.mapa);
+    if (E.mapa && E.bogota) return Promise.resolve(E.mapa);
     if (E.pidiendo) return E.pidiendo;
     var f = pedir || (typeof fetch === 'function' ? function (u) { return fetch(u); } : null);
     if (!f) return Promise.reject(new Error('este navegador no puede pedir el mapa'));
-    E.pidiendo = Promise.resolve(f(URL_MAPA)).then(function (r) {
-      if (!r || !r.ok) throw new Error('el servidor contestó ' + (r ? r.status : 'nada'));
-      return r.json();
-    }).then(function (m) {
+    var uno = function (u) {
+      return Promise.resolve(f(u)).then(function (r) {
+        if (!r || !r.ok) throw new Error('el servidor contestó ' + (r ? r.status : 'nada'));
+        return r.json();
+      });
+    };
+    E.pidiendo = Promise.all([uno(URL_MAPA), uno(URL_BOGOTA)]).then(function (dos) {
+      var m = dos[0], b = dos[1];
       if (!m || !lista(m.municipios).length || !lista(m.departamentos).length || !lista(m.caja).length) {
         throw new Error('llegó un archivo que no es el mapa');
       }
-      E.mapa = m; E.error = ''; E.porCodigo = null; E.normas = null;
+      if (!b || !lista(b.localidades).length || lista(b.caja).length !== 4 || !b.proy || !b.municipio) {
+        throw new Error('llegó un archivo que no es el mapa de Bogotá');
+      }
+      E.mapa = m; E.bogota = b; E.error = ''; E.porCodigo = null; E.normas = null;
       return m;
     }).catch(function (e) { E.error = (e && e.message) || String(e); throw e; })
       .then(function (m) { E.pidiendo = null; return m; }, function (e) { E.pidiendo = null; throw e; });
@@ -359,15 +563,27 @@
   }
   function depto(c) { return lista(E.mapa && E.mapa.departamentos).filter(function (x) { return x.c === c; })[0] || null; }
 
+  /* Lo que pintar() lance no se queda callado. Con versiones mezcladas (un
+     mapa-lugares.js viejo con este archivo nuevo, en la revisión de v150) la
+     promesa de abrir() se rechazaba sin que nadie la atendiera y la pestaña
+     se quedaba en «Bajando el mapa de Colombia…» para siempre. */
+  function pintarOAvisar(caja) {
+    try { pintar(); return true; } catch (e) {
+      caja.innerHTML = '<div class="alerta warn">El mapa no se pudo dibujar (' + esc((e && e.message) || String(e)) + '). ' +
+        'Recarga el CRM con Ctrl+Shift+R; si sigue igual, Ajustes → 🧹 Soltar la copia guardada.</div>';
+      return false;
+    }
+  }
+
   /* opciones: { caja, db, puente, abrirFicha(id), pedir(url), doc } */
   function abrir(opciones) {
     E.o = opciones || {};
     var caja = E.o.caja;
     if (!caja) return Promise.resolve(false);
     escuchar(caja);
-    if (E.mapa) { pintar(); return Promise.resolve(true); }
+    if (E.mapa && E.bogota) return Promise.resolve(pintarOAvisar(caja));
     caja.innerHTML = '<div class="mapa-cargando" role="status">Bajando el mapa de Colombia…</div>';
-    return traerMapa(E.o.pedir).then(function () { pintar(); return true; }, function () {
+    return traerMapa(E.o.pedir).then(function () { return pintarOAvisar(caja); }, function () {
       caja.innerHTML = '<div class="alerta warn">No pude bajar el mapa (' + esc(E.error) + '). ' +
         'Si estás sin señal, se baja la primera vez que lo abras con internet; después queda guardado. ' +
         '<button class="btn btn-ghost btn-sm" data-mapa="reintentar">↻ Reintentar</button></div>';
@@ -390,7 +606,7 @@
   }
   function svgDe(t) { return t && typeof t.closest === 'function' ? t.closest('svg.mapa-svg') : null; }
   function zonaDe(t) {
-    var z = t && typeof t.closest === 'function' ? t.closest('[data-mapa="muni"],[data-mapa="depto"]') : null;
+    var z = t && typeof t.closest === 'function' ? t.closest('[data-mapa="muni"],[data-mapa="depto"],[data-mapa="loc"]') : null;
     return z && z.tagName && String(z.tagName).toLowerCase() === 'path' ? z : null;
   }
 
@@ -407,13 +623,19 @@
       if (!t || !caja.contains(t)) return;
       var a = t.getAttribute('data-mapa');
       if (a === 'reintentar') { abrir(E.o); return; }
-      if (a === 'vista') { E.vista = t.getAttribute('data-v') === 'conquistas' ? 'conquistas' : 'deptos'; E.depto = null; pintar(); return; }
+      /* Bogotá por dentro está en las dos vistas: cambiar de vista no saca de ella. */
+      if (a === 'vista') { E.vista = t.getAttribute('data-v') === 'conquistas' ? 'conquistas' : 'deptos'; E.depto = enBogota() ? E.depto : null; pintar(); return; }
       if (a === 'depto') { E.vista = 'deptos'; E.depto = t.getAttribute('data-c'); pintar(); verMapa(); return; }
       if (a === 'pais') { E.depto = null; pintar(); verMapa(); return; }
       if (a === 'zoom') { zoomBoton(t.getAttribute('data-z')); return; }
-      if (a === 'buscado') { irAMunicipio(t.getAttribute('data-c')); return; }
-      if (a === 'muni') {
+      if (a === 'buscado') { irABuscado(t.getAttribute('data-c')); return; }
+      if (a === 'calles') { alternarCalles(); return; }
+      if (a === 'muni' || a === 'loc') {
         var c = t.getAttribute('data-c');
+        /* BOGOTÁ TIENE ADENTRO: tocarla es entrar, en el mapa o en una lista y
+           en las dos vistas, como tocar un departamento lo abre. Si solo se
+           marcara, sus localidades serían una función que nadie encuentra. */
+        if (a === 'muni' && tieneAdentro(c) && !enBogota()) { E.depto = deptoBogota(); pintar(); verMapa(); return; }
         contar(c); marcar(c);
         /* Tocado en el mapa: el globito donde tocó. Desde la lista: sobre el
            nombre del municipio en el mapa, si está a la vista. */
@@ -456,6 +678,8 @@
   function prepararZoom() {
     var svg = q('svg.mapa-svg');
     E.dedos = {}; E.gesto = null; E.globo = null;
+    if (E.tes.reloj && typeof clearTimeout === 'function') clearTimeout(E.tes.reloj);
+    E.tes = { reloj: 0, bien: 0, mal: 0 };
     E.z = E.vb0 ? { base: E.vb0.slice(), vb: E.vb0.slice(), s: E.vb0[2] / 600,
       svg: svg && typeof svg.setAttribute === 'function' ? svg : null, els: null } : null;
     /* Si el mapa cambia de ancho (el celular se gira, la ventana se achica),
@@ -472,10 +696,14 @@
   function aplicar() {
     var z = E.z;
     if (!z || !z.svg) return;
-    z.svg.setAttribute('viewBox', z.vb.map(function (v) { return Math.round(v * 10) / 10; }).join(' '));
+    /* A la décima de unidad, salvo muy cerca (solo Bogotá baja de 100
+       unidades): ahí una décima son varios píxeles y el mapa temblaría al
+       arrastrarlo. Lo mismo --k: a tres decimales, muy cerca, la letra saltaba. */
+    var fino = z.vb[2] < ANCHO_MIN ? 1000 : 10;
+    z.svg.setAttribute('viewBox', z.vb.map(function (v) { return Math.round(v * fino) / fino; }).join(' '));
     var r = medir(z.svg);
     z.s = r ? escalaDe(z.vb, r) : z.vb[2] / 600;
-    if (z.svg.style && typeof z.svg.style.setProperty === 'function') z.svg.style.setProperty('--k', String(Math.round(z.s * 1000) / 1000));
+    if (z.svg.style && typeof z.svg.style.setProperty === 'function') z.svg.style.setProperty('--k', String(Math.round(z.s * 100000) / 100000));
     var amp = ampliado();
     /* EL DEDO ES DE LA PÁGINA. Sin ampliar, el mapa deja pasar el dedo
        vertical (touch-action: pan-y, en la hoja): el celular baja la página
@@ -485,22 +713,26 @@
     var todo = q('[data-z="todo"]'), menos = q('[data-z="menos"]'), mas = q('[data-z="mas"]');
     if (todo) todo.disabled = !amp;
     if (menos) menos.disabled = !amp;
-    if (mas) mas.disabled = z.vb[2] <= anchoMinimo(z.base) + 0.5;
+    if (mas) mas.disabled = z.vb[2] <= anchoMinimo(z.base, E.min) + Math.min(0.5, E.min / 20);
     colocar();
+    pedirTeselas();
   }
   function colocar() {
     var z = E.z;
     if (!z || !z.svg || !E.ets.length) return;
     if (!z.els) z.els = typeof z.svg.querySelectorAll === 'function' ? z.svg.querySelectorAll('text.mapa-et') : [];
     var r = colocarEtiquetas(E.ets, z.vb, z.s);
+    /* Como el viewBox (aplicar): muy cerca, una décima son varios píxeles y la
+       etiqueta pegada al borde saltaba al arrastrar. */
+    var fino = z.vb[2] < ANCHO_MIN ? 1000 : 10;
     for (var i = 0; i < r.length && i < z.els.length; i++) {
       var e = E.ets[i], el = z.els[i];
       if (r[i].ver !== e.ver) { clase(el, 'oculta', !r[i].ver); e.ver = r[i].ver; }
       if (r[i].dy !== e.dy && typeof el.setAttribute === 'function') {
-        el.setAttribute('y', String(Math.round((e.y + r[i].dy) * 10) / 10)); e.dy = r[i].dy;
+        el.setAttribute('y', String(Math.round((e.y + r[i].dy) * fino) / fino)); e.dy = r[i].dy;
       }
       if ((r[i].dx || 0) !== (e.dx || 0) && typeof el.setAttribute === 'function') {
-        el.setAttribute('x', String(Math.round((e.x + r[i].dx) * 10) / 10)); e.dx = r[i].dx;
+        el.setAttribute('x', String(Math.round((e.x + r[i].dx) * fino) / fino)); e.dx = r[i].dx;
       }
     }
   }
@@ -515,7 +747,7 @@
     if (!z) return;
     ocultarGlobo();
     if (cual === 'todo') z.vb = z.base.slice();
-    else z.vb = acercar(z.vb, z.base, cual === 'menos' ? 1 / PASO : PASO);
+    else z.vb = acercar(z.vb, z.base, cual === 'menos' ? 1 / PASO : PASO, null, E.min);
     aplicar();
   }
 
@@ -535,7 +767,7 @@
     var r = medir(z.svg);
     var unidad = ev.deltaMode === 1 ? 40 : ev.deltaMode === 2 ? 800 : 1;
     var factor = Math.pow(ev.ctrlKey ? 1.01 : 1.0015, -(Number(ev.deltaY) || 0) * unidad);
-    var nuevo = acercar(z.vb, z.base, factor, r && typeof ev.clientX === 'number' ? aMapa(z.vb, r, ev.clientX, ev.clientY) : null);
+    var nuevo = acercar(z.vb, z.base, factor, r && typeof ev.clientX === 'number' ? aMapa(z.vb, r, ev.clientX, ev.clientY) : null, E.min);
     var ahora = E.reloj();
     if (mismaVentana(nuevo, z.vb)) {
       /* Con Ctrl, la rueda de la página sería el zoom de TODA la página. */
@@ -584,15 +816,15 @@
       var a0 = g.ini[0], b0 = g.ini[1], a = E.dedos[a0.id], b = E.dedos[b0.id];
       var d0 = Math.hypot(b0.x - a0.x, b0.y - a0.y) || 1, d1 = Math.hypot(b.x - a.x, b.y - a.y) || 1;
       var m0 = [(a0.x + b0.x) / 2, (a0.y + b0.y) / 2], m1 = [(a.x + b.x) / 2, (a.y + b.y) / 2];
-      nuevo = acercar(g.vb, z.base, d1 / d0, aMapa(g.vb, g.r, m0[0], m0[1]));
+      nuevo = acercar(g.vb, z.base, d1 / d0, aMapa(g.vb, g.r, m0[0], m0[1]), E.min);
       var s1 = escalaDe(nuevo, g.r);
-      nuevo = limitar([nuevo[0] - (m1[0] - m0[0]) * s1, nuevo[1] - (m1[1] - m0[1]) * s1, nuevo[2], nuevo[3]], z.base);
+      nuevo = limitar([nuevo[0] - (m1[0] - m0[0]) * s1, nuevo[1] - (m1[1] - m0[1]) * s1, nuevo[2], nuevo[3]], z.base, E.min);
     } else if (g.ini.length === 1) {
       var p0 = g.ini[0], dx = d.x - p0.x, dy = d.y - p0.y;
       if (!g.movido && Math.hypot(dx, dy) < umbral(d.tipo)) return;
       if (d.tipo !== 'mouse' && !ampliado()) return;
       var s = escalaDe(g.vb, g.r);
-      nuevo = limitar([g.vb[0] - dx * s, g.vb[1] - dy * s, g.vb[2], g.vb[3]], z.base);
+      nuevo = limitar([g.vb[0] - dx * s, g.vb[1] - dy * s, g.vb[2], g.vb[3]], z.base, E.min);
     }
     if (!nuevo) return;
     if (!g.movido) {
@@ -638,7 +870,7 @@
    * «1–2» vale igual aquí.
    * ---------------------------------------------------------------------- */
   function globoHtml(c, esDepto) {
-    var texto = esDepto ? textoDepto(c) : textoMuni(c);
+    var texto = esDepto ? textoDepto(c) : esLoc(c) ? textoLoc(c) : textoMuni(c);
     var i = texto.indexOf(' · ');
     return i < 0 ? '<b>' + esc(texto) + '</b>' : '<b>' + esc(texto.slice(0, i)) + '</b>' + esc(texto.slice(i));
   }
@@ -666,9 +898,11 @@
   }
   /* El globito sobre el nombre de un municipio (desde la lista o el buscador). */
   function globoEn(c) {
-    var z = E.z, m = muni(c);
+    var z = E.z, m = formaDe(c);
     var r = z && medir(z.svg);
-    if (!r || !m) return;
+    /* Sumapaz no tiene forma en la ventana: no hay dónde ponerlo, y el de
+       la zona anterior diría otra cosa. */
+    if (!r || !m) { ocultarGlobo(); return; }
     var p = puntoDe(m), s = aPantalla(z.vb, r, p[0], p[1]);
     if (s[0] < r.left || s[0] > r.left + r.width || s[1] < r.top || s[1] > r.top + r.height) { ocultarGlobo(); return; }
     mostrarGlobo(c, false, s[0], s[1]);
@@ -687,7 +921,8 @@
     if (!caja || typeof caja.querySelector !== 'function') return;
     var antes = caja.querySelector('path.mapa-sel');
     if (antes && antes.classList) antes.classList.remove('mapa-sel');
-    var p = /^\d+$/.test(c || '') ? caja.querySelector('path[data-mapa="muni"][data-c="' + c + '"]') : null;
+    var p = esLoc(c) ? caja.querySelector('path[data-mapa="loc"][data-c="' + c + '"]')
+      : /^\d+$/.test(c || '') ? caja.querySelector('path[data-mapa="muni"][data-c="' + c + '"]') : null;
     if (!p || !p.classList) return;
     p.classList.add('mapa-sel');
     /* Al final de su grupo: si no, los vecinos pintados después le tapan el
@@ -711,8 +946,12 @@
   function contar(c, esDepto) {
     var info = E.o && E.o.caja && E.o.caja.querySelector('.mapa-info');
     if (!info || !E.res) return;
-    info.textContent = esDepto || (c && c.length === 2) ? textoDepto(c) : textoMuni(c);
+    info.textContent = esLoc(c) ? textoLoc(c) : esDepto || (c && c.length === 2) ? textoDepto(c) : textoMuni(c);
   }
+  /* Lo que se ve de un municipio (ver resumir(): Bogotá, la suma de lo que se
+     ve de sus localidades), y la frase que lo dice. */
+  function rangoDe(c) { return (E.res && E.res.rangos && E.res.rangos[c]) || { min: 0, max: 0 }; }
+  function clientesDe(c) { return cifraRango(rangoDe(c)) + ' clientes'; }
   function textoDepto(c) {
     var d = E.res.porDepto[c];
     return nombreDepto(c) + ' · ' + (d && d.clientes ? cifraRango(d.rango) + ' clientes' : 'sin clientes');
@@ -727,9 +966,26 @@
     var duda = dud ? ' · ' + cifra(dud) + ' sin ubicar (nombre repetido, abajo)' : '';
     if (!m) return base + (dud ? ' · ninguno ubicado' : ' · sin clientes') + duda;
     if (E.vista === 'conquistas') {
-      return base + ' · ' + clientes(m.clientes) + ' · ' + (m.pagaron >= META ? '🏁 conquistado' : faltan(m.pagaron) + ' para conquistarlo') + duda;
+      var q = conquistaDe(E.res, c);
+      return base + ' · ' + clientesDe(c) + ' · ' + (q === 'si' ? '🏁 conquistado' : textoFaltan(q) + ' para conquistarlo') + duda;
     }
-    return base + ' · ' + clientes(m.clientes) + duda;
+    return base + ' · ' + clientesDe(c) + duda;
+  }
+  /* Una localidad: su nombre, lo que se ve de su cifra y, en Conquistas, lo
+     que le falta. Con las mismas funciones que un municipio: «1–2» y
+     «faltan 1–2» valen igual un piso más abajo. */
+  function textoLoc(c) {
+    var b = E.res && E.res.bogota, cc = String(c).slice(1);
+    var k = b && b.porLoc[cc];
+    var base = nombreLoc(cc) + ' (Bogotá)';
+    /* Sin ubicados, «sin clientes» a secas sería falso si un sin localidad
+       puede ser de aquí (como en textoMuni). Con ubicados, su cifra es cierta. */
+    var dud = (b && b.dudososLoc && b.dudososLoc[cc]) || 0;
+    if (!k) return base + (dud ? ' · ninguno ubicado · ' + cifra(dud) + ' sin localidad pueden ser de aquí (abajo)' : ' · sin clientes');
+    if (E.vista === 'conquistas') {
+      return base + ' · ' + clientes(k.clientes) + ' · ' + (k.pagaron >= META ? '🏁 conquistada' : faltan(k.pagaron) + ' para conquistarla');
+    }
+    return base + ' · ' + clientes(k.clientes);
   }
   function nombreDepto(c) {
     var d = depto(c);
@@ -751,23 +1007,53 @@
   /* Primero lo que EMPIEZA por lo escrito, después lo que tiene una palabra
      que empieza así, después lo que lo contiene; dentro, lo que más clientes
      muestra (lo visible) y el abecedario. Los apodos de mapa-lugares.js
-     («Fusa», «Bta», «Kennedy») cuentan como si empezaran así. */
+     («Fusa», «Bta», «Kennedy») cuentan como si empezaran así.
+     14-nov — también las LOCALIDADES de Bogotá, por su nombre («L08» es
+     Kennedy), y los BARRIOS: si lo escrito es un barrio, sale la localidad
+     donde queda («L08|b»). Para el barrio no hay otra lista ni otra regla: se
+     le pregunta a L.localidadDe(), lo mismo que decide dónde cae cada ficha.
+     Así el buscador nunca contesta distinto de lo que el mapa hace, y un
+     barrio que está en dos localidades sale con las dos. */
   function buscar(texto) {
     var n = L.normalizar(texto);
     if (!n || !E.mapa || !E.res) return [];
     if (!E.normas) E.normas = E.mapa.municipios.map(function (m) { return { c: m.c, n: L.normalizar(m.n) }; });
     var apodos = {};
     lista(E.res.idx.porNombre[n]).forEach(function (c) { apodos[c] = true; });
+    var rb = E.res.bogota;
+    /* «Suba» era un apodo de Bogotá (mapa-lugares.js: quien vive en Suba la
+       escribe en «Ciudad»). Ahora Suba sale ella misma, y Bogotá encima de
+       ella, con sus clientes de todas las localidades, la tapaba. */
+    if (rb && rb.idx.porNombre[n]) delete apodos[rb.idx.municipio];
     var hallados = [];
+    var nivelDe = function (nombre, apodo) {
+      return apodo || nombre.indexOf(n) === 0 ? 0 : nombre.indexOf(' ' + n) >= 0 ? 1 : nombre.indexOf(n) >= 0 ? 2 : -1;
+    };
     E.normas.forEach(function (x) {
-      var nivel = apodos[x.c] || x.n.indexOf(n) === 0 ? 0 : x.n.indexOf(' ' + n) >= 0 ? 1 : x.n.indexOf(n) >= 0 ? 2 : -1;
+      var nivel = nivelDe(x.n, apodos[x.c]);
       if (nivel >= 0) hallados.push({ c: x.c, nivel: nivel });
     });
-    var cuantos = function (c) { return medio(visible((E.res.porMuni[c] || {}).clientes)); };
+    if (rb) {
+      lista(E.bogota && E.bogota.localidades).forEach(function (l) {
+        var nivel = nivelDe(L.normalizar(l.n), false);
+        if (nivel >= 0) hallados.push({ c: 'L' + l.c, nivel: nivel });
+      });
+    }
+    var cuantos = function (c) { return esLoc(c) ? medio(visible(((rb && rb.porLoc[c.slice(1)]) || {}).clientes)) : medio(rangoDe(c)); };
+    var nombre = function (c) { return esLoc(c) ? nombreLoc(c.slice(1)) : muni(c).n; };
     hallados.sort(function (a, b) {
-      return a.nivel - b.nivel || cuantos(b.c) - cuantos(a.c) || porNombre(muni(a.c).n, muni(b.c).n) || porNombre(a.c, b.c);
+      return a.nivel - b.nivel || cuantos(b.c) - cuantos(a.c) || porNombre(nombre(a.c), nombre(b.c)) || porNombre(a.c, b.c);
     });
-    return hallados.slice(0, 8).map(function (x) { return x.c; });
+    var r = hallados.map(function (x) { return x.c; });
+    var deBarrio = [];
+    if (rb) {
+      var q2 = L.localidadDe('', texto, rb.idx, E.res.idx);
+      (q2.estado === 'ubicado' ? [q2.codigo] : q2.estado === 'ambiguo' ? lista(q2.opciones) : []).forEach(function (cc) {
+        if (r.indexOf('L' + cc) < 0) deBarrio.push('L' + cc + '|b');
+      });
+    }
+    deBarrio = deBarrio.slice(0, 4);
+    return r.slice(0, 8 - deBarrio.length).concat(deBarrio);
   }
   function sugerir(texto) {
     E.sug = buscar(texto); E.sugSel = -1;
@@ -777,15 +1063,22 @@
     var caja = q('.mapa-sug');
     if (!caja) return;
     if (!E.sug.length) {
-      caja.innerHTML = escribio ? '<p class="mapa-sug-nada">No encuentro un municipio con ese nombre.</p>' : '';
+      caja.innerHTML = escribio ? '<p class="mapa-sug-nada">No encuentro un municipio con ese nombre, ni una localidad o un barrio de Bogotá.</p>' : '';
       caja.hidden = !escribio;
       return;
     }
     caja.innerHTML = E.sug.map(function (c, i) {
+      var cabeza = '<button type="button" class="mapa-sug-f' + (i === E.sugSel ? ' on' : '') + '" role="option" aria-selected="' + (i === E.sugSel) +
+        '" data-mapa="buscado" data-c="' + esc(c) + '"><span>';
+      if (esLoc(c.slice(0, 3))) {
+        var cc = c.slice(1, 3), k = E.res.bogota && E.res.bogota.porLoc[cc];
+        var dudL = (E.res.bogota && E.res.bogota.dudososLoc && E.res.bogota.dudososLoc[cc]) || 0;
+        return cabeza + esc(nombreLoc(cc)) + ' <small>' + (c.length > 3 ? 'Bogotá · ahí queda ese barrio' : 'localidad de Bogotá') +
+          '</small></span><b>' + (k ? esc(cifra(k.clientes)) : dudL ? '<i>' + esc(cifra(dudL)) + ' sin localidad</i>' : '<i>sin clientes</i>') + '</b></button>';
+      }
       var m = E.res.porMuni[c], dep = deptoDeMuni(c), dud = (E.res.dudosos || {})[c] || 0;
-      return '<button type="button" class="mapa-sug-f' + (i === E.sugSel ? ' on' : '') + '" role="option" aria-selected="' + (i === E.sugSel) +
-        '" data-mapa="buscado" data-c="' + esc(c) + '"><span>' + esc(muni(c).n) + (dep ? ' <small>' + esc(dep) + '</small>' : '') +
-        '</span><b>' + (m ? esc(cifra(m.clientes)) : dud ? '<i>' + esc(cifra(dud)) + ' sin ubicar</i>' : '<i>sin clientes</i>') + '</b></button>';
+      return cabeza + esc(muni(c).n) + (dep ? ' <small>' + esc(dep) + '</small>' : '') +
+        '</span><b>' + (m ? esc(cifraRango(rangoDe(c))) : dud ? '<i>' + esc(cifra(dud)) + ' sin ubicar</i>' : '<i>sin clientes</i>') + '</b></button>';
     }).join('');
     caja.hidden = false;
   }
@@ -798,7 +1091,7 @@
     var k = ev.key;
     if (k === 'Enter') {
       if (typeof ev.preventDefault === 'function') ev.preventDefault();
-      if (E.sug.length) irAMunicipio(E.sug[E.sugSel >= 0 ? E.sugSel : 0]);
+      if (E.sug.length) irABuscado(E.sug[E.sugSel >= 0 ? E.sugSel : 0]);
     } else if (k === 'ArrowDown' || k === 'ArrowUp') {
       if (!E.sug.length) return;
       if (typeof ev.preventDefault === 'function') ev.preventDefault();
@@ -811,6 +1104,10 @@
      uno de sus huecos; Bogotá (departamento de uno solo), dentro de
      Cundinamarca; los demás, en el suyo. */
   function deptoParaVer(c) {
+    /* Bogotá se ve por dentro; y con Bogotá abierta, sus vecinos de la Sabana
+       se ven ahí mismo (con el borde fino), sin saltar a Cundinamarca. */
+    if (tieneAdentro(c)) return deptoBogota();
+    if (enBogota() && E.zonas && E.zonas[c]) return E.depto;
     var propio = c.slice(0, 2);
     var abierto = E.depto && depto(E.depto);
     if (abierto && (abierto.c === propio || lista(abierto.h).indexOf(c) >= 0)) return abierto.c;
@@ -825,9 +1122,13 @@
     var m = muni(c);
     if (!m || !E.res) return false;
     cerrarSugerencias();
-    if (E.vista !== 'conquistas') {
+    if (E.vista !== 'conquistas' || tieneAdentro(c)) {
       var d = deptoParaVer(c);
       if (E.depto !== d) { E.depto = d; pintar(); }
+    } else if (enBogota() && !(E.zonas && E.zonas[c])) {
+      /* Conquistas con Bogotá abierta: lo que no es de la Sabana no está
+         dibujado. Se busca en el mapa de Colombia, como desde Conquistas. */
+      E.depto = null; pintar();
     }
     var entrada = q('.mapa-buscar');
     if (entrada) entrada.value = m.n;
@@ -836,14 +1137,29 @@
     verMapa();
     return true;
   }
+  /* Lo buscado: un municipio, o una localidad de Bogotá («L08», o «L08|b» si
+     se llegó por el nombre de un barrio). */
+  function irABuscado(c) {
+    var m = /^(L\d\d)/.exec(String(c == null ? '' : c));
+    return m ? irALocalidad(m[1]) : irAMunicipio(c);
+  }
+  function irALocalidad(c) {
+    if (!E.bogota || !E.res) return false;
+    cerrarSugerencias();
+    if (!enBogota()) { E.depto = deptoBogota(); pintar(); }
+    if (formaDe(c)) enfocar(c);
+    marcar(c); contar(c); globoEn(c);
+    verMapa();
+    return true;
+  }
   /* Centrado y con aire: la ventana mide tres veces el municipio. */
   function enfocar(c) {
-    var z = E.z, m = muni(c), b = m && cajaDe(m.d);
+    var z = E.z, m = formaDe(c), b = m && cajaDe(m.d);
     if (!z || !b) return;
     var aspecto = z.base[3] / z.base[2];
     var w = Math.max(b[2] - b[0], (b[3] - b[1]) / aspecto) * 3;
     var cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2;
-    z.vb = limitar([cx - w / 2, cy - w * aspecto / 2, w, w * aspecto], z.base);
+    z.vb = limitar([cx - w / 2, cy - w * aspecto / 2, w, w * aspecto], z.base, E.min);
     aplicar();
   }
 
@@ -854,13 +1170,18 @@
     var o = E.o, caja = o && o.caja;
     if (!caja || !E.mapa) return;
     var t0 = Date.now();
-    E.res = resumir(o.db, E.mapa, o.puente);
-    E.ets = []; E.vb0 = null; E.sug = []; E.sugSel = -1;
+    E.res = resumir(o.db, E.mapa, o.puente, E.bogota);
+    E.ets = []; E.vb0 = null; E.sug = []; E.sugSel = -1; E.zonas = null; E.min = ANCHO_MIN;
     var h = cabeza();
-    if (E.vista === 'conquistas') h += vistaConquistas();
+    var bog = enBogota();
+    if (bog) h += vistaBogota();
+    else if (E.vista === 'conquistas') h += vistaConquistas();
     else if (E.depto) h += vistaDepto(E.depto);
     else h += vistaPais();
-    h += sinUbicar() + '<p class="mapa-creditos">' + esc(CREDITOS) + '. Zonas, nunca puntos: cada cliente cae en el municipio que escribió en «Ciudad»; el mapa no usa el GPS del registro.</p>';
+    h += sinUbicar() + (bog ? sinLocalidad() : '') + '<p class="mapa-creditos">' + esc(CREDITOS) +
+      (bog ? ' · ' + esc(E.bogota.creditos || '') + (E.vista !== 'conquistas' ? ' · Calles: ' + esc(CREDITOS_OSM) + ' (ODbL)' : '') : '') +
+      '. Zonas, nunca puntos: cada cliente cae en el municipio que escribió en «Ciudad»' +
+      (bog ? ' y, en Bogotá, en la localidad de su «Barrio»' : '') + '; el mapa no usa el GPS del registro.</p>';
     caja.innerHTML = h;
     prepararZoom();
     E.ms = Date.now() - t0;
@@ -877,11 +1198,11 @@
   /* La barra de encima del mapa: volver (en un departamento), el buscador y
      el zoom. Los botones de zoom arrancan como si el mapa estuviera entero;
      aplicar() los pone al día. */
-  function barra(volver) {
+  function barra(volver, extra) {
     return '<div class="mapa-barra">' + (volver ? '<button type="button" class="btn btn-ghost btn-sm mapa-volver" data-mapa="pais">← Toda Colombia</button>' : '') +
-      '<div class="mapa-busca"><input type="search" class="mapa-buscar" placeholder="Buscar municipio…" aria-label="Buscar municipio" autocomplete="off" enterkeyhint="search">' +
-      '<div class="mapa-sug" role="listbox" aria-label="Municipios" hidden></div></div>' +
-      '<div class="mapa-zoom" role="group" aria-label="Zoom del mapa">' +
+      '<div class="mapa-busca"><input type="search" class="mapa-buscar" placeholder="Buscar municipio, localidad o barrio…" aria-label="Buscar municipio, localidad o barrio" autocomplete="off" enterkeyhint="search">' +
+      '<div class="mapa-sug" role="listbox" aria-label="Municipios y localidades" hidden></div></div>' +
+      '<div class="mapa-zoom" role="group" aria-label="Zoom del mapa">' + (extra || '') +
       '<button type="button" class="mapa-zb" data-mapa="zoom" data-z="mas" aria-label="Acercar" title="Acercar">＋</button>' +
       '<button type="button" class="mapa-zb" data-mapa="zoom" data-z="menos" aria-label="Alejar" title="Alejar" disabled>－</button>' +
       '<button type="button" class="mapa-zb mapa-todo" data-mapa="zoom" data-z="todo" disabled>Volver a ver todo</button></div></div>';
@@ -919,24 +1240,29 @@
      recibir el ratón (el toque es de la zona de debajo). Las «siempre» salen
      prendidas; las otras, apagadas hasta que colocarEtiquetas() diga que
      caben. `filas` llega en orden de prioridad. */
+  /* 14-nov — una fila puede traer su propio `siempre` (en Bogotá solo van
+     siempre las zonas con 3 clientes o más: veinte localidades con su «1–2»
+     no caben juntas en el centro) y venir sin cifra: el nombre a secas de una
+     zona sin clientes, que solo sale si le queda sitio. */
   function etiquetas(filas, siempre) {
+    var fijo = function (f) { return f.siempre === undefined ? siempre : !!f.siempre; };
     E.ets = filas.map(function (f) {
-      return { c: f.c, x: f.x, y: f.y, w: anchoEtiqueta(f.nombre + ' ' + f.cifra), h: Math.round(TAM * 1.3), siempre: siempre, ver: siempre, dy: 0, dx: 0 };
+      return { c: f.c, x: f.x, y: f.y, w: anchoEtiqueta(f.nombre + (f.cifra ? ' ' + f.cifra : '')), h: Math.round(TAM * 1.3), siempre: fijo(f), cede: !!f.cede, ver: fijo(f), dy: 0, dx: 0 };
     });
     return '<g class="mapa-ets" aria-hidden="true">' + filas.map(function (f) {
-      return '<text class="mapa-et' + (siempre ? ' siempre' : ' oculta') + (f.clase ? ' ' + f.clase : '') + '" x="' + f.x + '" y="' + f.y +
-        '" dy="0.35em" data-c="' + esc(f.c) + '">' + esc(f.nombre) + ' <tspan class="mapa-et-k">' + esc(f.cifra) + '</tspan></text>';
+      return '<text class="mapa-et' + (fijo(f) ? ' siempre' : ' oculta') + (f.clase ? ' ' + f.clase : '') + '" x="' + f.x + '" y="' + f.y +
+        '" dy="0.35em" data-c="' + esc(f.c) + '">' + esc(f.nombre) + (f.cifra ? ' <tspan class="mapa-et-k">' + esc(f.cifra) + '</tspan>' : '') + '</text>';
     }).join('') + '</g>';
   }
   function fila(c, extra) {
     var m = muni(c), p = puntoDe(m);
-    return Object.assign({ c: c, x: p[0], y: p[1], nombre: m ? m.n : c, cifra: cifra(E.res.porMuni[c].clientes) }, extra || {});
+    return Object.assign({ c: c, x: p[0], y: p[1], nombre: m ? m.n : c, cifra: cifraRango(rangoDe(c)) }, extra || {});
   }
   /* Los municipios con clientes, con lo que más muestra primero. */
   function conClientesEnOrden(codigos) {
     var r = E.res;
     return codigos.filter(function (c) { return r.porMuni[c] && muni(c); }).sort(function (a, b) {
-      return medio(visible(r.porMuni[b].clientes)) - medio(visible(r.porMuni[a].clientes)) || porNombre(muni(a).n, muni(b).n) || porNombre(a, b);
+      return medio(r.rangos[b]) - medio(r.rangos[a]) || porNombre(muni(a).n, muni(b).n) || porNombre(a, b);
     });
   }
 
@@ -972,7 +1298,8 @@
       svg([0, 0].concat(m.caja), recuadro(m.recuadro) + '<g class="mapa-zonas">' + caminos + '</g><g class="mapa-marcas">' + marcas + '</g>' +
         etiquetas(con.map(function (c) { return fila(c); }), false),
       'mapa-papel', 'Colombia por departamentos, coloreada por número de clientes, con los municipios que tienen clientes marcados') +
-      globoYLinea('Toca un departamento para ver sus municipios.' + (con.length ? ' Los municipios con clientes van marcados con borde negro.' : '')) +
+      globoYLinea('Toca un departamento para ver sus municipios.' + (con.length ? ' Los municipios con clientes van marcados con borde negro.' : '') +
+        ' Bogotá se abre por localidades.') +
       leyenda('mapa-z', con.length ? '<span><i class="mapa-marca-i"></i>Municipio con clientes</span>' : '') + '</div>' +
       '<div class="mapa-lado"><div class="mapa-total"><b>' + cifraRango(r.rango) + '</b> de tus clientes están en el mapa' +
       (r.total - r.ubicados ? ' · ' + (r.total - r.ubicados).toLocaleString('es-CO') + ' sin ubicar (abajo)' : '') + '</div>' + notaRango(r.rango) +
@@ -1000,24 +1327,23 @@
     var caja = [b[0] - pad, b[1] - pad, ancho + 2 * pad, alto + 2 * pad].map(function (x) { return Math.round(x); });
     var munis = m.municipios.filter(function (x) { return x.c.slice(0, 2) === c || huecos.indexOf(x.c) >= 0; });
     var caminos = munis.map(function (x) {
-      var k = (r.porMuni[x.c] || {}).clientes || 0;
-      return '<path class="mapa-z t' + tramo(k) + (huecos.indexOf(x.c) >= 0 ? ' mapa-hueco' : '') + '" data-mapa="muni" data-c="' + esc(x.c) + '" d="' + x.d + '"><title>' + esc(textoMuni(x.c)) + '</title></path>';
+      return '<path class="mapa-z t' + tramoRango(r.rangos[x.c]) + (huecos.indexOf(x.c) >= 0 ? ' mapa-hueco' : '') + '" data-mapa="muni" data-c="' + esc(x.c) + '" d="' + x.d + '"><title>' + esc(textoMuni(x.c)) + '</title></path>';
     }).join('') + '<path class="mapa-borde" d="' + d.d + '"/>';
     var nombres = etiquetas(conClientesEnOrden(munis.map(function (x) { return x.c; })).map(function (x) { return fila(x); }), true);
     var con = munis.filter(function (x) { return x.c.slice(0, 2) === c && r.porMuni[x.c]; })
-      .sort(function (a, b2) { return medio(visible(r.porMuni[b2.c].clientes)) - medio(visible(r.porMuni[a.c].clientes)) || porNombre(a.n, b2.n) || porNombre(a.c, b2.c); });
+      .sort(function (a, b2) { return medio(r.rangos[b2.c]) - medio(r.rangos[a.c]) || porNombre(a.n, b2.n) || porNombre(a.c, b2.c); });
     var rangoD = (r.porDepto[c] || {}).rango;
     var filas = con.map(function (x) {
-      return '<li><button type="button" class="mapa-fila" data-mapa="muni" data-c="' + esc(x.c) + '"><span>' + esc(x.n) + '</span><b>' + cifra(r.porMuni[x.c].clientes) + '</b></button></li>';
+      return '<li><button type="button" class="mapa-fila" data-mapa="muni" data-c="' + esc(x.c) + '"><span>' + esc(x.n) + '</span><b>' + cifraRango(r.rangos[x.c]) + '</b></button></li>';
     }).join('');
     var otros = huecos.filter(function (x) { return r.porMuni[x]; }).map(function (x) {
       var dep = deptoDeMuni(x);
       return '<li><button type="button" class="mapa-fila" data-mapa="muni" data-c="' + esc(x) + '"><span>' + esc(muni(x).n) +
-        (dep ? ' <small>' + esc(dep) + '</small>' : '') + '</span><b>' + cifra(r.porMuni[x].clientes) + '</b></button></li>';
+        (dep ? ' <small>' + esc(dep) + '</small>' : '') + '</span><b>' + cifraRango(r.rangos[x]) + '</b></button></li>';
     }).join('');
     return '<div class="mapa-cuerpo"><div class="mapa-lienzo">' + barra(true) +
       svg(caja, '<g class="mapa-zonas">' + caminos + '</g>' + nombres, 'mapa-papel', d.n + ' por municipios, coloreado por número de clientes') +
-      globoYLinea(textoDepto(c) + ' · toca un municipio.') + leyenda('mapa-z') + '</div>' +
+      globoYLinea(textoDepto(c) + ' · toca un municipio.' + (huecos.some(tieneAdentro) ? ' Bogotá se abre por localidades.' : '')) + leyenda('mapa-z') + '</div>' +
       '<div class="mapa-lado"><h3 class="mapa-h">' + esc(d.n) + '</h3><div class="mapa-total"><b>' + cifraRango(rangoD) +
       '</b> clientes · ' + con.length + ' de ' + d.m + ' municipios con clientes</div>' + notaRango(rangoD) +
       (filas ? '<ol class="mapa-lista">' + filas + '</ol>' : '<p class="muted">Ningún cliente ubicado aquí.</p>') +
@@ -1043,17 +1369,17 @@
     }).join('') + m.departamentos.map(function (d) { return '<path class="mapa-borde" d="' + d.d + '"/>'; }).join('');
     /* Los nombres, en el orden de las listas: lo conquistado primero. */
     var nombres = etiquetas(q2.conquistados.concat(q2.porConquistar).filter(function (x) { return muni(x.c); }).map(function (x) {
-      return fila(x.c, x.pagaron >= META ? { clase: 'conq' } : null);
+      return fila(x.c, x.q === 'si' ? { clase: 'conq' } : null);
     }), false);
     var filaQ = function (x) {
       var dep = deptoDeMuni(x.c);
       return '<li><button type="button" class="mapa-fila" data-mapa="muni" data-c="' + esc(x.c) + '"><span>' + esc(r.idx.nombre[x.c] || x.c) +
-        (dep ? ' <small>' + esc(dep) + '</small>' : '') + '</span><b>' + (x.pagaron >= META ? '🏁' : esc(faltan(x.pagaron))) + '</b></button></li>';
+        (dep ? ' <small>' + esc(dep) + '</small>' : '') + '</span><b>' + (x.q === 'si' ? '🏁' : esc(textoFaltan(x.q))) + '</b></button></li>';
     };
     var aviso = r.reglaDePago ? '' : '<div class="alerta warn">Este computador tiene una versión vieja de app/puente.js y no sé distinguir un crédito pagado de uno cerrado con pérdida: no cuento ninguna conquista. Recárgalo con Ctrl+Shift+R.</div>';
     return aviso + '<div class="mapa-cuerpo"><div class="mapa-lienzo mapa-laca">' + barra(false) +
       svg([0, 0].concat(m.caja), recuadro(m.recuadro) + '<g class="mapa-zonas">' + caminos + '</g>' + nombres, 'mapa-oscuro', 'Colombia por municipios: conquistados, con clientes y sin clientes') +
-      globoYLinea('Un municipio se conquista con ' + META + ' clientes que pagaron un crédito entero. Un cierre con pérdida no cuenta.') +
+      globoYLinea('Un municipio se conquista con ' + META + ' clientes que pagaron un crédito entero. Un cierre con pérdida no cuenta. Bogotá se abre por localidades.') +
       '<div class="mapa-leyenda mapa-leyenda-q"><span><i class="mapa-q conq"></i>Conquistado</span><span><i class="mapa-q con"></i>Con clientes</span><span><i class="mapa-q vacio"></i>Sin clientes</span></div></div>' +
       '<div class="mapa-lado"><div class="mapa-kpis">' +
       '<div><b>' + q2.conquistados.length.toLocaleString('es-CO') + '</b><span>conquistados</span></div>' +
@@ -1063,6 +1389,269 @@
       (q2.porConquistar.length ? '<h3 class="mapa-h">Por conquistar</h3><ol class="mapa-lista">' + q2.porConquistar.map(filaQ).join('') + '</ol>'
         : (q2.conquistados.length ? '' : '<p class="muted">Todavía no hay clientes con una ciudad que se pueda ubicar.</p>')) +
       '</div></div>';
+  }
+
+  /* ------------------------------------------------------------------------
+   * 14-nov-2026 — BOGOTÁ POR DENTRO
+   * ---------------------------------------------------------------------- */
+  /* Bogotá es el municipio que tiene adentro (su archivo dice cuál), y se
+     abre como el departamento de un solo municipio que es: E.depto = '11'. */
+  function deptoBogota() { return E.bogota ? String(E.bogota.municipio).slice(0, 2) : ''; }
+  function enBogota() { return !!(E.bogota && E.depto && E.depto === deptoBogota()); }
+  function tieneAdentro(c) { return !!(E.bogota && c === String(E.bogota.municipio)); }
+  /* Una localidad va con «L» delante de su código («L08», Kennedy): los dos
+     dígitos solos son el código de un departamento. */
+  function esLoc(c) { return /^L\d\d$/.test(String(c == null ? '' : c)); }
+  function nombreLoc(cc) {
+    var b = E.res && E.res.bogota;
+    return (b && b.idx.nombre[cc]) || cc;
+  }
+  /* La forma y el punto del nombre de una zona: en la vista de Bogotá, los
+     finos de su archivo (localidades y vecinos); si no, los del mapa. */
+  function formaDe(c) { return (E.zonas && E.zonas[c]) || muni(c); }
+
+  /* BOGOTÁ Y LA SABANA. Tres capas, de abajo arriba:
+       · los VECINOS (Soacha, Mosquera, Funza…), con el borde fino del archivo
+         de Bogotá, coloreados y tocables como en un departamento abierto;
+       · el FONDO: Bogotá según el DANE, en «sin clientes». Solo asoma donde
+         el límite del DANE y el de Planeación no casan: sin él, esas rendijas
+         serían el blanco del papel;
+       · las LOCALIDADES y, encima, el CONTORNO de la ciudad: la unión de las
+         19 que se ven, que trae el archivo. (Primero fue un trazo grueso de cada
+         localidad pintado debajo de los rellenos; se transparentaba, porque
+         los azules de la escala llevan alfa, y entre Suba y Usaquén salía
+         una raya gorda.)
+     En Departamentos van en azul, por lo que se ve de su cifra, y debajo
+     pueden ir las calles (ver «LAS CALLES»). En Conquistas, en laca: una
+     localidad se conquista igual que un municipio, y Bogotá sigue contando
+     como UNO de los 1.122 (decisión del 14-nov: la cifra de Colombia no
+     salta por abrir Bogotá).
+     Las etiquetas: siempre, las zonas con 3 clientes o más; las de «1–2» y
+     los nombres de las vacías, si caben (al acercar caben más). Lo que no
+     tiene forma en la ventana (Sumapaz, que queda 30 km al sur) va en una
+     línea debajo, para que su cifra no se pierda. */
+  function vistaBogota() {
+    var B = E.bogota, r = E.res, rb = r.bogota || { porLoc: {}, sinLoc: [] }, q2 = E.vista === 'conquistas';
+    var NADIE = { clientes: 0, pagaron: 0 };
+    E.zonas = {};
+    E.min = Number(B.minimo) > 0 ? Number(B.minimo) : ANCHO_MIN;
+    var estado = function (k) { return k.pagaron >= META ? 'conq' : k.clientes ? 'con' : 'vacio'; };
+    var capa = { vacio: 0, con: 1, conq: 2 };
+    /* En Conquistas lo conquistado se pinta al final, como en Colombia. */
+    var porCapa = function (a, b) { return q2 ? capa[estado(a.k)] - capa[estado(b.k)] : 0; };
+    var claseDe = function (k) { return q2 ? 'mapa-q ' + estado(k) : 'mapa-z t' + tramo(k.clientes); };
+    var vecinos = lista(B.vecinos).filter(function (v) { return v.d && muni(v.c); }).map(function (v) {
+      var p = Array.isArray(v.p) ? v.p : null;
+      E.zonas[v.c] = { d: v.d, p: p };
+      return { c: v.c, n: muni(v.c).n, k: r.porMuni[v.c] || NADIE, p: p, d: v.d };
+    });
+    var locs = lista(B.localidades).map(function (l) {
+      var c = 'L' + l.c, p = Array.isArray(l.p) ? l.p : null;
+      if (l.d) E.zonas[c] = { d: l.d, p: p };
+      return { c: c, n: l.n, k: rb.porLoc[l.c] || NADIE, p: l.d ? p : null, d: l.d || '' };
+    });
+    var dibujadas = locs.filter(function (l) { return l.d; });
+    var zonasV = vecinos.slice().sort(porCapa).map(function (v) {
+      return '<path class="' + claseDe(v.k) + '" data-mapa="muni" data-c="' + esc(v.c) + '" d="' + v.d + '"><title>' + esc(textoMuni(v.c)) + '</title></path>';
+    }).join('');
+    var zonasL = dibujadas.slice().sort(porCapa).map(function (l) {
+      return '<path class="' + claseDe(l.k) + ' mapa-loc" data-mapa="loc" data-c="' + l.c + '" d="' + l.d + '"><title>' + esc(textoLoc(l.c)) + '</title></path>';
+    }).join('');
+
+    /* Los nombres. El orden y el «siempre» salen de lo que se VE de cada
+       cifra (3 o más es exacto; 1 y 2 son lo mismo), nunca de la cifra: va
+       siempre la zona cuya cifra se dice entera. */
+    var seDiceEntera = function (n) { var v = visible(n); return n > 0 && v.min === v.max; };
+    var porLoQueSeVe = function (a, b) {
+      return medio(visible(b.k.clientes)) - medio(visible(a.k.clientes)) || porNombre(a.n, b.n) || porNombre(a.c, b.c);
+    };
+    var todas = locs.concat(vecinos).filter(function (z) { return z.p; });
+    var conGente = todas.filter(function (z) { return z.k.clientes; }).sort(porLoQueSeVe);
+    var nombres = etiquetas(conGente.map(function (z) {
+      return { c: z.c, x: z.p[0], y: z.p[1], nombre: z.n, cifra: cifra(z.k.clientes), siempre: seDiceEntera(z.k.clientes), cede: true,
+        clase: q2 && z.k.pagaron >= META ? 'conq' : '' };
+    }).concat(todas.filter(function (z) { return !z.k.clientes; }).map(function (z) {
+      return { c: z.c, x: z.p[0], y: z.p[1], nombre: z.n, cifra: '', siempre: false, clase: 'mapa-et-sec' };
+    })), false);
+
+    /* Las listas del lado. */
+    var conLoc = locs.filter(function (l) { return l.k.clientes; }).sort(porLoQueSeVe);
+    var conVec = vecinos.filter(function (v) { return v.k.clientes; }).sort(porLoQueSeVe);
+    var filaZ = function (z, derecha) {
+      return '<li><button type="button" class="mapa-fila" data-mapa="' + (esLoc(z.c) ? 'loc' : 'muni') + '" data-c="' + esc(z.c) + '"><span>' + esc(z.n) +
+        '</span><b>' + derecha + '</b></button></li>';
+    };
+    var rangoB = rangoDe(B.municipio), total = lista(B.localidades).length;
+    var sinLoc = rb.sinLoc.length;
+    var notaSinLoc = sinLoc ? '<p class="mapa-sinloc"><b>' + cifra(sinLoc) + '</b> clientes de Bogotá no tienen localidad: no tienen barrio (o el del registro es de otra ciudad), su barrio no está en la lista o está en varias localidades, la localidad que escribieron se llama también como un barrio de otra, lo escrito apunta a localidades distintas o nombra otro municipio. Siguen contando en Bogotá. Están abajo, cada uno con su ficha.</p>' : '';
+    var fuera = locs.filter(function (l) { return !l.d; }).map(function (l) {
+      /* Como textoLoc: sin ubicados, «sin clientes» a secas sería falso si un
+         sin localidad puede ser de aquí. */
+      var dud = (rb.dudososLoc && rb.dudososLoc[String(l.c).slice(1)]) || 0;
+      return '<button type="button" class="mapa-enlace" data-mapa="loc" data-c="' + l.c + '">' + esc(l.n) + ' · ' +
+        (l.k.clientes ? (q2 && l.k.pagaron >= META ? '🏁 ' : '') + clientes(l.k.clientes)
+          : dud ? 'ninguno ubicado · ' + cifra(dud) + ' sin localidad pueden ser de aquí' : 'sin clientes') + '</button>';
+    }).join(', ');
+    var lineaFuera = fuera ? '<p class="mapa-fuera">Más al sur, fuera de esta ventana: ' + fuera + '</p>' : '';
+    var lado;
+    if (q2) {
+      var claseQ = function (z) { return z.k.pagaron >= META ? 2 : z.k.pagaron > 0 ? 1 : 0; };
+      var ordenQ = function (a, b) { return claseQ(b) - claseQ(a) || porLoQueSeVe(a, b); };
+      var filaQ = function (z) { return filaZ(z, z.k.pagaron >= META ? '🏁' : esc(faltan(z.k.pagaron))); };
+      var hechas = conLoc.filter(function (l) { return l.k.pagaron >= META; }).sort(ordenQ);
+      var faltanL = conLoc.filter(function (l) { return l.k.pagaron < META; }).sort(ordenQ);
+      lado = '<div class="mapa-lado"><div class="mapa-kpis">' +
+        '<div><b>' + hechas.length.toLocaleString('es-CO') + '</b><span>' + (hechas.length === 1 ? 'conquistada' : 'conquistadas') + '</span></div>' +
+        '<div><b>' + conLoc.length.toLocaleString('es-CO') + '</b><span>con clientes</span></div>' +
+        '<div><b>' + total.toLocaleString('es-CO') + '</b><span>localidades</span></div></div>' +
+        (hechas.length ? '<h3 class="mapa-h">🏁 Localidades conquistadas</h3><ol class="mapa-lista">' + hechas.map(filaQ).join('') + '</ol>' : '') +
+        (faltanL.length ? '<h3 class="mapa-h">Por conquistar</h3><ol class="mapa-lista">' + faltanL.map(filaQ).join('') + '</ol>'
+          : (hechas.length ? '' : '<p class="muted">Todavía no hay clientes de Bogotá con una localidad que se pueda ubicar.</p>')) +
+        notaSinLoc +
+        (conVec.length ? '<h3 class="mapa-h">Alrededor, en la Sabana</h3><ol class="mapa-lista mapa-otros">' + conVec.slice().sort(ordenQ).map(filaQ).join('') + '</ol>' : '') +
+        '</div>';
+    } else {
+      lado = '<div class="mapa-lado"><h3 class="mapa-h">Bogotá, localidad por localidad</h3><div class="mapa-total"><b>' + cifraRango(rangoB) +
+        '</b> clientes · ' + conLoc.length + ' de ' + total + ' localidades con clientes</div>' + notaRango(rangoB) +
+        (conLoc.length ? '<ol class="mapa-lista">' + conLoc.map(function (l) { return filaZ(l, cifra(l.k.clientes)); }).join('') + '</ol>'
+          : '<p class="muted">Ningún cliente de Bogotá con una localidad que se pueda ubicar.</p>') +
+        notaSinLoc +
+        (conVec.length ? '<h3 class="mapa-h">Alrededor, en la Sabana</h3><p class="muted mapa-nota-otros">Son otros municipios: no suman en el total de Bogotá.</p>' +
+          '<ol class="mapa-lista mapa-otros">' + conVec.map(function (v) { return filaZ(v, cifraRango(rangoDe(v.c))); }).join('') + '</ol>' : '') +
+        '</div>';
+    }
+
+    /* El dibujo. Las calles van DEBAJO de todo, en gris (el filtro les quita
+       el color: verdes y naranjas debajo de un azul que significa algo se
+       leerían como otra escala). El grupo va aunque estén quitadas: el botón
+       las pone y las quita sin volver a pintar. */
+    var calles = !q2 && E.calles;
+    var debajo = q2 ? '' : '<defs><filter id="mapa-gris" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">' +
+      '<feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope="0.84" intercept="0.14"/>' +
+      '<feFuncG type="linear" slope="0.84" intercept="0.14"/><feFuncB type="linear" slope="0.84" intercept="0.14"/></feComponentTransfer></filter></defs>' +
+      '<g class="mapa-teselas" filter="url(#mapa-gris)" aria-hidden="true"></g>';
+    var cuerpo = debajo + '<g class="mapa-zonas">' + zonasV + (B.fondo ? '<path class="mapa-fondo" d="' + B.fondo + '"/>' : '') + '</g>' +
+      '<g class="mapa-zonas">' + zonasL + '</g>' + (B.contorno ? '<path class="mapa-borde mapa-ciudad" d="' + B.contorno + '"/>' : '') + nombres;
+    var botonCalles = q2 ? '' : '<button type="button" class="mapa-zb mapa-todo mapa-calles-b' + (E.calles ? ' on' : '') + '" data-mapa="calles" aria-pressed="' + !!E.calles +
+      '" title="Poner o quitar las calles de OpenStreetMap debajo del mapa">Calles</button>';
+    /* El crédito de OpenStreetMap, SOBRE el mapa y a la vista mientras haya
+       calles: es su condición de uso, no un detalle del pie. */
+    var osm = q2 ? '' : '<div class="mapa-osm"' + (calles ? '' : ' hidden') + '>© <a href="' + URL_OSM + '" target="_blank" rel="noopener">colaboradores de OpenStreetMap</a></div>' +
+      '<div class="mapa-osm-aviso" role="status" hidden>Las calles no cargaron (¿sin señal?). El mapa sigue igual sin ellas.</div>';
+    var texto = q2 ? 'Una localidad se conquista con ' + META + ' clientes que pagaron un crédito entero. Un cierre con pérdida no cuenta.'
+      : 'Bogotá, D.C. · ' + (r.porMuni[B.municipio] ? clientesDe(B.municipio) : 'sin clientes') + ' · toca una localidad o un municipio vecino.';
+    var pie = q2 ? '<div class="mapa-leyenda mapa-leyenda-q"><span><i class="mapa-q conq"></i>Conquistada</span><span><i class="mapa-q con"></i>Con clientes</span><span><i class="mapa-q vacio"></i>Sin clientes</span></div>'
+      : leyenda('mapa-z');
+    return '<div class="mapa-cuerpo"><div class="mapa-lienzo' + (q2 ? ' mapa-laca' : calles ? ' mapa-calles' : '') + '">' + barra(true, botonCalles) +
+      '<div class="mapa-marco">' + svg(lista(B.caja).slice(0, 4), cuerpo, q2 ? 'mapa-oscuro' : 'mapa-papel',
+        'Bogotá por localidades y sus municipios vecinos, ' + (q2 ? 'conquistados, con clientes y sin clientes' : 'coloreados por número de clientes')) + osm + '</div>' +
+      globoYLinea(texto) + pie + lineaFuera + '</div>' + lado + '</div>';
+  }
+
+  /* Los clientes de Bogotá sin localidad: con su número, el barrio que
+     escribieron, por qué no, y el botón a su ficha (la pestaña no corrige:
+     solo lee). Cerrado de entrada, como los sin ubicar: son nombres. */
+  /* «Usaquén, Usme, Bosa o Suba»: con comas, y la conjunción solo al final. */
+  function enumerar(nombres, conjuncion) {
+    var n = lista(nombres);
+    return n.length < 2 ? n.join('') : n.slice(0, -1).join(', ') + conjuncion + n[n.length - 1];
+  }
+  function sinLocalidad() {
+    var rb = E.res && E.res.bogota, l = rb ? rb.sinLoc : [];
+    if (!l.length) return '';
+    var filas = l.slice().sort(function (a, b) { return (Number(a.numero) || 0) - (Number(b.numero) || 0); }).map(function (x) {
+      var porque = x.estado === 'vacio' ? 'Sin barrio en la ficha' + (x.registro ? ' (el del registro es de ' + x.registro + ')' : '') + '.'
+        : x.estado === 'ambiguo' && x.homonima ? 'La localidad «' + x.homonima + '» se llama también como un barrio de ' + enumerar(x.homonimaEn, ' y ') +
+          ', y lo demás no dice cuál es: pon en «Ciudad» «Bogotá - ' + x.homonima + '».'
+        : x.estado === 'ambiguo' ? 'Ese barrio está en varias localidades: ' + enumerar(x.opciones, ' o ') + '.'
+        : x.estado === 'choque' ? 'Lo escrito apunta a localidades distintas: ' + enumerar(x.opciones, ' y ') + '.'
+        : x.estado === 'otro-municipio' && x.en === 'ciudad' ? '«Ciudad» nombra también otro municipio (' + x.municipio + '): deja en «Ciudad» solo el municipio donde vive.' +
+          (x.tambienBarrio ? ' Si es un barrio de aquí que se llama igual, va en «Barrio».' : '')
+        : x.estado === 'otro-municipio' ? 'El barrio nombra otro municipio (' + x.municipio + '): si vive allá, corrige «Ciudad».'
+        : 'No reconozco ese barrio.';
+      return '<li><div><b>' + (x.numero != null && x.numero !== '' ? '#' + esc(x.numero) + ' ' : '') + esc(x.nombre || 'Sin nombre') + '</b>' +
+        (x.texto ? ' · barrio «' + esc(x.texto) + '»' : '') + '<div class="muted">' + esc(porque) + '</div></div>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-mapa="ficha" data-id="' + esc(x.id) + '">Abrir ficha</button></li>';
+    }).join('');
+    return '<details class="mapa-sin mapa-sin-loc"><summary>⚠️ ' + cifra(l.length) + ' clientes de Bogotá sin localidad — cuentan en Bogotá, no en una localidad</summary><p class="muted">Corrige la ficha. Si el barrio está en dos localidades, escribe la suya al lado («Lisboa, Suba») o ponla en «Ciudad» detrás de Bogotá: «Bogotá - Suba». Sola no: Santa Fe, San Cristóbal y Ciudad Bolívar son también municipios de otros departamentos.</p><ol>' + filas + '</ol></details>';
+  }
+
+  /* ------------------------------------------------------------------------
+   * LAS CALLES, en la página (la cuenta está en teselas(), arriba)
+   * ---------------------------------------------------------------------- */
+  function callesPuestas() { return !!(E.calles && enBogota() && E.vista !== 'conquistas'); }
+  /* Se piden cuando el mapa se queda quieto: en un arrastre llegan sesenta
+     ventanas por segundo, y pedirle las teselas de cada una a un servidor
+     ajeno es justo el uso que sus condiciones no quieren. Mientras tanto las
+     que ya están se mueven con el mapa. */
+  function pedirTeselas() {
+    if (!callesPuestas() || typeof setTimeout !== 'function') return;
+    if (E.tes.reloj) clearTimeout(E.tes.reloj);
+    E.tes.reloj = setTimeout(function () { E.tes.reloj = 0; ponerTeselas(); }, 160);
+  }
+  function ponerTeselas() {
+    var z = E.z, B = E.bogota;
+    if (!z || !z.svg || !B || !callesPuestas() || typeof z.svg.querySelector !== 'function') return;
+    var g = z.svg.querySelector('g.mapa-teselas'), doc = z.svg.ownerDocument, r = medir(z.svg);
+    if (!g || !doc || typeof doc.createElementNS !== 'function' || !r) return;
+    /* Lo que se ve del mapa: la ventana y, si el <svg> es más ancho que ella,
+       las franjas de los lados (ahí también se ve mapa). */
+    var a = aMapa(z.vb, r, r.left, r.top), b = aMapa(z.vb, r, r.left + r.width, r.top + r.height);
+    var quiero = {};
+    teselas([a[0], a[1], b[0] - a[0], b[1] - a[1]], z.s, B.proy).forEach(function (t) { quiero[t.z + '/' + t.x + '/' + t.y] = t; });
+    /* `_vieja`: la marca de lo que sobra. Si antes de los 700 ms el mapa
+       vuelve a una ventana que la necesita (acercar y «Volver a ver todo»,
+       arrastrar y volver), se desmarca y el temporizador ya no se la lleva:
+       sin eso el mapa se quedaba sin calles con el botón puesto. */
+    var viejas = [];
+    [].slice.call(g.querySelectorAll('image')).forEach(function (im) {
+      var k = im.getAttribute('data-t');
+      if (quiero[k]) { delete quiero[k]; im._vieja = false; } else { im._vieja = true; viejas.push(im); }
+    });
+    var quitar = function (im) { if (im.parentNode) im.parentNode.removeChild(im); };
+    var nuevas = Object.keys(quiero);
+    nuevas.forEach(function (k) {
+      var t = quiero[k], im = doc.createElementNS('http://www.w3.org/2000/svg', 'image');
+      /* Medio píxel de más: entre dos teselas vecinas no queda una raya. */
+      var mas = z.s / 2;
+      im.setAttribute('data-t', k);
+      im.setAttribute('x', String(t.mx)); im.setAttribute('y', String(t.my));
+      im.setAttribute('width', String(t.mw + mas)); im.setAttribute('height', String(t.mh + mas));
+      im.setAttribute('preserveAspectRatio', 'none');
+      im.addEventListener('load', function () { E.tes.bien++; avisoDeCalles(); });
+      im.addEventListener('error', function () { E.tes.mal++; quitar(im); avisoDeCalles(); });
+      im.setAttribute('href', urlDeTesela(t));
+      g.appendChild(im);
+    });
+    /* Las de otro zoom se quedan un momento debajo de las nuevas: sin eso, a
+       cada paso de zoom el mapa parpadea en blanco mientras llegan. */
+    if (viejas.length) {
+      if (nuevas.length && typeof setTimeout === 'function') {
+        setTimeout(function () { viejas.forEach(function (im) { if (im._vieja) quitar(im); }); }, 700);
+      }
+      else viejas.forEach(quitar);
+    }
+  }
+  /* Si ninguna llegó, se dice: un mapa «con calles» sin calles parece roto. */
+  function avisoDeCalles() {
+    var el = q('.mapa-osm-aviso');
+    if (el) el.hidden = !(callesPuestas() && E.tes.mal > 0 && E.tes.bien === 0);
+  }
+  /* El botón «Calles». No vuelve a pintar (se perdería el zoom): cambia la
+     clase del lienzo —con calles, los colores van transparentes— y pone o
+     quita las teselas. */
+  function alternarCalles() {
+    E.calles = !E.calles;
+    var puestas = callesPuestas();
+    var boton = q('[data-mapa="calles"]'), osm = q('.mapa-osm'), g = q('g.mapa-teselas');
+    clase(q('.mapa-lienzo'), 'mapa-calles', puestas);
+    clase(boton, 'on', E.calles);
+    if (boton && typeof boton.setAttribute === 'function') boton.setAttribute('aria-pressed', String(!!E.calles));
+    if (osm) osm.hidden = !puestas;
+    if (!puestas && g && typeof g.removeChild === 'function') { while (g.firstChild) g.removeChild(g.firstChild); }
+    E.tes.bien = 0; E.tes.mal = 0;
+    avisoDeCalles();
+    pedirTeselas();
   }
 
   /* Los que no se pudieron ubicar: con su número, lo que escribieron, por qué
@@ -1089,6 +1678,8 @@
 
   return {
     URL_MAPA: URL_MAPA,
+    URL_BOGOTA: URL_BOGOTA,
+    URL_TESELAS: URL_TESELAS,
     META: META,
     CREDITOS: CREDITOS,
     resumir: resumir,
@@ -1107,6 +1698,9 @@
     aMapa: aMapa,
     cajaDe: cajaDe,
     buscar: buscar,
+    /* 14-nov: la cuenta de las calles, pura, para las pruebas. */
+    teselas: teselas,
+    urlDeTesela: urlDeTesela,
     _estado: E
   };
 });

@@ -23,6 +23,11 @@
  * buscador, Bogotá dentro de Cundinamarca, el contraste medido y el «1–2» en
  * los globitos y las etiquetas.
  *
+ * 14-nov-2026 — «que se vea mucho más detallado» (Joan): Bogotá por dentro
+ * (sus localidades, las calles) tiene su propio archivo de pruebas,
+ * pruebas/mapa-bogota.test.js. Aquí cambiaron cuatro, a propósito: tocar
+ * Bogotá ya no la marca, la ABRE; y los tres archivos van con ?v=150.
+ *
  * Las descargas no viven en el repo: el casado se prueba con un mapa de
  * juguete que tiene las mismas trampas (un nombre en dos departamentos, un
  * nombre parecido, una isla sin vecinos), y el resultado de verdad se prueba
@@ -52,7 +57,11 @@ function cajaFalsa() {
   const oy = {};
   return { innerHTML: '', oy, addEventListener: (t, f) => { oy[t] = f; }, querySelector: () => null, contains: () => true };
 }
-const pedirMapa = () => Promise.resolve({ ok: true, json: () => Promise.resolve(MAPA) });
+/* 14-nov-2026 — el mapa son DOS archivos que se piden juntos: Colombia y
+   Bogotá por dentro (panel/mapa/bogota-2026-11.json; lo suyo se prueba en
+   pruebas/mapa-bogota.test.js). */
+const BOGOTA = JSON.parse(fs.readFileSync(path.join(RAIZ, 'panel', 'mapa', 'bogota-2026-11.json'), 'utf8'));
+const pedirMapa = u => Promise.resolve({ ok: true, json: () => Promise.resolve(/bogota-/.test(String(u)) ? BOGOTA : MAPA) });
 
 /* Créditos de mentira, con la forma que el puente entiende. */
 const credito = (id, socioId, extra) => Object.assign({ id, socioId, capital: 300000, monto: 300000,
@@ -506,7 +515,10 @@ describe('5 · con uno o dos clientes se dice «1–2»', () => {
     assert.match(caja.innerHTML, /<span>Bogotá, D\.C\.<\/span><b>🏁<\/b>/, 'la fila de Bogotá en «Conquistados»');
     assert.match(caja.innerHTML, /<title>Bogotá, D\.C\. · 3 clientes · 🏁 conquistado<\/title>/);
     assert.match(caja.innerHTML, /<span>Soacha <small>Cundinamarca<\/small><\/span>/, 'los demás siguen con su departamento');
-    caja.oy.click({ target: { closest: () => ({ getAttribute: k => ({ 'data-mapa': 'muni', 'data-c': '11001' }[k]) }) } });
+    /* 14-nov: tocar Bogotá ya no la marca, la abre por dentro (ver
+       pruebas/mapa-bogota.test.js). Su línea se sigue viendo al pasar el ratón. */
+    const zona = { tagName: 'path', getAttribute: k => ({ 'data-mapa': 'muni', 'data-c': '11001' }[k]) };
+    caja.oy.mouseover({ target: { closest: () => zona } });
     assert.equal(info.textContent, 'Bogotá, D.C. · 3 clientes · 🏁 conquistado');
     assert.doesNotMatch(caja.innerHTML, /Bogotá, D\.C\. (<small>|\()Bogotá/);
   });
@@ -533,15 +545,19 @@ describe('6 · la pestaña «🗺️ Mapa» en el CRM', () => {
   });
 
   /* 13-nov: mapa-clientes.js y su hoja cambiaron después de salir en v144:
-     ?v=145. mapa-lugares.js no cambió y sigue en ?v=143. */
+     ?v=145. mapa-lugares.js no cambió y sigue en ?v=143.
+     14-nov: los TRES cambian (Bogotá por dentro) después de publicados: ?v=150
+     (iban a ser 149; ese número lo tomó antes la pestaña «Pista»).
+     Y el archivo de Bogotá tampoco va en la precarga. */
   test('los .js se piden con su versión, la hoja también, y el mapa NO va en la precarga', () => {
-    assert.match(CRM, /<script src="mapa-lugares\.js\?v=143"><\/script>/);
-    assert.match(CRM, /<script src="mapa-clientes\.js\?v=145"><\/script>/);
-    assert.match(CRM, /<link rel="stylesheet" href="mapa-clientes\.css\?v=145">/);
+    assert.match(CRM, /<script src="mapa-lugares\.js\?v=150"><\/script>/);
+    assert.match(CRM, /<script src="mapa-clientes\.js\?v=150"><\/script>/);
+    assert.match(CRM, /<link rel="stylesheet" href="mapa-clientes\.css\?v=150">/);
     const sw = leer('sw.js');
-    assert.ok(sw.includes("'panel/mapa-clientes.js?v=145'") && sw.includes("'panel/mapa-clientes.css?v=145'"), 'la precarga sigue con la versión de antes');
-    for (const f of ['colombia-2026-11.json', 'colombia-2026-11b.json']) {
-      assert.ok(!sw.includes(f), 'el mapa (590 KB) se colaría en la precarga de cada teléfono: ' + f);
+    assert.ok(sw.includes("'panel/mapa-lugares.js?v=150'") && sw.includes("'panel/mapa-clientes.js?v=150'") &&
+      sw.includes("'panel/mapa-clientes.css?v=150'"), 'la precarga sigue con la versión de antes');
+    for (const f of ['colombia-2026-11.json', 'colombia-2026-11b.json', 'bogota-2026-11.json']) {
+      assert.ok(!sw.includes(f), 'el mapa se colaría en la precarga de cada teléfono: ' + f);
     }
   });
 
@@ -636,7 +652,7 @@ describe('7 · la pestaña solo LEE la cartera', () => {
 
   test('en el CRM de verdad: abrir el mapa no toca el disco ni llama a guardar()', async () => {
     const { abrirPanel } = require('./banco-panel.js');
-    const red = url => (/mapa\/colombia-2026-11b\.json$/.test(url) ? pedirMapa()
+    const red = url => (/mapa\/(colombia-2026-11b|bogota-2026-11)\.json$/.test(url) ? pedirMapa(url)
       : Promise.reject(new Error('sin red')));
     const B = abrirPanel({ red });
     B.cargarCartera({ socios: [cliente('s1', 'Soacha'), cliente('s2', 'Mosquera')],
@@ -907,10 +923,14 @@ describe('8 · que se vean los municipios (13-nov-2026)', () => {
     /* La ventana la incluye entera. */
     const b = MC.cajaDe(MAPA.municipios.find(m => m.c === '11001').d), vb = E.z.base;
     assert.ok(b[0] >= vb[0] && b[1] >= vb[1] && b[2] <= vb[0] + vb[2] && b[3] <= vb[1] + vb[3], 'Bogotá se sale de la ventana');
-    M.clic(M.zona('11001'), { clientX: 320, clientY: 330 });
+    /* Al pasar el ratón, su nombre y su cifra. */
+    M.caja.oy.mouseover({ target: M.zona('11001'), clientX: 320, clientY: 330 });
     assert.equal(M.info.textContent, 'Bogotá, D.C. · 3 clientes');
     assert.equal(M.globo.innerHTML, '<b>Bogotá, D.C.</b> · 3 clientes');
-    assert.ok(M.caminos['11001'].classList.contains('mapa-sel'), 'Bogotá no quedó marcada');
+    /* 14-nov: al tocarla ya no se marca: se ENTRA. Bogotá tiene adentro. */
+    M.clic(M.zona('11001'), { clientX: 320, clientY: 330 });
+    assert.equal(E.depto, '11', 'tocar Bogotá no la abrió');
+    assert.match(M.caja.innerHTML, /Bogotá, localidad por localidad/);
   });
 
   /* ------------------------------------------------------------ 5 · zoom */
@@ -1043,12 +1063,13 @@ describe('8 · que se vean los municipios (13-nov-2026)', () => {
     assert.equal(M.info.textContent, 'Mosquera (Cundinamarca) · 1–2 clientes');
     assert.equal(M.globo.hidden, false);
     assert.equal(M.entrada.value, 'Mosquera');
-    /* Bogotá se busca y se ve dentro de Cundinamarca. */
+    /* Bogotá se busca y se abre por dentro (hasta el 14-nov se veía dentro
+       de Cundinamarca, marcada). */
     E.depto = null;
     M.entrada.value = 'bogota'; M.caja.oy.input({ target: M.entrada });
     M.caja.oy.keydown({ target: M.entrada, key: 'Enter', preventDefault() {} });
-    assert.equal(E.depto, '25');
-    assert.ok(M.caminos['11001'].classList.contains('mapa-sel'));
+    assert.equal(E.depto, '11');
+    assert.match(M.caja.innerHTML, /Bogotá, localidad por localidad/);
     /* Lo que no existe se dice. */
     M.entrada.value = 'Narnia'; M.caja.oy.input({ target: M.entrada });
     assert.match(M.sug.innerHTML, /No encuentro un municipio con ese nombre/);

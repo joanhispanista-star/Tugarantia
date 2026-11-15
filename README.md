@@ -497,18 +497,39 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         marcados en Colombia, Bogotá dentro de Cundinamarca,
                         zoom (＋/－, rueda, pellizco, arrastrar, «Volver a ver
                         todo») que no roba el scroll, y «Buscar municipio…».
+                        14-nov: «que se vea mucho más detallado». Tocar Bogotá
+                        la ABRE por dentro: sus 20 localidades y los vecinos
+                        de la Sabana, en Departamentos y en Conquistas (una
+                        localidad se conquista como un municipio; Bogotá sigue
+                        contando como uno de los 1.122). Debajo, las calles de
+                        OpenStreetMap en gris, con su crédito a la vista y un
+                        botón para quitarlas: de la cartera no sale nada
+                        (cada tesela pide un pedazo de mapa, como cualquier
+                        imagen). El zoom llega ahí a 1,4 km, y
+                        el buscador encuentra localidades y barrios. El total
+                        de Bogotá es la suma de lo que se ve de sus partes.
                         Hoja: mapa-clientes.css (bordes y escala medidos).
   mapa-lugares.js       De la «Ciudad» que escribió el cliente, su municipio
                         (código DIVIPOLA). Un nombre repetido sin departamento
                         («Mosquera») no se adivina: queda sin ubicar, con el
-                        enlace a su ficha.
+                        enlace a su ficha. 14-nov: de «Ciudad» y «Barrio», la
+                        LOCALIDAD de Bogotá, con la lista oficial de barrios.
+                        Tampoco adivina: un barrio que está en dos localidades
+                        («Lisboa»), uno vago («sur») o uno que no casa con la
+                        ciudad queda «sin localidad» y sigue contando en
+                        Bogotá. No lee el GPS, la IP ni la dirección.
   mapa/                 colombia-2026-11b.json, el mapa (1.122 municipios, 590 KB,
                         con el punto del nombre de cada municipio y los huecos
-                        de cada departamento): se baja al abrir la pestaña, NO
-                        va en la precarga del service worker. De dónde sale y
-                        su licencia: FUENTES.md. colombia-2026-11.json es el de
-                        v144: se queda mientras haya un CRM v144 abierto.
-                        Pruebas: pruebas/mapa-clientes.test.js.
+                        de cada departamento), y desde el 14-nov
+                        bogota-2026-11.json (Bogotá por dentro, 126 KB): las
+                        20 localidades, los vecinos con el borde fino, la
+                        lista de barrios y la proyección. Se bajan juntos al
+                        abrir la pestaña, NO van en la precarga del service
+                        worker. De dónde salen y sus licencias: FUENTES.md.
+                        colombia-2026-11.json es el de v144: se queda mientras
+                        haya un CRM v144 abierto.
+                        Pruebas: pruebas/mapa-clientes.test.js y
+                        pruebas/mapa-bogota.test.js.
   subir.html            Ajustes → Avanzado (plegado). Lo que todavía es a mano:
                         entrar con el correo la primera vez, traer lo hecho en el
                         celular, decidir choques y subir plantillas y configuración
@@ -877,6 +898,11 @@ herramientas/
   mapa-colombia.js      Arma panel/mapa/colombia-2026-11.json con las descargas de
                         geoBoundaries y OCHA/HDX (que no viven en el repo; se
                         pasan por argumento). Ver panel/mapa/FUENTES.md.
+  mapa-bogota.js        Arma panel/mapa/bogota-2026-11.json (14-nov-2026) con las
+                        localidades y los barrios de Datos Abiertos Bogotá y
+                        las formas de geoBoundaries, en las mismas unidades
+                        del mapa de Colombia (lo comprueba; si no casa, no
+                        escribe). Ver panel/mapa/FUENTES.md.
   marca/                Las fuentes de la marca de oro (23-oct-2026): icono.svg (el
                         ícono maestro, a sangre), logo.svg (la G sola) y marca.svg.
                         Los PNG de app/ salieron de icono.svg con Chrome sin ventana

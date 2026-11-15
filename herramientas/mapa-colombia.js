@@ -667,4 +667,8 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { leerXlsx, variantes, casar, topologia, construir, distanciaUno, poloDeInaccesibilidad, distanciaAlBorde, huecos, UMBRAL_HUECO };
+module.exports = { leerXlsx, variantes, casar, topologia, construir, distanciaUno, poloDeInaccesibilidad, distanciaAlBorde, huecos, UMBRAL_HUECO,
+  /* 14-nov-2026 — lo que comparte herramientas/mapa-bogota.js: el archivo de
+     Bogotá va en las MISMAS unidades que este mapa, así que usa la misma
+     proyección, la misma topología y el mismo Douglas-Peucker. */
+  douglasPeucker, argumentos, ESCALA, COS, MARGEN };

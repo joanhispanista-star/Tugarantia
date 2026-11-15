@@ -50,7 +50,7 @@
 <link rel="stylesheet" href="../app/chat.css">
 <!-- 9-nov-2026 — la pestaña «🗺️ Mapa» (panel/mapa-clientes.js). Sin colores
      propios: se pinta con los tokens de esta página. -->
-<link rel="stylesheet" href="mapa-clientes.css?v=145">
+<link rel="stylesheet" href="mapa-clientes.css?v=150">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -1011,9 +1011,14 @@
          opción 1 (Departamentos) más la 3 (Conquistas). Zonas, nunca puntos: sale
          de la ciudad de cada ficha, no del GPS. Lo pinta panel/mapa-clientes.js,
          que solo LEE la cartera; el mapa (panel/mapa/colombia-2026-11b.json) se
-         baja al abrir la pestaña la primera vez, no al abrir el CRM. -->
+         baja al abrir la pestaña la primera vez, no al abrir el CRM.
+         14-nov-2026 — «que se vea mucho más detallado» (Joan): Bogotá se abre
+         por dentro, en sus 20 localidades (de «Ciudad» y «Barrio» de cada
+         ficha; el barrio no se pinta), con sus vecinos de la Sabana y, debajo,
+         las calles de OpenStreetMap. Lo trae panel/mapa/bogota-2026-11.json,
+         que se baja junto al de Colombia. -->
     <section class="view" id="v-mapa">
-      <div class="ph"><div><h1>Mapa<span class="dot">.</span></h1><div class="sub">Dónde están tus clientes, por departamento y municipio · y los municipios que ya conquistaste</div></div></div>
+      <div class="ph"><div><h1>Mapa<span class="dot">.</span></h1><div class="sub">Dónde están tus clientes, por departamento y municipio, y en Bogotá por localidad · y lo que ya conquistaste</div></div></div>
       <div id="mapaCaja"></div>
     </section>
 
@@ -27187,8 +27192,8 @@ setTimeout(function(){ if(!window.HistorialesAuto){ var b=document.getElementByI
 <!-- 9-nov-2026 — LA PESTAÑA «🗺️ MAPA». Después del bloque grande, como
      nube-crm.js: no hace nada al cargar, y lo que usa (DB, PUENTE, verCliente)
      ya existe cuando Joan toca la pestaña. -->
-<script src="mapa-lugares.js?v=143"></script>
-<script src="mapa-clientes.js?v=145"></script>
+<script src="mapa-lugares.js?v=150"></script>
+<script src="mapa-clientes.js?v=150"></script>
 <script>
 /* 9-nov-2026 — la RECETA E del mapa: si los dos archivos no llegaron (un
    service worker viejo, sin señal), la pestaña lo dice en vez de quedar vacía.
@@ -27232,7 +27237,7 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
    cuando alguien sospechaba.
    VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
    él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v149';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v150';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }

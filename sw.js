@@ -2429,7 +2429,252 @@
    CACHE y VERSION_SITIO suben a v149. NO HAY BASE NUEVA. TG_PUBLICADO=main.
    OJO CON EL NÚMERO: la rama mapa-detallado también preparó «v149» y no ha salido. La que
    salga segunda toma el número siguiente (su nota lo dice igual). */
-const CACHE = 'tugarantia-v149';
+/* 14-nov-2026, v150 — SALE DESPUÉS DE v149 (main = 8861c76). Rama mapa-detallado.
+   EL MAPA, MUCHO MÁS DETALLADO. Joan: «mejorar el mapa del crm que se vea mucho más
+   detallado». Con tres bocetos delante escogió Bogotá y la Sabana por localidades, con las
+   calles de OpenStreetMap debajo. En una cartera que nace en la Sabana, la mitad de los
+   clientes caía en «Bogotá» como una sola mancha, pintada hasta el páramo de Sumapaz.
+   · BOGOTÁ POR DENTRO (panel/mapa-clientes.js): tocar Bogotá, en el mapa o en una lista, la
+     ABRE en sus 20 localidades con sus vecinos de la Sabana (borde fino), en Departamentos y
+     en Conquistas. Una localidad se conquista como un municipio; Bogotá sigue contando como
+     UNO de los 1.122 (la cifra de Colombia no salta). El zoom llega ahí a 1,4 km, y el
+     buscador encuentra localidades y barrios.
+   · LA LOCALIDAD (panel/mapa-lugares.js) sale de «Ciudad» y de «Barrio», que el registro
+     pide obligatorio y el mapa no miraba, con la lista oficial de barrios (Catastro y
+     Planeación de Bogotá). NO ADIVINA: un barrio que está en dos localidades («Lisboa»), uno
+     vago («sur») o uno que no casa con la ciudad queda «sin localidad», se dice por qué, y
+     sigue contando en Bogotá. Zonas, nunca puntos: el barrio no se pinta ni se cuenta, y el
+     GPS, la IP y la dirección siguen sin leerse.
+   · EL «1–2», UN PISO MÁS ABAJO: las localidades pasan por las mismas funciones, y el total
+     de Bogotá es ahora la suma de lo que se ve de sus partes (va en rango si alguna dice
+     «1–2»): exacto, dejaba despejar una localidad restando.
+   · LAS CALLES: teselas de tile.openstreetmap.org, en gris y debajo de las zonas, solo en
+     Bogotá y en Departamentos, con su crédito sobre el mapa y un botón para quitarlas. De
+     la cartera no sale nada: cada tesela pide una ventana (z/x/y), con lo que manda
+     cualquier imagen (la IP, el navegador y el sitio de donde viene, que OpenStreetMap
+     pide). Son de otro origen: este service worker las deja pasar y NO las guarda (sus
+     condiciones no dejan guardarlas para usar sin señal). Es un servidor gratis y sin
+     garantía: si no contesta, el mapa sigue igual sin calles y lo dice; si un día bloquea
+     al sitio, lo que suele llegar son imágenes que lo dicen: se ven, y el botón las quita.
+   · El archivo de Bogotá (NUEVO, en panel/mapa/, 126 KB; lo arma herramientas/mapa-bogota.js,
+     ver panel/mapa/FUENTES.md): no va en la precarga —por eso aquí no se nombra: una prueba
+     vigila que no se cuele—; se pide junto al de Colombia al abrir la pestaña, y sin él no
+     hay mapa (con reintentar, que ahora sí vuelve a la red: ver abajo).
+   panel/mapa-lugares.js, panel/mapa-clientes.js y panel/mapa-clientes.css cambian después de
+   publicados: pasan a ?v=150 en crm.html y en ARCHIVOS.
+   Pruebas: pruebas/mapa-bogota.test.js (139, nuevas) y cuatro de mapa-clientes.test.js que
+   cambian a propósito (tocar Bogotá ya no la marca: la abre).
+   LA REVISIÓN ANTES DE PUBLICAR (14-nov) cambió esto, cada cosa con su prueba:
+   · Bogotá se CONQUISTA con lo que se ve de los que pagaron en sus partes. Si los rangos
+     no alcanzan a decirlo, dice «falta 1 o ninguno» (pintada «con clientes», no cuenta
+     como conquistada): con su cifra exacta se despejaba una localidad restando.
+   · El barrio del registro solo vale si el registro también es de Bogotá: «Compartir» de
+     Soacha no es Ciudad Bolívar.
+   · Lo que solo se PARECE a un nombre de la lista ya no ubica («Modelo», «Sosiego»):
+     medido quitando cada nombre de Catastro, eso se equivocaba en uno de cada cuatro.
+     «Perdomo» y «Niza» a secas quedan sin localidad («Perdomo, Ciudad Bolívar» sí).
+   · Lo de dentro de un paréntesis oficial que no es un nombre («(ASD)», «(CALLE 131A)»)
+     ya no es una llave; el contorno ya no entra y sale por un borde de adentro.
+   · En pantalla: más de 36 teselas bajan un zoom en vez de dejar el mapa sin calles; las
+     que vuelven a hacer falta antes de 700 ms no se quitan; buscar un municipio de fuera
+     desde Bogotá en Conquistas lo busca en Colombia; el globito no se queda en Sumapaz;
+     las etiquetas fijas de Bogotá ceden si no caben; una localidad sin ubicados dice
+     cuántos «sin localidad» pueden ser de ella.
+   · Y 26 pruebas para lo que ninguna miraba (sección 8): de 51 mutaciones nuevas del
+     código del mapa, 36 pasaban sin que nada se cayera. Ahora cada una tira alguna.
+   LA SEGUNDA REVISIÓN (15-nov), sobre esto mismo, cambió esto otro, también con su prueba:
+   · Lo demás cuenta igual con coma que sin ella: «Patio Bonito Bosa» y «Suba Compartir» ya
+     no caen en la localidad escrita (Patio Bonito es de Kennedy; Compartir, de Ciudad
+     Bolívar): no casan, como «Patio Bonito, Bosa». Con «de» delante («Portal de Suba»)
+     sigue siendo la del nombre.
+   · Seis localidades se llaman también como un barrio de OTRA, y en «Barrio» eso
+     confundía: «Sumapaz, Torre 3» caía en el páramo y «Santa Fe, Antonio Nariño», en Bosa.
+     (En «Ciudad», el nombre de una localidad es esa localidad: a propósito.) Una de esas vale sola si otro trozo la
+     confirma («Las Cruces, Santa Fe») o dice «Localidad de…»; dos localidades escritas que
+     solo casan en una tercera no casan (un barrido de todos los pares lo vigila).
+   · El barrio del registro se lee con la ciudad del registro (registro «Suba» + «Patio
+     Bonito»: no casa, aunque la ficha diga Bogotá) y se tira solo si esa ciudad es OTRO
+     municipio o un departamento; la pestaña dice cuál. Una errata («Bogtá») o un sector
+     («Engativá Pueblo») ya no lo tiran.
+   · La cola se quita en dos tiempos: «Tunjuelito Rural Manzana 4» es de Usme, no de la
+     localidad Tunjuelito. Y «parte alta/baja/media» es cola: «Rocío parte baja» es Santa
+     Fe. El archivo de Bogotá se rehízo (y otra vez en la tercera revisión: abajo).
+   · En pantalla: una proyección rota ya no cuelga la pestaña pidiendo teselas; el buscador
+     lee un barrio como se lee la ficha; Sumapaz («fuera de esta ventana») sin ubicados dice
+     cuántos «sin localidad» pueden ser de ahí, como las demás.
+   · Cada uno de esos 23 arreglos, deshecho uno a uno, tira al menos una prueba.
+   LA TERCERA REVISIÓN (15-nov) encontró que la segunda había abierto puertas nuevas, y las
+   cerró, también con su prueba (sección 9 de pruebas/mapa-bogota.test.js):
+   · Ensanchar la localidad escrita con los barrios que se llaman como ella y cruzarla
+     después con el barrio la dejaba caer en OTRA: «La Esperanza, San Cristóbal» salía en
+     Usaquén (allá hay un barrio «San Cristóbal») y «Teusaquillo Altos de Suba», en Suba.
+     Ahora la localidad escrita va sola siempre que otra cosa del texto diga algo, y se
+     ensancha solo cuando nada más dice nada («Narnia, Santa Fe»: Santa Fe, Bosa o Los
+     Mártires). Con una delante y otra detrás, el barrio de en medio va con una de las dos.
+   · Y un último candado: si el cliente escribió el nombre de una localidad, la que sale
+     tiene que ser una de las que escribió; si no, no casa. Un barrido de 622.350 textos
+     (cada barrio de la lista con cada localidad, en nueve formas) da 0 fuera de lo escrito,
+     salvo «Santa Fe, Bosa 37»: es el barrio oficial «Bosa 37», que es de Bosa.
+   · El registro con una ciudad que no se reconoce («Soacha Compartir», «Soacah», «Faca»)
+     ya no presta su barrio: no reconocerla no prueba que sea Bogotá. Tampoco una que el
+     buscador da por otro municipio, aunque se llame como una localidad: «Candelaria,
+     Valle» y «Ciudad Bolívar, Antioquia» son de allá («Candelaria» a secas sigue siendo la
+     localidad). Lo presta una errata de «Bogotá» a una letra («Bogtá», «Bogtoa») si ningún
+     municipio queda igual de cerca («Sogota» también es Socotá; «Bonita», a dos, no es
+     errata), y un barrio de la lista («Engativá Pueblo»), que cuenta como una cosa dicha
+     más («Engativá Pueblo» + «Compartir» no casa).
+   · «Tunjuelito Rural parte alta» (y con «II» o «sector 2») vuelve a ser de Usme, y «Páramo
+     Urbano I Manzana 4», de Usaquén (esa «I» no es una letra de la dirección). Un nombre
+     oficial con su cola cae donde dice el nombre: «Bochica II parte alta» es de Engativá,
+     no «Bochica» en dos. El archivo de Bogotá guarda de cada nombre oficial solo el entero
+     y su punta: los pasos de en medio («santa cecilia sector», de «Santa Cecilia Sector
+     I») eran más vagos que el nombre y escogían una de cuatro. Se rehízo: 2.766 llaves,
+     225 en más de una localidad.
+   · Lo que no casa da como opciones lo que se escribió, no los barrios que se llaman como
+     la localidad: esas opciones suman en «pueden ser de aquí».
+   · Más textos quedan «sin localidad», a propósito: es lo que pide no adivinar. La nota de
+     la pestaña da las razones (la cuarta revisión la completó: abajo).
+   · Dos ramas que no cambiaban nada en 635.000 textos se quitaron.
+   LA CUARTA REVISIÓN (15-nov) confirmó seis cosas más. Cada una tiene su prueba (sección 10
+   de pruebas/mapa-bogota.test.js):
+   · «Casa 12, Tunjuelito Rural» caía en Tunjuelito: quitada la cola («rural»), quedaba esa
+     localidad pegada al final. Ya no se toma si, con su cola y con lo que tenga delante, es
+     un barrio de la lista que no está en ella: es de Usme. Igual «Casa 12, San Rafael Usme
+     Rural I», que es de San Cristóbal y caía en Usme.
+   · «casa 5» o «torre 2» detrás del barrio lo escondían, y ganaba la localidad escrita:
+     «Patio Bonito casa 5, Bosa» salía en Bosa, y «Patio Bonito, Bosa» no casa. Ahora la
+     casa o la torre con lo de la dirección detrás se quita («La Torre 2» y «Villa de la
+     Torre 2» siguen siendo esos barrios).
+   · Un registro con un departamento que se llama como un barrio de aquí («Santander»,
+     «Quindío», «Magdalena») prestaba su barrio: «Centro» salía en Antonio Nariño. Se tira,
+     como «Cundinamarca». La tercera vuelta había quitado esa comprobación creyéndola de
+     sobra, y no lo era.
+   · «Bogotá - Soacha», en «Ciudad» o en el registro: el buscador de municipios lo pone en
+     Bogotá por el primer trozo, y «Compartir» salía en Ciudad Bolívar. Ahora es «otro
+     municipio», como «Soacha - Compartir» en «Barrio», y la fila dice que deje en «Ciudad»
+     solo el municipio donde vive. «Bogotá, Cundinamarca», «Bogotá, Colombia» y «Bogotá -
+     Kennedy» siguen siendo Bogotá.
+   · La pestaña decía «Ese barrio está en varias localidades» de «Centro histórico, La
+     Candelaria», y aconsejaba escribir la localidad al lado, que ya estaba. La duda es
+     otra: «La Candelaria» se llama también como un barrio de Suba (y lo mismo Santa Fe, San
+     Cristóbal, Antonio Nariño, Sumapaz y «Rafael Uribe»). Ahora la fila lo dice y aconseja
+     ponerla en «Ciudad» (cómo, lo corrigió la quinta revisión: abajo).
+   · La nota de los sin localidad no nombraba lo escrito en «Barrio» que no casa entre sí
+     («Patio Bonito, Bosa»), ni el barrio del registro que se tiró. Ahora da todas las
+     razones: sin barrio (o el del registro es de otra ciudad), fuera de la lista o en
+     varias localidades, la localidad escrita que se llama como un barrio de otra, lo
+     escrito que apunta a localidades distintas, u otro municipio.
+   · Medido: los 622.350 textos de la tercera vuelta dan lo mismo (0 fuera de lo escrito,
+     salvo «Santa Fe, Bosa 37»). De 625.542 textos cambian 11, todos de una llave rara del
+     Catastro («Villa Gladis Sector La»), y ninguno hacia «ubicado». El archivo de Bogotá no
+     cambia: rehecha la lista con esto, salen las mismas 2.766 llaves.
+   LA QUINTA REVISIÓN (15-nov) confirmó seis cosas más. Cada una tiene su prueba (sección 11):
+   · «Cundinamarca casa 5» o «Colombia torre 2» en «Barrio» caían en Puente Aranda o en
+     Barrios Unidos, que tienen barrios con esos nombres: quitada la dirección, quedaba el
+     departamento o el país. Ahora no valen, igual que «Cundinamarca» sola, que ya no se
+     sabía. El barrio Cundinamarca de la lista sigue con su llave.
+   · La dirección DELANTE del barrio («Mz 4 Lt 12 Patio Bonito, Bosa», «Casa 5 Patio
+     Bonito», «Torre 3 Apto 402 Timiza») lo escondía, y ganaba la localidad escrita, como
+     con la casa detrás. Ahora se quita también, y lo que queda cuenta de último («Casa
+     Blanca» no se toca: no sigue un número). Con eso, «Lote 5 Tunjuelito Rural» y «Casa 12,
+     Tunjuelito Rural sector», que quedaban sin saberse, son de Usme.
+   · «Bogotá - Soacha Cundinamarca», en «Ciudad» o en el registro, volvía a prestar el
+     barrio: con el departamento pegado no se veía Soacha. Se quita, como al buscar el
+     municipio. «Ciudad Bolívar Antioquia» es el de Antioquia, y un departamento que no es el
+     suyo («Soacha Boyacá») no lo vuelve Bogotá.
+   · Un municipio que se llama como un barrio de aquí («Bogotá - Madrid», «Bogotá -
+     Florencia») se tomaba siempre por el barrio, y «Compartir» salía en Ciudad Bolívar.
+     Ahora decide lo escrito en «Barrio»: si casa con el barrio de ese nombre («Madrid» o
+     «Quiroga», de Rafael Uribe Uribe), es el barrio; si no, es el otro municipio; si no
+     dice nada, no se escoge.
+   · Los dos consejos de la pestaña («ponla en Ciudad») sacaban de Bogotá a quien los
+     siguiera con Santa Fe, San Cristóbal o Ciudad Bolívar: solas en «Ciudad» son también
+     municipios de Antioquia y de Bolívar, y el cliente pasaba a «sin ubicar». Ahora dicen
+     «Bogotá - Santa Fe», que deja en Bogotá y en su localidad a las veinte (una prueba las
+     recorre por el camino entero del mapa), y el de arriba avisa por qué no sola.
+   · Los barridos cazaron tres cosas que la primera versión de estos arreglos rompía, y
+     quedaron bien antes de publicar: «Colombia II» y «Cundinamarca II» (la cola de un nombre,
+     no una dirección) volvían a quedar sin llave, y «Usaquén Colombia II» caía en Usaquén;
+     quitar varios pares de delante de un tirón se comía parte del nombre oficial («Mz 4 Lote
+     95A Anexo Soratama»); y «Candelaria Boyacá» pasaba a otro municipio.
+   · Medido: los 622.350 textos de la tercera vuelta dan lo mismo (0 fuera de lo escrito,
+     salvo «Santa Fe, Bosa 37»), y los 625.468 de la cuarta no cambian en nada. Con la
+     dirección delante (232.344 textos: cuatro direcciones, cada llave sola y con cada
+     localidad), 0 caen fuera de su llave y de lo escrito, y los que no dan lo mismo que sin
+     la dirección siguen sin localidad, salvo la localidad homónima escrita dos veces («Mz 4
+     La Candelaria, La Candelaria» sale en La Candelaria; sin la dirección queda en duda).
+     En «Ciudad», de 401.070 «Bogotá - <municipio que se llama como un barrio>» con cada
+     barrio, los ubicados caen todos donde los dos barrios casan («Bogotá - Colombia» es el
+     país y sigue siendo Bogotá). El archivo de Bogotá no cambia: las mismas 2.766 llaves.
+   · La fila de «Ciudad» con otro municipio dice además, cuando ese nombre es también un
+     barrio de aquí («Bogotá - Madrid»), que si es el barrio va en «Barrio».
+   LA SEXTA REVISIÓN (15-nov) confirmó siete cosas; cuatro quedan arregladas, cada una con su
+   prueba (sección 12), y tres quedan escritas abajo:
+   · Una dirección pegada al municipio lo escondía: «Casa 5 Soacha, Compartir», «Compartir,
+     Soacha casa 5» o «Mz 4 Lt 12 Mosquera, Villa Nueva» caían en Ciudad Bolívar o en
+     Kennedy. Ahora la dirección se quita, delante o detrás, y es «otro municipio», en
+     «Barrio», en «Ciudad» y en el registro: «Soacha casa 5» da lo mismo que «Soacha, casa 5».
+     El barrio de aquí que se llama como un municipio sigue siendo el barrio («Madrid casa 5»;
+     «Cabrera Colombia», que es de Chapinero: lo cazó el barrido de esta vuelta).
+   · «Bogotá - Soacha Cundinamarca Colombia»: el país detrás del departamento escondía a
+     Soacha, y «Compartir» volvía a Ciudad Bolívar. Se quita.
+   · «Bogotá - Restrepo Santander» + «Policarpa» salía en otro municipio (el Restrepo del
+     Meta) por un arreglo de la quinta. Con un departamento que no es el suyo, el nombre que
+     es también un barrio de aquí sigue ahora la regla del barrio: es Antonio Nariño.
+     «Florencia Boyacá» en «Barrio» ya no es el municipio del Caquetá.
+   · En «Ciudad», «Kennedy Cundinamarca», «Engativá Cund» o «Kennedy Colombia» no se leían
+     como esa localidad, y decidía el barrio solo («Compartir» caía en Ciudad Bolívar en vez
+     de chocar). Ahora sí; solo en «Ciudad», porque en «Barrio» «Cundinamarca» y «Colombia»
+     son también barrios de la lista.
+   · Medido: con el municipio y su dirección (590.964 textos: 222 municipios, los de
+     Cundinamarca y los que se llaman como un barrio de aquí, en nueve formas y con 121
+     barrios de la lista, en «Barrio» y en «Ciudad»), 324.847 pasan a dar lo mismo que sin la
+     dirección (antes caían en una localidad o en duda) y ninguno cambia a peor. Los 625.512
+     textos de antes, los 622.350 de la tercera vuelta, los 802.140 de «Ciudad», los de la
+     dirección delante y detrás y el archivo de Bogotá dan lo mismo que en la quinta. Lo que
+     ya venía y no cambia: «Cabrera Colombia, 1 de mayo» sale en San Cristóbal (sin el país,
+     choca con el barrio Cabrera, de Chapinero).
+   · Quedan, sabidas, y van aparte:
+     - el municipio con algo más pegado detrás que no es una dirección («Soacha Ciudad
+       Verde, Compartir», «Bogotá - Soacha sur» + «Compartir») cae en Bogotá. Leer el
+       municipio por el principio del texto lo arreglaría, pero 40 barrios de la lista
+       empiezan por el nombre de un municipio («Prado Veraniego», «Bello Horizonte», «Ospina
+       Pérez»), y escritos con cualquier cosa detrás saldrían de Bogotá;
+     - una dirección de calle delante del barrio, con la localidad en «Ciudad» («Kennedy» +
+       «Cl 72 # 80-20 Bachué»), y una localidad pegada al barrio detrás de la casa («Casa 5
+       Bosa Piamonte» con «Kennedy») dejan ganar a la localidad de «Ciudad»;
+     - la localidad homónima escrita dos veces con la dirección («Mz 4 La Candelaria, La
+       Candelaria») sale en La Candelaria, y sin la dirección queda en duda.
+   · De 97 mutaciones (cada arreglo de la segunda a la sexta revisión, deshecho uno a uno),
+     96 tiran alguna prueba. La que no, «dos localidades pegadas que solo casan en una
+     tercera», ya la para el último candado: quitarla solo cambia las opciones de un texto con
+     dos localidades y un barrio en medio.
+   · Queda, y viene de antes: un barrio de una sola palabra de cuatro letras con su número
+     detrás («Roma 2, Bosa») deja ganar a la localidad escrita, porque la llave que queda al
+     quitarle la cola es demasiado corta para usarse.
+   CACHE y VERSION_SITIO suben a v150. NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   EL NÚMERO: esta rama había preparado «v149» y salió segunda: ese número lo tomó la pestaña
+   «Pista» (su nota, arriba, lo avisaba). Por eso es v150. Las dos van en esta versión y no
+   se pisan: de lo de la Pista aquí solo cambia VERSION_SITIO (app/socio.html no tiene otra
+   línea distinta), y de la precarga, las tres del mapa. La suite corrió con las dos juntas.
+   LA RAMA CACHÉ-PRIMERO YA NO GUARDA UN ERROR (lo encontró la revisión antes de publicar):
+   guardaba cualquier respuesta, y un 503 o un 404 en la primera bajada de un archivo
+   quedaba servido desde aquí, sin volver a la red, hasta la versión siguiente: «↻
+   Reintentar» no podía arreglar nada. Ahora solo guarda lo que llegó bien (res.ok); lo
+   demás se entrega y se olvida, y el pedido siguiente vuelve al servidor. Vale desde que
+   manda ESTE sw.js: en la primera apertura después de publicar todavía manda el de v149,
+   que guarda cualquier respuesta, y un error en esa ventana sigue saliendo en «↻
+   Reintentar» unos segundos, hasta que este se activa (skipWaiting) y borra esa caché.
+   PARA DESHACER CON ESTA ENCIMA: la nota de v149 dice que la Pista se deshace con un revert
+   de su versión, y `git revert 8861c76` ahora choca en las cinco VERSION_SITIO y en CACHE.
+   Se revierten 3c8e306 y 99b9670 (un choque en ARCHIVOS: se quita el bloque de la Pista),
+   8861c76 se deja, y se sale con v151. El mapa, igual: se revierte su commit; CACHE y
+   VERSION_SITIO, que el revert deja en v149, suben a v151, y los tres archivos del mapa,
+   que el revert devuelve a ?v=143 y ?v=145, pasan también a ?v=151 en crm.html, en
+   ARCHIVOS y en lo que espera pruebas/mapa-clientes.test.js (la regla de la nota de v139:
+   sin eso, dos pruebas en rojo). El número nunca baja:
+   app/actualizar.js solo avisa de una versión nueva cuando la caché es MAYOR que la página. */
+const CACHE = 'tugarantia-v150';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -2662,10 +2907,19 @@ const ARCHIVOS = [
      llegan JUNTO con él (sin señal, la pestaña dice que el mapa no cargó en vez de romper).
      El mapa en sí (el JSON de panel/mapa/, ~600 KB desde v145) NO va aquí: se pide al abrir
      la pestaña y queda guardado esa vez. 13-nov — mapa-clientes.js y .css a ?v=145: cambiaron
-     después de salir en v144 (ver la nota de v145). */
-  'panel/mapa-lugares.js?v=143',
-  'panel/mapa-clientes.js?v=145',
-  'panel/mapa-clientes.css?v=145'
+     después de salir en v144 (ver la nota de v145).
+     14-nov-2026 — BOGOTÁ POR DENTRO (rama mapa-detallado): los tres cambian después de
+     publicados (mapa-lugares.js saca la localidad de «Ciudad» y «Barrio»; mapa-clientes.js
+     trae la vista de Bogotá y las calles; la hoja, lo suyo) y pasan a ?v=150, aquí y en
+     crm.html. El archivo nuevo de Bogotá (en panel/mapa/, ~126 KB) tampoco va en la
+     precarga: se pide junto al de Colombia al abrir la pestaña. Las teselas de calles son de
+     tile.openstreetmap.org: otro origen, así que este service worker las deja pasar y NO
+     las guarda (sus condiciones no dejan guardarlas para usar sin señal).
+     Iban a ser ?v=149: ese número lo tomó antes la pestaña «Pista», y el ?v= es el número
+     de CACHE con el que se sale (la regla de la nota de v139). */
+  'panel/mapa-lugares.js?v=150',
+  'panel/mapa-clientes.js?v=150',
+  'panel/mapa-clientes.css?v=150'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {
@@ -2782,10 +3036,20 @@ self.addEventListener('fetch', e => {
     return;
   }
 
+  /* 14-nov-2026 — AQUÍ SOLO SE GUARDA LO QUE LLEGÓ BIEN. Esta rama contesta
+     de la caché sin volver a preguntar, así que lo que guarda se sirve hasta la
+     versión siguiente. Guardaba cualquier cosa: un 503 de GitHub Pages o un
+     404 en la primera bajada del mapa de Bogotá quedaban aquí, y «↻ Reintentar»
+     recibía el mismo error sin llegar a la red (reproducido en la revisión de
+     v150; pruebas/mapa-bogota.test.js lo vigila con este archivo de verdad).
+     En fresco-primero, arriba, hace menos daño: lo guardado solo se usa sin
+     señal, y el siguiente pedido con señal lo pisa. */
   e.respondWith(
     caches.match(req).then(r => r || fetch(req).then(res => {
-      const copia = res.clone();
-      caches.open(CACHE).then(c => c.put(req, copia)).catch(() => {});
+      if (res.ok) {
+        const copia = res.clone();
+        caches.open(CACHE).then(c => c.put(req, copia)).catch(() => {});
+      }
       return res;
     }))
   );

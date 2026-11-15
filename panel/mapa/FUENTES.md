@@ -103,9 +103,143 @@ cambia `URL_MAPA` en `panel/mapa-clientes.js`: el service worker guarda este
 archivo la primera vez que se pide y lo sirve desde ahí (caché primero), así
 que un archivo con el mismo nombre no se renovaría.
 
+## Bogotá por dentro (14-nov-2026)
+
+`bogota-2026-11.json` es lo que la pestaña necesita para abrir Bogotá: sus 20
+localidades, los municipios vecinos de la Sabana con el borde fino, la lista de
+barrios (de cada nombre, en qué localidad está) y la proyección en números. Lo
+arma `herramientas/mapa-bogota.js`. Joan pidió el 14-nov «mejorar el mapa del
+crm que se vea mucho más detallado» y, con los bocetos delante, escogió Bogotá
+y la Sabana por localidades con las calles debajo.
+
+Los créditos que se ven en la pestaña, al abrir Bogotá:
+
+> Localidades y barrios de Bogotá: Secretaría Distrital de Planeación y
+> Catastro Distrital (CC BY 4.0) · Calles: © colaboradores de OpenStreetMap (ODbL)
+
+Descargado el **14-nov-2026**, cuando Joan escogió esta opción.
+
+### Las fuentes
+
+Las tres primeras son de Datos Abiertos Bogotá (<https://datosabiertos.bogota.gov.co>):
+
+| Qué | Archivo | De dónde | Licencia |
+| --- | --- | --- | --- |
+| Las **formas** de las 20 localidades | `loca.json` (2,4 MB; JSON de Esri, en grados; 57.840 puntos) | «Localidad. Bogotá D.C», Secretaría Distrital de Planeación: <https://datosabiertos.bogota.gov.co/dataset/localidad-bogota-d-c> | CC BY 4.0 |
+| Los **nombres de barrio**, toda la ciudad | `SECTOR.geojson` (18 MB; viene en `sector.geojson.10.26.zip`, 5,1 MB): 1.230 sectores, 1.000 urbanos, 139 rurales y 91 mixtos | «Sector Catastral. Bogotá D.C», Catastro Distrital (UAECD): <https://datosabiertos.bogota.gov.co/dataset/sector-catastral> (actualizado el 5-nov-2026) | CC BY 4.0 |
+| Los **nombres de barrio** de origen informal | `barriolegalizado.json` (8,2 MB): 1.775 barrios, cada uno con el código de su localidad | «Barrio legalizado. Bogotá D.C.», Secretaría Distrital de Planeación: <https://datosabiertos.bogota.gov.co/dataset/barrio-legalizado-bogota-d-c> | CC BY 4.0 |
+| Las **formas finas** de los vecinos | `geoBoundaries-COL-ADM2_simplified.geojson`: el mismo de arriba | geoBoundaries | CC BY 4.0 |
+
+Ninguna descarga está en el repo (pesan 39 MB entre las cuatro, y no son
+nuestras).
+
+Y una que NO se descarga ni se guarda: **las calles**. Son las teselas de
+OpenStreetMap (`https://tile.openstreetmap.org/z/x/y.png`), que el navegador de
+quien mira pide una por una al abrir Bogotá y al acercarse. Los datos son de los
+colaboradores de
+OpenStreetMap, con licencia ODbL (<https://www.openstreetmap.org/copyright>).
+Sus condiciones de uso (<https://operations.osmfoundation.org/policies/tiles/>)
+y cómo se cumplen están en la cabecera de «LAS CALLES» de
+`panel/mapa-clientes.js`: el crédito a la vista sobre el mapa, solo lo que se
+está mirando, nada de guardarlas para usar sin señal. Es un servidor gratis y
+**sin garantía**: a un servicio comercial le pueden quitar el acceso en
+cualquier momento. Si eso pasa, el mapa sigue igual sin calles (y lo dice); el
+arreglo sería pagar un proveedor de teselas y cambiar `URL_TESELAS`.
+
+### Lo que se les hizo
+
+1. **La misma proyección del mapa de Colombia**, y comprobada, no supuesta: la
+   caja de Colombia se vuelve a calcular con las formas de geoBoundaries y
+   tiene que dar la del mapa publicado (5905 × 8093); si no, el guion termina
+   con error. Los cinco números van en el archivo (`proy`): con ellos la
+   pestaña sabe qué teselas cubren la ventana que se mira.
+2. **La ventana** (`caja`): la ciudad y su primer anillo, de Madrid a La Calera
+   y de Chía a Sibaté (42 × 60 km). Es la del boceto que Joan escogió. Sumapaz,
+   que es páramo y empieza 7 km al sur del borde, no tiene forma en ella: va
+   con su nombre y su cifra en una línea aparte.
+3. **Las localidades**: Planeación trae los bordes compartidos con los mismos
+   vértices, así que se arma la topología (la de `mapa-colombia.js`), cada
+   borde se simplifica una sola vez con Douglas-Peucker a 0,05 unidades (12 m)
+   y se redondea a dos decimales: entre dos localidades no queda rendija ni se
+   montan (la prueba suma sus áreas contra la del contorno). La Candelaria
+   sola traía 13.201 puntos. `p` es dónde va el nombre: el polo de
+   inaccesibilidad de lo que la ventana deja ver.
+4. **El contorno** de la ciudad: la unión de las 19 que se ven, igual que un
+   departamento es la unión de sus municipios. Donde dos localidades no
+   comparten vértices en la descarga (una rendija de centímetros en la punta
+   del límite), el contorno entraba y salía por un borde de adentro: dos
+   «bigotes», de 10 m entre Chapinero y Santa Fe y de 85 m entre Fontibón y
+   Engativá. El ida y vuelta se quita, y una prueba lo vigila.
+5. **Los vecinos**: los 29 municipios de geoBoundaries que tocan la
+   ventana, a 0,1 unidades (23 m) y un decimal. En el mapa de Colombia van
+   redondeados a 231 m, que a escala de país no se nota y con las calles
+   debajo sí. Cada uno se casa con su código sin mirar el nombre: el punto del
+   nombre de UN municipio del mapa publicado tiene que caer dentro de su forma
+   (con cero o con dos, error). Bogotá según el DANE va aparte (`fondo`): es lo
+   que asoma donde su límite y el de Planeación no casan.
+6. **La lista de barrios** (`barrios`): de cada nombre oficial salen los
+   nombres que la gente escribe (sin «Barrio», «Urbanización» ni «II sector»;
+   lo de dentro del paréntesis o las comillas; las fechas en cifras), con la
+   MISMA función con la que `panel/mapa-lugares.js` limpia lo que escribió el
+   cliente (`llavesBarrio`). Lo de dentro del paréntesis solo da un nombre si
+   lo parece: ahí Planeación también escribe direcciones y notas («(CALLE
+   131A)», «(MANZANA 0)», «(ZONA INVADIDA)», «(ASD)»), y de eso salían llaves
+   que ubicaban a quien escribiera «Calle 80» o «asd». Lo que va delante del
+   nombre se quita y el nombre se queda: «(SECTOR EL LUCERO)» es «el lucero»,
+   y «(ANTES EL PEDREGAL)», el nombre de antes, que la gente sigue diciendo.
+   «(PARTE BAJA)», «"PARTE ALTA"» y «parte media» califican al barrio: el
+   nombre entero queda («rocio parte baja») y también sin eso («rocio»). La
+   cola se quita en dos tiempos (revisión del 15-nov): primero lo que es de
+   la dirección, y esa llave también vale; después lo que es cola del
+   nombre. De un tirón, «Tunjuelito Rural Manzana 4» perdía también el
+   «rural» y quedaba «tunjuelito», que es otra localidad. Al leer la ficha
+   valen todos los pasos; la lista guarda solo las puntas, el nombre entero y
+   el que queda al final (tercera vuelta del 15-nov): un paso de en medio,
+   como «santa cecilia sector» de «SANTA CECILIA SECTOR I», es más vago que
+   el nombre oficial y quedaba en una sola de las cuatro localidades que
+   tienen una «Santa Cecilia».
+   Los sectores de Catastro no dicen su localidad, y no la respetan: un
+   sector es de TODAS las localidades que tienen la décima parte o más de su
+   suelo (38 de 1.230 caen en dos: «Las Aguas», dos tercios en La Candelaria
+   y uno en Santa Fe). Menos de eso es el trazo de dos límites que no casan
+   del todo. Un sector con más de la mitad fuera de las 20 no entra: solo
+   «Páramo II». De 3.045 nombres oficiales quedan 2.766 llaves; **225 están
+   en más de una localidad** («Lisboa», en Suba y en Usaquén) y se guardan
+   con todas: la pestaña no escoge. Una llave que es el nombre de una localidad y está en
+   ella se va (hay un sector «Tunjuelito» que cae del lado de Usme); si está en
+   OTRA se queda, porque eso sí es duda («Santa Fe» es también un barrio de Los
+   Mártires).
+
+Resultado: **128.887 bytes (125,9 KB; 36,8 KB comprimido)**. Se pide junto
+al de Colombia al abrir la pestaña y tampoco va en la precarga del service
+worker.
+
+### Rehacerlo
+
+```
+node herramientas/mapa-bogota.js \
+  --localidades <ruta>/loca.json \
+  --sectores    <ruta>/SECTOR.geojson \
+  --barrios     <ruta>/barriolegalizado.json \
+  --formas      <ruta>/geoBoundaries-COL-ADM2_simplified.geojson
+```
+
+Escribe `panel/mapa/bogota-2026-11.json`, el mismo byte a byte. Si cambia
+(otra división de localidades, una lista de barrios más nueva), va con **otro
+nombre** y se cambia `URL_BOGOTA` en `panel/mapa-clientes.js`, por lo mismo
+que el de Colombia.
+
 ## Lo que el mapa NO usa
 
 Ninguna coordenada de un cliente. El municipio de cada cliente sale de la
 ciudad que escribió en el registro o que Joan corrigió en la ficha
 (`panel/mapa-lugares.js`); ni el GPS del registro ni la ciudad que adivina la
 IP entran a la pestaña.
+
+Desde el 14-nov, en Bogotá se lee además el **barrio** de la ficha, y solo
+para saber la localidad: el barrio no se pinta ni se cuenta, y la dirección
+sigue sin leerse (`pruebas/mapa-bogota.test.js` lo vigila con una ficha que
+anota cada campo que se le pide).
+
+Y a OpenStreetMap no le llega nada de un cliente: en la dirección de cada
+tesela van solo el zoom y la casilla de la ventana que se está mirando.

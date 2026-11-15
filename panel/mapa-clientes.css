@@ -198,6 +198,71 @@
 .mapa-sin li .btn{flex:none}
 .mapa-creditos{font-size:11.5px;color:var(--gris-claro);margin-top:var(--e3);line-height:1.5}
 
+/* ===========================================================================
+ * 14-nov-2026 — BOGOTÁ POR DENTRO («que se vea mucho más detallado», Joan).
+ * Las localidades y los vecinos usan las mismas clases de zona de arriba
+ * (.mapa-z con su tramo, .mapa-q con su estado): lo medido el 13-nov vale
+ * igual. Aquí solo va lo que esa vista tiene de propio.
+ * ===========================================================================*/
+/* EL CONTORNO DE BOGOTÁ (la unión de sus localidades), encima de ellas: lo
+   que deja leer la ciudad como una sola pieza entre sus vecinos. Más grueso
+   que el de un departamento, que va solo; este compite con veinte bordes. */
+.mapa-papel .mapa-borde.mapa-ciudad{stroke-width:2.4px}
+.mapa-oscuro .mapa-borde.mapa-ciudad{stroke:var(--blanco-laca);stroke-width:2px}
+/* EL FONDO: Bogotá según el DANE, en «sin clientes». Solo asoma en las
+   rendijas donde ese límite y el de Planeación no casan. */
+.mapa-fondo{fill:var(--mapa-t0);stroke:none;pointer-events:none}
+.mapa-oscuro .mapa-fondo{fill:var(--laca-3)}
+/* El nombre a secas de una zona sin clientes: más chico y en gris, para que
+   no compita con los que traen cifra. Sobre su halo de papel da 5,6:1. */
+.mapa-et.mapa-et-sec{font-weight:600;font-size:calc(var(--k,1) * 10.5px);fill:var(--gris)}
+.mapa-oscuro .mapa-et.mapa-et-sec{fill:var(--blanco-laca);opacity:.72}
+/* El marco: para colgar del mapa (y no de la tarjeta) el crédito de las calles. */
+.mapa-marco{position:relative}
+
+/* LAS CALLES (teselas de OpenStreetMap, en gris, debajo de las zonas). Con
+   calles, los rellenos van TRANSPARENTES para que se lean debajo: la escala
+   es la misma, aclarada, y la leyenda la sigue porque usa las mismas
+   variables. «Sin clientes» queda casi sin color: ahí manda el mapa de calles.
+   Los bordes pasan a laca entera, que es lo único que se separa de un fondo
+   que ya no es liso. */
+.mapa-lienzo.mapa-calles{
+  --mapa-t0:rgba(var(--laca-rgb),.03);
+  --mapa-t1:rgba(var(--azul-rgb),.20);
+  --mapa-t2:rgba(var(--azul-rgb),.32);
+  --mapa-t3:rgba(var(--azul-rgb),.45);
+  --mapa-t4:rgba(var(--azul-rgb),.58);
+  --mapa-t5:rgba(var(--azul-rgb),.74);
+  --mapa-raya-sobre-claro:var(--laca);
+  --mapa-raya-sobre-oscuro:var(--laca)}
+.mapa-calles .mapa-z{stroke-width:1.1px}
+.mapa-calles .mapa-fondo{fill:none}
+.mapa-calles .mapa-et{stroke-width:calc(var(--k,1) * 4.5px)}
+/* Con calles, el nombre a secas de una zona sin clientes sobra: el mapa de
+   calles ya trae el de cada pueblo, y en el celular salía «El Rosal» dos veces. */
+.mapa-calles .mapa-et.mapa-et-sec{display:none}
+/* EL CRÉDITO DE OPENSTREETMAP, sobre el mapa y a la vista mientras haya
+   calles: es su condición de uso. */
+.mapa-osm,.mapa-osm-aviso{position:absolute;right:6px;bottom:6px;font-size:11px;line-height:1.3;background:var(--papel);color:var(--tinta-2);
+  padding:2px 7px;border-radius:7px;border:1px solid var(--linea);max-width:calc(100% - 12px)}
+.mapa-osm a{color:var(--azul-osc)}
+.mapa-osm[hidden],.mapa-osm-aviso[hidden]{display:none}
+.mapa-osm-aviso{right:auto;left:6px;background:var(--ambar-tinte);border-color:var(--ambar-medio);color:var(--ambar);font-weight:600}
+/* El botón «Calles», puesto. */
+.mapa-zb.mapa-calles-b.on{background:var(--laca);border-color:var(--laca);color:var(--blanco-laca)}
+.mapa-zb.mapa-calles-b.on:hover{background:var(--laca-2);border-color:var(--laca-2)}
+
+/* Lo que no tiene forma en la ventana (Sumapaz), en una línea bajo la leyenda. */
+.mapa-fuera{font-size:12px;color:var(--gris);margin:var(--e2) 0 0;line-height:1.5}
+.mapa-laca .mapa-fuera{color:rgba(var(--blanco-laca-rgb),.7)}
+.mapa-enlace{border:0;background:transparent;padding:0;font:inherit;color:var(--azul-osc);text-decoration:underline;cursor:pointer;min-height:24px}
+.mapa-laca .mapa-enlace{color:var(--amarillo)}
+/* Los de Bogotá sin localidad, dicho junto a la lista. */
+.mapa-sinloc{background:var(--papel-2);border:1px solid var(--linea);border-radius:12px;padding:var(--e3);font-size:12.5px;line-height:1.45;
+  color:var(--tinta-2);margin:var(--e3) 0}
+.mapa-sinloc b{font-family:'JetBrains Mono',monospace;color:var(--laca)}
+.mapa-sin.mapa-sin-loc{margin-top:var(--e3)}
+
 /* A 880 px o menos (la misma cifra del menú del CRM): el mapa arriba y la
    lista debajo, y la lista sin su propio desplazamiento, que en un celular
    atrapa el dedo. Los botones del zoom, de 44 px como todo lo que se toca. */
@@ -211,4 +276,5 @@
   .mapa-busca{flex-basis:100%}
   .mapa-sin li{flex-direction:column;align-items:stretch}
   .mapa-sin li .btn{min-height:44px;justify-content:center}
+  .mapa-enlace{min-height:44px}
 }
