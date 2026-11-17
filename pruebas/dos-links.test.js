@@ -159,7 +159,17 @@ describe('el CRM abre directo la puerta del equipo', () => {
 describe('el link del cliente sigue siendo UNO, y su camino sigue vivo', () => {
 
   test('la portada tiene un solo botón de entrada, a play/', () => {
-    assert.match(PORTADA, /<a class="btn btn-rojo" href="play\/">Entrar o abrir mi cuenta<\/a>/);
+    /* 17-nov-2026 — la franja «Cómo entrar» y su botón rojo se fueron (Joan:
+       «mucha información que el cliente no leerá»). La puerta es el «Entrar»
+       de la cabecera, que es fija y va directo. Y si algún botón vuelve a
+       bajar a un #ancla, el ancla tiene que existir: «Entrar» bajaba a
+       #entrar, y quitar la franja sin tocarlo lo habría dejado en el aire. */
+    assert.match(PORTADA, /<a class="btn btn-linea" href="play\/">Entrar<\/a>/);
+    const vivo = PORTADA.replace(/<!--[\s\S]*?-->/g, ' ');
+    (vivo.match(/href="#[\w-]+"/g) || []).forEach((h) => {
+      const id = h.slice(7, -1);
+      assert.ok(vivo.indexOf('id="' + id + '"') >= 0, 'la portada enlaza a #' + id + ' y ese id no existe');
+    });
   });
 
   test('el cliente de siempre junta su historial desde adentro', () => {
@@ -183,11 +193,14 @@ describe('el link del cliente sigue siendo UNO, y su camino sigue vivo', () => {
       'Perfil ya no le dice al antiguo qué pasa con su historial');
   });
 
-  test('y la portada se lo explica', () => {
+  test('y la puerta se lo explica', () => {
     /* 7-oct-2026 (segunda vuelta) — sin código: Joan los apagó el 7-oct. La
        portada decía «pegas el código de cinco caracteres», y esa caja ya no
-       junta nada desde base/20261007_una_puerta.sql. */
-    assert.match(PORTADA, /No necesitas ningún código/);
+       junta nada desde base/20261007_una_puerta.sql.
+       17-nov-2026 — lo explicaba la franja «Cómo entrar» de la portada, que se
+       quitó. Lo dice play/ en la fachada, justo cuando se va a registrar
+       (pruebas/una-puerta-play.test.js lo mira ya pintado). */
+    assert.match(leer('play/index.html'), /No necesitas ningún código/);
     assert.ok(!/pegas el código/.test(PORTADA), 'la portada todavía manda a pegar un código');
   });
 });

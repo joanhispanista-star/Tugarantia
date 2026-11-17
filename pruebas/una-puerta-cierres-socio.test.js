@@ -141,6 +141,9 @@ describe('lo que lee Joan y lo que lee quien llega por la portada', () => {
     const p = fs.readFileSync(path.join(RAIZ, 'index.html'), 'utf8');
     assert.ok(!/>Ya tengo código</.test(p), 'el botón de arriba sigue diciendo «Ya tengo código»');
     assert.ok(!/pegas el código|K7QP3/.test(p), '«Cómo entrar» sigue mandando a pegar el código');
-    assert.match(p, /No necesitas ningún código/);
+    /* 17-nov-2026 — «Cómo entrar» se quitó de la portada (Joan: «mucha
+       información que el cliente no leerá»). «No necesitas ningún código» lo
+       dice play/ en la fachada; pruebas/una-puerta-play.test.js lo mira pintado. */
+    assert.match(fs.readFileSync(path.join(RAIZ, 'play', 'index.html'), 'utf8'), /No necesitas ningún código/);
   });
 });
