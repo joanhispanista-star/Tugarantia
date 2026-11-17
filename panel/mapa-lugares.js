@@ -29,7 +29,7 @@
  * con los códigos DIVIPOLA del DANE), y indice() la convierte en un buscador.
  * ===========================================================================*/
 /* La firma de llegada: el CRM pide este archivo con la versión en la dirección
-   (…?v=150). Ver «¿LLEGÓ LO QUE PEDÍ?» en las páginas y la nota de v139 en
+   (…?v=151). Ver «¿LLEGÓ LO QUE PEDÍ?» en las páginas y la nota de v139 en
    sw.js. En Node no hay document y no hace nada. */
 (function () { try { var s = document.currentScript; if (s && s.src) (window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();
 
@@ -265,10 +265,19 @@
     var r = veredicto(idx, candidatos(idx, t), pista, crudo, 'nombre');
     if (r) return r;
     /* «Bogotá Colombia»: el país al final sobra (pero «Puerto Colombia» no
-       llega aquí: casó entero arriba). */
+       llega aquí: casó entero arriba). Con lo que venga detrás del país y
+       al normalizar se va (un punto, una coma, «D.C.», «Distrito Capital»,
+       un emoji): «Bogotá, Colombia.» es «Bogotá». Y solo se vuelve a mirar
+       si quitarlo acortó el texto: antes, con ese punto la expresión no
+       quitaba nada, ubicar se llamaba a sí mismo sin fin, y UNA ficha así
+       dejaba la pestaña del mapa sin dibujar para todos (venía del 9-nov;
+       lo encontró una revisión del 16-nov). */
     if (/ colombia$/.test(t)) {
-      r = ubicar(crudo.replace(/[\s,;\-–()]*colombia[\s)]*$/i, ''), textoDepto, idx);
-      if (r.estado !== 'desconocido') return Object.assign(r, { texto: crudo });
+      var sinPais = crudo.replace(/[\s,;\-–()]*colombia(?:[^a-z0-9]|d\.?\s*c\b|distrito\s+capital)*$/i, '');
+      if (sinPais !== crudo) {
+        r = ubicar(sinPais, textoDepto, idx);
+        if (r.estado !== 'desconocido') return Object.assign(r, { texto: crudo });
+      }
     }
 
     /* Partido: cada trozo es o un departamento (pista) o una ciudad. */

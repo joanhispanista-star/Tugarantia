@@ -26,7 +26,7 @@
  * 14-nov-2026 — «que se vea mucho más detallado» (Joan): Bogotá por dentro
  * (sus localidades, las calles) tiene su propio archivo de pruebas,
  * pruebas/mapa-bogota.test.js. Aquí cambiaron cuatro, a propósito: tocar
- * Bogotá ya no la marca, la ABRE; y los tres archivos van con ?v=150.
+ * Bogotá ya no la marca, la ABRE; y los tres archivos van con ?v=150 (mapa-lugares.js, con ?v=151).
  *
  * Las descargas no viven en el repo: el casado se prueba con un mapa de
  * juguete que tiene las mismas trampas (un nombre en dos departamentos, un
@@ -548,13 +548,15 @@ describe('6 · la pestaña «🗺️ Mapa» en el CRM', () => {
      ?v=145. mapa-lugares.js no cambió y sigue en ?v=143.
      14-nov: los TRES cambian (Bogotá por dentro) después de publicados: ?v=150
      (iban a ser 149; ese número lo tomó antes la pestaña «Pista»).
+     16-nov: solo mapa-lugares.js cambia («Bogotá, Colombia.»): ?v=151;
+     mapa-clientes.js y su hoja siguen en ?v=150.
      Y el archivo de Bogotá tampoco va en la precarga. */
   test('los .js se piden con su versión, la hoja también, y el mapa NO va en la precarga', () => {
-    assert.match(CRM, /<script src="mapa-lugares\.js\?v=150"><\/script>/);
+    assert.match(CRM, /<script src="mapa-lugares\.js\?v=151"><\/script>/);
     assert.match(CRM, /<script src="mapa-clientes\.js\?v=150"><\/script>/);
     assert.match(CRM, /<link rel="stylesheet" href="mapa-clientes\.css\?v=150">/);
     const sw = leer('sw.js');
-    assert.ok(sw.includes("'panel/mapa-lugares.js?v=150'") && sw.includes("'panel/mapa-clientes.js?v=150'") &&
+    assert.ok(sw.includes("'panel/mapa-lugares.js?v=151'") && sw.includes("'panel/mapa-clientes.js?v=150'") &&
       sw.includes("'panel/mapa-clientes.css?v=150'"), 'la precarga sigue con la versión de antes');
     for (const f of ['colombia-2026-11.json', 'colombia-2026-11b.json', 'bogota-2026-11.json']) {
       assert.ok(!sw.includes(f), 'el mapa se colaría en la precarga de cada teléfono: ' + f);

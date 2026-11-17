@@ -2674,7 +2674,32 @@
    ARCHIVOS y en lo que espera pruebas/mapa-clientes.test.js (la regla de la nota de v139:
    sin eso, dos pruebas en rojo). El número nunca baja:
    app/actualizar.js solo avisa de una versión nueva cuando la caché es MAYOR que la página. */
-const CACHE = 'tugarantia-v150';
+/* 16-nov-2026, v151 — SALE DESPUÉS DE v150 (main = 8d13167). Rama v151-pestana.
+   UNA FICHA CON «Bogotá, Colombia.» DEJABA LA PESTAÑA DEL MAPA EN BLANCO, PARA TODOS.
+   Con el punto detrás («Bogotá, Colombia.»), o con «DC», «D.C.», «Distrito Capital», una
+   coma, un signo o un emoji después del país, en «Ciudad» o en la ciudad del registro, la
+   función que quita el país (ubicar, en panel/mapa-lugares.js) no quitaba nada y se volvía a
+   llamar a sí misma sin fin: el navegador cortaba con un error y la pestaña no se dibujaba.
+   Venía del 9-nov y estaba publicado. Lo encontró la segunda revisión del municipio en una
+   punta (rama mapa-detallado, sin publicar), y sale solo, antes, porque tumba la pestaña.
+   · Ahora la expresión quita también lo que va detrás del país, y ubicar solo vuelve a
+     llamarse si quitarlo acortó el texto. Lo que no sabe quitar («D.T. y C.», «Mpio») se
+     queda como estaba (sin ubicar, como en v150), pero ya no tumba nada.
+   · Medido contra v150: cambian solo los textos que tumbaban la pestaña, que ahora salen
+     en Bogotá (o en su municipio: «Soacha, Colombia.» es Soacha, como sin el punto); lo
+     demás da lo mismo (cifras en el commit).
+   · Pruebas: dos nuevas al final de pruebas/mapa-bogota.test.js (sección 13); deshacer
+     cada parte del arreglo tira alguna.
+   Solo cambia panel/mapa-lugares.js: pasa a ?v=151 en crm.html, en ARCHIVOS y en lo que
+   espera pruebas/mapa-clientes.test.js; mapa-clientes.js y su hoja siguen en ?v=150.
+   CACHE y VERSION_SITIO suben a v151. NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   EL MUNICIPIO EN UNA PUNTA («Soacha Ciudad Verde, Compartir», el límite que dejó v150) NO
+   va en esta versión: sigue en la rama mapa-detallado y saldrá con el número que esté libre.
+   PARA DESHACER: se revierte el commit de v151; CACHE y VERSION_SITIO, que el revert deja en
+   v150, suben a v152, y mapa-lugares.js, que vuelve a ?v=150, pasa a ?v=152 en crm.html, en
+   ARCHIVOS y en su prueba (la regla de la nota de v139). Donde la nota de v150 dice «se sale
+   con v151», es la siguiente libre. El número nunca baja. */
+const CACHE = 'tugarantia-v151';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -2916,8 +2941,10 @@ const ARCHIVOS = [
      tile.openstreetmap.org: otro origen, así que este service worker las deja pasar y NO
      las guarda (sus condiciones no dejan guardarlas para usar sin señal).
      Iban a ser ?v=149: ese número lo tomó antes la pestaña «Pista», y el ?v= es el número
-     de CACHE con el que se sale (la regla de la nota de v139). */
-  'panel/mapa-lugares.js?v=150',
+     de CACHE con el que se sale (la regla de la nota de v139).
+     16-nov-2026 — mapa-lugares.js a ?v=151: «Bogotá, Colombia.» (ver la nota de v151).
+     Los otros dos no cambian. */
+  'panel/mapa-lugares.js?v=151',
   'panel/mapa-clientes.js?v=150',
   'panel/mapa-clientes.css?v=150'
 ].map(f => BASE + f);

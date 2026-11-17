@@ -2466,3 +2466,29 @@ describe('12 · la sexta vuelta: la dirección pegada al municipio, el país det
     assert.equal(ver(L.localidadDe('Kennedy Cundinamarca', 'Timiza', IB, IDX)), 'Kennedy');
   });
 });
+
+describe('13 · «Bogotá, Colombia.» con el punto ya no deja la pestaña del mapa en blanco', () => {
+  const ver = r => r.estado === 'ubicado' ? nombreLoc(r.codigo) : r.estado;
+  const deRegistro = (ciudad, barrio) => L.localidadDeCliente({ ciudad: 'Bogotá', barrio: '', vinculacion: { ciudad, barrio } }, IB, IDX);
+
+  test('«Bogotá, Colombia.» (o con «D.C.», un emoji o «Distrito Capital» detrás) es Bogotá, en la ficha y en el registro', () => {
+    /* ubicar se llamaba a sí mismo sin fin: la expresión que quita el país no quitaba nada con
+       un punto detrás. Venía del 9-nov y estaba publicado. */
+    for (const c of ['Bogotá, Colombia.', 'Bogotá Colombia.', 'Bogotá, Colombia,', 'Bogotá Colombia DC', 'Bogotá, Colombia D.C.', 'Bogotá - Colombia!',
+      'Bogotá, Colombia 🇨🇴', 'Bogotá, Colombia Distrito Capital']) {
+      assert.equal(L.lugarDeCliente({ ciudad: c }, IDX).codigo, IB.municipio, c);
+      assert.equal(ver(deRegistro(c, 'Timiza')), 'Kennedy', c + ', en el registro');
+    }
+    for (const c of ['Soacha, Colombia.', 'Medellín, Colombia.']) {
+      assert.equal(L.lugarDeCliente({ ciudad: c }, IDX).codigo, L.lugarDeCliente({ ciudad: c.slice(0, -1) }, IDX).codigo, c);
+    }
+    assert.equal(L.lugarDeCliente({ ciudad: 'Huila, Colombia.' }, IDX).estado, L.lugarDeCliente({ ciudad: 'Huila, Colombia' }, IDX).estado);
+  });
+
+  test('lo que la expresión no sabe quitar («D.T. y C.», «Mpio») se queda, pero ya no tumba nada', () => {
+    for (const c of ['Bogotá, Colombia D.T. y C.', 'Bogotá Colombia Mpio']) {
+      assert.doesNotThrow(() => L.lugarDeCliente({ ciudad: c }, IDX), c);
+      assert.doesNotThrow(() => deRegistro(c, 'Timiza'), c + ', en el registro');
+    }
+  });
+});
