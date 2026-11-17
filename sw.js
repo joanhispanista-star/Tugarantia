@@ -2674,6 +2674,27 @@
    ARCHIVOS y en lo que espera pruebas/mapa-clientes.test.js (la regla de la nota de v139:
    sin eso, dos pruebas en rojo). El número nunca baja:
    app/actualizar.js solo avisa de una versión nueva cuando la caché es MAYOR que la página. */
+/* 16-nov-2026, SIN NÚMERO TODAVÍA — rama misiones. SALE DESPUÉS de invita-y-crece (lun
+   30-nov) y de cadenas (jue 3-dic): las tres tocan app/socio.html. Publicación prevista:
+   lun 14-dic. Al publicar, sobre lo que haya salido: CACHE y VERSION_SITIO al número
+   siguiente y pista-niveles.js?v= a ese mismo número (aquí y en socio.html).
+   LAS MISIONES. Joan: «en los niveles vamos a motivar más el cliente como con misiones…
+   que se sienta más interesante subir de nivel». Plan decidido el 16-nov («Sí, las
+   recomendadas») y bocetos aprobados ese día («Sí, así»).
+   · Dentro de la Pista (D7-A): las misiones de la quincena (pagar en la fecha ★, y
+     «Madrugador», 2 días antes ★★), el perfil (★ con 5, 10 y los 13 datos que no son
+     sensibles), las rachas de 3, 6 y 12 y la mejor racha.
+   · Cada 3 estrellas aparece una cosa en la isla (bandera, árbol, banca, farol, puesto
+     de mercado…). Las estrellas NO son plata, no suben el cupo ni mueven el nivel (D1-A).
+   · Un título por mundo, el personaje en la pista (moto, bici, carro, bus o a pie), la
+     llegada a un mundo nuevo (una sola vez) con su imagen para WhatsApp sin montos, y el
+     álbum «Tus islas».
+   · «Invita a alguien» está APAGADA hasta el abogado (D4, jue 26-nov). «Abona al
+     capital» no está: el paquete no trae la fecha de los abonos.
+   · La insignia «Primer crédito» pasa a «Primer crédito pagado» (D3).
+   Archivos: app/misiones.js y app/misiones.css NUEVOS; app/pista-niveles.js cambia
+   (?v=); app/socio.html. Pruebas: pruebas/misiones.test.js. NO HAY BASE NUEVA: el
+   personaje y el último mundo visto se guardan en el teléfono. */
 const CACHE = 'tugarantia-v150';
 const BASE = new URL('./', self.location).pathname;
 
@@ -2901,8 +2922,13 @@ const ARCHIVOS = [
      protege sola si no llegan (la pestaña no se ofrece; y si llega el guion
      sin la hoja, dice que no terminó de bajar en vez de pintar a medias).
      Salen con v149 (ver su nota, arriba). */
-  'app/pista-niveles.js',
+  'app/pista-niveles.js?v=150',
   'app/pista-niveles.css',
+  /* 16-nov-2026 — LAS MISIONES DE LA PISTA (rama misiones; ver su nota, arriba).
+     pista-niveles.js cambió: va con ?v= y al publicar toma el número de CACHE de
+     ese día. misiones.js y misiones.css son NUEVOS: sin versión. */
+  'app/misiones.js',
+  'app/misiones.css',
   /* 10-nov-2026 — la pestaña «🗺️ Mapa»: sus dos guiones y su hoja los pide crm.html, así que
      llegan JUNTO con él (sin señal, la pestaña dice que el mapa no cargó en vez de romper).
      El mapa en sí (el JSON de panel/mapa/, ~600 KB desde v145) NO va aquí: se pide al abrir

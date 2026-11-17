@@ -53,6 +53,9 @@
      prefijo pn- y se pinta con los tokens de esta página. Trae además la
      regla que deja caber SEIS pestañas en la barra de abajo. -->
 <link rel="stylesheet" href="pista-niveles.css">
+<!-- 16-nov-2026 — las misiones de la Pista (misiones.js): prefijo mi-, tokens de
+     esta página. Archivo nuevo: sin versión. -->
+<link rel="stylesheet" href="misiones.css">
 <style>
 /* ==========================================================================
  * LA LEY DE LA PALETA — 2 de agosto de 2026
@@ -1081,8 +1084,14 @@ setTimeout(function () {
      en la dirección a propósito: es un archivo nuevo (no hay copia vieja con
      la que mezclarse) y es adorno, no plata; si no llega, la guardia de abajo
      no frena la app y la pestaña simplemente no se ofrece. El día que cambie
-     le toca su ?v= como a los demás (ya firma su llegada). -->
-<script src="pista-niveles.js"></script>
+     le toca su ?v= como a los demás (ya firma su llegada).
+     16-nov-2026 — Y CAMBIÓ (las misiones: las cosas de la isla, el personaje y
+     la llegada): va con ?v= como cualquier .js publicado que cambia, para que
+     una página nueva no corra con el de antes. Al publicar toma el número de
+     CACHE de ese día (pruebas/la-pagina-nueva-no-corre-con-un-js-viejo).
+     misiones.js es NUEVO: sin versión; si no llega, la Pista se ve como antes. -->
+<script src="pista-niveles.js?v=150"></script>
+<script src="misiones.js"></script>
 <script src="sesion-socio.js?v=143"></script>
 <script src="ver-como.js"></script>
 <!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
@@ -2320,6 +2329,9 @@ function irA(tab) {
   if (tab === 'calc') sincronizarCalc();
   if (tab === 'chat') arrancarChat();
   if (tab === 'inicio') montarHistoriaLaboral();   // 28-oct-2026
+  /* 16-nov-2026 — con la Pista ya pintada: las misiones anotan lo suyo en el
+     teléfono y, si llegó a un mundo nuevo, sale la llegada (una sola vez). */
+  if (tab === 'pista' && window.PistaNiveles && window.PistaNiveles.montar) window.PistaNiveles.montar();
   window.scrollTo(0, 0);
   avisarQueEsMomento();   // 21-oct-2026 — Inicio, Historial y Garantía son de la lista
 }
@@ -4547,7 +4559,14 @@ function vistaPista() {
   if (!window.PistaNiveles) return '';   // irA ya desvió a Inicio; esto es por si alguien la llama a mano
   return window.PistaNiveles.vista({
     nombre: S.nombre, garantia: S.garantia, creditos: S.creditos,
-    frase: textoProximoNivel(), centavos: centavosDeGarantia()
+    frase: textoProximoNivel(), centavos: centavosDeGarantia(),
+    /* 16-nov-2026 — LAS MISIONES (app/misiones.js): el perfil (solo QUÉ datos
+       tiene, como viaja en el paquete), la racha del motor, la cuenta para
+       guardar en el teléfono el personaje y el último mundo visto, el día de
+       hoy (el de este teléfono, como el resto de la página), cómo repintar la
+       pestaña y adónde ir a completar los datos. */
+    perfil: S.perfil, racha: Number(S.g && S.g.racha || 0), cuenta: S.cedula || S.codigo || '',
+    hoy: hoyISO(), repintar: function () { irA('pista'); }, alCompletarPerfil: function () { abrirPerfil(); }
   }) + pie();
 }
 function cerrarPista() {
@@ -4654,7 +4673,9 @@ function insignias() {
   var puntuales = S.pagados.filter(function (c) { return c.fecha_pagado && c.corte && c.fecha_pagado <= c.corte; });
   var orden = M.NIVELES;
   var lista = [
-    { em: '🌱', t: 'Primer crédito', ok: S.creditos.length >= 1 },
+    /* 16-nov-2026 (D3 de las misiones) — se ganaba al PEDIR el primer crédito.
+       Ninguna insignia premia pedir: ahora es al pagarlo. */
+    { em: '🌱', t: 'Primer crédito pagado', ok: S.pagados.length >= 1 },
     { em: '✅', t: 'Primer pago en fecha', ok: puntuales.length >= 1 },
     { em: '🔥', t: 'Racha de 3', ok: Number(S.g.racha || 0) >= 3 },
     { em: '⚡', t: 'Racha de 10', ok: Number(S.g.racha || 0) >= 10 },
@@ -4665,7 +4686,7 @@ function insignias() {
   ];
   var ganadas = lista.filter(function (i) { return i.ok; });
   var proxima = lista.filter(function (i) { return !i.ok; })[0];
-  if (!ganadas.length) return '<p class="muted" style="margin-top:var(--e3)">Todavía ninguna. La primera llega con tu primer crédito.</p>';
+  if (!ganadas.length) return '<p class="muted" style="margin-top:var(--e3)">Todavía ninguna. La primera llega cuando pagues tu primer crédito.</p>';
   return '<div class="insignias">' +
     ganadas.map(function (i) { return '<span class="ins"><em>' + i.em + '</em>' + esc(i.t) + '</span>'; }).join('') +
     (proxima ? '<span class="ins proxima"><em>' + proxima.em + '</em>Sigue: ' + esc(proxima.t) + '</span>' : '') +

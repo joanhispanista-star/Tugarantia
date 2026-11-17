@@ -80,6 +80,13 @@
     return _motor;
   }
 
+  /* Las misiones (app/misiones.js, 16-nov-2026): si llegaron, la pista las
+     pinta; si no, se ve como antes. Se buscan al pintar, no al cargar. */
+  function misiones() {
+    var g = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
+    return g.Misiones || null;
+  }
+
   var uid = 0;
   function nuevoId(p) { uid++; return 'pn' + p + uid; }
   function esc(s) {
@@ -751,8 +758,11 @@
 
   /* ---------- la pista, ya sobre la isla ---------- */
   var FUENTE = '-apple-system,Segoe UI,Roboto,system-ui,sans-serif';
+  /* el ancho de la calzada y de cada piano, en unidades de suelo: también los
+     mide `sitios` para que nada de lo construido quede encima */
+  var ANCHO_PISTA = 19, KERB_PISTA = 3.2;
   function pista(nivel, L, o) {
-    var P = PALETA[nivel], N = 160, ANCHO = 19, KERB = 3.2, s = L.s, i;
+    var P = PALETA[nivel], N = 160, ANCHO = ANCHO_PISTA, KERB = KERB_PISTA, s = L.s, i;
     var c = muestras(CIRCUITOS[nivel], N);
     var nor = c.map(function (p, x) {
       var a = c[(x - 1 + N) % N], b = c[(x + 1) % N], tx = b[0] - a[0], ty = b[1] - a[1], l = Math.sqrt(tx * tx + ty * ty) || 1;
@@ -829,7 +839,7 @@
     cosas.push({ v: c[0][1], svg: g });
     /* el socio: un pin de pie, con su sombra y un pulso en el suelo */
     if (o.f != null && !o.sinMarcador) {
-      var im = Math.min(N - 1, Math.round(N * o.f)), q0 = centro[im], rr = 12.5 * q0[2], cab = L.P(c[im][0], c[im][1], 30);
+      var im = Math.min(N - 1, Math.round(N * o.f)), q0 = centro[im], rr = (o.personaje ? 15 : 12.5) * q0[2], cab = L.P(c[im][0], c[im][1], o.personaje ? 33 : 30);
       cosas.push({ v: c[im][1] - 0.01, svg:
         '<ellipse cx="' + r1(q0[0]) + '" cy="' + r1(q0[1]) + '" rx="' + r1(rr * 0.95) + '" ry="' + r1(rr * 0.4) + '" fill="#000" opacity=".5"/>' +
         '<ellipse class="pn-pulso" cx="' + r1(q0[0]) + '" cy="' + r1(q0[1]) + '" rx="' + r1(rr * 1.5) + '" ry="' + r1(rr * 0.62) + '" fill="none" stroke="#F5C542" stroke-width="' + r1(1.5 * s) + '"/>' +
@@ -838,7 +848,11 @@
         '<circle cx="' + r1(cab[0]) + '" cy="' + r1(cab[1]) + '" r="' + r1(rr * 1.5) + '" fill="#F5C542" opacity=".2"/>' +
         '<circle cx="' + r1(cab[0]) + '" cy="' + r1(cab[1]) + '" r="' + r1(rr) + '" fill="#F5C542" stroke="#0C0A0B" stroke-width="' + r1(1.9 * s) + '"/>' +
         '<path d="M' + r1(cab[0] - rr * 0.62) + ',' + r1(cab[1] - rr * 0.35) + ' A' + r1(rr * 0.72) + ',' + r1(rr * 0.72) + ' 0 0 1 ' + r1(cab[0] + rr * 0.1) + ',' + r1(cab[1] - rr * 0.72) + '" fill="none" stroke="#FFFFFF" stroke-opacity=".75" stroke-width="' + r1(1.2 * s) + '" stroke-linecap="round"/>' +
-        '<text x="' + r1(cab[0]) + '" y="' + r1(cab[1] + 0.5) + '" text-anchor="middle" dominant-baseline="central" font-family="' + FUENTE + '" font-size="' + r1(rr * 1.08) + '" font-weight="800" fill="#0C0A0B">' + esc(o.letra || '') + '</text>' });
+        (o.personaje
+          /* el personaje que escogió (moto, bici…), en vez de la inicial: un
+             ícono de 24 × 24 de trazo, que le pasa app/misiones.js */
+          ? '<g transform="translate(' + r1(cab[0] - rr * 0.78) + ' ' + r1(cab[1] - rr * 0.78) + ') scale(' + (rr * 1.56 / 24).toFixed(3) + ')" style="color:#0C0A0B" fill="none" stroke="#0C0A0B" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' + o.personaje + '</g>'
+          : '<text x="' + r1(cab[0]) + '" y="' + r1(cab[1] + 0.5) + '" text-anchor="middle" dominant-baseline="central" font-family="' + FUENTE + '" font-size="' + r1(rr * 1.08) + '" font-weight="800" fill="#0C0A0B">' + esc(o.letra || '') + '</text>') });
     }
     return { defs: defs, base: h, cosas: cosas };
   }
@@ -984,6 +998,142 @@
     'misterio': []
   };
 
+  /* ---------- lo que construyen las estrellas (misiones, 16-nov-2026) ----------
+     Cada 3 estrellas de las misiones aparece una cosa en la isla del mundo
+     donde se ganaron (app/misiones.js decide cuántas; aquí solo se dibujan).
+     Son cosas de barrio, no de plata: nada de monedas, cofres ni billetes, por
+     la misma regla de la garantía (decisión del 21-oct). Se dibujan como los
+     adornos: en unidades de suelo, de pie sobre (0,0). El orden lo aprobó Joan
+     en los bocetos del 16-nov (bandera, árbol, banca, farol, puesto de
+     mercado); después se repiten, hasta MAX_COSAS por isla. */
+  var COSAS = {
+    bandera: '<g transform="scale(.62) translate(-9 -37)"><ellipse cx="9" cy="37" rx="7" ry="2.2" fill="#000" opacity=".28"/><path d="M8 37V5" stroke="#F3EBDD" stroke-width="2" stroke-linecap="round"/><path d="M9 6c5 1.2 9-1.4 15 .6v10c-6-2-10 .6-15-.6z" fill="#F5C542"/><path d="M9 6c5 1.2 9-1.4 15 .6v3c-6-2-10 .6-15-.6z" fill="#fff" opacity=".22"/><path d="m16.4 9.2.9 1.9 2 .2-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.2z" fill="#3A2A12"/><circle cx="8" cy="4.6" r="1.6" fill="#F5C542"/></g>',
+    arbol: '<g transform="scale(.56) translate(-17 -41)"><ellipse cx="17" cy="41" rx="10" ry="2.6" fill="#000" opacity=".28"/><rect x="15" y="27" width="4" height="14" rx="1.5" fill="#6B4A2F"/><circle cx="17" cy="18" r="11" fill="#3E6B48"/><circle cx="11.5" cy="22" r="7" fill="#355E3F"/><circle cx="22.5" cy="21.5" r="7.5" fill="#46774F"/><circle cx="14" cy="13" r="5" fill="#6E9E68" opacity=".75"/></g>',
+    banca: '<g transform="scale(.5) translate(-20 -27)"><ellipse cx="20" cy="27" rx="15" ry="2.4" fill="#000" opacity=".28"/><path d="M5 15h30v4H5z" fill="#9A6A45"/><path d="M5 15h30v1.4H5z" fill="#C08A5E"/><path d="M6 8h28v4H6z" fill="#8A5C3B"/><path d="M8 19v7M32 19v7M9 12v3M31 12v3" stroke="#3E2A1C" stroke-width="2"/></g>',
+    /* la luz del farol son dos círculos tenues y no un degradado: un id de
+       degradado repetido en la página (la isla grande y las del álbum) se
+       pinta con el primero que encuentre, y ese puede estar oculto */
+    farol: '<g transform="scale(.5) translate(-15 -47)"><circle cx="15" cy="11" r="12" fill="#FFE7A3" opacity=".16"/><circle cx="15" cy="11" r="7.5" fill="#FFE7A3" opacity=".22"/><ellipse cx="15" cy="47" rx="6" ry="2" fill="#000" opacity=".28"/><path d="M15 46V16" stroke="#2B2B2E" stroke-width="2.4"/><path d="M10 15h10l-1.5-8h-7z" fill="#FFE7A3" stroke="#2B2B2E" stroke-width="1.6"/><path d="M9 7h12l-6-4z" fill="#2B2B2E"/></g>',
+    puesto: '<g transform="scale(.52) translate(-22 -37)"><ellipse cx="22" cy="37" rx="17" ry="2.6" fill="#000" opacity=".28"/><path d="M8 20h28v15H8z" fill="#B98B5E"/><path d="M8 20h28v3H8z" fill="#D9AE7E"/><path d="M6 10h32l-2 10H8z" fill="#F3EBDD"/><path d="M10 10h6l-1 10h-5zM22 10h6l1 10h-6zM34 10h4l-2 10h-3z" fill="#C0392B"/><path d="M9 20v15M35 20v15" stroke="#5A3D26" stroke-width="2"/><circle cx="15" cy="27" r="2.6" fill="#E8833A"/><circle cx="21" cy="27.5" r="2.6" fill="#7BB661"/><circle cx="27" cy="27" r="2.6" fill="#D94A3A"/></g>'
+  };
+  var ORDEN_COSAS = ['bandera', 'arbol', 'banca', 'farol', 'puesto', 'arbol', 'farol', 'banca', 'arbol', 'puesto', 'farol', 'arbol'];
+  var MAX_COSAS = ORDEN_COSAS.length, AGRANDA_COSA = 1.7;
+  /* Lo que ocupa una cosa de pie (la más ancha y la más alta mandan), en
+     unidades de suelo antes de agrandarla. */
+  var CAJA_COSA = { medio: 8.6, alto: 23 };
+  /* Lo que ocupan el monumento y los adornos, medido con holgura sobre sus
+     dibujos (el más grande manda: el avión de Aluminio sube a 62). */
+  var CAJA_MONU = { medio: 27, alto: 50 }, CAJA_ADORNO = { medio: 13, alto: 28 };
+
+  /* DÓNDE VA CADA COSA. No hay una tabla escrita a mano por mundo: se calcula
+     con la misma proyección, una vez por mundo, y se guarda. Se mide en la
+     pantalla y no en el suelo, porque lo que no puede pasar es que se VEA
+     encima de algo: una cosa de pie delante de la pista la tapa aunque en el
+     suelo esté lejos. Las reglas, en orden:
+       1. de pie en la cubierta, con margen del borde (el 84 % del contorno),
+          y no tan al fondo que se meta debajo del rótulo del mundo;
+       2. su silueta no toca la pista ni sus pianos (ahí van las piedras y el
+          marcador), ni el pórtico de la meta con su letrero, ni el monumento,
+          ni los adornos del mundo;
+       3. ninguna tapa a otra;
+       4. de las que quedan, se escoge la más despejada y después, una a una,
+          la más lejos de las ya escogidas: así se reparten por la isla en vez
+          de amontonarse en el primer hueco.
+     Como la escala del lienzo es la misma a lo ancho y a lo alto, lo que se
+     mide con `proyectar` vale para cualquier tamaño de pantalla. */
+  var SITIOS = {};
+  function dentro(pts, x, y) {
+    var adentro = false;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      var xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) adentro = !adentro;
+    }
+    return adentro;
+  }
+  function cajaDePie(u, v, caja, agranda) {
+    var q = proyectar(u, v, 0), k = q[2], m = caja.medio * agranda * k;
+    return [q[0] - m, q[1] - caja.alto * agranda * k, q[0] + m, q[1] + 2 * k];
+  }
+  function chocan(a, b, margen) {
+    return a[0] - margen < b[2] && b[0] - margen < a[2] && a[1] - margen < b[3] && b[1] - margen < a[3];
+  }
+  function sitios(nivel) {
+    if (SITIOS[nivel]) return SITIOS[nivel];
+    var N = 160, MEDIO = ANCHO_PISTA / 2 + KERB_PISTA, c = muestras(CIRCUITOS[nivel], N), isl = ISLA[nivel];
+    var cubierta = contorno(nivel).map(function (p) { return [150 + (p[0] - 150) * 0.84, 90 + (p[1] - 90) * 0.84]; });
+    /* la calzada, como nube de puntos en la pantalla: cinco a lo ancho de cada
+       muestra. Los pianos del borde sí se pueden tapar un poco (un árbol al
+       lado de la carretera); la calzada no, que ahí van las piedras y el
+       marcador. Y la cosa no puede estar PARADA en la pista: eso se mide en
+       el suelo (lejos). */
+    var pista = [], i;
+    for (i = 0; i < N; i++) {
+      var a = c[(i - 1 + N) % N], b = c[(i + 1) % N], tx = b[0] - a[0], ty = b[1] - a[1], l = Math.sqrt(tx * tx + ty * ty) || 1;
+      [-ANCHO_PISTA / 2, -ANCHO_PISTA / 4, 0, ANCHO_PISTA / 4, ANCHO_PISTA / 2].forEach(function (o) {
+        pista.push(proyectar(c[i][0] - ty / l * o, c[i][1] + tx / l * o, 0));
+      });
+    }
+    /* el pórtico de la meta (26 de alto) y, encima, su letrero */
+    var n0 = [-(c[1][1] - c[N - 1][1]), c[1][0] - c[N - 1][0]], l0 = Math.sqrt(n0[0] * n0[0] + n0[1] * n0[1]) || 1;
+    var porti = [];
+    [1, -1].forEach(function (lado) {
+      var u = c[0][0] + n0[0] / l0 * (MEDIO + 1) * lado, v = c[0][1] + n0[1] / l0 * (MEDIO + 1) * lado;
+      porti.push(proyectar(u, v, 0), proyectar(u, v, 48));
+    });
+    function lejos(u, v) {
+      var d = Infinity;
+      for (var z = 0; z < N; z++) d = Math.min(d, Math.pow(c[z][0] - u, 2) + Math.pow(c[z][1] - v, 2));
+      return Math.sqrt(d);
+    }
+    var bloqueos = [[Math.min(porti[0][0], porti[2][0]) - 6, Math.min(porti[1][1], porti[3][1]) - 6,
+                     Math.max(porti[0][0], porti[2][0]) + 6, Math.max(porti[0][1], porti[2][1]) + 2]];
+    bloqueos.push(cajaDePie(isl.monu[0], isl.monu[1], CAJA_MONU, 1.35));
+    (ADORNOS[nivel] || []).forEach(function (ad) { bloqueos.push(cajaDePie(ad[0], ad[1], CAJA_ADORNO, 1.4)); });
+
+    var cand = [];
+    for (var v = 4; v <= 166; v += 4) for (var u = -40; u <= 340; u += 5) {
+      if (!dentro(cubierta, u, v) || lejos(u, v) < MEDIO + 4) continue;
+      var bx = cajaDePie(u, v, CAJA_COSA, AGRANDA_COSA), malo = false, holgura = Infinity, q = proyectar(u, v, 0);
+      for (var k = 0; k < bloqueos.length && !malo; k++) if (chocan(bx, bloqueos[k], 1)) malo = true;
+      for (var p = 0; p < pista.length && !malo; p++) {
+        var t = pista[p];
+        if (t[0] > bx[0] - 1.5 && t[0] < bx[2] + 1.5 && t[1] > bx[1] - 1.5 && t[1] < bx[3] + 1.5) malo = true;
+        else holgura = Math.min(holgura, Math.sqrt(Math.pow(t[0] - q[0], 2) + Math.pow(t[1] - q[1], 2)));
+      }
+      if (!malo) cand.push({ u: u, v: v, x: q[0], y: q[1], caja: bx, holgura: holgura });
+    }
+    var hechos = [];
+    while (hechos.length < MAX_COSAS) {
+      var mejor = null, nota = -1;
+      for (var j = 0; j < cand.length; j++) {
+        var cj = cand[j], libre = true, lejos = Infinity;
+        for (var h = 0; h < hechos.length && libre; h++) {
+          if (chocan(cj.caja, hechos[h].caja, 1.5)) libre = false;
+          else lejos = Math.min(lejos, Math.sqrt(Math.pow(cj.x - hechos[h].x, 2) + Math.pow(cj.y - hechos[h].y, 2)));
+        }
+        if (!libre) continue;
+        var n = hechos.length ? lejos : cj.holgura;
+        if (n > nota) { nota = n; mejor = cj; }
+      }
+      if (!mejor) break;
+      hechos.push(mejor);
+    }
+    SITIOS[nivel] = hechos.map(function (x) { return [x.u, x.v]; });
+    return SITIOS[nivel];
+  }
+  /* Las cosas de una isla, listas para ponerlas de pie. `cuantas` son las
+     hechas; `sigue`, la que viene (se pinta apagada, como promesa). */
+  function cosasDe(nivel, L, cuantas, sigue) {
+    var lugares = sitios(nivel), out = [], n = Math.min(Math.max(0, cuantas | 0), lugares.length, MAX_COSAS);
+    for (var i = 0; i < n; i++) out.push(dePie(L, lugares[i][0], lugares[i][1], COSAS[ORDEN_COSAS[i]], AGRANDA_COSA));
+    if (sigue && n < lugares.length) {
+      var x = dePie(L, lugares[n][0], lugares[n][1], COSAS[ORDEN_COSAS[n]], AGRANDA_COSA);
+      x.svg = '<g class="pn-sigue" opacity=".34">' + x.svg + '</g>';
+      out.push(x);
+    }
+    return out;
+  }
+
   /* ---------- el mundo entero: tres capas ---------- */
   function capa(clase, W, H, defs, cuerpo) {
     return '<svg class="pn-capa ' + clase + '" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid slice"><defs>' + defs + '</defs>' + cuerpo + '</svg>';
@@ -997,6 +1147,8 @@
     var id = { halo: nuevoId('mh'), metal: nuevoId('mm'), vin: nuevoId('mv'), som: nuevoId('ms'), nie: nuevoId('mn'), nub: nuevoId('mb') };
     var cosas = pis.cosas.concat(ADORNOS[nivel].map(function (a) { return dePie(L, a[0], a[1], a[2], 1.4); }));
     cosas.push(dePie(L, c.monu[0], c.monu[1], MONUMENTO[nivel](id), 1.35));
+    /* lo que construyeron sus estrellas (app/misiones.js dice cuántas) */
+    if (o.cosas) cosas = cosas.concat(cosasDe(nivel, L, o.cosas, o.sigue));
     /* de lo más lejano a lo más cercano: lo de adelante tapa lo de atrás */
     cosas.sort(function (a, b) { return b.v - a.v; });
     var defsI = isl.defs + pis.defs + rgrad(id.halo, '.5', '.5', '.5', [[0, c.halo, 0.6], [1, c.halo, 0]]) +
@@ -1190,7 +1342,7 @@
   }
 
   /* ======================= LA PANTALLA ======================= */
-  var ULTIMO = null, ABIERTA = null, VUELVE_A = null;
+  var ULTIMO = null, ABIERTA = null, VUELVE_A = null, MI = null, AL_CERRAR = null;
   var MAX_SELLOS = 4;   // los que caben legibles en una fila de 360 px
   function documento() { return typeof document !== 'undefined' ? document : null; }
   /* El dibujo se arma para el ancho de ESTE teléfono: en uno de 360 la escena
@@ -1221,12 +1373,23 @@
   /* El mundo en grande. La frase de «te faltan» es la de Inicio, que la
      página pasa hecha (textoProximoNivel): una sola frase para las dos
      pantallas. Si no llega, se arma aquí con las mismas palabras. */
-  function heroe(e, d, aqui) {
+  function heroe(e, d, aqui, mi) {
     var m = motor(), W = anchoPantalla(), H = Math.round(Math.min(W * 1.22, 440));
     var nombre = m.nombreNivel(e.nivel), mu = MUNDOS[e.nivel];
     var op = { cielo: 0.3, margenAbajo: 30, f: e.fraccion, letra: inicial(d.nombre),
       piedras: aqui.map(function (p) { return { f: fraccionEn(e.actual, p.quedo), sello: p.en_fecha }; }) };
     if (e.sig) op.meta = 'Meta · ' + e.sig.nombre;
+    /* lo que construyeron sus estrellas y su personaje (app/misiones.js) */
+    if (mi) {
+      op.cosas = mi.isla.cosas; op.sigue = mi.isla.sigue;
+      /* En un teléfono de 320 px «Aquí estás» ya baja a su propio renglón, y el
+         chip del título suma otro: caía encima del letrero «Meta · Plata» de la
+         isla (foto del 16-nov). Ahí el lienzo crece y la isla baja del mismo
+         tamaño, en vez de esconder algo: subir solo el cielo la achicaba y el
+         letrero seguía debajo del chip. */
+      if (W < 320) { H += 36; op.cielo = 0.37; }
+      if (mi.personaje && misiones().ICONOS[mi.personaje]) op.personaje = misiones().ICONOS[mi.personaje];
+    }
     var pct = (e.fraccion * 100).toFixed(1);
     var frase = d.frase || (e.sig
       ? 'Te faltan <b>' + esc(COP(e.faltan)) + '</b> de garantía para pasar a <b>' + esc(e.sig.nombre) + '</b>.'
@@ -1240,7 +1403,8 @@
           '<div class="pn-titulos"><div class="pn-arriba"><span class="pn-etq">Mundo ' + (e.i + 1) + ' de ' + e.filas.length + '</span>' +
           '<span class="pn-estado">Aquí estás</span></div>' +
           '<h2' + (nombre.length > 10 ? ' class="pn-largo"' : '') + '>' + esc(nombre) + '</h2>' +
-          '<div class="pn-lema">' + esc(mu.lema) + '</div></div></div></div>' +
+          '<div class="pn-lema">' + esc(mu.lema) + '</div>' + (mi ? misiones().chip(mi) : '') + '</div></div>' +
+        (mi ? misiones().pildora(mi) : '') + '</div>' +
       '<div class="pn-pie"><div class="pn-grande">' + frase + '</div>' +
         (e.sig
           ? '<div class="pn-progreso">' + medalla(e.nivel, 'pn-chica') +
@@ -1290,14 +1454,21 @@
      Devuelve el HTML de la pestaña; no toca el documento. */
   function vista(d) {
     d = d || {};
-    ULTIMO = d; ABIERTA = null; VUELVE_A = null;
+    ULTIMO = d; ABIERTA = null; VUELVE_A = null; MI = null; AL_CERRAR = null;
     if (!motor()) return '';
     if (!cssLlego()) {
       return '<div class="card"><p class="muted" style="margin:0">La pista no terminó de bajar. Con señal, cierra la app y vuelve a abrirla.</p></div>';
     }
     var e = donde(d.garantia), rec = recorrido(e.garantia, d.creditos);
     var aqui = rec.filter(function (p) { return p.nivel === e.nivel; });
-    return heroe(e, d, aqui) + tarjetaMueve(e, d, aqui) + tarjetaMundos(e);
+    /* Las misiones van DENTRO de la pista (decisión D7-A del 16-nov): las de
+       la quincena bajo la isla, y las de una vez, la racha y el álbum bajo
+       los pagos. Si su archivo no llegó, todo sigue como antes. */
+    var M = misiones(), mi = null;
+    try { mi = M ? M.paraLaPista(d, e, rec) : null; } catch (x) { mi = null; }
+    MI = mi;
+    return heroe(e, d, aqui, mi) + (mi ? M.tarjetaQuincena(mi) : '') + tarjetaMueve(e, d, aqui) +
+      (mi ? M.tarjetaUnaVez(mi) + M.tarjetaRachas(mi) + M.tarjetaIslas(mi) : '') + tarjetaMundos(e);
   }
 
   /* La hoja de un mundo. Del que SIGUE se dice cuánto falta; de los de más
@@ -1354,12 +1525,18 @@
      deslizarse. El velo ya recibe los toques y la hoja no le pasa su
      deslizamiento al fondo (overscroll-behavior, en la hoja de estilos). */
   function abrir(nivel) {
+    if (!ULTIMO) return false;
+    return abrirCon(hoja(nivel), nivel);
+  }
+  /* Cualquier hoja o pantalla encima de la pista va por aquí, en #pnHoja: la
+     de un mundo, la del personaje y la llegada (app/misiones.js). `alCerrar`
+     corre al cerrarla, de la manera que sea (botón, velo o Escape). */
+  function abrirCon(html, cual, alCerrar) {
     var d = documento(), caja = d && d.getElementById('pnHoja');
-    if (!caja || !ULTIMO) return false;
-    var html = hoja(nivel);
-    if (!html) return false;
+    if (!caja || !html) return false;
     caja.innerHTML = html;
-    ABIERTA = nivel;
+    ABIERTA = cual;
+    AL_CERRAR = typeof alCerrar === 'function' ? alCerrar : null;
     try {
       VUELVE_A = d.activeElement && d.activeElement.id ? d.activeElement.id : null;
       /* sin correr la página: la hoja ya está a la vista, abajo */
@@ -1371,10 +1548,18 @@
     var d = documento(), caja = d && d.getElementById('pnHoja');
     if (caja) caja.innerHTML = '';
     ABIERTA = null;
+    var despues = AL_CERRAR; AL_CERRAR = null;
     try {
       var v = VUELVE_A && d.getElementById(VUELVE_A); if (v && v.focus) v.focus({ preventScroll: true });
     } catch (e) { /* nada */ }
     VUELVE_A = null;
+    if (despues) despues();
+  }
+  /* Lo que la página llama DESPUÉS de pintar la pestaña: las misiones anotan
+     lo suyo en el teléfono y, si llegó a un mundo nuevo, sale la llegada. */
+  function montar() {
+    var M = misiones();
+    return (M && MI) ? M.montar(MI) : null;
   }
   /* Escape cierra la hoja, como cualquier ventana. Un solo oyente, puesto al
      cargar; donde no hay documento (una prueba que pide el archivo a secas),
@@ -1388,13 +1573,15 @@
   })();
 
   return {
-    VERSION: '2026-11-14',
-    vista: vista, abrir: abrir, cerrar: cerrar,
+    VERSION: '2026-11-16',
+    vista: vista, abrir: abrir, cerrar: cerrar, abrirCon: abrirCon, montar: montar,
     /* Para las pruebas, y para quien quiera saber en qué va. */
     hoja: hoja, donde: donde, recorrido: recorrido, queCambia: queCambia, enFecha: enFecha,
     muestras: muestras, mundo: mundo, medalla: medalla,
     abierta: function () { return ABIERTA; },
     MUNDOS: MUNDOS, PALETA: PALETA, ISLA: ISLA, CIRCUITOS: CIRCUITOS, GLIFOS: GLIFOS,
-    MONUMENTO: MONUMENTO, ADORNOS: ADORNOS, TEXTURA: TEXTURA, MAX_SELLOS: MAX_SELLOS
+    MONUMENTO: MONUMENTO, ADORNOS: ADORNOS, TEXTURA: TEXTURA, MAX_SELLOS: MAX_SELLOS,
+    /* lo que construyen las estrellas de las misiones (app/misiones.js) */
+    COSAS: COSAS, ORDEN_COSAS: ORDEN_COSAS, MAX_COSAS: MAX_COSAS, sitios: sitios
   };
 });
