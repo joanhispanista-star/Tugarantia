@@ -29,7 +29,7 @@
  * con los códigos DIVIPOLA del DANE), y indice() la convierte en un buscador.
  * ===========================================================================*/
 /* La firma de llegada: el CRM pide este archivo con la versión en la dirección
-   (…?v=151). Ver «¿LLEGÓ LO QUE PEDÍ?» en las páginas y la nota de v139 en
+   (…?v=152). Ver «¿LLEGÓ LO QUE PEDÍ?» en las páginas y la nota de v139 en
    sw.js. En Node no hay document y no hace nada. */
 (function () { try { var s = document.currentScript; if (s && s.src) (window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();
 
@@ -704,8 +704,22 @@
         break;                                     // de más largo a más corto: el primero que casa
       }
     });
+    /* LOS PEDAZOS DE LOS NOMBRES: cada tramo de palabras seguidas de un
+       nombre de la lista que no es el nombre entero («prado» y «veraniego»,
+       de «Prado Veraniego»; «madrid», de «Madrid II»; «cota», de «El
+       Horizonte Vía a Cota Salitre»). Un municipio que es un pedazo puede
+       ser lo que alguien deja de un barrio de aquí, y no se lee nunca al
+       principio de un texto (ver municipioAlPrincipio). */
+    var pedazos = Object.create(null);
+    Object.keys(barrios).forEach(function (k) {
+      var w = k.split(' ');
+      for (var i = 0; i < w.length; i++) {
+        for (var j = i + 1; j <= w.length; j++) if (j - i < w.length) pedazos[w.slice(i, j).join(' ')] = 1;
+      }
+    });
     return { municipio: String((bog && bog.municipio) || ''), nombre: nombre, porNombre: porNombre, largos: largos, barrios: barrios,
-      familia: familia, conPrefijo: conPrefijo, delante: delante, mismasLetras: mismasLetras, conLocalidad: conLocalidad };
+      familia: familia, conPrefijo: conPrefijo, delante: delante, mismasLetras: mismasLetras, conLocalidad: conLocalidad,
+      pedazos: pedazos };
   }
 
   function sumar(a, b) { (b || []).forEach(function (c) { if (a.indexOf(c) < 0) a.push(c); }); return a; }
@@ -1049,7 +1063,10 @@
         if (!dq) continue;
         var base = ps.slice(0, q).join(' '), cq = candidatos(idx, base);
         c = cq.filter(function (x) { return enDepto(x, dq); });
-        if (!c.length && !localidadExacta(idxB, base) && !esElBarrio(deLlaves(idxB, llavesBarrio(sinBogota(base))))) c = cq;
+        /* «Colombia Bogotá» en «Ciudad» es el país y la ciudad, como
+           «Colombia - Bogotá», y no Colombia, el municipio del Huila (venía
+           de v150; lo encontró la tercera revisión del 16-nov). */
+        if (!c.length && base !== 'colombia' && !localidadExacta(idxB, base) && !esElBarrio(deLlaves(idxB, llavesBarrio(sinBogota(base))))) c = cq;
       }
       return c;
     };
@@ -1063,7 +1080,138 @@
         !esElBarrio(deLlaves(idxB, llavesBarrio(sinBogota(sd))))) c = deTexto(sd);
       if (c.length && c.indexOf(idxB.municipio) < 0) return { nombre: (idx.nombre && idx.nombre[c[0]]) || t, barrio: dB.length > 0 };
     }
+    /* LA SEGUNDA MIRADA (v152): si ningún trozo nombra un municipio entero,
+       el municipio al PRINCIPIO de un trozo, con algo más detrás: «Soacha
+       Ciudad Verde, Compartir» o «Bogotá - Soacha sur» (ver
+       municipioAlPrincipio). Va después de todo lo de arriba para que lo que
+       v151 ya leía no cambie. Y no se lee:
+       · si el texto nombra una localidad en cualquier parte: «Soacha sur,
+         Bosa», «Soacha sur, Kennedy 8», «Funza trabajo, vivo en Kennedy»
+         dicen la localidad, y no se escoge (lo escrito aparte manda; ver
+         nombraLocalidad);
+       · en un trozo de más de 12 palabras: eso ya no es «municipio y
+         barrio», es una frase (y la cuenta de abajo crecía con el cubo del
+         largo: 400 palabras eran 3 segundos por ficha, en cada repintado);
+       · si dos trozos leen municipios distintos: no se sabe cuál.
+       La localidad se busca al final, solo si algo se leyó: casi ningún
+       texto llega ahí, y buscarla en todos hacía el barrido de 622.350
+       textos un 15 % más lento (66 s contra 56 de v151; así, 56). */
+    var leidos = [];
+    for (var j = 0; j < trozos.length; j++) {
+      var nj = sinDireccionNiPais(normalizar(trozos[j]));
+      if (!nj || nj === 'colombia' || nj.split(' ').length > 12) continue;
+      var lj = municipioAlPrincipio(idxB, idx, nj, esElBarrio);
+      if (lj) leidos.push(lj);
+    }
+    if (!leidos.length || leidos.some(function (l) { return l.codigos.join() !== leidos[0].codigos.join(); }) ||
+      nombraLocalidad(idxB, barrio)) return null;
+    return { nombre: (idx.nombre && idx.nombre[leidos[0].codigos[0]]) || leidos[0].p, alPrincipio: true,
+      barrio: deLlaves(idxB, llavesBarrio(leidos[0].p)).length > 0 };
+  }
+  /* EL MUNICIPIO AL PRINCIPIO de un texto ya normalizado («soacha ciudad
+     verde», «soacha sur», «mosquera centro»), con algo más detrás que no
+     es otro sitio. De más largo a más corto, y el primer nombre de
+     municipio que aparece decide: si no vale, no se lee nada (no se prueba
+     uno más corto: «San Mateo» no se vuelve «San»). Vale solo si:
+     · es de CUNDINAMARCA. Quien escribió «Bogotá» y vive en otro municipio
+       vive casi siempre en uno que la rodea, y los conjuntos de Bogotá se
+       llaman como ciudades de otras partes («Toledo», «Málaga»): fuera de
+       Cundinamarca la lectura adivinaba. Ninguna localidad es de allá
+       («Ciudad Bolívar» y «Santa Fe» son de Antioquia, «Candelaria» del
+       Atlántico y del Valle), ni «El Paso», de «El Paso Ancho» (Cesar);
+     · no es un barrio de aquí que el barrio escrito deja ser (la regla de
+       esElBarrio), ni un PEDAZO de un nombre de la lista (ver pedazos en
+       indiceBogota): «Madrid» es el principio de «Madrid II», «Cota» el
+       final de «El Horizonte Vía a Cota Salitre», «Nariño» el de «Antonio
+       Nariño». Así se quedan como en v151 20 de los 116 municipios de
+       Cundinamarca (medido el 17-nov);
+     · lo de detrás PARECE UN NOMBRE DE SITIO (ver pareceNombre): «Ciudad
+       Verde», «sur», «León XIII» sí; «y Bosa», «al ladito», «ya no», «a 10
+       min», «trabajo» no;
+     · y lo de detrás no nombra OTRO municipio en ninguna parte: «San Mateo
+       Soacha», «Soacha San Mateo», «Soacha Mosquera». Un municipio en cada
+       punta no se escoge. (La localidad, en cualquier parte, la mira antes
+       municipioAjeno.)
+     Lo que queda fuera se queda como en v151 (por ejemplo «Calle 5 # 3-20
+     Soacha Ciudad Verde», con la dirección delante, o «Cundinamarca Soacha
+     Ciudad Verde»). La lectura al FINAL del texto («Compartir Soacha») no
+     se hace: la tercera revisión del 16-nov encontró que depende de listas
+     de palabras que nunca acaban («Portal de Toledo», «cerquita a Soacha»,
+     «trabajando en Funza»). Devuelve { codigos, p } o null. */
+  function municipioAlPrincipio(idxB, idx, n, esElBarrio) {
+    var t = n.split(' '), cund = idx.deptos.cundinamarca;
+    if (!cund) return null;
+    for (var k = t.length - 1; k >= 1; k--) {
+      var p = t.slice(0, k).join(' '), c = propio(idx.porNombre, p);
+      if (!c || !c.length) continue;
+      var resto = t.slice(k);
+      if (idxB.pedazos[p] || esElBarrio(deLlaves(idxB, llavesBarrio(p)))) return null;
+      c = c.filter(function (x) { return x.slice(0, 2) === cund; });
+      if (!c.length || !pareceNombre(resto)) return null;
+      for (var i = 0; i < resto.length; i++) {
+        for (var e = i + 1; e <= resto.length; e++) {
+          var cv = propio(idx.porNombre, resto.slice(i, e).join(' '));
+          if (cv && !cruzar(cv, c).length) return null;
+        }
+      }
+      return { codigos: c, p: p };
+    }
     return null;
+  }
+  /* Lo que una tabla trae de suyo, no lo que hereda: «constructor» o
+     «toString» escritos en un barrio no son el nombre de un municipio
+     (idx.porNombre es un objeto corriente; lo vio la revisión del 17-nov). */
+  function propio(o, k) { return Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined; }
+  function conjunto(palabras) {
+    var o = Object.create(null);
+    palabras.split(' ').forEach(function (w) { o[w] = 1; });
+    return o;
+  }
+  /* ¿PARECE UN NOMBRE DE SITIO lo que va detrás del municipio? No, si trae:
+     · una palabra GRAMATICAL: preposiciones (menos «de» y «del», que van en
+       los nombres: «Bosques de San Mateo»), conjunciones, pronombres y
+       posesivos, «no», «ya», «ahora»... Es una lista CERRADA: el idioma no
+       tiene más. Y frena casi todo lo que la tercera revisión del 16-nov
+       encontró en la lectura al final: «Soacha, cerquita a Bosa» se frena
+       por el «a», sin saber qué es «cerquita». «y», «x», «con», «o» juntan
+       dos sitios: «Soacha y Bosa» es un cruce o una duda;
+     · un verbo de vivir, trabajar o estudiar, o «era» y «fue»: «Soacha ya
+       no vivo», «Mosquera trabajo»;
+     · una distancia («10 min», «2 cuadras», «200 mts»);
+     · una cercanía (CERCANIAS), también en diminutivo: «cerquita»,
+       «cerquitica», «ladito», «pegadito», «juntico», «frentecito».
+     «El», «la», «los» y «las» sí valen: «Soacha La Despensa». Lo encontró
+     la revisión del 17-nov: «Bosa San Bernardino (Soacha al ladito)»,
+     «Soacha ya no, Patio Bonito» y «Patio Bonito (Mosquera a 10 min)»
+     salían de Bogotá. */
+  var NO_ES_NOMBRE = conjunto('a al ante con contra desde en hacia hasta para pa pal por sin sobre tras segun ' +
+    'y e o u x ni pero que porque aunque pues ' +
+    'yo mi mis tu tus su sus me te se le les nos ella ellas ellos usted ' +
+    'no ya si tambien tampoco ahora antes despues luego aqui aca alla alli ahi lejos muy mas casi ' +
+    'vivo vive viven vivia vivimos vivi trabajo trabaja trabajan trabajando laboro labora estudio estudia ' +
+    'queda quedo naci nacio era fue soy es esta ' +
+    'min mins minuto minutos cuadra cuadras metro metros mts hora horas');
+  function pareceNombre(palabras) {
+    return !palabras.some(function (w) {
+      if (NO_ES_NOMBRE[w] || propio(CERCANIAS, w)) return true;
+      var m = /^(.+?)(it|ic|itic|cit)[oa]$/.exec(w), base = m ? m[1].replace(/qu$/, 'c') : '';
+      return !!base && [base, base + 'o', base + 'a'].some(function (x) { return !!propio(CERCANIAS, x); });
+    });
+  }
+  /* ¿El texto nombra una localidad en alguna parte? «Kennedy 8», «Localidad
+     7 Bosa», «vivo en Bosa», «Bosa Recreo», «Chapinero rural»: tramos de
+     hasta tres palabras de cada trozo («Rafael Uribe Uribe» es el nombre
+     más largo). La revisión del 17-nov: el candado solo miraba la localidad
+     exacta, y «Soacha sur, Kennedy 8» salía de Kennedy. */
+  function nombraLocalidad(idxB, texto) {
+    var t = trocear(texto);
+    for (var i = 0; i < t.length; i++) {
+      var w = normalizar(t[i]).split(' ');
+      for (var a = 0; a < w.length; a++) {
+        for (var b = a + 1; b <= Math.min(w.length, a + 3); b++) if (localidadExacta(idxB, w.slice(a, b).join(' '))) return true;
+      }
+    }
+    return false;
   }
   /* Un texto ya normalizado sin la dirección pegada, delante («casa 5
      soacha», «mz 4 lt 12 mosquera») o detrás («soacha casa 5», «chia calle
@@ -1093,9 +1241,20 @@
      Ninguna: lo escrito no casa. Nada reconocido: no es un barrio (o no hay).
      `idx`, el buscador de municipios, es opcional: con él, un barrio que
      nombra otro municipio no se busca en Bogotá (ver municipioAjeno). */
-  function localidadDe(textoCiudad, textoBarrio, idxB, idx, otrosDichos) {
+  function localidadDe(textoCiudad, textoBarrio, idxB, idx, otrosDichos, ciudadDelRegistro) {
     var barrio = String(textoBarrio == null ? '' : textoBarrio).trim();
     var ajeno = barrio && idx ? municipioAjeno(idxB, idx, barrio) : null;
+    /* Leído solo al principio del barrio (v152), «Ciudad» manda: si nombra
+       una localidad en alguna parte («Bogotá - Kennedy», «Kennedy 8») o su
+       propio municipio, lo del barrio no se escoge (con el municipio de
+       «Ciudad» decide el de abajo; con la localidad, lo de v151). Lo
+       escrito aparte no se pisa. Con el barrio del registro, su ciudad
+       también («Bogotá - Kennedy 8» + «Mosquera centro»): se lee con la de
+       la ficha cuando la del registro no es exactamente una localidad (ver
+       localidadDeCliente), y sin esto la localidad del registro no la veía
+       nadie. */
+    if (ajeno && ajeno.alPrincipio && (nombraLocalidad(idxB, textoCiudad) || nombraLocalidad(idxB, ciudadDelRegistro) ||
+      municipioAjeno(idxB, idx, textoCiudad, function () { return loQueDiceBarrio(idxB, barrio); }))) ajeno = null;
     if (ajeno) return { estado: 'otro-municipio', municipio: ajeno.nombre, texto: barrio, motivo: 'el barrio nombra otro municipio' };
     /* «Bogotá - Soacha» en «Ciudad»: el buscador de municipios toma el
        primer trozo y lo pone en Bogotá, pero el texto nombra también Soacha,
@@ -1104,6 +1263,10 @@
        «Bogotá, Cundinamarca», «Bogotá, Colombia» y «Bogotá - Kennedy» no
        nombran otro municipio. */
     var ajenoC = idx ? municipioAjeno(idxB, idx, textoCiudad, function () { return loQueDiceBarrio(idxB, barrio); }) : null;
+    /* Y al revés: leído solo al principio de «Ciudad» («Bogotá - Soacha
+       sur»), un barrio que nombra una localidad («Bosa», «Piamonte, Bosa»)
+       manda. */
+    if (ajenoC && ajenoC.alPrincipio && barrio && nombraLocalidad(idxB, barrio)) ajenoC = null;
     if (ajenoC) {
       return { estado: 'otro-municipio', municipio: ajenoC.nombre, en: 'ciudad', tambienBarrio: ajenoC.barrio, texto: barrio,
         motivo: 'la ciudad nombra también otro municipio' };
@@ -1171,7 +1334,7 @@
       if (!leido) return Object.assign(localidadDe(ciudad, '', idxB, idx), { registro: deRegistro });
       barrio = String(v.barrio || '').trim();
       if (deFicha && !localidadesDeCiudad(idxB, deFicha).length && localidadesDeCiudad(idxB, deRegistro).length) ciudad = deRegistro;
-      return localidadDe(ciudad, barrio, idxB, idx, leido.dichos);
+      return localidadDe(ciudad, barrio, idxB, idx, leido.dichos, deRegistro);
     }
     return localidadDe(ciudad, barrio, idxB, idx);
   }
@@ -1198,7 +1361,11 @@
     if (!deFicha || !deRegistro || normalizar(deFicha) === normalizar(deRegistro) || !sinBogota(deRegistro)) return si;
     var dep = idx && idx.deptos[normalizar(deRegistro)];
     if (dep && dep !== String(idxB.municipio).slice(0, 2)) return null;
-    if (idx && municipioAjeno(idxB, idx, deRegistro, function () { return loQueDiceBarrio(idxB, barrioReg); })) return null;
+    var aj = idx && municipioAjeno(idxB, idx, deRegistro, function () { return loQueDiceBarrio(idxB, barrioReg); });
+    /* Leído solo al principio («Bogotá - Soacha sur»), un barrio que nombra
+       una localidad («Bosa», «Piamonte, Bosa») manda, como en la ficha (ver
+       localidadDe). */
+    if (aj && !(aj.alPrincipio && nombraLocalidad(idxB, barrioReg))) return null;
     var u = idx ? ubicar(deRegistro, depto, idx) : {}, cs = u.codigo ? [u.codigo] : (u.opciones || []);
     if (u.codigo && u.codigo !== idxB.municipio) return null;
     if (cs.indexOf(idxB.municipio) >= 0 || localidadesDeCiudad(idxB, deRegistro).length) return si;

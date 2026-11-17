@@ -2699,7 +2699,49 @@
    v150, suben a v152, y mapa-lugares.js, que vuelve a ?v=150, pasa a ?v=152 en crm.html, en
    ARCHIVOS y en su prueba (la regla de la nota de v139). Donde la nota de v150 dice «se sale
    con v151», es la siguiente libre. El número nunca baja. */
-const CACHE = 'tugarantia-v151';
+/* 17-nov-2026, v152 — SALE DESPUÉS DE v151 (main = a4ee149). Rama v152-punta.
+   EL MUNICIPIO AL PRINCIPIO DEL BARRIO O DE «CIUDAD»: «Soacha Ciudad Verde, Compartir» ES SOACHA.
+   El límite que dejó v150: con «Bogotá» en «Ciudad» y «Soacha Ciudad Verde, Compartir» en
+   «Barrio», el cliente caía en Ciudad Bolívar (por el Compartir de Bogotá); «Bogotá - Soacha
+   sur» con un barrio, igual. Ahora, si ningún trozo nombra un municipio entero (lo de v151, que
+   no cambia), se mira el PRINCIPIO de cada trozo: «Soacha Ciudad Verde», «Mosquera centro»,
+   «Chía centro». El cliente queda «sin localidad» con su porqué («el barrio nombra otro
+   municipio: Soacha»), como si hubiera escrito «Soacha, Ciudad Verde».
+   · Solo municipios de CUNDINAMARCA: quien escribe «Bogotá» y vive en otro municipio vive casi
+     siempre en uno que la rodea, y los conjuntos de Bogotá se llaman como ciudades de otras
+     partes («Toledo Etapa 2», «Málaga Real»). Se leen 96 de los 116; los otros 20 son un barrio
+     de aquí o un pedazo de uno («Madrid II», «El Horizonte Vía a Cota Salitre», «Antonio
+     Nariño», «Venecia», «San Francisco») y se quedan como en v151.
+   · Los candados. Lo escrito aparte manda: una localidad nombrada en CUALQUIER parte del barrio,
+     de «Ciudad» o de la ciudad del registro («Soacha sur, Kennedy 8», «vivo en Bosa», «Bogotá -
+     Kennedy 8», «Bogotá - Soacha sur» + «Piamonte, Bosa»), o el municipio de «Ciudad». Lo de
+     detrás del municipio tiene que PARECER UN NOMBRE DE SITIO: no vale si trae una palabra
+     gramatical («y», «a», «al», «ya», «no», «mi»: una lista cerrada, el idioma no tiene más), un
+     verbo de vivir o trabajar («Mosquera trabajo»), una distancia («10 min», «2 cuadras») o una
+     cercanía, también en diminutivo («cerquita», «ladito», «juntico»); «la» y «de» sí valen
+     («Soacha La Despensa»). Otro municipio detrás no se escoge («San Mateo Soacha», «Soacha
+     Mosquera»), ni dos trozos con dos municipios, ni un trozo de más de 12 palabras (es una
+     frase, y la cuenta crecía con el cubo del largo).
+   · La lectura al FINAL del texto («Compartir Soacha») NO va: la tercera revisión del 16-nov
+     encontró que depende de listas de palabras que nunca acaban («Portal de Toledo, Timiza»,
+     «Bosa, cerquita a Soacha», «trabajando en Funza»). Sigue como en v151. Tampoco se leen,
+     y quedan como en v151: la dirección delante («Calle 5 # 3-20 Soacha Ciudad Verde»), el
+     departamento delante («Cundinamarca Soacha…») y «Bogotá Soacha sur» sin guion.
+   · Límites conocidos, en la dirección de v151: «Sureña, La Calera rural» es La Calera (v151 ya
+     decía La Calera de «Sureña, La Calera»; la vía a La Calera tiene veredas de Chapinero), y
+     «Soacha Bosques de San Mateo» no se lee (San Mateo es también un municipio de Boyacá).
+   · Como en v151 con el nombre solo: «Bogotá - Girardot centro» (o Jerusalén, o Ricaurte, que
+     son también barrios de aquí) con un barrio que no es el suyo es el municipio.
+   · De paso: «Colombia Bogotá» en «Ciudad» era Colombia, el municipio del Huila (venía de
+     v150): ahora es Bogotá, como «Colombia - Bogotá».
+   · Medido contra v151: ver el commit.
+   Solo cambia panel/mapa-lugares.js: pasa a ?v=152 en crm.html, en ARCHIVOS y en lo que espera
+   pruebas/mapa-clientes.test.js; mapa-clientes.js y su hoja siguen en ?v=150.
+   CACHE y VERSION_SITIO suben a v152. NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   PARA DESHACER: se revierte el commit de v152; CACHE y VERSION_SITIO, que el revert deja en
+   v151, suben a v153, y mapa-lugares.js, que vuelve a ?v=151, pasa a ?v=153 en crm.html, en
+   ARCHIVOS y en su prueba (la regla de la nota de v139). El número nunca baja. */
+const CACHE = 'tugarantia-v152';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -2943,8 +2985,9 @@ const ARCHIVOS = [
      Iban a ser ?v=149: ese número lo tomó antes la pestaña «Pista», y el ?v= es el número
      de CACHE con el que se sale (la regla de la nota de v139).
      16-nov-2026 — mapa-lugares.js a ?v=151: «Bogotá, Colombia.» (ver la nota de v151).
-     Los otros dos no cambian. */
-  'panel/mapa-lugares.js?v=151',
+     Los otros dos no cambian.
+     17-nov-2026 — mapa-lugares.js a ?v=152: el municipio al principio (ver la nota de v152). */
+  'panel/mapa-lugares.js?v=152',
   'panel/mapa-clientes.js?v=150',
   'panel/mapa-clientes.css?v=150'
 ].map(f => BASE + f);

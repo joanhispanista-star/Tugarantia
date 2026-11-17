@@ -517,7 +517,13 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         Tampoco adivina: un barrio que está en dos localidades
                         («Lisboa»), uno vago («sur») o uno que no casa con la
                         ciudad queda «sin localidad» y sigue contando en
-                        Bogotá. No lee el GPS, la IP ni la dirección.
+                        Bogotá. 17-nov (v152): un barrio que EMPIEZA por un
+                        municipio de Cundinamarca («Soacha Ciudad Verde,
+                        Compartir») es ese municipio, no un barrio de aquí,
+                        salvo que el cliente nombre también una localidad o
+                        que lo de detrás no parezca el nombre de un sitio
+                        («Soacha al ladito», «Mosquera trabajo»). No lee el
+                        GPS, la IP ni la dirección.
   mapa/                 colombia-2026-11b.json, el mapa (1.122 municipios, 590 KB,
                         con el punto del nombre de cada municipio y los huecos
                         de cada departamento), y desde el 14-nov

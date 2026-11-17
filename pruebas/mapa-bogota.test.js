@@ -2492,3 +2492,145 @@ describe('13 · «Bogotá, Colombia.» con el punto ya no deja la pestaña del m
     }
   });
 });
+
+describe('14 · el municipio al principio del barrio o de «Ciudad»: «Soacha Ciudad Verde, Compartir» (v152)', () => {
+  const locDe = barrio => L.localidadDe('Bogotá', barrio, IB, IDX);
+  const ver = r => r.estado === 'ubicado' ? nombreLoc(r.codigo) : r.estado;
+  const deRegistro = (ciudad, barrio) => L.localidadDeCliente({ ciudad: 'Bogotá', barrio: '', vinculacion: { ciudad, barrio } }, IB, IDX);
+  const esMunicipio = m => { const u = L.lugarDeCliente({ ciudad: m }, IDX); return ['ubicado', 'ambiguo'].includes(u.estado) && u.codigo !== IB.municipio; };
+  const noSale = (r, que) => assert.notEqual(r.estado, 'otro-municipio', que);
+
+  test('el municipio de Cundinamarca al principio, con algo detrás, es ese municipio: no Ciudad Bolívar ni Kennedy', () => {
+    assert.equal(ver(locDe('Compartir')), 'Ciudad Bolívar', 'precondición: hay un Compartir en Ciudad Bolívar');
+    assert.equal(ver(locDe('Villa Nueva')), 'Kennedy', 'precondición: hay una Villa Nueva en Kennedy');
+    for (const [b, m] of [['Soacha Ciudad Verde, Compartir', 'Soacha'], ['Compartir, Soacha sur', 'Soacha'], ['Mosquera Centro, Villa Nueva', 'Mosquera'],
+      ['Casa 5 Soacha Ciudad Verde, Compartir', 'Soacha'], ['Soacha Ciudad Verde Compartir', 'Soacha'], ['Chía Centro', 'Chía'], ['Funza Real, Timiza', 'Funza'],
+      ['San Antonio del Tequendama Centro, Compartir', 'San Antonio del Tequendama'], ['La Mesa centro, Compartir', 'La Mesa'], ['Soacha León XIII', 'Soacha']]) {
+      const r = locDe(b);
+      assert.equal(r.estado, 'otro-municipio', b);
+      assert.equal(r.municipio, m, b);
+      assert.equal(deRegistro('Bogotá', b).municipio, m, b + ', en el registro');
+    }
+  });
+
+  test('en «Ciudad»: «Bogotá - Soacha sur» con un barrio de Ciudad Bolívar es Soacha, y el barrio del registro no se usa', () => {
+    for (const c of ['Bogotá - Soacha sur', 'Bogotá - Soacha Ciudad Verde', 'Bogotá - Soacha León XIII', 'Bogotá - Mosquera Centro']) {
+      const r = L.localidadDe(c, 'Compartir', IB, IDX);
+      assert.equal(r.estado, 'otro-municipio', c);
+      assert.equal(r.en, 'ciudad', c);
+      assert.equal(r.tambienBarrio, false, c);
+      assert.equal(deRegistro(c, 'Compartir').estado, 'vacio', c + ', en el registro');
+    }
+  });
+
+  test('solo Cundinamarca: los conjuntos de Bogotá se llaman como ciudades de otras partes («Toledo Etapa 2, Timiza» es Kennedy)', () => {
+    for (const m of ['Toledo', 'Villavicencio', 'Málaga', 'Tunja']) assert.ok(esMunicipio(m), 'precondición: ' + m + ' es un municipio');
+    for (const b of ['Toledo Etapa 2, Timiza', 'Villavicencio Centro, Timiza', 'Málaga Real, Timiza', 'Tunja Centro, Timiza']) assert.equal(ver(locDe(b)), 'Kennedy', b);
+    /* «San Mateo» es de Boyacá: el primer nombre que aparece decide, y no se prueba uno más corto. */
+    noSale(locDe('San Mateo Centro, Compartir'), 'San Mateo Centro');
+  });
+
+  test('un barrio, un pedazo de un barrio o una localidad de aquí al principio no son el municipio: «Prado Veraniego», «Madrid Centro»', () => {
+    for (const m of ['Madrid', 'Cota', 'Girardot']) assert.ok(esMunicipio(m), 'precondición: ' + m + ' es un municipio');
+    assert.ok(IB.pedazos['madrid'] && IB.pedazos['cota'] && IB.pedazos['prado'], 'precondición: son pedazos de nombres de la lista');
+    for (const b of ['Prado Veraniego Alto', 'Bello Horizonte Sur', 'Madrid Centro, Compartir', 'Cota Centro, Compartir', 'Girardot Centro', 'Ciudad Bolívar Lucero'])
+      noSale(locDe(b), b);
+    assert.equal(ver(locDe('Ciudad Bolívar Lucero')), 'Ciudad Bolívar');
+    assert.equal(ver(locDe('Santa Fe Las Cruces')), 'Santa Fe');
+    /* «El Paso Ancho» es de Bosa, y El Paso es del Cesar: Cundinamarca lo deja fuera. */
+    assert.ok(IB.barrios['paso ancho'] && esMunicipio('El Paso'), 'precondición');
+    assert.equal(ver(locDe('El Paso Ancho, Bosa')), 'Bosa');
+    noSale(locDe('El Paso Ancho Centro'), 'El Paso Ancho Centro');
+    /* Un municipio que es un barrio ENTERO sigue la regla del barrio: en «Ciudad», con un barrio que lo desmiente, es el municipio
+       (y lo dice: «también es un barrio de aquí»); con uno que casa, es el barrio. */
+    assert.deepEqual(IB.barrios['girardot'], [IB.porNombre['santa fe']], 'precondición: Girardot es un barrio de Santa Fe');
+    const g = L.localidadDe('Bogotá - Girardot Centro', 'Compartir', IB, IDX);
+    assert.equal(g.municipio, 'Girardot');
+    assert.equal(g.tambienBarrio, true);
+    noSale(L.localidadDe('Bogotá - Girardot Centro', 'Las Cruces', IB, IDX), 'Girardot Centro + Las Cruces');
+  });
+
+  test('un municipio en cada punta, o una localidad detrás, no se escoge: «San Mateo Soacha», «Soacha San Mateo», «Soacha Bosa»', () => {
+    for (const b of ['San Mateo Soacha', 'Soacha San Mateo', 'Soacha Mosquera', 'Mosquera Funza Centro', 'Soacha Santafe', 'Soacha Ciudad Bolívar'])
+      noSale(locDe(b), b);
+    assert.equal(ver(locDe('Soacha Bosa')), 'Bosa');
+    /* El mismo municipio en las dos puntas sí: «Soacha Ciudad Verde Soacha». */
+    assert.equal(locDe('Soacha Ciudad Verde Soacha').municipio, 'Soacha');
+  });
+
+  test('lo que lo junta con otro sitio o dice una cercanía tampoco: «Soacha y Ciudad Verde», «Soacha, límite con Bosa»', () => {
+    for (const j of ['y', 'x', 'con', 'o', 'e', 'u']) noSale(locDe('Soacha ' + j + ' Ciudad Verde'), 'Soacha ' + j + ' Ciudad Verde');
+    for (const b of ['Soacha cerca a Ciudad Verde', 'Soacha límite Compartir', 'Mosquera frente a Villa Nueva']) noSale(locDe(b), b);
+  });
+
+  test('lo escrito aparte manda: la localidad o el municipio de «Ciudad», una localidad en el barrio, dos municipios en dos trozos', () => {
+    assert.equal(ver(L.localidadDe('Bogotá - Kennedy', 'Soacha Ciudad Verde', IB, IDX)), 'Kennedy');
+    const r = L.localidadDe('Bogotá - Funza', 'Mosquera Centro', IB, IDX);
+    assert.equal(r.municipio, 'Funza');
+    assert.equal(r.en, 'ciudad');
+    assert.equal(ver(locDe('Soacha sur, Bosa')), 'Bosa');
+    assert.equal(ver(L.localidadDe('Bogotá - Soacha sur', 'Bosa', IB, IDX)), 'Bosa');
+    assert.equal(ver(deRegistro('Bogotá - Soacha sur', 'Bosa')), 'Bosa', 'en el registro, igual');
+    noSale(locDe('Soacha Ciudad Verde, Mosquera Centro'), 'dos trozos, dos municipios');
+    assert.equal(locDe('Soacha Ciudad Verde, Soacha Compartir').municipio, 'Soacha', 'dos trozos, el mismo municipio');
+  });
+
+  test('lo que v151 ya leía no cambia, la lectura al final no se hace, y «Colombia Bogotá» es el país', () => {
+    assert.equal(locDe('Kennedy, Soacha').municipio, 'Soacha');
+    assert.equal(locDe('Compartir, Soacha').municipio, 'Soacha');
+    /* Al final del texto no se lee: la tercera revisión del 16-nov («Portal de Toledo, Timiza», «Bosa, cerquita a Soacha»). */
+    noSale(locDe('Bosa, cerquita a Soacha'), 'cerquita a Soacha');
+    noSale(locDe('Portal de Toledo, Timiza'), 'Portal de Toledo');
+    /* «Colombia Bogotá» en «Ciudad» es el país y la ciudad, como «Colombia - Bogotá», y no Colombia (Huila). Venía de v150. */
+    assert.equal(ver(L.localidadDe('Colombia - Bogotá', 'Timiza', IB, IDX)), 'Kennedy', 'precondición');
+    for (const c of ['Colombia Bogotá', 'Colombia Bogotá D.C.']) assert.equal(ver(L.localidadDe(c, 'Timiza', IB, IDX)), 'Kennedy', c);
+  });
+
+  /* La revisión del 17-nov encontró textos que salían de Bogotá sin decirlo. Todos quedan como en v151. */
+  test('una localidad en cualquier parte del otro texto manda, no solo la localidad exacta: «Soacha sur, Kennedy 8», «Bogotá - Kennedy 8»', () => {
+    for (const [b, l] of [['Soacha sur, Kennedy 8', 'Kennedy'], ['Soacha Ciudad Verde, localidad 7 Bosa', 'Bosa'], ['Mosquera centro, Loc 11 Suba', 'Suba'],
+      ['Soacha sur, ahora Kennedy', 'Kennedy'], ['Funza trabajo, vivo en Bosa', 'Bosa'], ['Soacha Ciudad Verde, Bosa Recreo', 'Bosa'],
+      ['Chía centro, Chapinero rural', 'Chapinero'], ['Soacha sur, Lucero Ciudad Bolívar', 'Ciudad Bolívar'], ['Soacha sur, Rafael Uribe Uribe', 'Rafael Uribe Uribe']])
+      assert.equal(ver(locDe(b)), l, b);
+    /* En «Ciudad», en la ficha y en el registro (que se lee con la ciudad de la ficha: «Kennedy 8» no es exactamente una localidad). */
+    noSale(L.localidadDe('Bogotá - Kennedy 8', 'Mosquera centro', IB, IDX), 'Bogotá - Kennedy 8');
+    noSale(deRegistro('Bogotá - Kennedy 8', 'Mosquera centro'), 'Bogotá - Kennedy 8, en el registro');
+    /* Y al revés: «Bogotá - Soacha sur» con un barrio que nombra una localidad entre otras cosas. */
+    for (const [b, l] of [['Piamonte, Bosa', 'Bosa'], ['Lisboa, Suba', 'Suba'], ['Timiza - Kennedy', 'Kennedy'], ['Lucero Ciudad Bolívar', 'Ciudad Bolívar']]) {
+      assert.equal(ver(L.localidadDe('Bogotá - Soacha sur', b, IB, IDX)), l, b);
+      assert.equal(ver(deRegistro('Bogotá - Soacha sur', b)), l, b + ', en el registro');
+    }
+  });
+
+  test('lo de detrás del municipio tiene que parecer un nombre de sitio: «Soacha ya no», «Mosquera trabajo», «Soacha al ladito», «Mosquera a 10 min»', () => {
+    for (const [b, l] of [['Bosa San Bernardino (Soacha al ladito)', 'Bosa'], ['Patio Bonito (Mosquera a 10 min)', 'Kennedy'],
+      ['Soacha ya no, Patio Bonito', 'Kennedy'], ['Mosquera trabajo, Patio Bonito', 'Kennedy'], ['Chía mi mamá, Patio Bonito', 'Kennedy'],
+      ['Mosquera 10 min, Patio Bonito', 'Kennedy'], ['Soacha 2 cuadras, Patio Bonito', 'Kennedy']])
+      assert.equal(ver(locDe(b)), l, b);
+    noSale(locDe('Chía queda cerquita'), 'Chía queda cerquita');
+    noSale(locDe('Soacha en Patio Bonito'), 'Soacha en Patio Bonito');
+    /* Las cercanías en diminutivo, cada forma: -ito, -ico, -itico, -cito, y «qu» que vuelve a ser «c». */
+    for (const b of ['Soacha ladito, Compartir', 'Compartir (Soacha cerquita)', 'Soacha juntico, Compartir', 'Compartir (Soacha cerquitica)',
+      'Soacha frentecito, Compartir', 'Soacha pegadito, Compartir']) assert.equal(ver(locDe(b)), 'Ciudad Bolívar', b);
+    /* El artículo sí va en los nombres: «Soacha La Despensa» es Soacha. */
+    assert.equal(locDe('Soacha La Despensa').municipio, 'Soacha');
+  });
+
+  test('un trozo de más de 12 palabras no se lee: es una frase, y la cuenta crecía con el cubo del largo', () => {
+    const doce = 'Soacha Ciudad Verde Reservado de los Pinos Altos del Bosque Verde Claro';
+    assert.equal(doce.split(' ').length, 12);
+    assert.equal(locDe(doce).municipio, 'Soacha');
+    noSale(locDe(doce + ' Grande'), 'trece palabras');
+    /* 401 palabras: antes del tope eran segundos por ficha, en cada repintado del mapa. */
+    const largo = 'Soacha ' + Array(200).fill('Ciudad Verde').join(' '), t0 = Date.now();
+    locDe(largo);
+    deRegistro('Bogotá - ' + largo, largo);
+    assert.ok(Date.now() - t0 < 1000, 'tardó ' + (Date.now() - t0) + ' ms');
+  });
+
+  test('las llaves que todo objeto trae de suyo no son nombres: «constructor», «toString», «__proto__» no rompen nada', () => {
+    for (const b of ['Soacha constructor', 'Soacha constructor centro, Compartir', 'toString Ciudad Verde', 'Soacha toString', 'Soacha __proto__ centro',
+      'constructor', 'Soacha hasOwnProperty', 'Soacha valueOf Centro'])
+      assert.doesNotThrow(() => { locDe(b); deRegistro('Bogotá - ' + b, b); L.localidadDe('Bogotá - ' + b, 'Compartir', IB, IDX); }, b);
+  });
+});
