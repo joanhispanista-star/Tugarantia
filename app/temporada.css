@@ -95,7 +95,8 @@ html.tg-navidad .tg-saludo{display:inline-block;margin-top:var(--e2,8px);vertica
  *   · En la bienvenida, una lluvia de oro y «¡Feliz Navidad!» debajo del lema
  *     (lo escribe temporada.js: esta hoja no escribe texto).
  *   · Una rama de pino con dos bolas en las tarjetas de laca, y acebo en la
- *     esquina de las de papel.
+ *     esquina de las de papel: en la app, en play/ y en la caja de la
+ *     calculadora de la portada.
  *   · La perilla de las calculadoras es una bola de árbol: roja la del
  *     quincenal, azul la del respaldado, de oro la de la solicitud.
  *   · Acebo debajo de la pestaña encendida, en vez de la rayita.
@@ -180,15 +181,48 @@ html.tg-navidad #entrarCuerpo>.card.laca{background:var(--tg-rama) right top/104
 html.tg-navidad #entrarCuerpo>.card.laca :is(.etq,.cs-etq){padding-right:36px}
 html.tg-navidad #entrarCuerpo>.card:not(.laca){background-image:var(--tg-acebo);background-repeat:no-repeat;
   background-position:right 10px top 2px;background-size:36px 18px}
+/* Una tarjeta que abre con un aviso (el ámbar de «cuidado», el informativo o
+   uno simple; no el verde de «Listo») va sin adorno: lo que pide atención no
+   compite con un adorno. Pasa en la propuesta de play/ («Te hicimos una
+   propuesta. Léela con calma y decide.», arriba de las condiciones), en el
+   aviso de los datos personales y en los errores. Cuenta también el aviso que
+   va primero dentro de la primera caja: el chat de play/ pone su «No pude
+   traer tus mensajes» dentro de #hilo. En la app y en play/ va dentro de la
+   regla; en Entrar, aparte y quitando el acebo, para que sin :has se caiga
+   ella sola y el acebo se quede (tampoco tapa nada). */
+html.tg-navidad #entrarCuerpo>.card:not(.laca):has(>.aviso:not(.verde):first-child,>:first-child>.aviso:not(.verde):first-child){background-image:none}
 /* En la Pista no (ver arriba). Se sabe que es la Pista por la pestaña
    encendida, no por las clases de adentro: así vale también para lo que se le
    agregue (las misiones). Sin :has (un Chrome de antes de 2022) estas dos
    reglas se caen enteras y las tarjetas salen sin adorno: nada se rompe. Por
-   eso van aparte de las de Entrar. */
-html.tg-navidad body:not(:has(#nav button.on[data-t="pista"])) #cuerpo>.panel>.card.laca{background:var(--tg-rama) right top/104px 60px no-repeat,var(--placa)}
-html.tg-navidad body:not(:has(#nav button.on[data-t="pista"])) #cuerpo>.panel>.card.laca :is(.etq,.cs-etq){padding-right:36px}
-html.tg-navidad body:not(:has(#nav button.on[data-t="pista"])) #cuerpo>.panel>.card:not(.laca){background-image:var(--tg-acebo);background-repeat:no-repeat;
+   eso van aparte de las de Entrar. Llevan las tarjetas sueltas del .panel y
+   también las que van en una caja con id dentro de él: el resultado de la
+   calculadora (#calcSalida, #calcComparar) y la historia laboral (#hlCuenta). */
+html.tg-navidad body:not(:has(#nav button.on[data-t="pista"])) :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>.card.laca{background:var(--tg-rama) right top/104px 60px no-repeat,var(--placa)}
+html.tg-navidad body:not(:has(#nav button.on[data-t="pista"])) :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>.card.laca :is(.etq,.cs-etq){padding-right:36px}
+html.tg-navidad body:not(:has(#nav button.on[data-t="pista"])) :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>.card:not(.laca):not(:has(>.aviso:not(.verde):first-child,>:first-child>.aviso:not(.verde):first-child)){background-image:var(--tg-acebo);background-repeat:no-repeat;
   background-position:right 10px top 2px;background-size:36px 18px}
+/* play/ también (Joan, el mismo 18-nov: «Sí, también»). Allá las tarjetas van
+   sueltas en #cuerpo (la entrada y el registro) o en #lamina (la cuenta), o en
+   una caja con id dentro de ellos (la historia laboral, #hlCuenta). socio.html
+   siempre las mete en un .panel sin id y no tiene #lamina: estas reglas no la
+   tocan. play/ no tiene Pista. Sus avisos van sin adorno, como los de la
+   app: los sueltos no son .card, y la tarjeta que abre con uno tampoco lleva
+   (ver arriba). Sin :is ni :has (un Chrome de antes de 2022) la regla se cae,
+   la tarjeta sale sin adorno y nada se rompe. */
+html.tg-navidad :is(#cuerpo,#lamina,#cuerpo>div[id],#lamina>div[id])>.card.laca{background:var(--tg-rama) right top/104px 60px no-repeat,var(--placa)}
+html.tg-navidad :is(#cuerpo,#lamina,#cuerpo>div[id],#lamina>div[id])>.card.laca :is(.etq,.cs-etq){padding-right:36px}
+html.tg-navidad :is(#cuerpo,#lamina,#cuerpo>div[id],#lamina>div[id])>.card:not(.laca):not(:has(>.aviso:not(.verde):first-child,>:first-child>.aviso:not(.verde):first-child)){background-image:var(--tg-acebo);background-repeat:no-repeat;
+  background-position:right 10px top 2px;background-size:36px 18px}
+/* Y la portada. Ahí la única tarjeta es la caja de la calculadora
+   (#calcPedido), sobre la franja de laca: la rama va sola, porque el fondo ya
+   es el de la franja. Si la calculadora no llega, en la caja queda una frase
+   de ancho completo, que también deja libre la esquina. Lo demás son franjas,
+   la tabla de la escalera y el aviso ámbar de «haz la cuenta», que no se
+   adorna: es la advertencia del costo. */
+html.tg-navidad #calcPedido{background:var(--tg-rama) right top/104px 60px no-repeat}
+html.tg-navidad #calcPedido :is(.etq,.cs-etq){padding-right:36px}
+html.tg-navidad #calcPedido>p:first-child{padding-right:36px}
 
 /* LA PERILLA DE LA CALCULADORA, una bola de árbol: roja la del quincenal y
    azul la del respaldado, así el color sigue diciendo de qué producto es.

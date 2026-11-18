@@ -2768,8 +2768,18 @@
      saludo de la bienvenida lo pone temporada.js. Ni los botones de pedir ni la Pista se
      adornan. En diciembre el deslizador de la calculadora pierde el relleno rojo a la
      izquierda de la perilla (Joan lo sabe). Ningún archivo nuevo: la precarga no cambia.
+   · 18-nov, TERCER COMMIT: TAMBIÉN play/ Y LA PORTADA. A la pregunta de si el pino iba también
+     en las tarjetas de play/ y de la portada, Joan: «Sí, también». En play/, la rama en sus
+     seis tarjetas de laca y el acebo en las de papel; en la portada, la rama en la caja de la
+     calculadora. En la app y en play/ llevan también las tarjetas que van en una caja con id:
+     el resultado de la calculadora de la app y la historia laboral, que el segundo commit
+     dejaba sin adorno. Y una regla para todas: la tarjeta que abre con un aviso (el ámbar de
+     la propuesta, el de los datos personales, un error; no el verde de «Listo») va sin
+     adorno, porque lo que pide atención no compite con un adorno. Tampoco se adorna el aviso
+     ámbar de la portada («haz la cuenta»). Solo cambia app/temporada.css; las páginas, en
+     comentarios.
    Pruebas: pruebas/temporada.test.js. NO HAY BASE NUEVA. No se tocan motor.js ni puente.js.
-   PARA DESHACER: se quitan las seis líneas de las páginas (o se revierten los dos commits) y se
+   PARA DESHACER: se quitan las seis líneas de las páginas (o se revierten los tres commits) y se
    sale con el número siguiente; si solo molesta la fecha, cambia navidad() en temporada.js. */
 const CACHE = 'tugarantia-v152';
 const BASE = new URL('./', self.location).pathname;

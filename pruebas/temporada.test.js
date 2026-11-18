@@ -31,7 +31,10 @@
  * tarjetas y las perillas como bolas. Sus pruebas van al final de «la hoja»
  * y cuidan además que el gorro siga a la G sin tapar su remate, que ni la
  * Pista ni los botones de pedir se adornen, y que la perilla siga diciendo
- * de qué producto es.
+ * de qué producto es. Después Joan quiso el pino también en play/ y en la
+ * portada («Sí, también»): esas pruebas cuidan que sus reglas no alcancen las
+ * tarjetas de la app, que la rama solo encuentre rótulos en su esquina, que el
+ * acebo quepa en el relleno y que los avisos sigan sin adorno.
  * ==========================================================================*/
 'use strict';
 
@@ -54,6 +57,16 @@ const SW = leer('sw.js');
 const sinComentarios = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"])\/\/[^\n]*/g, '$1');
 const CODIGO = sinComentarios(JS);
 const REGLAS = sinComentarios(CSS);
+/* Una lista de selectores, partida solo por las comas de afuera. */
+const partes = sel => {
+  const out = []; let hondo = 0, va = '';
+  for (const ch of sel) {
+    if (ch === '(') hondo++;
+    if (ch === ')') hondo--;
+    if (ch === ',' && hondo === 0) { out.push(va.trim()); va = ''; } else va += ch;
+  }
+  return out.concat(va.trim());
+};
 
 /* Un instante dado en hora de Colombia (UTC−5). */
 const co = (a, m, d, h = 0, mi = 0, s = 0, ms = 0) => Date.UTC(a, m - 1, d, h + 5, mi, s, ms);
@@ -217,7 +230,7 @@ describe('la hoja: solo en temporada, sin estorbar y sin pesar', () => {
   test('todo lo que dibuja cuelga de html.tg-navidad', () => {
     const dibujan = bloques.filter(b => /background|content:|animation:(?!none)|display:inline/.test(b.cuerpo));
     assert.ok(dibujan.length >= 3);
-    dibujan.forEach(b => b.sel.split(',').forEach(s =>
+    dibujan.forEach(b => partes(b.sel).forEach(s =>
       assert.match(s.trim(), /^html\.tg-navidad /, 'sin la clase: «' + s.trim() + '»')));
   });
   test('fuera de temporada el saludo está escondido aunque alguien lo deje puesto', () => {
@@ -273,6 +286,7 @@ describe('la hoja: solo en temporada, sin estorbar y sin pesar', () => {
      · que cada dibujo sea un SVG entero: un # suelto corta la dirección. */
 const SOCIO = leer('app/socio.html');
 const PLAY = leer('play/index.html');
+const ESTILO_PLAY = leer('play/estilo.css');
 const PORTADA = leer('index.html');
 const BLOQUES = (() => {
   const r = REGLAS.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '')
@@ -287,16 +301,6 @@ const regla = sel => {
 const IMAGENES = Object.fromEntries([...REGLAS.matchAll(/--(tg-[\w-]+):url\("data:image\/svg\+xml,([^"]*)"\)/g)].map(m => [m[1], m[2]]));
 const svgDe = n => { assert.ok(IMAGENES[n], 'falta --' + n); return IMAGENES[n].replace(/%23/g, '#'); };
 const PISTA_NO = 'body:not(:has(#nav button.on[data-t="pista"]))';
-/* Una lista de selectores, partida solo por las comas de afuera. */
-const partes = sel => {
-  const out = []; let hondo = 0, va = '';
-  for (const ch of sel) {
-    if (ch === '(') hondo++;
-    if (ch === ')') hondo--;
-    if (ch === ',' && hondo === 0) { out.push(va.trim()); va = ''; } else va += ch;
-  }
-  return out.concat(va.trim());
-};
 
 describe('toda la app: el gorro, el oro, el pino, el acebo y las bolas (18-nov, «Pino y oro»)', () => {
   test('cada dibujo se define una vez, en html.tg-navidad, y no sobra ni falta ninguno', () => {
@@ -391,12 +395,38 @@ describe('toda la app: el gorro, el oro, el pino, el acebo y las bolas (18-nov, 
     assert.match(SOCIO, /@media \(max-height:300px\)\{[^@]*#hola \.lema\{display:none\}/);
   });
   test('la Pista no se adorna, y se sabe por la pestaña encendida (vale también para lo que se le agregue)', () => {
-    const adornan = BLOQUES.filter(b => /var\(--tg-(rama|acebo)\)/.test(b.cuerpo) && b.sel.includes('#cuerpo'));
+    const adornan = BLOQUES.filter(b => /var\(--tg-(rama|acebo)\)/.test(b.cuerpo) && b.sel.includes('.panel>'));
     assert.equal(adornan.length, 2);
-    adornan.forEach(b => assert.ok(b.sel.startsWith('html.tg-navidad ' + PISTA_NO + ' #cuerpo>.panel>'), b.sel));
+    adornan.forEach(b => assert.ok(b.sel.startsWith('html.tg-navidad ' + PISTA_NO + ' :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>'), b.sel));
     assert.match(SOCIO, /<nav class="nav" id="nav">/);
     assert.match(SOCIO, /data-t="pista"/);
     assert.match(SOCIO, /classList\.toggle\('on', b\[i\]\.dataset\.t === tab\)/);
+  });
+  test('las reglas de play/ (tarjetas en #cuerpo o en #lamina, sueltas o en una caja con id) no alcanzan la app: allá todo va en un .panel sin id', () => {
+    const dePlay = BLOQUES.filter(b => b.sel.includes(':is(#cuerpo,#lamina,#cuerpo>div[id],#lamina>div[id])>'));
+    assert.equal(dePlay.length, 3, 'la rama, su rótulo y el acebo');
+    const pintan = [...SOCIO.matchAll(/\$\('cuerpo'\)\.innerHTML = ([^\n]*)/g)].map(m => m[1]);
+    assert.ok(pintan.length >= 5);
+    pintan.forEach(x => assert.ok(x.startsWith("'<div class=\"panel\">"), 'socio.html pinta #cuerpo sin .panel: ' + x.slice(0, 60)));
+    assert.doesNotMatch(SOCIO, /\$\('cuerpo'\)\.(insertAdjacentHTML|appendChild|prepend)|lamina/);
+    assert.match(PLAY, /'<div id="lamina"><\/div>'/);
+    /* play/ no tiene Pista: sus pestañas son estas cuatro. */
+    assert.match(PLAY, /var PESTANAS = \[\['credito', 'Crédito'\], \['historial', 'Historial'\],\s*\['chat', 'Chat'\], \['perfil', 'Perfil'\]\];/);
+  });
+  test('las tarjetas que van en una caja con id también se adornan: el resultado de la calculadora y la historia laboral', () => {
+    const EN_APP = ':is(#cuerpo>.panel,#cuerpo>.panel>div[id])>';
+    const EN_PLAY = ':is(#cuerpo,#lamina,#cuerpo>div[id],#lamina>div[id])>';
+    const adornan = BLOQUES.filter(b => /var\(--tg-(rama|acebo)\)/.test(b.cuerpo) && !/#entrarCuerpo|#calcPedido/.test(b.sel)).map(b => b.sel);
+    assert.equal(adornan.length, 4, 'la rama y el acebo de la app, y los de play/');
+    adornan.forEach(x => assert.ok(x.includes(' ' + EN_APP + '.card') || x.startsWith('html.tg-navidad ' + EN_PLAY + '.card'), x));
+    /* Y de verdad hay tarjetas en esas cajas: el resultado de la calculadora de
+       la app, y la historia laboral (app/historia-laboral.js) en las dos. */
+    assert.match(SOCIO, /'<div id="calcSalida"><\/div>' \+\n\s*'<div id="calcComparar"><\/div>'/);
+    assert.match(SOCIO, /\$\('calcSalida'\)\.innerHTML = salidaCalc\(s\);/);
+    assert.match(SOCIO, /var h = '<div class="card quincenal">'/);
+    assert.match(SOCIO, /'<div id="hlCuenta"><\/div>'/);
+    assert.match(PLAY, /'<div id="hlCuenta"><\/div>'/);
+    assert.match(leer('app/historia-laboral.js'), /caja\.innerHTML = '<div class="card"/);
   });
   test('las tarjetas de Entrar van en reglas aparte: sin :has se caen las de la app, no estas', () => {
     regla('html.tg-navidad #entrarCuerpo>.card.laca');
@@ -408,15 +438,74 @@ describe('toda la app: el gorro, el oro, el pino, el acebo y las bolas (18-nov, 
     const lienzo = +/viewBox='0 0 ([\d.]+) [\d.]+'/.exec(rama)[1];
     const bolas = [...rama.matchAll(/<circle cx='([\d.]+)' cy='[\d.]+' r='([\d.]+)' fill='url\(#\w+\)'\/>/g)].map(m => +m[1] - +m[2]);
     assert.ok(bolas.length >= 2, 'no encontré las bolas');
-    assert.match(SOCIO, /--e4:20px/);
-    assert.match(SOCIO, /\.card\{[^}]*padding:var\(--e4\)/);
+    /* El relleno es el --e4 de 20 px en las tres páginas (en la portada, el de
+       la caja de la calculadora). */
+    for (const [nombre, hoja] of [['app/socio.html', SOCIO], ['play/estilo.css', ESTILO_PLAY]]) {
+      assert.match(hoja, /--e4:20px/, nombre);
+      assert.match(hoja, /\.card\{[^}]*padding:var\(--e4\)/, nombre);
+    }
+    assert.match(PORTADA, /--e4:20px/);
+    assert.match(PORTADA, /<div id="calcPedido" style="[^"]*padding:var\(--e4\)/);
     const piden = lienzo - Math.min(...bolas) - 20;     // menos el relleno de la tarjeta (--e4)
     const conRama = BLOQUES.filter(b => /var\(--tg-rama\)/.test(b.cuerpo)).map(b => b.sel);
-    assert.equal(conRama.length, 2);
+    assert.equal(conRama.length, 4, 'Entrar, la app, play/ y la caja de la portada');
     conRama.forEach(sel => {
       const libre = +/padding-right:(\d+)px/.exec(regla(sel + ' :is(.etq,.cs-etq)'))[1];
       assert.ok(libre >= piden + 8, sel + ': el rótulo deja ' + libre + ' px y las bolas piden ' + piden + ' (más 8 de aire)');
     });
+    /* Si la calculadora de la portada no llega, en la caja queda su frase. */
+    assert.match(PORTADA, /<div id="calcPedido"[^>]*>\s*<p class="tenue">/);
+    assert.ok(+/padding-right:(\d+)px/.exec(regla('html.tg-navidad #calcPedido>p:first-child'))[1] >= piden + 8);
+  });
+  test('en play/ cada tarjeta negra abre con su rótulo: en la esquina de la rama no hay otra cosa', () => {
+    const negras = [...PLAY.matchAll(/'<div class="card laca"[^']*'\s*\+\s*([^\n]*)/g)].map(m => m[1].trim());
+    assert.equal(negras.length, 6, 'hay una tarjeta negra nueva en play/: revisar que abra con su rótulo');
+    negras.forEach(n => assert.match(n, /^('<div class="etq">|'<span class="ej-sello">|CS\.html\()/, n.slice(0, 70)));
+    /* CS.html abre con su rótulo (.cs-etq) cuando lleva título, y en play/ siempre lo lleva. */
+    assert.match(leer('app/calculadora-solicitud.js'), /\(o\.titulo \? '<div class="cs-etq">'/);
+    const titulos = [...PLAY.matchAll(/CS\.html\([^\n]*?\{ titulo: ([^,]+),/g)].map(m => m[1]);
+    assert.equal(titulos.length, 2);
+    titulos.forEach(t => assert.match(t, /^(titulo \|\| '[^']+'|TEXTOS\.\w+)$/, t));
+  });
+  test('el acebo cabe entero en el relleno de arriba (20 px): no hay texto que tape', () => {
+    const acebos = BLOQUES.filter(b => /var\(--tg-acebo\)/.test(b.cuerpo));
+    assert.equal(acebos.length, 3, 'Entrar, la app y play/');
+    acebos.forEach(b => {
+      const arriba = +/background-position:right \d+px top (\d+)px/.exec(b.cuerpo)[1];
+      const alto = +/background-size:\d+px (\d+)px/.exec(b.cuerpo)[1];
+      assert.ok(arriba + alto <= 20, b.sel + ': el acebo baja hasta ' + (arriba + alto) + ' px');
+    });
+  });
+  test('los avisos no se adornan: ni el ámbar de la portada («haz la cuenta») ni los de play/', () => {
+    /* Un aviso puede nombrarse dentro de un :has (para dejar SIN adorno la
+       tarjeta que lo trae), pero ninguna regla lo adorna a él. */
+    const sinHas = x => x.replace(/:has\((?:[^()]|\([^()]*\))*\)/g, '');
+    BLOQUES.forEach(b => assert.doesNotMatch(sinHas(b.sel), /aviso|ambar/, b.sel));
+    assert.match(PORTADA, /<div class="aviso ambar">/);
+    assert.match(PLAY, /return '<div class="aviso ambar"><b>Tu sesión se venció/);
+  });
+  test('una tarjeta que abre con un aviso (salvo el verde de «Listo») va sin adorno: la propuesta, los datos personales, los errores', () => {
+    const CON = ':has(>.aviso:not(.verde):first-child,>:first-child>.aviso:not(.verde):first-child)';
+    const acebos = BLOQUES.filter(b => /var\(--tg-acebo\)/.test(b.cuerpo)).map(b => b.sel);
+    /* En la app y en play/, dentro de la regla. En Entrar, aparte: sin :has se
+       cae ella sola y el acebo se queda. */
+    const dentro = acebos.filter(x => !x.includes('#entrarCuerpo'));
+    assert.equal(dentro.length, 2);
+    dentro.forEach(x => assert.ok(x.endsWith(':not(' + CON + ')'), x));
+    assert.match(regla('html.tg-navidad #entrarCuerpo>.card:not(.laca)'), /var\(--tg-acebo\)/);
+    assert.equal(regla('html.tg-navidad #entrarCuerpo>.card:not(.laca)' + CON).trim(), 'background-image:none');
+    /* Y pasa de verdad: la propuesta de play/ abre con su aviso ámbar, encima de
+       las condiciones; el aviso de los datos personales es uno informativo; y el
+       error de Entrar abre con uno ámbar. */
+    assert.match(PLAY, /var h = '<div class="card">' \+\n\s*\(aceptada \? '' : '<div class="aviso ambar"><b>Te hicimos una propuesta\.<\/b>/);
+    assert.match(PLAY, /'<div class="card" id="avisoResponsable"><div class="aviso info"/);
+    assert.match(SOCIO, /\$\('entrarCuerpo'\)\.innerHTML = '<div class="card">' \+\n\s*'<div class="aviso ambar">'/);
+    /* El chat de play/ pone su error dentro de #hilo, la primera caja de su
+       tarjeta: por eso la regla mira también un nivel adentro. */
+    assert.match(PLAY, /'<div class="card"><div id="hilo" class="ch-hilo"><\/div>'/);
+    assert.match(PLAY, /caja\.innerHTML = '<div class="aviso ambar">No pude traer tus mensajes ahora\./);
+    /* El verde de «Listo» sí lleva: es una buena noticia. */
+    assert.match(PLAY, /'<div class="card"><div class="aviso verde"><b>Listo\.<\/b> Tu cuenta quedó creada\.<\/div>'/);
   });
   test('los botones de pedir no se adornan: ninguna regla toca un .btn, y el único botón es la pestaña encendida', () => {
     assert.doesNotMatch(REGLAS, /\.btn\b/);
