@@ -2741,6 +2741,27 @@
    PARA DESHACER: se revierte el commit de v152; CACHE y VERSION_SITIO, que el revert deja en
    v151, suben a v153, y mapa-lugares.js, que vuelve a ?v=151, pasa a ?v=153 en crm.html, en
    ARCHIVOS y en su prueba (la regla de la nota de v139). El número nunca baja. */
+/* 18-nov-2026, SIN NÚMERO TODAVÍA — rama navidad. Publicación prevista: mié 25-nov, sola
+   (no el mismo día que otra). Al publicar, sobre lo que haya salido: CACHE y VERSION_SITIO
+   al número siguiente (v153, o v154 si la portada sin «Cómo entrar» sale antes).
+   NAVIDAD, DEL 1-DIC AL 7-ENE. Joan, 18-nov: «que tengamos en la plataforma un diseño de
+   temporada navideña hasta el 7 de enero». Escogió el boceto 18-A, el alumbrado («Sí, lo
+   recomendado»): una guirnalda de focos que cuelga de la cabecera y «¡Feliz Navidad!»
+   junto al chip del nivel.
+   · app/temporada.js y app/temporada.css, NUEVOS (sin versión): se prende sola el mar
+     1-dic a las 00:00 y se apaga sola el vie 8-ene a las 00:00, en hora de Colombia
+     leída del reloj del teléfono (sin señal también). Vuelve sola cada diciembre.
+   · Una línea de hoja y una de guion en app/socio.html, play/index.html e index.html, más
+     VERSION_APP y VERSION_PLAY al 2026-11-18 (la prueba de las fechas lo exige). Ningún
+     otro HTML cambia: la guirnalda cuelga del .wrap de la cabecera por CSS.
+   · pruebas/pedir-a-la-medida.test.js: la lista de guiones de index.html suma
+     app/temporada.js.
+   · Ningún texto promete nada (ni regalos, ni bonos, ni rifas: Ley 643); los focos no
+     titilan si el teléfono pide menos movimiento; sin filtros: dos imágenes que se repiten.
+   · Para verla antes del 1-dic en un teléfono: …/app/socio.html?temporada=navidad.
+   Pruebas: pruebas/temporada.test.js. NO HAY BASE NUEVA. No se tocan motor.js ni puente.js.
+   PARA DESHACER: se quitan las seis líneas de las páginas (o se revierte el commit) y se
+   sale con el número siguiente; si solo molesta la fecha, cambia navidad() en temporada.js. */
 const CACHE = 'tugarantia-v152';
 const BASE = new URL('./', self.location).pathname;
 
@@ -2939,6 +2960,13 @@ const ARCHIVOS = [
      instalada sin senal abre igual (cada pagina se protege con
      `window.Actualizar`), pero no sabria avisar de la version nueva. */
   'app/actualizar.js',
+  /* 18-nov-2026 — NAVIDAD (rama navidad; ver su nota, arriba): la guirnalda de
+     la cabecera y el saludo, del 1-dic al 7-ene. Los piden app/socio.html,
+     play/ e index.html. Nuevos: sin versión en la dirección. Van aquí y no solo
+     en la caché al vuelo por lo de siempre (la nota de v4): en la PRIMERA visita
+     el service worker todavía no manda, y sin señal la guirnalda no saldría. */
+  'app/temporada.js',
+  'app/temporada.css',
   /* 21-oct-2026 — las letras de la cédula (play/, al escanear): el módulo
      chico, que recorta las franjas en el disparo y tiene que estar ahí sin
      esperar la red. El motor de app/lib/ocr/ (unos 6 MB) NO entra: precargarlo

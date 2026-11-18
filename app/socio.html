@@ -44,6 +44,9 @@
 <link rel="manifest" href="app.webmanifest">
 <link rel="apple-touch-icon" href="icono-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
+<!-- 18-nov-2026 — Navidad, del 1-dic al 7-ene (temporada.js la prende y la apaga
+     sola). Archivo nuevo: sin versión. Si no llega, la app se ve como siempre. -->
+<link rel="stylesheet" href="temporada.css">
 <!-- La hoja del chat la comparten esta app, el CRM y el espejo. Va aparte para
      no repetirla en tres sitios: una clase compartida metida en la hoja de UNA
      pantalla ya salió rota en las otras una vez (`.mc-back`). No trae colores
@@ -957,8 +960,12 @@ details.plegado>summary{padding:0 var(--e4)}
    que lo arregla.
    14-nov-2026: la pestaña «Pista»: el mundo del nivel del cliente, con una piedra
    por cada crédito pagado (app/pista-niveles.js, nuevo). Si un cliente dice que no
-   ve la pestaña, esta fecha dice si tiene la versión que la trae. Sale con v149. */
-var VERSION_APP = '2026-11-14';
+   ve la pestaña, esta fecha dice si tiene la versión que la trae. Sale con v149.
+   18-nov-2026: Navidad (app/temporada.js y .css, nuevos): la guirnalda de focos de la
+   cabecera y «¡Feliz Navidad!» junto al nivel, solos del 1-dic al 7-ene. Si un cliente
+   dice que en diciembre no ve la guirnalda, esta fecha dice si tiene la versión que la
+   trae. */
+var VERSION_APP = '2026-11-18';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
@@ -1047,6 +1054,9 @@ setTimeout(function () {
 <!-- 21-oct-2026 — instalarla paso a paso (la tarjeta de Entrar, de la espera y
      del final de Inicio). Si no llega, no hay tarjeta y la app sigue igual. -->
 <script src="instalar.js"></script>
+<!-- 18-nov-2026 — Navidad: la guirnalda de la cabecera y «¡Feliz Navidad!» junto
+     al nivel, del 1-dic al 7-ene. Nuevo, sin versión; si no llega, nada cambia. -->
+<script src="temporada.js"></script>
 <!-- 28-oct-2026 — «Tu historia laboral»: la tarjeta para quien dejó el fondo de
      pensiones para después en el registro (o quiere cambiarlo). La lista de
      fondos y la pantalla son las mismas del registro (play/). Nuevos: sin
