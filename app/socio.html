@@ -960,8 +960,14 @@ details.plegado>summary{padding:0 var(--e4)}
    que lo arregla.
    14-nov-2026: la pestaña «Pista»: el mundo del nivel del cliente, con una piedra
    por cada crédito pagado (app/pista-niveles.js, nuevo). Si un cliente dice que no
-   ve la pestaña, esta fecha dice si tiene la versión que la trae. Sale con v149. */
-var VERSION_APP = '2026-11-14';
+   ve la pestaña, esta fecha dice si tiene la versión que la trae. Sale con v149.
+   18-nov-2026: la Pista completa: los nueve mundos a la vista con lo que abre
+   cada uno, el hito del millón, «Cómo subir más rápido» y más luz en los
+   dibujos; en diciembre, «Diciembre puntual» y la tarjeta de Navidad. Y el
+   préstamo con garantía ya no dice «costo mensual fijo» (lo fijo es la cuota).
+   Si un cliente no ve el último mundo destapado, esta fecha dice si tiene la
+   versión que lo trae. */
+var VERSION_APP = '2026-11-18';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
@@ -2470,7 +2476,7 @@ function vistaInicio() {
       (S.maxRespaldado > 0
         ? '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
           'Y con la garantía que ya te ganaste puedes pedir hasta ' + COP(S.maxRespaldado) +
-          ', con un costo mensual fijo que ves en pesos antes de pedir.</div>'
+          ', a cuotas mensuales fijas que ves en pesos antes de pedir.</div>'
         : '') +
       '<button class="btn arriba" onclick="irA(\'calc\')">Calcular y pedir</button>' +
       '</div>';
@@ -3682,7 +3688,7 @@ function sincronizarCalc() {
 
   $('calcMonto').textContent = COP(MONTO);
   $('calcSub').textContent = resp
-    ? 'Un costo mensual fijo, en pesos, sobre lo que pidas. Lo respalda la garantía que ya te ganaste.'
+    ? 'Cuotas mensuales fijas, y el costo en pesos antes de pedir. Lo respalda la garantía que ya te ganaste.'
     : 'El costo, en pesos, por quincena. Lo ves abajo antes de pedir.';
 
   var r = $('calcRange');
@@ -4566,7 +4572,12 @@ function vistaPista() {
        hoy (el de este teléfono, como el resto de la página), cómo repintar la
        pestaña y adónde ir a completar los datos. */
     perfil: S.perfil, racha: Number(S.g && S.g.racha || 0), cuenta: S.cedula || S.codigo || '',
-    hoy: hoyISO(), repintar: function () { irA('pista'); }, alCompletarPerfil: function () { abrirPerfil(); }
+    hoy: hoyISO(), repintar: function () { irA('pista'); }, alCompletarPerfil: function () { abrirPerfil(); },
+    /* 18-nov-2026 — LA PISTA COMPLETA: la garantía ganada y la libre, para el
+       hito del millón (el préstamo con garantía solo lo respalda la ganada, y
+       solo la libre: lo mismo que dice la calculadora), y el botón de invitar
+       de «Cómo subir más rápido», que es el mismo de Mi garantía. */
+    ganada: S.gd.ganada, respaldoLibre: S.maxRespaldado, alInvitar: function () { invitar(); }
   }) + pie();
 }
 function cerrarPista() {

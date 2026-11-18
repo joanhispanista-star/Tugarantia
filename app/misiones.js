@@ -57,6 +57,18 @@
  * corta. La mejor racha se reconstruye con esa misma regla y nunca da menos
  * que la del motor.
  *
+ * DICIEMBRE (18-nov-2026, P7 de Joan: «Sí, lo recomendado»):
+ *   · «DICIEMBRE PUNTUAL»: quien paga en la fecha TODOS sus cortes de
+ *     diciembre gana un árbol de Navidad en la isla donde pagó el último, y se
+ *     queda. Cuentan los créditos que ya tiene: a quien no tiene un corte en
+ *     diciembre la tarjeta ni le sale, para que nadie pida un crédito por el
+ *     árbol. No da estrellas ni nada más que el árbol. Se decide el 1 de
+ *     enero (antes todavía puede salir otro corte de diciembre).
+ *   · LA TARJETA DE NAVIDAD para WhatsApp: su isla, «¡Feliz Navidad!» y su
+ *     nombre de pila. Sin montos ni nada del crédito. Sale solo en temporada
+ *     (la decide app/temporada.js: del 1-dic al 7-ene); sin ese archivo, no
+ *     sale.
+ *
  * ESTE ARCHIVO NO ESCRIBE NADA EN LA BASE y no decide nada de plata: lee lo
  * que la página le pasa, devuelve HTML y guarda en el teléfono solo lo dicho.
  * Es un archivo NUEVO: se pide sin versión. Si no llega, la Pista se ve como
@@ -102,7 +114,9 @@
   var SENSIBLES = ['foto_selfie', 'ubicacion'];
 
   /* Un título por mundo, que no cambia con el género (los vio Joan en los
-     bocetos del 16-nov). El del último no se dice hasta llegar. */
+     bocetos del 16-nov). 18-nov-2026: el del último ya no se esconde hasta
+     llegar, igual que su mundo (Joan: «que las pistas se vean todas incluso
+     la ultima»). `alcanzado` se sigue recibiendo para no romper a quien lo pasa. */
   var TITULOS = {
     'hierro': 'Aprendiz de la forja',
     'aluminio': 'Piloto del cielo',
@@ -114,8 +128,7 @@
     'materia oscura pro': 'Comandante de la galaxia',
     'misterio': 'Leyenda'
   };
-  function titulo(nivel, alcanzado) {
-    if (nivel === 'misterio' && !alcanzado) return 'Se descubre al llegar';
+  function titulo(nivel) {
     return TITULOS[nivel] || '';
   }
   var PERSONAJES = [['moto', 'Moto'], ['bici', 'Bici'], ['carro', 'Carro'], ['bus', 'Bus'], ['pie', 'A pie']];
@@ -137,6 +150,7 @@
     reloj: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
     fuego: '<path d="M12 21c-3.8 0-6.5-2.6-6.5-6.2 0-3.4 2.6-5.3 3.6-8.3 1.6 1.3 2.3 3 2.4 4.6 1-1.4 1.4-3.2 1.2-5.6 3.1 2 5.8 5.5 5.8 9.3 0 3.6-2.7 6.2-6.5 6.2z"/>',
     mas: '<circle cx="12" cy="12" r="8.5" stroke-dasharray="3 2.4"/><path d="M12 8v8M8 12h8"/>',
+    arbol: '<path d="M12 3.5 7.2 10h3L6 16.5h12L13.8 10h3z"/><path d="M12 16.5V20.5"/>',
     whatsapp: '<path d="M4.5 19.5 5.6 16A7.6 7.6 0 1 1 8.3 18.4z"/><path d="M9.3 8.9c.2 2.6 2.8 5.3 5.6 5.8l1.1-1.3-1.8-.9-.8.8c-1.2-.5-2.2-1.5-2.7-2.7l.8-.8-.9-1.8z"/>'
   };
   function ico(nombre, clase) {
@@ -168,6 +182,9 @@
   function fechaChip(iso) { var p = partes(iso); return p ? DIAS[p.dia].slice(0, 3) + ' ' + p.d + ' ' + MESES[p.m].slice(0, 3) : ''; }
   /* «15 nov» */
   function fechaCorta(iso) { var p = partes(iso); return p ? p.d + ' ' + MESES[p.m].slice(0, 3) : ''; }
+  /* «15 de diciembre» */
+  function diaDeMes(iso) { var p = partes(iso); return p ? p.d + ' de ' + MESES[p.m] : ''; }
+  function r1(n) { return Math.round(n * 10) / 10; }
   function hoyLocal() { var x = new Date(); return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()); }
   function dia10(iso) { return iso ? String(iso).slice(0, 10) : null; }
 
@@ -230,7 +247,7 @@
       var limite = g.corte ? sumarDias(g.corte, -DIAS_MADRUGADOR) : null;
       var madrugador = fecha && cs.every(function (c) { return !tienePlan(c) && dia10(c.fecha_pagado) <= limite; });
       var ult = cs.slice().sort(function (a, b) { return String(b.fecha_pagado || '').localeCompare(String(a.fecha_pagado || '')); })[0];
-      return { corte: g.corte, cerrada: cerrada, en_fecha: fecha, madrugador: madrugador,
+      return { corte: g.corte, cerrada: cerrada, en_fecha: fecha, madrugador: madrugador, perdida: perdida,
         estrellas: fecha ? (madrugador ? 3 : 1) : 0, nivel: (ult && nivelDe[ult.codigo]) || null, creditos: cs.length };
     });
   }
@@ -286,6 +303,44 @@
     return { tiene: tiene, de: lista.length, estrellas: hechas, maximo: PERFIL_METAS.length, meta: meta };
   }
 
+  /* DICIEMBRE PUNTUAL (ver arriba). Por año: sus quincenas con corte en
+     diciembre. Se LOGRA si hay al menos una y todas quedaron cerradas y en la
+     fecha (la misma regla de las estrellas), y se decide el 1 de enero: hasta
+     el 16 de diciembre un crédito nuevo puede traer otro corte de diciembre.
+     El árbol cae en el mundo del ÚLTIMO corte (donde se pagó, como su piedra)
+     y se queda: sale de la historia de pagos, no del teléfono, así que
+     tampoco se pierde al cambiar de teléfono.
+     La tarjeta sale del 1 de diciembre al 7 de enero, solo a quien tiene algún
+     corte en diciembre. Desde 2026: es cuando empezó la misión, y un árbol por
+     un diciembre en el que nadie la había visto sería fingido. */
+  var DICIEMBRE_DESDE = 2026;
+  var ULTIMO_DIA_ENERO = 7;      // como la temporada: «hasta el 7 de enero»
+  function diciembre(qs, hoy, nivelHoy) {
+    var por = {}, navidadEn = {}, actual = null;
+    (qs || []).forEach(function (q) {
+      if (!q || !q.corte || q.corte.slice(5, 7) !== '12' || +q.corte.slice(0, 4) < DICIEMBRE_DESDE) return;
+      (por[q.corte.slice(0, 4)] = por[q.corte.slice(0, 4)] || []).push(q);
+    });
+    Object.keys(por).sort().forEach(function (y) {
+      var lista = por[y].slice().sort(function (a, b) { return a.corte < b.corte ? -1 : 1; });
+      var enero = (+y + 1) + '-01-01', hasta = (+y + 1) + '-01-' + pad(ULTIMO_DIA_ENERO);
+      var decidido = hoy >= enero;
+      var logrado = lista.every(function (q) { return q.cerrada && q.en_fecha; });
+      var donde = lista[lista.length - 1].nivel || nivelHoy || null;
+      if (decidido && logrado && donde) navidadEn[donde] = true;
+      if (hoy >= y + '-12-01' && hoy <= hasta) {
+        actual = { anio: +y, decidido: decidido, logrado: decidido && logrado && !!donde, nivel: donde,
+          cortes: lista.map(function (q) {
+            var estado = (q.cerrada && q.en_fecha) ? 'hecha' : (!q.cerrada && hoy <= q.corte) ? 'abierta'
+              : q.perdida ? 'cerrado' : q.cerrada ? 'tarde' : 'vencida';
+            return { corte: q.corte, estado: estado };
+          }) };
+        actual.se_paso = actual.cortes.some(function (c) { return c.estado !== 'hecha' && c.estado !== 'abierta'; });
+      }
+    });
+    return { actual: actual, navidad_en: navidadEn };
+  }
+
   /* TODO JUNTO. d es lo que la página le pasa a la Pista; e y rec, lo que la
      Pista ya calculó (dónde está y sus piedras). No escribe nada: lo que haya
      que guardar va en `asignar` y lo guarda montar(). */
@@ -316,13 +371,15 @@
     });
     var aqui = porMundo[e.nivel];
     var pasadas = qs.filter(function (q) { return q.cerrada && q.corte; }).sort(function (a, b) { return a.corte < b.corte ? 1 : -1; });
+    var dic = diciembre(qs, hoy, e.nivel);
     return {
       d: d, e: e, rec: rec, hoy: hoy, mem: mem, asignar: asignar, cuenta: d.cuenta || null,
       quincenas: qs, por_mundo: porMundo, aqui: aqui,
       isla: { cosas: aqui.cosas, sigue: aqui.cosas < aqui.lugares },
       abierta: abierta(d.creditos, hoy), pasada: pasadas[0] || null,
       perfil: pf, racha: rachas(d.creditos, d.racha, hoy),
-      personaje: mem.personaje, titulo: titulo(e.nivel, true)
+      personaje: mem.personaje, titulo: titulo(e.nivel, true),
+      diciembre: dic.actual, navidad_en: dic.navidad_en
     };
   }
 
@@ -421,6 +478,71 @@
       '<p class="mi-nota">Pagar tarde o aplazar empieza la racha de nuevo. Tu mejor racha no se borra.</p></div>';
   }
 
+  /* DICIEMBRE PUNTUAL, la tarjeta (sale del 1-dic al 7-ene, solo a quien
+     tiene un corte en diciembre: ver diciembre()). */
+  function tarjetaDiciembre(mi) {
+    var x = mi && mi.diciembre;
+    if (!x) return '';
+    var h = '<div class="card mi-card mi-dic" id="miDiciembre"><div class="etq">Diciembre puntual</div>';
+    if (x.decidido) {
+      if (x.logrado) {
+        return h + '<div class="mi-pasada">' + ico('arbol') + '<span><b>¡Lo lograste!</b> Pagaste en la fecha tus cortes de diciembre. El árbol ya está en tu isla de ' +
+          esc(motor().nombreNivel(x.nivel)) + ', y se queda.</span></div></div>';
+      }
+      return h + '<p class="mi-nota mi-sin">Esta vez no se dio. El próximo diciembre vuelve.</p></div>';
+    }
+    /* Si ya se pasó una fecha, la promesa de arriba sobra: solo las filas y que vuelve. */
+    if (!x.se_paso) h += '<p class="mi-nota mi-nota-arriba">Si pagas en la fecha tus cortes de diciembre, el 1 de enero a tu isla le sale un árbol de Navidad, y se queda.</p>';
+    h += x.cortes.map(function (c) {
+      var sub = c.estado === 'hecha' ? 'Pagado en la fecha.' : c.estado === 'abierta' ? 'Tienes hasta el ' + esc(fechaLarga(c.corte)) + '.'
+        : c.estado === 'tarde' ? 'Se pagó después del corte.' : c.estado === 'cerrado' ? 'Cerrado.' : 'La fecha ya pasó.';
+      return fila(c.estado === 'hecha' ? 'hecha' : c.estado === 'abierta' ? 'abierta' : 'cerrada', 'arbol', 'Corte del ' + esc(diaDeMes(c.corte)), sub, '');
+    }).join('');
+    return h + '<p class="mi-nota">' + (x.se_paso ? 'Este diciembre el árbol no sale. El próximo diciembre vuelve.'
+      : 'Cuentan los créditos que ya tienes: no hace falta pedir otro.') + '</p></div>';
+  }
+
+  /* LA TARJETA DE NAVIDAD. ¿Es temporada? La decide app/temporada.js (del
+     1-dic al 7-ene en hora de Colombia, o ?temporada=navidad para verla
+     antes); sin ese archivo no hay tarjeta, como no hay guirnalda. d.temporada
+     es para las pruebas. */
+  function enTemporada(mi) {
+    var d = (mi && mi.d) || {};
+    if (d.temporada != null) return !!d.temporada;
+    try {
+      var g = global(), T = g.Temporada;
+      if (!T || typeof T.activa !== 'function') return false;
+      return !!T.activa(Date.now(), g.location ? g.location.search : '');
+    } catch (x) { return false; }
+  }
+  /* La guirnalda: el mismo tramo de temporada.css (110 de ancho, cuatro focos
+     con el brillo dibujado, sin filtros), repetido y centrado. Sirve para la
+     tarjeta y para la imagen. */
+  var FOCOS = [[22, 22.9, '#E5484D'], [44, 27.1, '#2EAD5B'], [66, 27.1, '#F5C542'], [88, 22.9, '#4FA3FF']];
+  function guirnalda(ancho, tramo, pre) {
+    var k = tramo / 110, defs = '', uno = '<path d="M0 6Q55 32 110 6" fill="none" stroke="#2B2B2B" stroke-width="1.4"/>';
+    FOCOS.forEach(function (f, i) {
+      defs += '<radialGradient id="' + pre + i + '"><stop offset="0" stop-color="' + f[2] + '" stop-opacity=".55"/><stop offset="1" stop-color="' + f[2] + '" stop-opacity="0"/></radialGradient>';
+      uno += '<circle cx="' + f[0] + '" cy="' + f[1] + '" r="9" fill="url(#' + pre + i + ')"/>' +
+        '<rect x="' + (f[0] - 2) + '" y="' + r1(f[1] - 8.6) + '" width="4" height="3.4" rx=".8" fill="#6B6B6B"/>' +
+        '<ellipse cx="' + f[0] + '" cy="' + f[1] + '" rx="3.6" ry="5.6" fill="' + f[2] + '"/>' +
+        '<ellipse cx="' + r1(f[0] - 1.1) + '" cy="' + r1(f[1] - 1.6) + '" rx="1" ry="1.8" fill="#FFFFFF" fill-opacity=".55"/>';
+    });
+    var n = Math.ceil(ancho / tramo), x0 = (ancho - n * tramo) / 2, cuerpo = '';
+    for (var i = 0; i < n; i++) cuerpo += '<g transform="translate(' + r1(x0 + i * tramo) + ' 0) scale(' + k.toFixed(3) + ')">' + uno + '</g>';
+    return { defs: defs, cuerpo: cuerpo };
+  }
+  function tarjetaNavidad(mi) {
+    if (!mi || !enTemporada(mi)) return '';
+    var gu = guirnalda(660, 110, 'miGc');
+    return '<div class="card laca mi-card mi-navidad" id="miNavidad">' +
+      '<svg class="mi-guirnalda" viewBox="0 0 660 40" preserveAspectRatio="xMidYMin slice" aria-hidden="true"><defs>' + gu.defs + '</defs>' + gu.cuerpo + '</svg>' +
+      '<div class="etq">Tu tarjeta de Navidad</div><p class="mi-saludo">¡Feliz Navidad!</p>' +
+      '<p class="mi-nota mi-nota-arriba">Una tarjeta con tu isla, para mandarla por WhatsApp.</p>' +
+      '<button type="button" class="btn sec mi-wa" id="miNavidadBtn" onclick="Misiones.compartirNavidad()">' + ico('whatsapp') + ' Mandar mi tarjeta</button>' +
+      '<p class="mi-ll-lleva">La imagen lleva tu isla, tu nombre y el saludo. No lleva montos ni nada de tu crédito.</p></div>';
+  }
+
   /* TUS ISLAS: cada mundo que pasaste, con lo que construiste ahí. Sale desde
      que pasó al menos uno (en el primero no hay nada que mirar atrás).
      En la pestaña va como LISTA y las islas se dibujan solo al abrir el
@@ -447,7 +569,9 @@
     function caja(f, clase, pie, est) {
       var x = mi.por_mundo[f.nivel] || { total: 0, cosas: 0 };
       var dib = clase === 'luego' ? '<div class="mi-al-velo">' + ico('candado') + '</div>'
-        : P.mundo(f.nivel, 156, 112, { cielo: 0.14, margenAbajo: 6, horizonte: 0.5, sinIslotes: true, cosas: x.cosas });
+        /* sinLuz (18-nov): las motas son una capa que se mueve, y aquí puede
+           haber nueve islas a la vez; en un teléfono barato, nueve animaciones */
+        : P.mundo(f.nivel, 156, 112, { cielo: 0.14, margenAbajo: 6, horizonte: 0.5, sinIslotes: true, sinLuz: true, cosas: x.cosas, navidad: arbolEn(mi, f.nivel) });
       return '<div class="mi-al ' + clase + '"><div class="mi-al-dib">' + dib + '</div><b>' + esc(f.nombre) + '</b><small>' + esc(pie) + '</small>' +
         (est ? '<small class="mi-al-st">' + esc(cuenta(x)) + '</small>' : '') + '</div>';
     }
@@ -457,9 +581,9 @@
     for (var i = 0; i < e.i; i++) h += caja(e.filas[i], 'paso', titulo(e.filas[i].nivel, true), true);
     h += caja(e.filas[e.i], 'aqui', 'Aquí estás', true);
     if (e.sig) h += caja(e.sig, 'luego', 'Se abre con ' + COP(e.sig.desde) + ' de garantía', false);
-    var mas = e.filas.length - e.i - 2, ultimo = e.filas[e.filas.length - 1];
-    h += '</div>' + (mas > 0 ? '<p class="mi-nota">Y ' + (mas === 1 ? '1 mundo más.' : mas + ' mundos más.') +
-      (ultimo && P.MUNDOS[ultimo.nivel] && P.MUNDOS[ultimo.nivel].velado && e.i < e.filas.length - 1 ? ' El último se descubre al llegar.' : '') + '</p>' : '');
+    var mas = e.filas.length - e.i - 2;
+    /* (18-nov: aquí decía «El último se descubre al llegar»; ya no se esconde) */
+    h += '</div>' + (mas > 0 ? '<p class="mi-nota">Y ' + (mas === 1 ? '1 mundo más.' : mas + ' mundos más.') + '</p>' : '');
     return h + '<button type="button" class="btn sec mi-listo" id="pnCerrar" onclick="Misiones.listo()">Cerrar</button></div></div>';
   }
   function abrirIslas() {
@@ -521,7 +645,7 @@
     var P = pista(), m = motor(), e = mi.e, nivel = e.nivel, nombre = m.nombreNivel(nivel), mu = P.MUNDOS[nivel], cielo = P.PALETA[nivel].cielo;
     var W = 360;
     try { if (global().innerWidth > 0) W = Math.min(488, Math.round(global().innerWidth)); } catch (x) { /* 360 */ }
-    var dib = P.mundo(nivel, W, Math.round(W * 0.9), { cielo: 0.22, margenAbajo: 10, horizonte: 0.42, cosas: mi.aqui.cosas });
+    var dib = P.mundo(nivel, W, Math.round(W * 0.9), { cielo: 0.22, margenAbajo: 10, horizonte: 0.42, cosas: mi.aqui.cosas, navidad: arbolEn(mi, nivel) });
     var antes = filaDe(e, desde);
     return '<div class="mi-llegada ' + mu.clase + '" role="dialog" aria-modal="true" aria-labelledby="miLlegoTit" style="background:radial-gradient(120% 70% at 50% 30%,' +
       cielo[1] + ' 0%,' + cielo[0] + ' 60%,#07080C 100%)"><div class="mi-chispas"></div>' +
@@ -558,8 +682,27 @@
     else if (i > j) { desde = mem.mundo; mem.mundo = mi.e.nivel; cambio = true; }
     else if (i < j) { mem.mundo = mi.e.nivel; cambio = true; }
     var ok = cambio ? guardar(mi.cuenta, mem) : true;
+    if (enTemporada(mi)) programarNavidad(mi);
     if (desde && ok) { mostrarLlegada(mi, desde); return desde; }
     return null;
+  }
+  /* La imagen de Navidad se arma ANTES del toque (el teléfono solo deja
+     compartir dentro de él, y armarla tarda), pero no al abrir la Pista: un
+     rato después y cuando el teléfono está quieto, para no trabar la primera
+     pintada en uno barato. Una vez por isla y nombre: repintar no la rehace. */
+  var NAVIDAD = null;
+  function programarNavidad(mi) {
+    var g = global();
+    if (!documento() || typeof g.setTimeout !== 'function') return;
+    var clave = [mi.e.nivel, mi.aqui.cosas, arbolEn(mi, mi.e.nivel), primerNombre(mi.d && mi.d.nombre)].join('|');
+    if (NAVIDAD && NAVIDAD.clave === clave) return;
+    var esta = NAVIDAD = { clave: clave, archivo: null };
+    var hacer = function () {
+      prepararNavidad(mi).then(function (f) { esta.archivo = f; }, function () { /* se comparte el texto */ });
+    };
+    g.setTimeout(function () {
+      try { if (typeof g.requestIdleCallback === 'function') g.requestIdleCallback(hacer, { timeout: 3000 }); else hacer(); } catch (x) { /* nada */ }
+    }, 1200);
   }
 
   /* ---------- la tarjeta para WhatsApp ----------
@@ -568,15 +711,23 @@
      cliente toca «Compartir»; se prepara al abrir la llegada porque el
      teléfono solo deja compartir dentro del toque, y armarla tarda. */
   var IMAGEN = null;
+  /* ¿Ganó el árbol de «Diciembre puntual» en esa isla? */
+  function arbolEn(mi, nivel) { return !!(mi && mi.navidad_en && mi.navidad_en[nivel]); }
+  /* Las capas de un dibujo de la Pista, puestas en la imagen a la altura y. */
+  function capasDe(dib, y) {
+    return (dib.match(/<svg[\s\S]*?<\/svg>/g) || []).map(function (s) {
+      return s.replace(/^<svg /, '<svg x="0" y="' + y + '" width="1080" height="860" ');
+    }).join('');
+  }
+  function sinVariables(svg, colorDe) {
+    return svg.replace(/var\((--[\w-]+)\)/g, function (todo, n) { return (colorDe && colorDe(n)) || '#888888'; });
+  }
   function primerNombre(n) { return String(n || '').replace(/^\s+/, '').split(/\s+/)[0] || ''; }
   /* El SVG de la tarjeta, sin variables de CSS (una imagen no las ve): se
      reemplazan por el color que tienen en la página. */
   function tarjetaSvg(mi, colorDe) {
     var P = pista(), m = motor(), nivel = mi.e.nivel, nombre = m.nombreNivel(nivel), mu = P.MUNDOS[nivel], cielo = P.PALETA[nivel].cielo;
-    var dib = P.mundo(nivel, 1080, 860, { cielo: 0.16, margenAbajo: 24, horizonte: 0.42, cosas: mi.aqui.cosas });
-    var capas = (dib.match(/<svg[\s\S]*?<\/svg>/g) || []).map(function (s) {
-      return s.replace(/^<svg /, '<svg x="0" y="120" width="1080" height="860" ');
-    }).join('');
+    var capas = capasDe(P.mundo(nivel, 1080, 860, { cielo: 0.16, margenAbajo: 24, horizonte: 0.42, cosas: mi.aqui.cosas, navidad: arbolEn(mi, nivel) }), 120);
     var med = P.medalla(nivel).replace(/^<svg /, '<svg x="90" y="1010" width="150" height="150" ');
     var quien = primerNombre(mi.d && mi.d.nombre), tit = titulo(nivel, true);
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">' +
@@ -587,9 +738,33 @@
       '<text x="268" y="1118" font-family="Georgia,serif" font-size="64" font-weight="700" fill="#FFFFFF">' + esc(nombre + ' · ' + mu.lema) + '</text>' +
       '<text x="270" y="1170" font-family="-apple-system,Segoe UI,Roboto,sans-serif" font-size="34" font-weight="700" fill="#F5C542">' + esc((quien ? quien + ' · ' : '') + tit) + '</text>' +
       '<text x="90" y="1290" font-family="-apple-system,Segoe UI,Roboto,sans-serif" font-size="30" font-weight="700" letter-spacing="4" fill="#FBF7F4" fill-opacity=".85">TU GARANTÍA · TUGARANTIA.NET</text></svg>';
-    return svg.replace(/var\((--[\w-]+)\)/g, function (todo, n) { return (colorDe && colorDe(n)) || '#888888'; });
+    return sinVariables(svg, colorDe);
+  }
+  /* LA IMAGEN DE NAVIDAD, del mismo tamaño que la de la llegada: la guirnalda
+     arriba, su isla (con el árbol si lo ganó ahí), el saludo y su nombre de
+     pila. Ni montos, ni cupo, ni el nombre del nivel. */
+  function navidadSvg(mi, colorDe) {
+    var P = pista(), nivel = mi.e.nivel, cielo = P.PALETA[nivel].cielo, gu = guirnalda(1080, 270, 'miGi');
+    var capas = capasDe(P.mundo(nivel, 1080, 860, { cielo: 0.16, margenAbajo: 24, horizonte: 0.42, cosas: mi.aqui.cosas, navidad: arbolEn(mi, nivel) }), 150);
+    var quien = primerNombre(mi.d && mi.d.nombre);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">' +
+      '<defs><linearGradient id="miFn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + cielo[0] + '"/><stop offset=".55" stop-color="' + cielo[1] + '"/><stop offset="1" stop-color="#07080C"/></linearGradient>' + gu.defs + '</defs>' +
+      '<rect width="1080" height="1350" fill="url(#miFn)"/>' + capas +
+      '<rect y="1000" width="1080" height="350" fill="#07080C" fill-opacity=".74"/>' + gu.cuerpo +
+      '<text x="540" y="1116" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="104" font-weight="700" fill="#F5C542">¡Feliz Navidad!</text>' +
+      (quien ? '<text x="540" y="1186" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,sans-serif" font-size="40" fill="#FBF7F4" fill-opacity=".88">' + esc('De parte de ' + quien) + '</text>' : '') +
+      '<text x="540" y="1292" text-anchor="middle" font-family="-apple-system,Segoe UI,Roboto,sans-serif" font-size="30" font-weight="700" letter-spacing="4" fill="#FBF7F4" fill-opacity=".85">TU GARANTÍA · TUGARANTIA.NET</text></svg>';
+    return sinVariables(svg, colorDe);
   }
   function prepararImagen(mi) {
+    return aImagen(mi, function (colorDe) { return tarjetaSvg(mi, colorDe); }, 'llegue-a-' + mi.e.nivel.replace(/\s+/g, '-') + '.png');
+  }
+  function prepararNavidad(mi) {
+    return aImagen(mi, function (colorDe) { return navidadSvg(mi, colorDe); }, 'feliz-navidad.png');
+  }
+  /* SVG → canvas → PNG. Los colores de las variables salen de una muestra con
+     la clase del mundo, que es de donde los toma el dibujo en la página. */
+  function aImagen(mi, armar, archivo) {
     return new Promise(function (bien, mal) {
       try {
         var d = documento();
@@ -599,7 +774,7 @@
         muestra.style.display = 'none';
         d.body.appendChild(muestra);
         var cs = getComputedStyle(muestra);
-        var svg = tarjetaSvg(mi, function (n) { return String(cs.getPropertyValue(n) || '').trim(); });
+        var svg = armar(function (n) { return String(cs.getPropertyValue(n) || '').trim(); });
         d.body.removeChild(muestra);
         var img = new Image();
         img.onload = function () {
@@ -608,7 +783,7 @@
             c.getContext('2d').drawImage(img, 0, 0, 1080, 1350);
             c.toBlob(function (b) {
               if (!b) return mal(new Error('sin imagen'));
-              try { bien(new File([b], 'llegue-a-' + mi.e.nivel.replace(/\s+/g, '-') + '.png', { type: 'image/png' })); } catch (x) { mal(x); }
+              try { bien(new File([b], archivo, { type: 'image/png' })); } catch (x) { mal(x); }
             }, 'image/png');
           } catch (x) { mal(x); }
         };
@@ -622,9 +797,18 @@
      texto; y si no hay con qué compartir (un computador), WhatsApp web. */
   function compartir() {
     var mi = ULTIMO; if (!mi) return false;
-    var g = global(), n = g.navigator || {}, texto = textoCompartir(mi);
+    return compartirCon(IMAGEN, textoCompartir(mi));
+  }
+  /* El texto de la de Navidad no dice nada del cliente: el saludo y la casa. */
+  function textoNavidad() { return '¡Feliz Navidad! https://tugarantia.net'; }
+  function compartirNavidad() {
+    if (!ULTIMO) return false;
+    return compartirCon(NAVIDAD && NAVIDAD.archivo, textoNavidad());
+  }
+  function compartirCon(imagen, texto) {
+    var g = global(), n = g.navigator || {};
     try {
-      if (IMAGEN && n.canShare && n.canShare({ files: [IMAGEN] })) { n.share({ files: [IMAGEN], text: texto }).catch(function () {}); return 'imagen'; }
+      if (imagen && n.canShare && n.canShare({ files: [imagen] })) { n.share({ files: [imagen], text: texto }).catch(function () {}); return 'imagen'; }
       if (n.share) { n.share({ text: texto }).catch(function () {}); return 'texto'; }
     } catch (x) { /* abajo */ }
     try { g.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank', 'noopener'); } catch (x) { /* nada */ }
@@ -651,7 +835,7 @@
   }
 
   return {
-    VERSION: '2026-11-16',
+    VERSION: '2026-11-18',
     INVITA_ENCENDIDA: INVITA_ENCENDIDA, CADA: CADA, DIAS_MADRUGADOR: DIAS_MADRUGADOR,
     METAS_RACHA: METAS_RACHA, PERFIL_METAS: PERFIL_METAS, SENSIBLES: SENSIBLES,
     TITULOS: TITULOS, PERSONAJES: PERSONAJES, ICONOS: IC,
@@ -659,6 +843,9 @@
     quincenas: quincenas, abierta: abierta, rachas: rachas, perfil: perfil, titulo: titulo,
     chip: chip, pildora: pildora,
     tarjetaQuincena: tarjetaQuincena, tarjetaUnaVez: tarjetaUnaVez, tarjetaRachas: tarjetaRachas, tarjetaIslas: tarjetaIslas, hojaIslas: hojaIslas,
+    DICIEMBRE_DESDE: DICIEMBRE_DESDE, ULTIMO_DIA_ENERO: ULTIMO_DIA_ENERO, diciembre: diciembre, tarjetaDiciembre: tarjetaDiciembre,
+    enTemporada: enTemporada, tarjetaNavidad: tarjetaNavidad, navidadSvg: navidadSvg, guirnalda: guirnalda,
+    textoNavidad: textoNavidad, compartirNavidad: compartirNavidad,
     hojaPersonaje: hojaPersonaje, pantallaLlegada: pantallaLlegada, tarjetaSvg: tarjetaSvg, textoCompartir: textoCompartir,
     abrirPersonaje: abrirPersonaje, abrirIslas: abrirIslas, elegir: elegir, listo: listo, completarPerfil: completarPerfil,
     mostrarLlegada: mostrarLlegada, compartir: compartir,

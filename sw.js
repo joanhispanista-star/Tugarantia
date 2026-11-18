@@ -2676,7 +2676,7 @@
    app/actualizar.js solo avisa de una versión nueva cuando la caché es MAYOR que la página. */
 /* 16-nov-2026, SIN NÚMERO TODAVÍA — rama misiones. SALE DESPUÉS de invita-y-crece (lun
    30-nov) y de cadenas (jue 3-dic): las tres tocan app/socio.html. Publicación prevista:
-   lun 14-dic. Al publicar, sobre lo que haya salido: CACHE y VERSION_SITIO al número
+   lun 7-dic, JUNTO con la Pista completa (Joan, 18-nov; ver su nota, abajo). Al publicar, sobre lo que haya salido: CACHE y VERSION_SITIO al número
    siguiente y pista-niveles.js?v= a ese mismo número (aquí y en socio.html).
    LAS MISIONES. Joan: «en los niveles vamos a motivar más el cliente como con misiones…
    que se sienta más interesante subir de nivel». Plan decidido el 16-nov («Sí, las
@@ -2695,6 +2695,36 @@
    Archivos: app/misiones.js y app/misiones.css NUEVOS; app/pista-niveles.js cambia
    (?v=); app/socio.html. Pruebas: pruebas/misiones.test.js. NO HAY BASE NUEVA: el
    personaje y el último mundo visto se guardan en el teléfono. */
+/* 18-nov-2026, SIN NÚMERO TODAVÍA — rama pista-completa, ENCIMA de misiones: salen JUNTAS el
+   lun 7-dic, y DESPUÉS de navidad (mié 25-nov), que trae app/temporada.js. Al publicar, lo
+   que dice la nota de misiones: CACHE y VERSION_SITIO al número siguiente y
+   pista-niveles.js?v= a ese número (aquí y en socio.html). misiones.js y misiones.css salen
+   por primera vez: sin versión.
+   LA PISTA COMPLETA. Joan, 18-nov: «quiero que las pistas se vean todas incluso la ultima,
+   para que el cliente vea hasta que nivel puede llegar y los beneficios… indica como puedes
+   subir de nivel mas rapido… mejora los graficos tambien». Decidido ese día («Sí, lo
+   recomendado», P1 a P7).
+   · Los nueve mundos a la vista y en color, con lo que abre cada uno (sale del motor: el
+     cupo desde, y el techo de CUPO_MAXIMO) y lo que falta para el siguiente. El último ya no
+     va velado: «Misterio · Todos los mundos», con su medalla de ocho puntas.
+   · El hito del millón, entre el mundo donde se alcanza y el siguiente: el préstamo con
+     garantía a cuotas, en pesos (simularPrestamoRespaldado), que solo respalda la garantía
+     GANADA. No es un mundo y no invita a pedir.
+   · «Cómo subir más rápido»: completar los datos (los sensibles, aparte y sin botón), pagar
+     en la fecha (de cada $1.000 de costo, $800 se vuelven garantía) e invitar ($5.000
+     cuando el invitado paga, hasta la garantía ganada). Pedir más no sube, y lo dice.
+   · Más luz en los dibujos: rayos y motas en UNA capa que se mueve con transform, sin
+     filtros; quieta con «menos movimiento» y apagada en el álbum (nueve islas a la vez).
+   · DICIEMBRE, solo si llegó app/temporada.js (rama navidad; sin él no sale nada):
+     «Diciembre puntual» (los cortes de diciembre pagados en la fecha dejan un árbol en la
+     isla desde el 1 de enero, y se queda) y la tarjeta de Navidad para WhatsApp (la isla,
+     el nombre de pila y el saludo; ni montos ni nada del crédito).
+   · El préstamo con garantía ya no dice «costo mensual fijo» en Inicio ni en la
+     calculadora: lo fijo es la cuota. Queda el texto de motor.js, que va con la próxima
+     versión del motor (su ?v= se sube en todas las páginas que lo piden).
+   Archivos: app/pista-niveles.js (?v=) y .css, app/misiones.js y .css, app/socio.html.
+   Pruebas: pruebas/pista-niveles.test.js y pruebas/misiones.test.js. NO HAY BASE NUEVA. No
+   se tocan motor.js ni puente.js. */
 const CACHE = 'tugarantia-v150';
 const BASE = new URL('./', self.location).pathname;
 

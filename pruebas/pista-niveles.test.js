@@ -92,7 +92,9 @@ describe('1 · cada nivel del motor tiene su mundo, completo', () => {
     M.NIVELES.forEach(n => {
       const grande = PN.mundo(n, 328, 400, { cielo: 0.3, margenAbajo: 30, f: 0.4, letra: 'M', piedras: [{ f: 0.2, sello: true }], meta: 'Meta · X' });
       assert.match(grande, /^<div class="pn-capas /, n + ' no devolvió sus capas');
-      assert.equal((grande.match(/<svg class="pn-capa /g) || []).length, 3, n + ' no tiene sus tres capas');
+      /* 18-nov-2026: cuatro, con la de las motas de luz; sinLuz la quita (el álbum). */
+      assert.equal((grande.match(/<svg class="pn-capa /g) || []).length, 4, n + ' no tiene sus cuatro capas');
+      assert.equal((PN.mundo(n, 156, 112, { sinLuz: true }).match(/<svg class="pn-capa /g) || []).length, 3, n + ': sinLuz sigue trayendo las motas');
       assert.equal(/NaN|undefined|Infinity/.test(grande), false, 'el dibujo de «' + n + '» trae una cuenta rota (NaN, undefined)');
     });
   });
@@ -249,10 +251,16 @@ describe('5 · lo que dice la pestaña', () => {
     assert.equal((isla.match(/<ellipse [^>]*fill="#0C0A0B" stroke="#F5C542"/g) || []).length, 1, 'no hay una piedra sin sello en la pista');
   });
 
-  test('los nueve mundos, con el estado de cada uno y cómo abrirlo', () => {
-    assert.ok(T.includes('Los 9 mundos Hierro pasaste Aluminio aquí estás Bronce desde $400 mil Plata desde $800 mil Oro desde $1,6 M'));
+  /* 18-nov-2026: era una tira de medallas para deslizar; ahora son los nueve
+     a la vista, con lo que abre cada uno (Joan: «para que el cliente vea hasta
+     que nivel puede llegar y los beneficios»). */
+  test('los nueve mundos, con lo que abre cada uno, el estado y cómo abrirlo', () => {
+    const i = T.indexOf('Los 9 mundos');
+    assert.ok(T.includes('Los 9 mundos, y lo que abre cada uno Hierro · La forja Tu cupo arranca con tus datos: hasta ' + COP(M.CUPON_KYC_MAXIMO) +
+      ' ✓ pasaste Aluminio · El cielo Cupo desde $200 mil aquí estás Bronce · El templo Cupo desde $400 mil faltan ' + COP(102400) +
+      ' Plata · La luna Cupo desde $800 mil'), T.slice(i, i + 400));
     M.NIVELES.forEach(n => assert.ok(H.includes('onclick="PistaNiveles.abrir(\'' + n + '\')"'), 'no se puede tocar «' + n + '»'));
-    assert.equal((H.match(/<button type="button" class="pn-mundo /g) || []).length, 9, 'los mundos no son botones de verdad');
+    assert.equal((H.match(/<button type="button" class="pn-fm pn-/g) || []).length, 9, 'los mundos no son botones de verdad');
   });
 
   test('NO dice cuándo llegó a este mundo: esa fecha no viaja en el paquete', () => {
@@ -324,8 +332,13 @@ describe('7 · es crédito: lo que estas pantallas no pueden decir', () => {
 
   test('nada invita a pedir: la palabra solo sale para negarlo', () => {
     textos.forEach(t => {
-      const sinLaNegacion = t.replace(/Pedir no suma: suma pagar\./g, '').replace(/Pedir no suma\./g, '');
-      assert.equal(/\bped[ií]|\bpide\b|\bpidas\b|solicit|presta|más cupo|sube tu cupo/i.test(sinLaNegacion), false,
+      /* 18-nov-2026: «Cómo subir más rápido» cierra con su propia negación, y
+         el hito del millón NOMBRA el préstamo con garantía, sin botón ni
+         «pide»: Joan pidió que se vieran los beneficios. Nada más puede
+         nombrarlo, y por eso «presta» ahora también caza «préstamo». */
+      const sinLaNegacion = t.replace(/Pedir no suma: suma pagar\./g, '').replace(/Pedir no suma\./g, '')
+        .replace(/Pedir más no te sube: te sube lo que pagas\./g, '').replace(/Préstamo con garantía:/g, '');
+      assert.equal(/\bped[ií]|\bpide\b|\bpidas\b|solicit|pr[eé]sta|más cupo|sube tu cupo/i.test(sinLaNegacion), false,
         'una pantalla de la pista habla de pedir o de prestar: ' + sinLaNegacion.slice(0, 200));
     });
   });
@@ -454,6 +467,7 @@ describe('9 · el dibujo: liviano, sin nada de afuera y con la ley de la paleta'
     assert.match(m[1], /\.pn-isla\{animation:none\}/);
     assert.match(m[1], /\.pn-pulso\{animation:none/);
     assert.match(m[1], /\.pn-hoja\{animation:none\}/);
+    assert.match(m[1], /\.pn-motas\{animation:none\}/, 'las motas de luz siguen subiendo con «reducir movimiento» (18-nov)');
   });
 
   test('solo se mueve la capa de la isla, y con transform', () => {
@@ -468,7 +482,9 @@ describe('9 · el dibujo: liviano, sin nada de afuera y con la ley de la paleta'
 describe('10 · las clases: todas con su prefijo, y todas con su estilo', () => {
   const DE_LA_CASA = ['laca', 'card', 'etq', 'sub', 'muted', 'btn', 'sec', 'oro-tinta'];
   /* Marcas que el dibujo pone y que no necesitan regla propia. */
-  const SIN_ESTILO = ['pn-fondo', 'pn-frente', 'pn-paso'];
+  /* 18-nov-2026: y pn-delante, la fila de un mundo de más adelante: sin regla
+     a propósito, porque ya no se apaga (un gris dice «no es para ti»). */
+  const SIN_ESTILO = ['pn-fondo', 'pn-frente', 'pn-paso', 'pn-delante'];
   const html = [0, 297600, 30000000].map(g => PN.vista({ nombre: 'A', garantia: g, creditos: EJEMPLO.creditos })).join('') +
     (PN.vista(EJEMPLO), M.NIVELES.map(n => PN.hoja(n)).join(''));
   const usadas = new Set();
@@ -583,9 +599,11 @@ describe('11 · la pestaña en la app: lo mismo que dicen las otras pantallas', 
   test('los centavos son los de la página (centavosDeGarantia), no un número escrito aquí', async () => {
     const A = await app(paqueteDe(historia()));
     A.ev("irA('pista')");
-    assert.ok(plano(cuerpo(A)).includes('te suma garantía: ' + A.ev('centavosDeGarantia()') + ' centavos de cada peso de costo'));
+    /* 18-nov-2026: la regla va en «Cómo subir más rápido», en pesos: de cada
+       $1.000 de costo, los centavos por diez. */
+    assert.ok(plano(cuerpo(A)).includes('De cada $1.000 de costo que pagas, ' + COP(A.ev('centavosDeGarantia()') * 10) + ' se vuelven garantía'));
     A.ev("var centavosDeGarantia = function () { return 77; }; irA('pista')");
-    assert.ok(plano(cuerpo(A)).includes('77 centavos de cada peso de costo'), 'la pista no usa el número que le pasa la página');
+    assert.ok(plano(cuerpo(A)).includes('De cada $1.000 de costo que pagas, $770 se vuelven garantía'), 'la pista no usa el número que le pasa la página');
   });
 
   test('una piedra por cada crédito pagado que cayó en este mundo, y los sellos del Historial', async () => {
@@ -721,5 +739,128 @@ describe('13 · es adorno: si no llega, la app sigue igual', () => {
     assert.match(CSS, /@media \(max-width:399px\)\{\s*#nav button\{font-size:10\.5px/);
     const barra = SOCIO.slice(SOCIO.indexOf('<nav class="nav" id="nav">'), SOCIO.indexOf('</nav>')).replace(/<!--[\s\S]*?-->/g, '');
     assert.deepEqual([...barra.matchAll(/data-t="([a-z]+)"/g)].map(m => m[1]), ['inicio', 'calc', 'garantia', 'pista', 'historial', 'chat']);
+  });
+});
+
+/* ========================================================================
+   12 · LA PISTA COMPLETA — 18 de noviembre de 2026
+   Joan: «quiero que las pistas se vean todas incluso la ultima, para que el
+   cliente vea hasta que nivel puede llegar y los beneficios… indica como
+   puedes subir de nivel mas rapido… mejora los graficos». Aprobó lo
+   recomendado («Sí, lo recomendado»): el mapa de los 9 mundos con el hito del
+   millón, el último destapado («Todos los mundos»), «Cómo subir más rápido» y
+   la luz («Luz y vida»). Lo que cuidan estas pruebas es que lo nuevo no
+   prometa lo que el motor no da y que no le pese a un teléfono barato.
+   ======================================================================== */
+describe('12 · la Pista completa: todos los mundos, lo que abren y cómo subir', () => {
+
+  test('el último ya no se esconde: su lema, sus colores, y nada de «?» ni niebla', () => {
+    assert.equal(PN.MUNDOS.misterio.lema, 'Todos los mundos');
+    assert.equal(PN.MUNDOS.misterio.velado, undefined);
+    const h = PN.mundo('misterio', 328, 400, { cielo: 0.3 });
+    assert.equal(/>\?</.test(h), false, 'el último mundo sigue con su «?»');
+    assert.equal(/pnnie\d/.test(h), false, 'el último mundo sigue con su niebla');
+    assert.equal(/pn-velado/.test(PN.vista({ garantia: 0, creditos: [] })) || /\.pn-velado/.test(CSS), false);
+    assert.equal(/Se descubre|se descubre al llegar/.test(plano(PN.hoja('misterio'))), false);
+  });
+
+  test('en el último giran las medallas de los otros ocho, con su metal escrito (una imagen no ve el CSS)', () => {
+    const h = PN.mundo('misterio', 328, 400, { cielo: 0.3 });
+    Object.keys(PN.MUNDOS).filter(n => n !== 'misterio').forEach(n => {
+      assert.ok(h.includes(PN.METAL[n][2]), 'falta la medalla de «' + n + '» en el último mundo');
+    });
+    assert.equal(/var\(--pn-m[1-5]\)/.test(PN.medallaEn('oro', 50, 50, 20)), false, 'la medalla en órbita depende del CSS');
+  });
+
+  test('la tabla METAL del dibujo es la misma de la hoja de estilos', () => {
+    Object.keys(PN.MUNDOS).forEach(n => {
+      const regla = new RegExp('\\.' + PN.MUNDOS[n].clase + '\\{([^}]*)\\}').exec(CSS);
+      assert.ok(regla, 'la hoja no trae el metal de «' + n + '»');
+      PN.METAL[n].forEach((c, i) => assert.match(regla[1], new RegExp('--pn-m' + (i + 1) + ':' + c + '(;|$)', 'i'),
+        '«' + n + '»: --pn-m' + (i + 1) + ' no es ' + c + ' en la hoja'));
+    });
+  });
+
+  test('lo que abre cada mundo sale del motor, y no promete tasas ni regalos', () => {
+    const f = PN.donde(0).filas;
+    assert.equal(PN.abre(f[0]), 'Tu cupo arranca con tus datos: hasta ' + COP(M.CUPON_KYC_MAXIMO));
+    /* con espacio duro: «$400 mil» no se parte en un teléfono de 320 px */
+    assert.equal(PN.abre(f[2]), 'Cupo desde $400\u00A0mil');
+    assert.ok(f[8].desde >= M.CUPO_MAXIMO);
+    assert.equal(PN.abre(f[8]), 'Tu cupo llega al techo: $20\u00A0M');
+    const t = plano(PN.vista({ garantia: 0, creditos: [], ganada: 0 }));
+    assert.equal(/tasa|descuento|regalo|bono|gratis|más barato|menos costo|premio/i.test(t), false, t.slice(0, 300));
+    /* el préstamo con garantía lo abre la garantía GANADA, no un mundo: en la
+       fila de Oro no va (el boceto lo decía y era falso para quien llega a Oro
+       sin haberla ganado pagando) */
+    assert.equal(/Oro · El sol [^·]*préstamo/i.test(t), false);
+  });
+
+  test('el hito del millón va entre Plata y Oro, con los números de la calculadora', () => {
+    const ej = M.simularPrestamoRespaldado(M.MONTO_MINIMO_RESPALDADO, 4);
+    const t = plano(PN.vista({ garantia: 297600, creditos: [], ganada: 250000 }));
+    const i = t.indexOf('Plata · La luna'), j = t.indexOf('Con ' + COP(M.MONTO_MINIMO_RESPALDADO) + ' de garantía ganada'), k = t.indexOf('Oro · El sol');
+    assert.ok(i >= 0 && i < j && j < k, 'el hito no va entre Plata y Oro');
+    assert.ok(t.includes('a cuotas mensuales fijas, de ' + M.PLAZO_RESPALDADO_MIN + ' a ' + M.PLAZO_RESPALDADO_MAX + ' meses'));
+    assert.ok(t.includes('cuotas de ' + COP(ej.cuota_fija) + ' y ' + COP(ej.costo_total) + ' de costo en total'));
+    assert.ok(t.includes('Llevas ' + COP(250000) + ' de garantía ganada. Te faltan ' + COP(750000) + '.'));
+  });
+
+  test('el hito: «abierto» con la libre, «ya llegaste» si la ganada respalda algo, y nada si no se sabe', () => {
+    const uno = d => plano(PN.hitoMillon(d));
+    assert.ok(uno({ ganada: 1200000, respaldoLibre: 1100000 }).includes('Ya lo tienes abierto.'));
+    assert.ok(uno({ ganada: 1200000, respaldoLibre: 300000 }).includes('Ya llegaste. Hoy parte de tu garantía ganada respalda lo que debes; al pagarlo, se libera.'));
+    assert.equal(/Llevas|Ya /.test(uno({})), false, 'sin la ganada no puede decir cuánto lleva');
+    assert.equal(/<button|onclick/.test(PN.hitoMillon({ ganada: 2000000, respaldoLibre: 2000000 })), false, 'el hito no puede tener botón: no invita a pedir');
+  });
+
+  test('cómo subir más rápido: los datos sin los sensibles, pagar, invitar, y solo los botones que la página da', () => {
+    const t = plano(PN.comoSubir({ perfil: {}, centavos: 80 }));
+    const faltan = M.garantiaPorDatos({}).faltantes, comunes = faltan.filter(x => !['foto_selfie', 'ubicacion'].includes(x.id));
+    assert.ok(t.includes('Te faltan ' + comunes.length + ' y valen ' + COP(comunes.reduce((s, x) => s + x.valor, 0)) + ' de garantía, una sola vez.'), t);
+    const sens = faltan.filter(x => ['foto_selfie', 'ubicacion'].includes(x.id)).reduce((s, x) => s + x.valor, 0);
+    assert.ok(t.includes('Tu ubicación y la selfie suman ' + COP(sens) + ' más, cada una con su autorización aparte.'));
+    assert.ok(t.includes('De cada $1.000 de costo que pagas, $800 se vuelven garantía. Pagar tarde no te la quita, pero el recargo por atraso no suma nada.'));
+    assert.ok(t.includes(COP(M.GARANTIA_POR_REFERIDO) + ' de garantía por cada persona, cuando pague su crédito, y hasta la garantía que tú ya te ganaste pagando.'));
+    assert.ok(t.endsWith('Pedir más no te sube: te sube lo que pagas.'));
+    assert.equal(/Muy pronto/i.test(t), false, 'invitar ya suma garantía hoy: no es «muy pronto»');
+    assert.equal(/<button/.test(PN.comoSubir({ perfil: {}, centavos: 80 })), false, 'sin los ganchos de la página no hay botones');
+    const con = PN.comoSubir({ perfil: {}, centavos: 80, alInvitar() {}, alCompletarPerfil() {} });
+    assert.match(con, /id="pnDatos" onclick="PistaNiveles\.completarDatos\(\)"/);
+    assert.match(con, /id="pnInvitar" onclick="PistaNiveles\.invitar\(\)"/);
+    /* con el perfil completo (menos lo sensible) ya no dice que le falta nada */
+    const casi = {}; comunes.forEach(x => { casi[x.id] = 'x'; });
+    assert.equal(/Completa tus datos/.test(plano(PN.comoSubir({ perfil: casi, centavos: 80, alCompletarPerfil() {} }))), false,
+      'le pide los datos sensibles a quien solo le faltan esos');
+  });
+
+  test('los botones de «Cómo subir» llaman lo que la página les dio', () => {
+    let datos = 0, invito = 0;
+    PN.vista({ garantia: 0, creditos: [], perfil: {}, alCompletarPerfil() { datos++; }, alInvitar() { invito++; } });
+    PN.completarDatos(); PN.invitar();
+    assert.deepEqual([datos, invito], [1, 1]);
+  });
+
+  test('la luz: una capa de motas que se mueve entera con transform, quieta con «reducir movimiento», y sin filtros', () => {
+    const h = PN.mundo('oro', 328, 400, { cielo: 0.3 });
+    assert.equal((h.match(/<svg class="pn-capa pn-motas"/g) || []).length, 1);
+    assert.match(CSS, /\.pn-motas\{animation:pn-motas [^}]*\}/);
+    assert.match(CSS, /@keyframes pn-motas\{from\{transform:translateY\(0\)\}to\{transform:translateY\(-2\.5%\)\}\}/);
+    const todo = M.NIVELES.map(n => PN.mundo(n, 328, 400, { cielo: 0.3 })).join('');
+    assert.equal(/feGaussianBlur|<filter|filter=|mix-blend|saturate\(/i.test(todo), false, 'un filtro en el dibujo traba un teléfono barato');
+  });
+
+  test('el árbol de Navidad tiene sitio en las nueve islas, lejos de la pista y de lo construido', () => {
+    M.NIVELES.forEach(n => {
+      const s = PN.sitioArbol(n);
+      assert.ok(Array.isArray(s) && s.length === 2 && s.every(Number.isFinite), '«' + n + '» no tiene sitio para el árbol');
+      const aLaCosa = Math.min(...PN.sitios(n).map(p => Math.hypot(p[0] - s[0], p[1] - s[1])));
+      const aLaPista = Math.min(...PN.muestras(PN.CIRCUITOS[n], 400).map(p => Math.hypot(p[0] - s[0], p[1] - s[1])));
+      assert.ok(aLaCosa > 20, '«' + n + '»: el árbol cae encima de una cosa de la isla');
+      assert.ok(aLaPista > 20, '«' + n + '»: el árbol cae en la pista');
+    });
+    assert.ok(PN.mundo('bronce', 328, 400, { navidad: true }).includes(PN.ARBOL_NAVIDAD));
+    assert.equal(PN.mundo('bronce', 328, 400, {}).includes(PN.ARBOL_NAVIDAD), false, 'el árbol sale sin haberlo ganado');
+    assert.equal(PN.ORDEN_COSAS.length, 12, 'el árbol no puede quitarle el sitio a una cosa de las estrellas');
   });
 });

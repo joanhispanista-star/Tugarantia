@@ -31,7 +31,11 @@
 .pn-m-platino{--pn-m1:#FFFFFF;--pn-m2:#E6EBE9;--pn-m3:#BEC6C3;--pn-m4:#858D8A;--pn-m5:#3F4644;--pn-mx:#7DF2C9}
 .pn-m-diamante{--pn-m1:#FFFFFF;--pn-m2:#DCF6FF;--pn-m3:#93D6F0;--pn-m4:#3F93B8;--pn-m5:#173F55;--pn-mx:#F2B8FF}
 .pn-m-materia{--pn-m1:#E4DAFF;--pn-m2:#A991FF;--pn-m3:#6E4DF2;--pn-m4:#3A2496;--pn-m5:#150A36;--pn-mx:#FF8AD8}
-.pn-m-misterio{--pn-m1:#A8A8A8;--pn-m2:#7A7A7A;--pn-m3:#4E4E4E;--pn-m4:#2E2E2E;--pn-m5:#141414;--pn-mx:#BDBDBD}
+/* El último ya no va en gris (18-nov, «que las pistas se vean todas incluso la
+   ultima»): su metal es el de todos los mundos juntos, del marfil del oro al
+   violeta de la galaxia. pista-niveles.js tiene la misma tabla (METAL) para
+   las medallas que dibuja dentro de un SVG, y una prueba las compara. */
+.pn-m-misterio{--pn-m1:#FFF8EA;--pn-m2:#F6C9E6;--pn-m3:#B49CFF;--pn-m4:#5A3FA6;--pn-m5:#1A1036;--pn-mx:#FFE7A3}
 
 /* ---------- el mundo: tres capas ----------
    Fondo, isla y frente, apiladas. Solo la isla se mueve, y solo con
@@ -44,9 +48,16 @@
 @keyframes pn-flota{0%,100%{transform:translateY(0)}50%{transform:translateY(-1%)}}
 .pn-pulso{transform-box:fill-box;transform-origin:center;animation:pn-pulso 2.2s ease-out infinite}
 @keyframes pn-pulso{0%{transform:scale(.55);opacity:.95}100%{transform:scale(1.55);opacity:0}}
+/* LAS MOTAS DE LUZ (18-nov, «mejora los gráficos»): una sola capa que sube y
+   baja entera, despacio. Se mueve con transform, como la isla, y no mota por
+   mota: veinte animaciones sueltas son veinte repintadas por cuadro en un
+   Android barato; una capa entera la mueve el teléfono sin repintar nada. */
+.pn-motas{animation:pn-motas 9s ease-in-out infinite alternate;will-change:transform}
+@keyframes pn-motas{from{transform:translateY(0)}to{transform:translateY(-2.5%)}}
 /* Quien pide menos movimiento no ve flotar la isla ni latir el marcador. */
 @media (prefers-reduced-motion:reduce){
   .pn-isla{animation:none}
+  .pn-motas{animation:none}
   .pn-pulso{animation:none;opacity:.45}
   .pn-hoja{animation:none}
 }
@@ -109,8 +120,23 @@
   color:color-mix(in srgb, var(--blanco-laca) 60%, transparent)}
 .pn-cifras b{color:var(--blanco-laca)}
 
-/* ---------- lo que te mueve, y los sellos ---------- */
-.pn-p{margin:var(--e2) 0 0;font-size:14.5px}
+/* ---------- cómo subir más rápido, y los sellos ----------
+   Tres pasos numerados. La cifra va en --amarillo-tinta porque es garantía
+   (lo que el socio construye) y esto es papel: el amarillo de verdad solo
+   vive en la laca. Los botones son los secundarios de la casa (.btn.sm.sec). */
+.pn-sube{list-style:none;margin:var(--e2) 0 0;padding:0;counter-reset:pn-paso}
+.pn-sube > li{counter-increment:pn-paso;position:relative;padding:10px 0 10px 40px;border-top:1px solid var(--linea)}
+.pn-sube > li:first-child{border-top:0;padding-top:4px}
+.pn-sube > li::before{content:counter(pn-paso);position:absolute;left:0;top:8px;width:28px;height:28px;border-radius:9px;
+  display:grid;place-items:center;font-weight:800;font-size:14px;background:var(--laca);color:var(--amarillo)}
+.pn-sube > li:first-child::before{top:2px}
+.pn-sube p{margin:0;font-size:14px;line-height:1.4}
+.pn-sube .pn-nota-s{margin-top:var(--e1);font-size:12.5px;color:var(--gris)}
+.pn-c{color:var(--amarillo-tinta);font-variant-numeric:tabular-nums}
+/* .pn-boton.btn y no .btn.pn-boton: toda regla de esta hoja empieza por pn-
+   (ver la prueba «y la hoja no le cambia la cara a nada que no sea suyo»). */
+.pn-boton.btn{display:inline-block;width:auto;margin-top:var(--e2)}
+.pn-pie-s{margin:var(--e2) 0 0;font-size:12.5px;color:var(--gris)}
 .pn-sellos{margin-top:var(--e3);padding:12px 14px}
 .pn-cabeza-s{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .pn-cabeza-s span{font-size:12px;color:color-mix(in srgb, var(--blanco-laca) 62%, transparent);white-space:nowrap}
@@ -125,22 +151,49 @@
 .pn-si .pn-q{color:color-mix(in srgb, var(--amarillo) 85%, transparent)}
 .pn-vacio{margin:var(--e2) 0 0;font-size:13px;color:color-mix(in srgb, var(--blanco-laca) 66%, transparent)}
 
-/* ---------- los mundos, en fila ---------- */
-.pn-fila{overflow-x:auto;margin:6px calc(var(--e4) * -1) 0;padding:0 var(--e4);scrollbar-width:none;-webkit-overflow-scrolling:touch}
-.pn-fila::-webkit-scrollbar{display:none}
-.pn-tira{display:flex;gap:4px;width:max-content;position:relative;padding:8px 0 4px}
-/* el hilo que une las medallas: en tinta hasta donde vas, en línea lo que falta */
-.pn-tira::before{content:'';position:absolute;top:33px;left:37px;right:37px;height:3px;border-radius:3px;
-  background:linear-gradient(90deg, var(--tinta) var(--pn-hecho,0%), var(--linea) var(--pn-hecho,0%))}
-.pn-mundo{flex:none;width:74px;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;
-  border:0;background:transparent;font-family:inherit;cursor:pointer;padding:0;color:var(--tinta)}
-.pn-anillo{border-radius:50%;padding:3px;background:var(--papel)}
-.pn-aqui .pn-anillo{box-shadow:0 0 0 2px var(--tinta)}
-.pn-nm{font-size:11px;font-weight:700;line-height:1.15;text-align:center;margin-top:2px}
-.pn-rq{font-size:10px;color:var(--gris);font-variant-numeric:tabular-nums;line-height:1.2;text-align:center;white-space:nowrap}
-.pn-aqui .pn-rq{color:var(--amarillo-tinta);font-weight:800}
-.pn-delante .pn-medalla{filter:grayscale(.55) opacity(.72)}
-.pn-velado .pn-medalla{filter:grayscale(1) opacity(.45)}
+/* ---------- los nueve mundos, y lo que abre cada uno ----------
+   (18-nov: era una tira de medallas para deslizar, con el último velado.)
+   Todos a la vista y en color: el cliente tiene que ver hasta dónde llega. Lo
+   recorrido no se apaga del todo, y lo que viene tampoco va en gris: un gris
+   dice «no es para ti», y es justo lo contrario. Cada fila es un botón que
+   abre la hoja de su mundo. */
+.pn-fm{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;width:100%;margin:0;
+  padding:9px 0;border:0;border-top:1px solid var(--linea);background:transparent;color:var(--tinta);
+  font:inherit;text-align:left;cursor:pointer}
+.pn-mapa .etq + .pn-fm{border-top:0}
+.pn-fm-med{display:block;line-height:0}
+.pn-fm-txt{display:flex;flex-direction:column;gap:1px;min-width:0}
+.pn-fm-nom{font-weight:800;font-size:14.5px;line-height:1.2}
+.pn-fm-lema{font-weight:500;font-size:12.5px;color:var(--gris)}
+.pn-fm-abre{font-size:13px;line-height:1.35}
+.pn-fm-tit{font-size:11.5px;font-style:italic;color:var(--gris)}
+.pn-fm-der{font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;text-align:right;
+  line-height:1.25;white-space:nowrap;color:var(--gris);font-variant-numeric:tabular-nums}
+.pn-fm.pn-paso .pn-medalla{opacity:.72}
+/* «Aquí estás» lleva un filete de tinta, no un fondo amarillo: sobre papel el
+   amarillo no va (la ley de la paleta), y el filete se ve igual en oscuro. */
+.pn-fm.pn-aqui{margin:0 calc(var(--e2) * -1);padding:9px var(--e2);width:calc(100% + var(--e2) * 2);
+  border-radius:12px;box-shadow:inset 0 0 0 1.5px var(--tinta)}
+/* junto a una caja (la fila de «aquí» o el hito) la raya sobra */
+.pn-fm.pn-aqui + .pn-fm,.pn-hito + .pn-fm{border-top:0}
+.pn-fm.pn-aqui .pn-fm-der,.pn-fm.pn-sigue .pn-fm-der{color:var(--amarillo-tinta)}
+.pn-fm:focus-visible{outline:2px solid var(--azul-texto);outline-offset:2px;border-radius:10px}
+.pn-mapa .pn-pie-s{margin-top:var(--e3)}
+
+/* EL HITO DEL MILLÓN, entre el mundo donde se alcanza y el siguiente. Es azul
+   porque es el préstamo con garantía, que en esta app es azul de punta a
+   punta. El candado es un trazo: se pinta con el color del texto. */
+.pn-hito{margin:var(--e1) 0;padding:10px 12px 11px;border-radius:12px;background:var(--azul-tinte);
+  border:1px solid color-mix(in srgb, var(--azul-texto) 28%, transparent);color:var(--tinta)}
+.pn-hito-k{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--azul-texto)}
+.pn-hito-k svg{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.pn-hito p{margin:var(--e1) 0 0;font-size:13px;line-height:1.4}
+.pn-hito-riel{height:7px;border-radius:9px;margin:var(--e2) 0 3px;overflow:hidden;
+  background:color-mix(in srgb, var(--azul-texto) 16%, transparent)}
+.pn-hito-riel i{display:block;height:100%;border-radius:9px;background:var(--azul-texto)}
+.pn-hito-va{font-size:12px;line-height:1.35;color:var(--azul-texto)}
+.pn-hito-va b{font-variant-numeric:tabular-nums}
 
 /* ---------- la hoja de un mundo ----------
    Fija sobre la pantalla, por encima de la barra de pestañas (z-index 20). */

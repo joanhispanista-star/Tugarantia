@@ -374,7 +374,8 @@ describe('9 · en la app: dentro de la Pista y en su orden', () => {
     const A = await app(armar(laura(), HOY));
     A.ev("irA('pista')");
     const t = plano(cuerpo(A));
-    const orden = ['Aquí estás', 'Tus misiones de esta quincena', 'Lo que te mueve', 'Misiones de una vez',
+    /* 18-nov-2026: «Lo que te mueve» pasó a ser «Cómo subir más rápido» */
+    const orden = ['Aquí estás', 'Tus misiones de esta quincena', 'Cómo subir más rápido', 'Misiones de una vez',
       'Tu racha de pagos en fecha', 'Tus islas', 'Los 9 mundos'].map(s => t.indexOf(s));
     orden.forEach((i, k) => assert.ok(i >= 0, 'falta el bloque ' + k));
     assert.deepEqual(orden.slice().sort((a, b) => a - b), orden);
@@ -395,7 +396,8 @@ describe('9 · en la app: dentro de la Pista y en su orden', () => {
   test('la pestaña no carga las islas del álbum: se dibujan al abrirlo', async () => {
     const A = await app(armar(laura(), HOY));
     A.ev("irA('pista')");
-    assert.equal((cuerpo(A).match(/class="pn-capa /g) || []).length, 3, 'solo la isla grande (tres capas)');
+    /* 18-nov-2026: cuatro capas, con la de las motas de luz */
+    assert.equal((cuerpo(A).match(/class="pn-capa /g) || []).length, 4, 'solo la isla grande (cuatro capas)');
     assert.equal(A.ev('Misiones.abrirIslas()'), true);
     assert.ok((A.elem('pnHoja').innerHTML.match(/class="pn-capa /g) || []).length >= 9);
     A.ev('Misiones.listo()');
@@ -439,7 +441,7 @@ describe('9 · en la app: dentro de la Pista y en su orden', () => {
     A.ev("irA('pista')");
     const h = cuerpo(A);
     assert.equal(/mi-card|mi-pildora|mi-titulo/.test(h), false);
-    assert.ok(plano(h).includes('Lo que te mueve'));
+    assert.ok(plano(h).includes('Cómo subir más rápido'));
     assert.deepEqual(A.avisos, []);
   });
 });
@@ -479,5 +481,166 @@ describe('11 · lo que llega al teléfono', () => {
     /* el amarillo va por su token, salvo en las chispas de la llegada (un dibujo) */
     const sinChispas = CSS.replace(/\.mi-chispas\{[^}]*\}/, '');
     assert.doesNotMatch(sinChispas, /#F5C542/i);
+  });
+});
+
+/* ========================================================================
+   12 · DICIEMBRE — 18 de noviembre de 2026 (P7 de Joan: «Sí, lo recomendado»)
+   «Diciembre puntual»: quien paga en la fecha todos sus cortes de diciembre
+   gana un árbol de Navidad en su isla, y se queda. Y la tarjeta de Navidad
+   para WhatsApp. Lo que cuidan estas pruebas:
+     · que el árbol no invite a pedir: sin un corte en diciembre la tarjeta
+       ni sale, y lo dice («no hace falta pedir otro»);
+     · que se decida el 1 de enero y no antes, y que se quede después;
+     · que la tarjeta de Navidad no lleve montos, ni el crédito, ni el nivel;
+     · que sea adorno: sin temporada.js no hay tarjeta de Navidad.
+   ======================================================================== */
+describe('12 · diciembre: «Diciembre puntual» y la tarjeta de Navidad', () => {
+  /* Laura con sus cortes de diciembre (los de la base son hasta el 30-nov). */
+  const conDiciembre = (...extra) => laura().concat(extra);
+  const dic15 = pago => cr('c16', 300000, '2026-12-01', '2026-12-15', pago);
+  const dic31 = pago => cr('c17', 300000, '2026-12-16', '2026-12-31', pago);
+  const de = (pres, hoy, extra) => MI.calcular(datosDe(armar(pres, hoy), Object.assign({ hoy }, extra || {})));
+
+  test('se decide el 1 de enero: en diciembre, aunque todo vaya en la fecha, todavía no hay árbol', () => {
+    const pres = conDiciembre(dic15('2026-12-15'), dic31('2026-12-30'));
+    const dic = de(pres, '2026-12-31');
+    assert.equal(dic.diciembre.decidido, false);
+    assert.deepEqual(dic.navidad_en, {});
+    const ene = de(pres, '2027-01-01');
+    assert.equal(ene.diciembre.logrado, true);
+    assert.deepEqual(ene.navidad_en, { bronce: true }, 'el árbol cae en el mundo donde se pagó el último corte de diciembre');
+  });
+
+  test('y se queda: después del 7 de enero ya no hay tarjeta, pero el árbol sigue en su isla', () => {
+    const mi = de(conDiciembre(dic15('2026-12-15'), dic31('2026-12-30')), '2027-03-10');
+    assert.equal(mi.diciembre, null);
+    assert.deepEqual(mi.navidad_en, { bronce: true });
+    assert.equal(MI.tarjetaDiciembre(mi), '');
+  });
+
+  test('uno pagado después del corte, o sin pagar al cerrar el año: esta vez no se dio', () => {
+    const tarde = de(conDiciembre(dic15('2026-12-15'), dic31('2027-01-02')), '2027-01-03');
+    assert.equal(tarde.diciembre.logrado, false);
+    assert.deepEqual(tarde.navidad_en, {});
+    assert.ok(plano(MI.tarjetaDiciembre(tarde)).includes('Esta vez no se dio. El próximo diciembre vuelve.'));
+    const sinPagar = de(conDiciembre(dic15(null)), '2027-01-02');
+    assert.equal(sinPagar.diciembre.logrado, false);
+    assert.equal(sinPagar.diciembre.cortes[0].estado, 'vencida');
+  });
+
+  test('sin un corte en diciembre la tarjeta no sale: el árbol no puede invitar a pedir', () => {
+    ['2026-12-01', '2026-12-20', '2027-01-05'].forEach(hoy => {
+      const mi = de(laura(), hoy);
+      assert.equal(mi.diciembre, null, hoy);
+      assert.equal(MI.tarjetaDiciembre(mi), '', hoy);
+    });
+    const t = plano(MI.tarjetaDiciembre(de(conDiciembre(dic15(null)), '2026-12-10')));
+    assert.ok(t.includes('Cuentan los créditos que ya tienes: no hace falta pedir otro.'));
+    const sinLaNegacion = t.replace(/no hace falta pedir otro\./g, '');
+    assert.equal(/\bped[ií]|\bpide\b|\bpidas\b|solicit|pr[eé]sta|cupo|renov/i.test(sinLaNegacion), false, sinLaNegacion);
+  });
+
+  test('en diciembre, un renglón por corte: hecho, por pagar (con su fecha) o pasado, sin regaño', () => {
+    const abierto = plano(MI.tarjetaDiciembre(de(conDiciembre(dic15(null)), '2026-12-10')));
+    assert.ok(abierto.includes('Corte del 15 de diciembre Tienes hasta el martes 15 de diciembre.'), abierto);
+    assert.ok(abierto.includes('el 1 de enero a tu isla le sale un árbol de Navidad, y se queda'));
+    const hecho = plano(MI.tarjetaDiciembre(de(conDiciembre(dic15('2026-12-14'), dic31(null)), '2026-12-20')));
+    assert.ok(hecho.includes('Corte del 15 de diciembre Pagado en la fecha. Corte del 31 de diciembre Tienes hasta el jueves 31 de diciembre.'), hecho);
+    const paso = plano(MI.tarjetaDiciembre(de(conDiciembre(dic15('2026-12-17')), '2026-12-20')));
+    assert.ok(paso.includes('Se pagó después del corte. Este diciembre el árbol no sale. El próximo diciembre vuelve.'), paso);
+    assert.equal(/le sale un árbol/.test(paso), false, 'promete el árbol cuando ya no se puede');
+    assert.equal(/mora|multa|castig|deb[ei]s/i.test(abierto + hecho + paso), false);
+  });
+
+  test('un corte cerrado sin pagar dice «Cerrado» (como el Historial), no que se pagó tarde', () => {
+    const q = MI.quincenas([{ codigo: 'P', corte: '2026-12-15', pagado: true, fecha_pagado: '2026-12-10', garantia: 1, cerrado_con_perdida: true }], []);
+    const x = MI.diciembre(q, '2026-12-20', 'bronce').actual;
+    assert.equal(x.cortes[0].estado, 'cerrado');
+    assert.equal(x.se_paso, true);
+  });
+
+  test('si la piedra del último corte no dice el mundo, el árbol va a la isla de hoy: lo logró', () => {
+    const q = MI.quincenas([{ codigo: 'Z', corte: '2026-12-15', pagado: true, fecha_pagado: '2026-12-15', garantia: 1 }], []);
+    assert.equal(q[0].nivel, null);
+    assert.deepEqual(MI.diciembre(q, '2027-01-02', 'plata').navidad_en, { plata: true });
+    assert.equal(MI.diciembre(q, '2027-01-02', 'plata').actual.logrado, true);
+  });
+
+  test('cuenta desde diciembre de 2026: un diciembre en el que nadie vio la misión no da árbol', () => {
+    assert.equal(MI.DICIEMBRE_DESDE, 2026);
+    const q = MI.quincenas([{ codigo: 'V', corte: '2025-12-15', pagado: true, fecha_pagado: '2025-12-15', garantia: 1 }], []);
+    assert.deepEqual(MI.diciembre(q, '2026-01-02'), { actual: null, navidad_en: {} });
+  });
+
+  test('el árbol se ve en su isla: en la Pista y en el álbum', () => {
+    const mi = de(conDiciembre(dic15('2026-12-15'), dic31('2026-12-30')), '2027-01-03');
+    const h = PN.vista(Object.assign(datosDe(armar(conDiciembre(dic15('2026-12-15'), dic31('2026-12-30')), '2027-01-03')), { hoy: '2027-01-03' }));
+    assert.ok(h.slice(0, h.indexOf('pn-pie')).includes(PN.ARBOL_NAVIDAD), 'el árbol no está en la isla de la Pista');
+    assert.match(JS, /sinLuz: true, cosas: x\.cosas, navidad: arbolEn\(mi, f\.nivel\)/, 'el álbum no pinta el árbol de cada isla');
+    assert.ok(plano(MI.tarjetaDiciembre(mi)).includes('¡Lo lograste! Pagaste en la fecha tus cortes de diciembre. El árbol ya está en tu isla de Bronce, y se queda.'));
+  });
+
+  test('la tarjeta de Navidad sale solo en temporada, y sin temporada.js no sale', () => {
+    const base = de(laura(), '2026-11-16');
+    delete globalThis.Temporada;
+    assert.equal(MI.tarjetaNavidad(base), '', 'sin temporada.js salió la tarjeta');
+    assert.equal(MI.tarjetaNavidad(de(laura(), '2026-11-16', { temporada: false })), '');
+    assert.match(MI.tarjetaNavidad(de(laura(), '2026-11-16', { temporada: true })), /id="miNavidad"/);
+    globalThis.Temporada = { activa: () => true };
+    try { assert.match(MI.tarjetaNavidad(base), /onclick="Misiones\.compartirNavidad\(\)"/); }
+    finally { delete globalThis.Temporada; }
+    globalThis.Temporada = { activa: () => { throw new Error('roto'); } };
+    try { assert.equal(MI.tarjetaNavidad(base), '', 'un temporada.js roto no puede tumbar la Pista'); }
+    finally { delete globalThis.Temporada; }
+  });
+
+  test('la imagen de Navidad no lleva montos, ni el crédito, ni el nivel: el saludo, su isla y su nombre de pila', () => {
+    const mi = de(laura(), '2026-12-10', { temporada: true });
+    const svg = MI.navidadSvg(mi), texto = plano(svg.replace(/^<svg[^>]*>/, '<x>').replace(/<\/svg>$/, ''));
+    assert.equal(/var\(--/.test(svg), false, 'una imagen no ve las variables de CSS');
+    assert.equal(/\$|\d{1,3}\.\d{3}|cupo|garant[ií]a|crédito|Bronce|nivel/i.test(texto.replace('TU GARANTÍA · TUGARANTIA.NET', '')), false, texto);   // la marca sí va
+    assert.ok(texto.startsWith('¡Feliz Navidad! De parte de Laura TU GARANTÍA · TUGARANTIA.NET'), texto);
+    assert.equal(/Gómez/.test(svg), false, 'el apellido no va en la tarjeta');
+    assert.equal(MI.textoNavidad(), '¡Feliz Navidad! https://tugarantia.net');
+    const t = plano(MI.tarjetaNavidad(mi));
+    assert.ok(t.includes('La imagen lleva tu isla, tu nombre y el saludo. No lleva montos ni nada de tu crédito.'));
+    assert.equal(/tu gente|invitad|referid|regalo|bono|rifa|sorteo|premio/i.test(t), false, t);
+  });
+
+  test('compartir la de Navidad: sin la imagen lista, el texto; sin con qué compartir, WhatsApp', () => {
+    MI.calcular(datosDe(armar(laura(), HOY)));
+    const g = globalThis, antes = { nav: g.navigator, open: g.open };
+    const visto = [];
+    try {
+      Object.defineProperty(g, 'navigator', { value: { share: o => { visto.push(o); return Promise.resolve(); } }, configurable: true, writable: true });
+      MI.paraLaPista(datosDe(armar(laura(), HOY)));
+      assert.equal(MI.compartirNavidad(), 'texto');
+      assert.deepEqual(visto, [{ text: '¡Feliz Navidad! https://tugarantia.net' }]);
+      Object.defineProperty(g, 'navigator', { value: {}, configurable: true, writable: true });
+      let abrio = null; g.open = u => { abrio = u; };
+      assert.equal(MI.compartirNavidad(), 'enlace');
+      assert.equal(abrio, 'https://wa.me/?text=' + encodeURIComponent('¡Feliz Navidad! https://tugarantia.net'));
+    } finally {
+      Object.defineProperty(g, 'navigator', { value: antes.nav, configurable: true, writable: true });
+      g.open = antes.open;
+    }
+  });
+
+  test('la imagen se arma un rato después de abrir la Pista, y solo en temporada', () => {
+    const g = globalThis, antes = { doc: g.document, st: g.setTimeout };
+    const timers = [];
+    try {
+      g.document = { body: {}, createElement: () => ({ style: {} }) };
+      g.setTimeout = (f, ms) => { timers.push(ms); };
+      MI.montar(MI.calcular(datosDe(armar(laura(), HOY), { temporada: false })));
+      assert.deepEqual(timers, [], 'fuera de temporada armó la imagen');
+      MI.montar(MI.calcular(datosDe(armar(laura(), HOY), { temporada: true })));
+      assert.deepEqual(timers, [1200]);
+      MI.montar(MI.calcular(datosDe(armar(laura(), HOY), { temporada: true })));
+      assert.deepEqual(timers, [1200], 'repintar la Pista la vuelve a armar');
+    } finally {
+      g.document = antes.doc; g.setTimeout = antes.st;
+    }
   });
 });

@@ -139,6 +139,17 @@
 .mi-ll-lleva{font-size:11.5px;opacity:.7;margin:7px 0 0;line-height:1.4}
 .mi-sec{width:100%;margin-top:12px;color:#fff!important;border-color:rgba(255,255,255,.35)!important;background:transparent!important}
 
+/* ---------- diciembre (18-nov) ----------
+   «Diciembre puntual» usa las filas de siempre. La tarjeta de Navidad va en
+   LACA: es lo del socio (su isla), y así el oro del saludo y los focos quedan
+   sobre la placa negra, como manda la paleta. La guirnalda cuelga del borde
+   de arriba de la tarjeta y se corta a lo ancho, nunca se estira. */
+.mi-navidad{overflow:hidden;padding-top:0}
+.mi-guirnalda{display:block;width:calc(100% + var(--e4) * 2);height:40px;margin:0 calc(var(--e4) * -1) var(--e1)}
+.mi-saludo{margin:2px 0 0;font:italic 700 24px/1.15 Georgia,serif;color:var(--amarillo)}
+.mi-navidad .mi-nota{color:color-mix(in srgb, var(--blanco-laca) 76%, transparent)}
+.mi-navidad .mi-wa{margin-top:var(--e3)}
+
 /* Las islas del álbum no se mecen: cuatro o cinco flotando a la vez es
    trabajo de más para un teléfono barato. La de la llegada sí (y con
    «reducir movimiento» se queda quieta, por la regla de pista-niveles.css).
