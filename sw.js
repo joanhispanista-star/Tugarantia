@@ -2759,8 +2759,17 @@
    · Ningún texto promete nada (ni regalos, ni bonos, ni rifas: Ley 643); los focos no
      titilan si el teléfono pide menos movimiento; sin filtros: dos imágenes que se repiten.
    · Para verla antes del 1-dic en un teléfono: …/app/socio.html?temporada=navidad.
+   · 18-nov, SEGUNDO COMMIT DE LA RAMA: NAVIDAD EN TODA LA APP. Joan: «desde la calculadora
+     hasta el logo que aparece al comienzo de la aplicacion todo tenga tematica y decoracion
+     navideña». Escogió el boceto A, «Pino y oro»: gorro de Papá Noel en la G (bienvenida y
+     cabecera), lluvia de oro y «¡Feliz Navidad!» en la bienvenida, rama de pino con bolas en
+     las tarjetas de laca, acebo en las de papel y en la pestaña encendida, y la perilla de
+     las calculadoras como bola de árbol (roja, azul, de oro). Todo en app/temporada.css; el
+     saludo de la bienvenida lo pone temporada.js. Ni los botones de pedir ni la Pista se
+     adornan. En diciembre el deslizador de la calculadora pierde el relleno rojo a la
+     izquierda de la perilla (Joan lo sabe). Ningún archivo nuevo: la precarga no cambia.
    Pruebas: pruebas/temporada.test.js. NO HAY BASE NUEVA. No se tocan motor.js ni puente.js.
-   PARA DESHACER: se quitan las seis líneas de las páginas (o se revierte el commit) y se
+   PARA DESHACER: se quitan las seis líneas de las páginas (o se revierten los dos commits) y se
    sale con el número siguiente; si solo molesta la fecha, cambia navidad() en temporada.js. */
 const CACHE = 'tugarantia-v152';
 const BASE = new URL('./', self.location).pathname;

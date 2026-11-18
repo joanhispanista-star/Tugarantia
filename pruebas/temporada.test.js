@@ -20,9 +20,18 @@
  *     (Ley 643).
  *   · MOVERSE A QUIEN PIDIÓ QUE NO, o tapar un toque.
  *   · PESAR. El boceto dibujaba 36 focos con dos sombras de filtro animadas;
- *     aquí no hay filtros, y lo único que se anima es la opacidad.
+ *     aquí no hay filtros, y lo que se mueve va con opacidad o transform (lo
+ *     que el teléfono mueve sin repintar).
  *   · NECESITAR SEÑAL. Nada de red, y los dos archivos en la precarga.
  *   · DEJAR ALGO PUESTO fuera de temporada, o repetir el saludo.
+ *
+ * El mismo 18-nov Joan pidió el resto de la app («desde la calculadora hasta
+ * el logo que aparece al comienzo») y escogió la opción A, «Pino y oro»: el
+ * gorro en la G, el oro que cae en la bienvenida, el pino y el acebo de las
+ * tarjetas y las perillas como bolas. Sus pruebas van al final de «la hoja»
+ * y cuidan además que el gorro siga a la G sin tapar su remate, que ni la
+ * Pista ni los botones de pedir se adornen, y que la perilla siga diciendo
+ * de qué producto es.
  * ==========================================================================*/
 'use strict';
 
@@ -112,24 +121,32 @@ describe('verla antes de tiempo: ?temporada=navidad', () => {
 });
 
 /* Un documento de mentira con lo que usa aplicar(): <html> con sus clases, el
-   chip del nivel con su padre, y la hoja que llegó (o no). */
-function documento({ chip = true, hoja = true } = {}) {
+   chip del nivel con su padre, la hoja que llegó (o no) y, si se pide, la
+   bienvenida (#hola) con su lema. */
+function documento({ chip = true, hoja = true, hola = false } = {}) {
   const clases = new Set();
-  const hijos = [];
-  const padre = {
-    insertBefore(n, ref) { const i = ref ? hijos.indexOf(ref) : -1; if (i < 0) hijos.push(n); else hijos.splice(i, 0, n); n.parentNode = padre; },
-    removeChild(n) { const i = hijos.indexOf(n); if (i >= 0) hijos.splice(i, 1); n.parentNode = null; }
+  const padreDe = lista => {
+    const p = {
+      insertBefore(n, ref) { const i = ref ? lista.indexOf(ref) : -1; if (i < 0) lista.push(n); else lista.splice(i, 0, n); n.parentNode = p; },
+      removeChild(n) { const i = lista.indexOf(n); if (i >= 0) lista.splice(i, 1); n.parentNode = null; }
+    };
+    return p;
   };
-  const elChip = { id: 'uNivel', parentNode: padre, nextSibling: null };
+  const hijos = [], debajo = [];
+  const elChip = { id: 'uNivel', parentNode: padreDe(hijos), nextSibling: null };
+  const elLema = { className: 'lema', parentNode: padreDe(debajo), nextSibling: null };
   if (chip) hijos.push(elChip);
+  if (hola) debajo.push(elLema);
   const doc = {
     documentElement: { classList: { add: c => clases.add(c), remove: c => clases.delete(c), contains: c => clases.has(c) } },
     getElementById: id => (chip && id === 'uNivel' ? elChip : null),
-    querySelector: sel => (sel === '.tg-saludo' ? hijos.find(n => n.className === 'tg-saludo') || null : null),
+    querySelector: sel => (sel === '.tg-saludo' ? hijos.find(n => n.className === 'tg-saludo') || null
+      : sel === '.tg-saludo-hola' ? debajo.find(n => n.className === 'tg-saludo-hola') || null
+      : sel === '#hola .lema' ? (hola ? elLema : null) : null),
     createElement: () => ({ className: '', textContent: '', parentNode: null }),
     defaultView: { getComputedStyle: () => ({ getPropertyValue: n => (hoja && n === '--tg-temporada' ? '1' : '') }) }
   };
-  return { doc, clases, hijos, elChip };
+  return { doc, clases, hijos, elChip, debajo, elLema };
 }
 
 describe('aplicar(): la clase y el saludo', () => {
@@ -220,15 +237,243 @@ describe('la hoja: solo en temporada, sin estorbar y sin pesar', () => {
       .forEach(s => assert.ok(m[1].includes(s), s));
     assert.match(m[1], /animation:none/);
   });
-  test('lo único que se anima es la opacidad, y no hay filtros ni mezclas (un Android barato)', () => {
+  test('lo que se mueve va solo por la tarjeta gráfica (opacidad o transform), y no hay filtros ni mezclas (un Android barato)', () => {
     assert.doesNotMatch(REGLAS, /filter|drop-shadow|blur|mix-blend|box-shadow|backdrop/);
     const cuadros = [...REGLAS.matchAll(/@keyframes\s+[\w-]+\{([\s\S]*?\})\}/g)].map(m => m[1]);
-    assert.ok(cuadros.length >= 1);
-    cuadros.forEach(c => [...c.matchAll(/\{([^}]*)\}/g)].forEach(p =>
-      p[1].split(';').filter(Boolean).forEach(d => assert.match(d.trim(), /^opacity:/))));
+    assert.ok(cuadros.length >= 2);
+    const soloTarjeta = c => [...c.matchAll(/\{([^}]*)\}/g)].forEach(p =>
+      p[1].split(';').filter(Boolean).forEach(d => assert.match(d.trim(), /^(opacity|transform):/)));
+    cuadros.forEach(soloTarjeta);
+    /* Y las que toma prestadas de la bienvenida de socio.html (el gorro llega
+       con la G, el saludo sube con el lema): también. */
+    const socio = leer('app/socio.html');
+    const propias = new Set([...REGLAS.matchAll(/@keyframes\s+([\w-]+)/g)].map(m => m[1]));
+    const prestadas = new Set([...REGLAS.matchAll(/animation:([\w-]+)/g)].map(m => m[1]).filter(n => n !== 'none' && !propias.has(n)));
+    assert.ok(prestadas.size >= 1);
+    prestadas.forEach(n => {
+      const m = new RegExp('@keyframes ' + n + '\\{([\\s\\S]*?\\})\\s*\\}').exec(socio);
+      assert.ok(m, 'socio.html ya no tiene @keyframes ' + n);
+      soloTarjeta(m[1]);
+    });
   });
   test('la hoja trae su marca para que el guion sepa que llegó', () => {
     assert.match(REGLAS, /:root\{--tg-temporada:1\}/);
+  });
+});
+
+/* ── 18-nov (2): NAVIDAD EN TODA LA APP — opción A, «Pino y oro» ──────────────
+   Joan: «desde la calculadora hasta el logo que aparece al comienzo de la
+   aplicacion todo tenga tematica y decoracion navideña». Lo de arriba sigue
+   valiendo para todo lo nuevo (cuelga de html.tg-navidad, no escribe texto, no
+   trae nada de la red, no usa filtros). Aquí, además:
+     · que el gorro siga a la G en todos sus tamaños y no tape su remate,
+     · que ni la Pista ni los botones de pedir se adornen,
+     · que la perilla siga diciendo de qué producto es,
+     · que el oro que cae no muestre el empalme ni siga cayendo escondido,
+     · que cada dibujo sea un SVG entero: un # suelto corta la dirección. */
+const SOCIO = leer('app/socio.html');
+const PLAY = leer('play/index.html');
+const PORTADA = leer('index.html');
+const BLOQUES = (() => {
+  const r = REGLAS.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '')
+    .replace(/@media[^{]*\{((?:[^{}]*\{[^{}]*\})*)[^{}]*\}/g, '$1');
+  return [...r.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => ({ sel: m[1].trim(), cuerpo: m[2] }));
+})();
+const regla = sel => {
+  const b = BLOQUES.find(x => x.sel === sel);
+  assert.ok(b, 'no está la regla «' + sel + '»');
+  return b.cuerpo;
+};
+const IMAGENES = Object.fromEntries([...REGLAS.matchAll(/--(tg-[\w-]+):url\("data:image\/svg\+xml,([^"]*)"\)/g)].map(m => [m[1], m[2]]));
+const svgDe = n => { assert.ok(IMAGENES[n], 'falta --' + n); return IMAGENES[n].replace(/%23/g, '#'); };
+const PISTA_NO = 'body:not(:has(#nav button.on[data-t="pista"]))';
+/* Una lista de selectores, partida solo por las comas de afuera. */
+const partes = sel => {
+  const out = []; let hondo = 0, va = '';
+  for (const ch of sel) {
+    if (ch === '(') hondo++;
+    if (ch === ')') hondo--;
+    if (ch === ',' && hondo === 0) { out.push(va.trim()); va = ''; } else va += ch;
+  }
+  return out.concat(va.trim());
+};
+
+describe('toda la app: el gorro, el oro, el pino, el acebo y las bolas (18-nov, «Pino y oro»)', () => {
+  test('cada dibujo se define una vez, en html.tg-navidad, y no sobra ni falta ninguno', () => {
+    const nombres = Object.keys(IMAGENES).sort();
+    assert.deepEqual(nombres, ['tg-acebo', 'tg-acebo-nav', 'tg-bola-azul', 'tg-bola-oro', 'tg-bola-roja', 'tg-gorro', 'tg-oro-cae', 'tg-rama']);
+    const definen = BLOQUES.filter(b => /--tg-[\w-]+:url\(/.test(b.cuerpo));
+    assert.deepEqual(definen.map(b => b.sel), ['html.tg-navidad']);
+    const usadas = [...new Set([...REGLAS.matchAll(/var\(--(tg-[\w-]+)\)/g)].map(m => m[1]))].sort();
+    assert.deepEqual(usadas, nombres);
+  });
+  test('cada dibujo es un SVG entero: sin # suelto, con sus etiquetas cerradas y sus degradados adentro', () => {
+    for (const [n, u] of Object.entries(IMAGENES)) {
+      assert.doesNotMatch(u, /#/, n + ': un # sin codificar corta la dirección ahí');
+      const s = svgDe(n);
+      assert.match(s, /^<svg xmlns='http:\/\/www\.w3\.org\/2000\/svg' viewBox='[-\d. ]+'>/, n);
+      assert.ok(s.endsWith('</svg>'), n);
+      const pila = [];
+      for (const m of s.matchAll(/<(\/?)([a-zA-Z]+)\b[^>]*?(\/?)>/g)) {
+        if (m[3]) continue;
+        if (m[1]) assert.equal(pila.pop(), m[2], n + ': </' + m[2] + '> sin abrir');
+        else pila.push(m[2]);
+      }
+      assert.deepEqual(pila, [], n + ': quedó abierto');
+      for (const r of s.matchAll(/url\(#(\w+)\)/g)) assert.ok(s.includes("id='" + r[1] + "'"), n + ': falta #' + r[1]);
+    }
+  });
+  test('el gorro: la misma imagen en la G de la bienvenida y en la de la cabecera, y nunca tapa un toque', () => {
+    for (const sel of ['html.tg-navidad #hola .sello::after', 'html.tg-navidad .marca:has(>.g)::before']) {
+      const c = regla(sel);
+      assert.match(c, /background:var\(--tg-gorro\)/, sel);
+      assert.match(c, /pointer-events:none/, sel);
+    }
+  });
+  test('en la bienvenida el gorro sigue a la G en sus tres tamaños (200, 120 y 96 px)', () => {
+    assert.match(SOCIO, /<svg class="g-grande"[^>]*viewBox="-170 -170 340 340"/, 'la G de la bienvenida cambió de lienzo: revisar el gorro');
+    const c = regla('html.tg-navidad #hola .sello::after');
+    const ancho = +/width:([\d.]+)%/.exec(c)[1], izq = +/left:(-?[\d.]+)%/.exec(c)[1], arriba = +/top:(-?[\d.]+)%/.exec(c)[1];
+    assert.equal(izq, -(ancho - 100) / 2);
+    assert.equal(arriba, izq);
+    const sellos = [...SOCIO.matchAll(/#hola \.sello\{[^}]*?width:(\d+)px/g)].map(m => +m[1]);
+    const ges = [...SOCIO.matchAll(/#hola \.g-grande\{[^}]*?width:(\d+)px/g)].map(m => +m[1]);
+    assert.deepEqual([sellos.length, ges.length], [3, 3]);
+    sellos.forEach((s, i) => {
+      const justo = 100 * (600 / 340) * ges[i] / s;     // el lienzo de 600 unidades, en % del sello
+      assert.ok(Math.abs(justo - ancho) / ancho < 0.025, 'sello de ' + s + ' px: el gorro debería medir ' + justo.toFixed(1) + ' %');
+    });
+  });
+  test('en la cabecera el gorro mide lo justo para la G de 30 px de las tres páginas', () => {
+    const c = regla('html.tg-navidad .marca:has(>.g)::before');
+    const ancho = +/width:([\d.]+)px/.exec(c)[1], izq = +/left:(-?[\d.]+)px/.exec(c)[1];
+    assert.ok(c.includes('top:calc(50% - ' + (ancho / 2) + 'px)'), 'centrado en alto');
+    for (const [nombre, html] of [['app/socio.html', SOCIO], ['play/index.html', PLAY], ['index.html', PORTADA]]) {
+      const g = /class="marca"[^>]*><svg class="g" width="(\d+)" height="\1" viewBox="-?\d+ -?\d+ (\d+) \2"/.exec(html);
+      assert.ok(g, nombre + ': la G ya no abre la marca');
+      assert.equal(ancho, 600 / +g[2] * +g[1], nombre);
+      assert.equal(izq, -(ancho - +g[1]) / 2, nombre);
+    }
+  });
+  test('el ala del gorro no tapa el remate de la G: de ahí sale la chispa de la bienvenida', () => {
+    const s = svgDe('tg-gorro');
+    const grados = v => v * 180 / Math.PI;
+    const giro = +/rotate\((-?[\d.]+)\)/.exec(s)[1];
+    const ala = /<path d='M-?[\d.]+ -?[\d.]+A([\d.]+) [\d.]+ 0 0 1 ([\d.]+) (-?[\d.]+)' fill='none' stroke='url\(#p\)' stroke-width='([\d.]+)'/.exec(s);
+    assert.ok(ala, 'no encontré el ala');
+    const finAla = grados(Math.atan2(+ala[3], +ala[2])) + giro + grados(+ala[4] / 2 / +ala[1]);   // con la punta redonda
+    const remate = /<path d="M ([\d.]+) (-?[\d.]+) A 150 150/.exec(SOCIO);
+    const enRemate = grados(Math.atan2(+remate[2], +remate[1]));
+    assert.ok(finAla < enRemate - 5, 'el ala llega a ' + finAla.toFixed(1) + '° y el remate está en ' + enRemate.toFixed(1) + '°');
+  });
+  test('el oro cae una baldosa exacta por vuelta (sin empalme), entre el fondo y la G, sin tapar un toque', () => {
+    const c = regla('html.tg-navidad #hola::before');
+    const lado = +/\/(\d+)px \1px repeat/.exec(c)[1];
+    assert.ok(c.includes('top:-' + lado + 'px'));
+    assert.ok(REGLAS.includes('@keyframes tg-cae{to{transform:translateY(' + lado + 'px)}}'));
+    assert.ok(svgDe('tg-oro-cae').includes("viewBox='0 0 " + lado + ' ' + lado + "'"));
+    const z = +/z-index:(\d+)/.exec(c)[1], zMarco = +/#hola \.marco\{[^}]*z-index:(\d+)/.exec(SOCIO)[1];
+    assert.ok(z < zMarco, 'el oro quedaría encima de la G');
+    assert.match(c, /pointer-events:none/);
+  });
+  test('cuando la bienvenida se va (#hola no se borra, se esconde), el oro deja de caer', () => {
+    assert.match(regla('html.tg-navidad #hola.fuera::before'), /animation-play-state:paused/);
+    assert.match(SOCIO, /h\.classList\.add\('fuera'\)/);
+  });
+  test('con «menos movimiento» ni cae el oro, ni salta el gorro, ni sube el saludo', () => {
+    const medias = [...REGLAS.matchAll(/@media \(prefers-reduced-motion:reduce\)\{([\s\S]*?)\}\s*\}/g)].map(m => m[1]).join('\n');
+    for (const s of ['#hola::before', '#hola .sello::after', '#hola .tg-saludo-hola']) assert.ok(medias.includes('html.tg-navidad ' + s), s);
+    assert.ok(medias.includes('html.tg-navidad #hola .tg-saludo-hola{animation:none'), 'las tres, con animation:none');
+  });
+  test('el saludo de la bienvenida se esconde fuera de temporada, y en las pantallas muy bajas se va con el lema', () => {
+    assert.match(regla('.tg-saludo-hola'), /display:none/);
+    assert.ok(REGLAS.includes('@media (max-height:300px){html.tg-navidad #hola .tg-saludo-hola{display:none}}'));
+    assert.match(SOCIO, /@media \(max-height:300px\)\{[^@]*#hola \.lema\{display:none\}/);
+  });
+  test('la Pista no se adorna, y se sabe por la pestaña encendida (vale también para lo que se le agregue)', () => {
+    const adornan = BLOQUES.filter(b => /var\(--tg-(rama|acebo)\)/.test(b.cuerpo) && b.sel.includes('#cuerpo'));
+    assert.equal(adornan.length, 2);
+    adornan.forEach(b => assert.ok(b.sel.startsWith('html.tg-navidad ' + PISTA_NO + ' #cuerpo>.panel>'), b.sel));
+    assert.match(SOCIO, /<nav class="nav" id="nav">/);
+    assert.match(SOCIO, /data-t="pista"/);
+    assert.match(SOCIO, /classList\.toggle\('on', b\[i\]\.dataset\.t === tab\)/);
+  });
+  test('las tarjetas de Entrar van en reglas aparte: sin :has se caen las de la app, no estas', () => {
+    regla('html.tg-navidad #entrarCuerpo>.card.laca');
+    regla('html.tg-navidad #entrarCuerpo>.card:not(.laca)');
+    BLOQUES.filter(b => b.sel.includes(':has(')).forEach(b => assert.equal(partes(b.sel).length, 1, 'mezcla :has con otra: ' + b.sel));
+  });
+  test('los rótulos de las tarjetas con rama dejan libre la esquina de las bolas (a 320 px el de Entrar se metía)', () => {
+    const rama = svgDe('tg-rama');
+    const lienzo = +/viewBox='0 0 ([\d.]+) [\d.]+'/.exec(rama)[1];
+    const bolas = [...rama.matchAll(/<circle cx='([\d.]+)' cy='[\d.]+' r='([\d.]+)' fill='url\(#\w+\)'\/>/g)].map(m => +m[1] - +m[2]);
+    assert.ok(bolas.length >= 2, 'no encontré las bolas');
+    assert.match(SOCIO, /--e4:20px/);
+    assert.match(SOCIO, /\.card\{[^}]*padding:var\(--e4\)/);
+    const piden = lienzo - Math.min(...bolas) - 20;     // menos el relleno de la tarjeta (--e4)
+    const conRama = BLOQUES.filter(b => /var\(--tg-rama\)/.test(b.cuerpo)).map(b => b.sel);
+    assert.equal(conRama.length, 2);
+    conRama.forEach(sel => {
+      const libre = +/padding-right:(\d+)px/.exec(regla(sel + ' :is(.etq,.cs-etq)'))[1];
+      assert.ok(libre >= piden + 8, sel + ': el rótulo deja ' + libre + ' px y las bolas piden ' + piden + ' (más 8 de aire)');
+    });
+  });
+  test('los botones de pedir no se adornan: ninguna regla toca un .btn, y el único botón es la pestaña encendida', () => {
+    assert.doesNotMatch(REGLAS, /\.btn\b/);
+    BLOQUES.forEach(b => partes(b.sel).map(s => s.split(PISTA_NO).join('').trim()).forEach(s => {
+      if (/button/.test(s)) assert.equal(s, 'html.tg-navidad #nav button.on::after');
+    }));
+  });
+  test('la perilla sigue diciendo de qué producto es: roja la del quincenal, azul la del respaldado', () => {
+    const token = n => new RegExp('--' + n + ':(#[0-9A-Fa-f]{6})').exec(SOCIO)[1].toUpperCase();
+    const centro = n => /offset='\.45' stop-color='(#[0-9A-Fa-f]{6})'/.exec(svgDe(n))[1].toUpperCase();
+    assert.equal(centro('tg-bola-roja'), token('rojo'));
+    assert.equal(centro('tg-bola-azul'), token('azul'));
+    assert.match(regla('html.tg-navidad #calcRange::-webkit-slider-thumb'), /var\(--tg-bola-roja\)/);
+    assert.match(regla('html.tg-navidad #calcRange.azul::-webkit-slider-thumb'), /var\(--tg-bola-azul\)/);
+    assert.match(SOCIO, /<input type="range" id="calcRange"/);
+    assert.match(SOCIO, /classList\.toggle\('azul', resp\)/);
+  });
+  test('la bola queda centrada en la barra de la calculadora', () => {
+    const perilla = +/input\[type=range\]::-webkit-slider-thumb\{[^}]*?height:(\d+)px/.exec(SOCIO)[1];
+    const barra = +/input\[type=range\]::-webkit-slider-runnable-track\{height:(\d+)px/.exec(SOCIO)[1];
+    const m = +/margin-top:(-?\d+)px/.exec(regla('html.tg-navidad #calcRange::-webkit-slider-thumb'))[1];
+    assert.equal(m, (barra - perilla) / 2);
+    assert.match(regla('html.tg-navidad #calcRange'), /(^|;)appearance:none/);
+  });
+  test('la calculadora de la solicitud (Entrar, play/ y la portada) lleva la bola de oro, encima de su propia regla', () => {
+    assert.match(leer('app/calculadora-solicitud.js'), /'\.cs input\[type=range\]::-webkit-slider-thumb\{/);
+    assert.match(regla('html.tg-navidad .cs input[type=range]::-webkit-slider-thumb'), /var\(--tg-bola-oro\)/);
+  });
+  test('la hoja sigue liviana: todo dibujado adentro, por debajo de 32 KB', () => {
+    assert.ok(Buffer.byteLength(CSS) < 32 * 1024, Buffer.byteLength(CSS) + ' bytes');
+  });
+});
+
+describe('el saludo también en la bienvenida (18-nov, «Pino y oro»)', () => {
+  test('en temporada: UN saludo justo después del lema, además del de la cabecera', () => {
+    const d = documento({ hola: true });
+    assert.equal(T.aplicar(d.doc, true), true);
+    assert.equal(d.debajo.length, 2);
+    assert.equal(d.debajo[0], d.elLema);
+    assert.equal(d.debajo[1].className, 'tg-saludo-hola');
+    assert.equal(d.debajo[1].textContent, '¡Feliz Navidad!');
+    assert.equal(d.hijos.filter(n => n.className === 'tg-saludo').length, 1);
+  });
+  test('no se repite, y al salir de temporada se quita', () => {
+    const d = documento({ hola: true });
+    T.aplicar(d.doc, true); T.aplicar(d.doc, true); T.aplicar(d.doc, true);
+    assert.equal(d.debajo.filter(n => n.className === 'tg-saludo-hola').length, 1);
+    T.aplicar(d.doc, false);
+    assert.deepEqual(d.debajo, [d.elLema]);
+  });
+  test('sin la hoja no sale: quedaría suelto', () => {
+    const d = documento({ hola: true, hoja: false });
+    T.aplicar(d.doc, true);
+    assert.deepEqual(d.debajo, [d.elLema]);
+  });
+  test('la bienvenida de la app trae el lema donde el guion lo busca', () => {
+    assert.match(SOCIO, /<div id="hola"[^>]*>[\s\S]*?<div class="lema">/);
   });
 });
 

@@ -87,13 +87,14 @@
   }
 
   /* Prende o apaga la temporada en un documento. Se puede llamar las veces que
-     sea: no repite el saludo ni deja uno puesto fuera de temporada. */
+     sea: no repite los saludos ni deja uno puesto fuera de temporada. */
   function aplicar(doc, si) {
     if (!doc || !doc.documentElement) return false;
-    var html = doc.documentElement, puesto = doc.querySelector('.tg-saludo');
+    var html = doc.documentElement, puesto = doc.querySelector('.tg-saludo'), enHola = doc.querySelector('.tg-saludo-hola');
     if (si) html.classList.add(CLASE); else html.classList.remove(CLASE);
     if (!si) {
       if (puesto && puesto.parentNode) puesto.parentNode.removeChild(puesto);
+      if (enHola && enHola.parentNode) enHola.parentNode.removeChild(enHola);
       return false;
     }
     var chip = doc.getElementById('uNivel');
@@ -102,6 +103,17 @@
       s.className = 'tg-saludo';
       s.textContent = SALUDO;
       chip.parentNode.insertBefore(s, chip.nextSibling);
+    }
+    /* 18-nov (2), «Pino y oro»: el mismo saludo en la bienvenida (#hola), debajo
+       del lema. Va como texto de verdad y no como content: de la hoja, para que
+       viva en un solo sitio (SALUDO). Solo la app del cliente tiene bienvenida:
+       en play/ y en la portada no hay lema, y aquí no pasa nada. */
+    var lema = doc.querySelector('#hola .lema');
+    if (lema && lema.parentNode && !enHola && hojaLlego(doc)) {
+      var h = doc.createElement('span');
+      h.className = 'tg-saludo-hola';
+      h.textContent = SALUDO;
+      lema.parentNode.insertBefore(h, lema.nextSibling);
     }
     return true;
   }
