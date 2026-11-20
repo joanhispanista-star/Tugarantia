@@ -13,9 +13,9 @@
  * puede hacer:
  *
  *   · EQUIVOCARSE DE DÍA. En hora de Colombia, la del teléfono o la de
- *     cualquier zona: el último segundo del 30-nov no, el primero del 1-dic
+ *     cualquier zona: el último segundo del 19-nov no, el primero del 20-nov
  *     sí; el último del 7-ene sí, el primero del 8-ene no. Y vuelve sola cada
- *     diciembre.
+ *     20 de noviembre. (Arrancaba el 1-dic; Joan la adelantó el 20-nov-2026.)
  *   · PROMETER. El único texto es el saludo: ni regalos, ni bonos, ni rifas
  *     (Ley 643).
  *   · MOVERSE A QUIEN PIDIÓ QUE NO, o tapar un toque.
@@ -53,6 +53,11 @@ const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8').replace(/\r\n/g, '
 const JS = leer('app/temporada.js');
 const CSS = leer('app/temporada.css');
 const SW = leer('sw.js');
+/* La lista de precarga de sw.js, sin sus comentarios. */
+const ARCHIVOS_SW = () => {
+  const i = SW.indexOf('const ARCHIVOS = ['), j = SW.indexOf('].map(f => BASE + f)', i);
+  return [...SW.slice(i, j).replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/'([^']*)'/g)].map(m => m[1]);
+};
 /* El código sin sus comentarios: lo que el teléfono de verdad corre. */
 const sinComentarios = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"])\/\/[^\n]*/g, '$1');
 const CODIGO = sinComentarios(JS);
@@ -71,36 +76,43 @@ const partes = sel => {
 /* Un instante dado en hora de Colombia (UTC−5). */
 const co = (a, m, d, h = 0, mi = 0, s = 0, ms = 0) => Date.UTC(a, m - 1, d, h + 5, mi, s, ms);
 
-describe('la fecha: del 1 de diciembre al 7 de enero, en hora de Colombia', () => {
-  test('se prende el 1-dic a las 00:00, no un milisegundo antes', () => {
-    assert.equal(T.navidad(co(2026, 11, 30, 23, 59, 59, 999)), false);
-    assert.equal(T.navidad(co(2026, 12, 1)), true);
+describe('la fecha: del 20 de noviembre al 7 de enero, en hora de Colombia', () => {
+  /* Era del 1-dic. El 20-nov-2026, ya publicada, Joan dijo «sube lo de navidad desde ya» y
+     escogió que los años siguientes también arranque el 20-nov. */
+  test('se prende el 20-nov a las 00:00, no un milisegundo antes', () => {
+    assert.equal(T.navidad(co(2026, 11, 19, 23, 59, 59, 999)), false);
+    assert.equal(T.navidad(co(2026, 11, 20)), true);
+    assert.equal(T.PRIMER_DIA_NOVIEMBRE, 20);
   });
   test('el 7-ene es el último día entero; el 8-ene a las 00:00 ya se apagó', () => {
     assert.equal(T.navidad(co(2027, 1, 7, 23, 59, 59, 999)), true);
     assert.equal(T.navidad(co(2027, 1, 8)), false);
   });
-  test('en medio, siempre: Nochebuena, el 31 a medianoche y el 1-ene', () => {
-    [co(2026, 12, 7, 19), co(2026, 12, 24, 23), co(2026, 12, 31, 23, 59), co(2027, 1, 1), co(2027, 1, 6, 12)]
+  test('en medio, siempre: el resto de noviembre, Nochebuena, el 31 a medianoche y el 1-ene', () => {
+    [co(2026, 11, 20, 16), co(2026, 11, 30, 23, 59), co(2026, 12, 1), co(2026, 12, 7, 19), co(2026, 12, 24, 23),
+      co(2026, 12, 31, 23, 59), co(2027, 1, 1), co(2027, 1, 6, 12)]
       .forEach(ms => assert.equal(T.navidad(ms), true, new Date(ms).toISOString()));
   });
   test('fuera, nunca: el resto del año', () => {
-    [co(2026, 11, 18), co(2027, 1, 9), co(2027, 2, 14), co(2027, 6, 15), co(2027, 11, 30, 23)]
+    [co(2026, 11, 18), co(2026, 11, 19, 23), co(2027, 1, 9), co(2027, 2, 14), co(2027, 6, 15),
+      co(2027, 10, 31, 23), co(2027, 11, 19, 23, 59)]
       .forEach(ms => assert.equal(T.navidad(ms), false, new Date(ms).toISOString()));
   });
-  test('vuelve sola el diciembre siguiente, sin publicar nada', () => {
+  test('vuelve sola el 20-nov siguiente, sin publicar nada', () => {
+    assert.equal(T.navidad(co(2027, 11, 19, 23, 59, 59, 999)), false);
+    assert.equal(T.navidad(co(2027, 11, 20)), true);
     assert.equal(T.navidad(co(2027, 12, 1)), true);
     assert.equal(T.navidad(co(2028, 1, 7, 22)), true);
     assert.equal(T.navidad(co(2028, 1, 8)), false);
   });
-  test('la medianoche que cuenta es la de Colombia, no la UTC: el 30-nov a las 8 p. m. (ya 1-dic en UTC) todavía no', () => {
-    const ms = co(2026, 11, 30, 20);
-    assert.equal(new Date(ms).getUTCDate(), 1, 'en UTC ya es 1-dic');
+  test('la medianoche que cuenta es la de Colombia, no la UTC: el 19-nov a las 8 p. m. (ya 20-nov en UTC) todavía no', () => {
+    const ms = co(2026, 11, 19, 20);
+    assert.equal(new Date(ms).getUTCDate(), 20, 'en UTC ya es 20-nov');
     assert.equal(T.navidad(ms), false);
   });
   test('la zona del teléfono no cuenta: mismo resultado en Bogotá, Miami, Madrid, Tokio y Kiritimati', () => {
     /* Un proceso aparte por zona: TZ solo se lee al arrancar Node. */
-    const casos = [co(2026, 11, 30, 23, 30), co(2026, 12, 1, 0, 30), co(2027, 1, 7, 23, 30), co(2027, 1, 8, 0, 30)];
+    const casos = [co(2026, 11, 19, 23, 30), co(2026, 11, 20, 0, 30), co(2027, 1, 7, 23, 30), co(2027, 1, 8, 0, 30)];
     const esperado = JSON.stringify(casos.map(T.navidad));
     assert.equal(esperado, '[false,true,true,false]');
     const codigo = 'const T=require(' + JSON.stringify(path.join(RAIZ, 'app', 'temporada.js')) + ');' +
@@ -118,14 +130,14 @@ describe('la fecha: del 1 de diciembre al 7 de enero, en hora de Colombia', () =
   });
 });
 
-describe('verla antes de tiempo: ?temporada=navidad', () => {
+describe('verla fuera de temporada: ?temporada=navidad', () => {
   test('la prende fuera de temporada, solo con ese valor exacto', () => {
-    const nov = co(2026, 11, 20);
-    assert.equal(T.activa(nov, ''), false);
-    assert.equal(T.activa(nov, '?temporada=navidad'), true);
-    assert.equal(T.activa(nov, '?x=1&temporada=navidad&y=2'), true);
-    assert.equal(T.activa(nov, '?temporada=navidades'), false);
-    assert.equal(T.activa(nov, '?temporada=no'), false);
+    const fuera = co(2026, 11, 19, 12);
+    assert.equal(T.activa(fuera, ''), false);
+    assert.equal(T.activa(fuera, '?temporada=navidad'), true);
+    assert.equal(T.activa(fuera, '?x=1&temporada=navidad&y=2'), true);
+    assert.equal(T.activa(fuera, '?temporada=navidades'), false);
+    assert.equal(T.activa(fuera, '?temporada=no'), false);
   });
   test('sin el parámetro, manda la fecha', () => {
     assert.equal(T.activa(co(2026, 12, 15), ''), true);
@@ -614,10 +626,14 @@ describe('sin señal', () => {
     assert.doesNotMatch(REGLAS, /@import|@font-face|url\(\s*["']?(https?:|\/\/)/);
     [...REGLAS.matchAll(/url\(\s*"([^"]*)"\s*\)/g)].forEach(m => assert.match(m[1], /^data:image\/svg\+xml,/));
   });
-  test('los dos archivos van en la precarga del service worker, sin versión', () => {
-    const i = SW.indexOf('const ARCHIVOS = ['), j = SW.indexOf('].map(f => BASE + f)', i);
-    const lista = [...SW.slice(i, j).replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/'([^']*)'/g)].map(m => m[1]);
-    assert.ok(lista.includes('app/temporada.js'), 'falta app/temporada.js');
+  test('los dos archivos van en la precarga del service worker: la hoja sin versión, el guion con la suya', () => {
+    /* 20-nov-2026 (v155): el guion cambió (la fecha), y todo .js que cambia se pide con
+       la versión en la dirección (pruebas/la-pagina-nueva-no-corre-con-un-js-viejo.test.js).
+       La hoja no la necesita: el service worker pide las hojas frescas primero. */
+    const lista = ARCHIVOS_SW();
+    const guion = lista.filter(f => /^app\/temporada\.js(\?|$)/.test(f));
+    assert.equal(guion.length, 1, 'app/temporada.js, una vez');
+    assert.match(guion[0], /^app\/temporada\.js\?v=\d+$/, 'desde v155 el guion va con versión');
     assert.ok(lista.includes('app/temporada.css'), 'falta app/temporada.css');
   });
 });
@@ -628,12 +644,14 @@ describe('llega a las tres páginas', () => {
     test(pagina + ': pide la hoja y el guion, y las dos direcciones llevan a los archivos', () => {
       const html = leer(pagina).replace(/<!--[\s\S]*?-->/g, '');
       const hoja = [...html.matchAll(/<link rel="stylesheet" href="([^"]*temporada\.css)">/g)].map(m => m[1]);
-      const guion = [...html.matchAll(/<script src="([^"]*temporada\.js)"><\/script>/g)].map(m => m[1]);
+      const guion = [...html.matchAll(/<script src="([^"]*temporada\.js)\?v=(\d+)"><\/script>/g)];
       assert.equal(hoja.length, 1, 'la hoja, una vez');
-      assert.equal(guion.length, 1, 'el guion, una vez');
+      assert.equal(guion.length, 1, 'el guion, una vez y con su versión');
       assert.equal(path.posix.normalize(path.posix.join(carpeta, hoja[0])), 'app/temporada.css');
-      assert.equal(path.posix.normalize(path.posix.join(carpeta, guion[0])), 'app/temporada.js');
-      assert.ok(!/\?v=/.test(hoja[0] + guion[0]), 'archivo nuevo: sin versión en la dirección');
+      assert.equal(path.posix.normalize(path.posix.join(carpeta, guion[0][1])), 'app/temporada.js');
+      /* La hoja, sin versión. El guion, con la misma que precarga sw.js (cambió el 20-nov, v155). */
+      assert.ok(!/\?v=/.test(hoja[0]), 'la hoja va sin versión');
+      assert.ok(ARCHIVOS_SW().includes('app/temporada.js?v=' + guion[0][2]), 'sw.js precarga la misma dirección');
     });
   }
   test('el guion firma su llegada antes de todo su código', () => {
@@ -654,7 +672,15 @@ describe('dentro de la app del cliente, arrancada de verdad', () => {
     const b = abrirSocio({ ahora: co(2026, 11, 18, 10) });
     assert.equal(b.ctx.Temporada.activa(), false);
   });
-  test('si temporada.js no llegó, la app abre igual', () => {
+  test('el 20-nov, el día que se adelantó, ya dice que sí', () => {
+    const b = abrirSocio({ ahora: co(2026, 11, 20, 17) });
+    assert.equal(b.ctx.Temporada.activa(), true);
+    assert.equal(b.visible('pEntrar'), true);
+  });
+  /* Desde el 20-nov (v155) el guion va con versión. En un teléfono, si no llega, frena
+     «¿LLEGÓ LO QUE PEDÍ?» y la app pide recargar, como con todo guion con versión. Lo que
+     cuida esta prueba es otra cosa: que nada de la app dependa de window.Temporada. */
+  test('nada de la app depende de temporada.js: sin él, abre igual', () => {
     const b = abrirSocio({ ahora: co(2026, 12, 24, 20), sin: ['temporada.js'] });
     assert.equal(b.ctx.Temporada, undefined);
     assert.equal(b.visible('pEntrar'), true);

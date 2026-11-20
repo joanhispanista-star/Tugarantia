@@ -45,11 +45,12 @@
 <link rel="icon" type="image/png" sizes="192x192" href="../app/icono-192.png">
 <link rel="stylesheet" href="../app/chat.css">
 <link rel="stylesheet" href="estilo.css">
-<!-- 18-nov-2026 — Navidad, del 1-dic al 7-ene: la guirnalda de la cabecera, el gorro
-     en la G, la rama de pino en las tarjetas negras, el acebo en las de papel y la
-     perilla de la calculadora como bola de oro (la prende y la apaga
-     ../app/temporada.js). Nuevos, sin versión; si no llegan, la página se ve como
-     siempre. -->
+<!-- 18-nov-2026 — Navidad, del 20-nov al 7-ene (hasta el 20-nov-2026 era del 1-dic):
+     la guirnalda de la cabecera, el gorro en la G, la rama de pino en las tarjetas
+     negras, el acebo en las de papel y la perilla de la calculadora como bola de oro
+     (la prende y la apaga ../app/temporada.js, que va con versión desde que cambió).
+     La hoja va sin versión: si no llega, la página se ve como siempre. El guion, si no
+     llega, hace pedir recargar, como todo guion con versión («¿LLEGÓ LO QUE PEDÍ?»). -->
 <link rel="stylesheet" href="../app/temporada.css">
 <script>
 /* 1-oct-2026 — EL MODO PLATACHAT se decide AQUÍ, antes de pintar nada: la piel
@@ -588,7 +589,7 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
      momento seguro (momentoSeguroPlay, abajo). Si no llega, la página funciona
      igual que antes: solo no avisa. -->
 <script src="../app/actualizar.js"></script>
-<script src="../app/temporada.js"></script>
+<script src="../app/temporada.js?v=155"></script>
 <script>
 'use strict';
 /* 23-oct-2026 — ¿LLEGÓ LO QUE PEDÍ? Cada .js propio que cambió desde lo
@@ -725,13 +726,16 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
    pino y el acebo en las tarjetas y la bola de oro en la calculadora, solos del 1-dic
    al 7-ene (../app/temporada.js y .css, nuevos). Si alguien dice que en diciembre no
    los ve, esta fecha dice si tenía la versión que los trae. */
-var VERSION_PLAY = '2026-11-18';
+/* 20-nov-2026 — la Navidad se prende desde el 20-nov y no desde el 1-dic (Joan: «sube
+   lo de navidad desde ya»). Si alguien dice que en noviembre no ve la guirnalda, esta
+   fecha dice si tenía la versión que la trae. */
+var VERSION_PLAY = '2026-11-20';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
    Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no deja pasar
    uno sin el otro. Sale también en el sello del pie. */
-var VERSION_SITIO = 'v154';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v155';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato

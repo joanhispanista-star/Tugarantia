@@ -2812,7 +2812,23 @@
    Pruebas: pruebas/temporada.test.js. NO HAY BASE NUEVA. No se tocan motor.js ni puente.js.
    PARA DESHACER: se quitan las seis líneas de las páginas (o se revierten los cuatro primeros
    commits; el quinto no es de temporada) y se sale con el número siguiente; si solo molesta la fecha, cambia navidad() en temporada.js. */
-const CACHE = 'tugarantia-v154';
+/* 20-nov-2026, v155 — LA NAVIDAD SE PRENDE DESDE YA. El mismo día que salió v154, después
+   de ver la barra en su celular («Se ve bien»), Joan pidió: «sube lo de navidad desde ya y
+   los ajustes que tienes subelo». Escogió «Todo hoy», y que los años siguientes también
+   arranque el 20-nov («Desde el 20-nov»).
+   · app/temporada.js: navidad() cuenta del 20-nov (PRIMER_DIA_NOVIEMBRE) al 7-ene, todos
+     los años, en hora de Colombia. Antes era del 1-dic.
+   · Como el guion cambió, va con ?v=155 en las tres páginas que lo piden (app/socio.html,
+     play/index.html e index.html) y aquí en ARCHIVOS. Así un teléfono que tenía v154 no se
+     queda con el guion de antes y la guirnalda apagada hasta diciembre. La hoja no cambia
+     de dirección. Con versión, el guion entra en «¿LLEGÓ LO QUE PEDÍ?»: si no llega, la app
+     y play/ piden recargar, como con todo guion con versión. La portada no tiene ese freno.
+   · VERSION_APP sigue en 2026-11-20 (la fecha de v154; lo que distingue es el número del
+     sello, v155). VERSION_PLAY sube al 2026-11-20.
+   · Pruebas: pruebas/temporada.test.js (la fecha, y el guion con versión).
+   NO HAY BASE NUEVA. PARA DESHACER SOLO LA FECHA: se quita el noviembre de navidad() en
+   temporada.js, el guion lleva el ?v= nuevo y se sale con el número siguiente. */
+const CACHE = 'tugarantia-v155';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3011,11 +3027,13 @@ const ARCHIVOS = [
      `window.Actualizar`), pero no sabria avisar de la version nueva. */
   'app/actualizar.js',
   /* 18-nov-2026 — NAVIDAD (rama navidad; ver su nota, arriba): la guirnalda de
-     la cabecera y el saludo, del 1-dic al 7-ene. Los piden app/socio.html,
-     play/ e index.html. Nuevos: sin versión en la dirección. Van aquí y no solo
-     en la caché al vuelo por lo de siempre (la nota de v4): en la PRIMERA visita
-     el service worker todavía no manda, y sin señal la guirnalda no saldría. */
-  'app/temporada.js',
+     la cabecera y el saludo, del 20-nov al 7-ene (del 1-dic hasta v155). Los
+     piden app/socio.html, play/ e index.html. Van aquí y no solo en la caché al
+     vuelo por lo de siempre (la nota de v4): en la PRIMERA visita el service
+     worker todavía no manda, y sin señal la guirnalda no saldría.
+     20-nov-2026, v155: el guion cambió (la fecha) y va con ?v=155, la misma
+     dirección que piden las páginas. La hoja sigue sin versión. */
+  'app/temporada.js?v=155',
   'app/temporada.css',
   /* 21-oct-2026 — las letras de la cédula (play/, al escanear): el módulo
      chico, que recorta las franjas en el disparo y tiene que estar ahí sin

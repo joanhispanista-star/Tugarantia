@@ -317,7 +317,7 @@ describe('la calculadora del pedido, en play/ y en index.html', () => {
        abriste desde su ícono» que esconde la guía de instalar
        (pruebas/instalar-ya-la-abriste.test.js). No toca la calculadora.
        18-nov-2026 — y app/temporada.js: la guirnalda de Navidad de la cabecera, del
-       1-dic al 7-ene (pruebas/temporada.test.js). Tampoco la toca. */
+       20-nov al 7-ene (pruebas/temporada.test.js). Tampoco la toca. */
     assert.deepEqual(srcs.slice(3), ['app/instalar.js', 'app/temporada.js']);
     assert.match(I, /id="calcPedido"/);
     assert.match(I, /location\.href = 'play\/#registro'/);

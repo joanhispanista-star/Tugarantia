@@ -44,8 +44,9 @@
 <link rel="manifest" href="app.webmanifest">
 <link rel="apple-touch-icon" href="icono-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
-<!-- 18-nov-2026 — Navidad, del 1-dic al 7-ene (temporada.js la prende y la apaga
-     sola). Archivo nuevo: sin versión. Si no llega, la app se ve como siempre. -->
+<!-- 18-nov-2026 — Navidad, del 20-nov al 7-ene (temporada.js la prende y la apaga
+     sola; hasta el 20-nov-2026 era del 1-dic). La hoja va sin versión. Si no llega,
+     la app se ve como siempre. -->
 <link rel="stylesheet" href="temporada.css">
 <!-- La hoja del chat la comparten esta app, el CRM y el espejo. Va aparte para
      no repetirla en tres sitios: una clase compartida metida en la hoja de UNA
@@ -1038,14 +1039,18 @@ details.plegado>summary{padding:0 var(--e4)}
    20-nov-2026: la barra de la garantía es un elixir azul en un tubo con aro de oro,
    en la tarjeta «Tu garantía» de Inicio (que pasa a la laca) y en el riel de la
    Pista. Si un cliente dice que su barra sigue delgada y lisa, esta fecha dice si
-   tiene la versión que la trae. */
+   tiene la versión que la trae.
+   20-nov-2026 (v155): la Navidad se prende desde el 20-nov y no desde el 1-dic. Joan:
+   «sube lo de navidad desde ya». La fecha es la misma de v154, así que aquí distingue
+   el número del sello: si un cliente dice que en noviembre no ve la guirnalda, el pie
+   dice si tiene v155. */
 var VERSION_APP = '2026-11-20';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
    tiene lo último (las fechas son tres y van a mano). Sube con CACHE, siempre:
    pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v154';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v155';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1129,8 +1134,10 @@ setTimeout(function () {
      del final de Inicio). Si no llega, no hay tarjeta y la app sigue igual. -->
 <script src="instalar.js"></script>
 <!-- 18-nov-2026 — Navidad: la guirnalda de la cabecera y «¡Feliz Navidad!» junto
-     al nivel, del 1-dic al 7-ene. Nuevo, sin versión; si no llega, nada cambia. -->
-<script src="temporada.js"></script>
+     al nivel, del 20-nov al 7-ene. Cambió el 20-nov-2026 (la fecha) y desde entonces
+     va con versión, como todo guion que cambia. Por eso, si no llega, la app pide
+     recargar («¿LLEGÓ LO QUE PEDÍ?», más abajo), como con los demás. -->
+<script src="temporada.js?v=155"></script>
 <!-- 28-oct-2026 — «Tu historia laboral»: la tarjeta para quien dejó el fondo de
      pensiones para después en el registro (o quiere cambiarlo). La lista de
      fondos y la pantalla son las mismas del registro (play/). Nuevos: sin
