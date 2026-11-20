@@ -2778,8 +2778,13 @@
      adorno, porque lo que pide atención no compite con un adorno. Tampoco se adorna el aviso
      ámbar de la portada («haz la cuenta»). Solo cambia app/temporada.css; las páginas, en
      comentarios.
+   · 20-nov, CUARTO COMMIT: LOS DIBUJOS, PULIDOS. Joan: «sigue puliendo los graficos». Se
+     redibujaron los cuatro que flojeaban: el pino (las agujas iban en hileras iguales y se
+     veían como una cremallera), el gorro (ahora con peluche), los focos (con forma de foco
+     navideño y casquillo verde) y el acebo (dos verdes, sin el borde claro de calcomanía).
+     Mismos sitios, tamaños y reglas: solo cambian los dibujos de app/temporada.css.
    Pruebas: pruebas/temporada.test.js. NO HAY BASE NUEVA. No se tocan motor.js ni puente.js.
-   PARA DESHACER: se quitan las seis líneas de las páginas (o se revierten los tres commits) y se
+   PARA DESHACER: se quitan las seis líneas de las páginas (o se revierten los cuatro commits) y se
    sale con el número siguiente; si solo molesta la fecha, cambia navidad() en temporada.js. */
 const CACHE = 'tugarantia-v152';
 const BASE = new URL('./', self.location).pathname;

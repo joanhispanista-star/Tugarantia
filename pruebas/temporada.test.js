@@ -312,9 +312,16 @@ describe('toda la app: el gorro, el oro, el pino, el acebo y las bolas (18-nov, 
     assert.deepEqual(usadas, nombres);
   });
   test('cada dibujo es un SVG entero: sin # suelto, con sus etiquetas cerradas y sus degradados adentro', () => {
-    for (const [n, u] of Object.entries(IMAGENES)) {
+    /* Los de las variables y también las dos capas de la guirnalda, que van
+       sueltas en su regla. Desde el 20-nov el foco y la hoja del acebo se dibujan
+       una vez y se ponen con <use href='#…'>: esa referencia también tiene que
+       estar adentro. */
+    const todos = Object.entries(IMAGENES);
+    [...REGLAS.matchAll(/background-image:url\("data:image\/svg\+xml,([^"]*)"\)/g)].forEach((m, i) => todos.push(['guirnalda ' + (i + 1), m[1]]));
+    assert.equal(todos.length, Object.keys(IMAGENES).length + 2, 'faltan las dos capas de la guirnalda');
+    for (const [n, u] of todos) {
       assert.doesNotMatch(u, /#/, n + ': un # sin codificar corta la dirección ahí');
-      const s = svgDe(n);
+      const s = u.replace(/%23/g, '#');
       assert.match(s, /^<svg xmlns='http:\/\/www\.w3\.org\/2000\/svg' viewBox='[-\d. ]+'>/, n);
       assert.ok(s.endsWith('</svg>'), n);
       const pila = [];
@@ -324,7 +331,7 @@ describe('toda la app: el gorro, el oro, el pino, el acebo y las bolas (18-nov, 
         else pila.push(m[2]);
       }
       assert.deepEqual(pila, [], n + ': quedó abierto');
-      for (const r of s.matchAll(/url\(#(\w+)\)/g)) assert.ok(s.includes("id='" + r[1] + "'"), n + ': falta #' + r[1]);
+      for (const r of s.matchAll(/(?:url\(#|href='#)(\w+)/g)) assert.ok(s.includes("id='" + r[1] + "'"), n + ': falta #' + r[1]);
     }
   });
   test('el gorro: la misma imagen en la G de la bienvenida y en la de la cabecera, y nunca tapa un toque', () => {
@@ -456,6 +463,39 @@ describe('toda la app: el gorro, el oro, el pino, el acebo y las bolas (18-nov, 
     /* Si la calculadora de la portada no llega, en la caja queda su frase. */
     assert.match(PORTADA, /<div id="calcPedido"[^>]*>\s*<p class="tenue">/);
     assert.ok(+/padding-right:(\d+)px/.exec(regla('html.tg-navidad #calcPedido>p:first-child'))[1] >= piden + 8);
+  });
+  test('la rama no se sale de su esquina: hasta 16 px de alto en todo el ancho, y hasta 44 en los últimos 40 px', () => {
+    /* Son las dos zonas que mide el arnés de las fotos (si un texto o un control
+       las toca). El arnés mide las zonas, no el dibujo: si las agujas crecieran,
+       no lo vería. Aquí se mide lo pintado, el punto más el medio grueso del
+       trazo. Los caminos de la rama solo usan M, L, l, Q y V absolutas: con otra
+       letra la cuenta de abajo dejaría de valer, y la prueba lo dice. */
+    const rama = svgDe('tg-rama'), fuera = [];
+    const mira = (x, y, m, que) => { if (!(y + m <= 16 || (x - m >= 64 && y + m <= 44))) fuera.push(que + ' en ' + x.toFixed(1) + ',' + y.toFixed(1)); };
+    const caminos = [...rama.matchAll(/<path d='([^']*)'[^>]*?stroke-width='([\d.]+)'/g)];
+    assert.equal(caminos.length, (rama.match(/<path /g) || []).length, 'hay un camino sin trazo: revisar esta prueba');
+    assert.ok(caminos.length >= 8);
+    for (const [, d, grueso] of caminos) {
+      assert.match(d, /^M[MLlQV\d\s.-]*$/, 'letra nueva en el camino de la rama');
+      let letra = 'M', x = 0, y = 0;
+      for (const t of d.match(/[MLlQV]|-?(?:\d+\.?\d*|\.\d+)/g).reduce((a, t) => {
+        if (/[A-Za-z]/.test(t)) a.push([t]); else a[a.length - 1].push(+t);
+        return a;
+      }, [])) {
+        letra = t[0];
+        if (letra === 'V') { y = t[1]; mira(x, y, grueso / 2, 'hilo'); continue; }
+        for (let i = 1; i < t.length; i += 2) {
+          if (letra === 'l') { x += t[i]; y += t[i + 1]; } else { x = t[i]; y = t[i + 1]; }
+          mira(x, y, grueso / 2, 'trazo');
+        }
+      }
+    }
+    const bolas = [...rama.matchAll(/<circle cx='([\d.]+)' cy='([\d.]+)' r='([\d.]+)'/g)];
+    const casquillos = [...rama.matchAll(/<rect x='([\d.]+)' y='([\d.]+)' width='[\d.]+' height='([\d.]+)'/g)];
+    assert.ok(bolas.length >= 2 && casquillos.length >= 2);
+    bolas.forEach(([, cx, cy, r]) => mira(cx - r, +cy + +r, 0, 'bola'));
+    casquillos.forEach(([, x, y, alto]) => mira(+x, +y + +alto, 0, 'casquillo'));
+    assert.deepEqual(fuera, []);
   });
   test('en play/ cada tarjeta negra abre con su rótulo: en la esquina de la rama no hay otra cosa', () => {
     const negras = [...PLAY.matchAll(/'<div class="card laca"[^']*'\s*\+\s*([^\n]*)/g)].map(m => m[1].trim());
