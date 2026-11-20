@@ -103,6 +103,17 @@
  *   siempre vive en una cabecera de laca o en la bienvenida); sobre papel
  *   claro la luz de arriba se pierde y la G se ve rota.
  *
+ * ELIXIR — la barra de la garantía (20-nov-2026)
+ *   Joan: «que sea como una materia azul con energia». La barra que mide
+ *   cuánto le falta al socio para el nivel siguiente (la tarjeta «Tu
+ *   garantía» de Inicio y el riel de la Pista) es un líquido azul en un
+ *   tubo con aro de oro. Tiene tokens propios (--elixir-*) y no se usa para
+ *   nada más: no es el azul del préstamo con garantía ni el de lo que
+ *   explica. Va SOLO sobre la laca, porque el aro es oro. La cifra de la
+ *   garantía sigue en amarillo: el amarillo es lo construido, y el elixir,
+ *   lo que lo acerca al nivel que sigue. Y es dibujo, nada más: ningún
+ *   texto lo llama elixir, riqueza, ahorro ni plata.
+ *
  * LOS ESTADOS SIGUEN EN ÁMBAR
  *   Mora, atraso, vencimiento, "no te alcanza": ámbar quemado, siempre. Lo
  *   que impide que el ámbar y el amarillo se confundan no es el tono, es el
@@ -168,6 +179,10 @@
      cambia con el tema. */
   --oro-luz:#FFF4CC; --oro-claro:#FCDD7C; --oro:#F5C542; --oro-dorado:#E3A72F;
   --oro-sombra:#A9690F; --oro-hondo:#6B4106; --oro-reflejo:#FFE08A;
+  /* elixir — la barra de la garantía (20-nov-2026, ver ELIXIR arriba). Solo
+     sobre la laca, e iguales en los dos modos, como la marca. */
+  --elixir-hondo:#0A2783; --elixir:#1D5BE3; --elixir-vivo:#3A9BFF; --elixir-claro:#8FD8FF;
+  --elixir-luz:#DDF7FF; --elixir-noche:#040817; --elixir-noche-2:#0D1736;
   --marfil:#F3ECE2;   /* la palabra «Tu Garantía» sobre la laca */
   /* estados: ámbar, y SOLO sobre papel — el suyo. En claro el papel es claro y
      el ámbar escribe encima; en oscuro el papel se oscurece y el ámbar se corre
@@ -369,6 +384,60 @@ h3.tit{font-size:18px}
 .laca .barra i.prestada{background:color-mix(in srgb, var(--amarillo) 62%, transparent)}
 .laca .barra i.comprometida{background:var(--azul-laca)}
 @media (prefers-reduced-motion:reduce){.barra i{transition:none}}
+
+/* ---------------- el elixir: la barra de la garantía ----------------
+   20-nov-2026. Joan: «que sea como una materia azul con energia … que se vea
+   como ese elixir». Escogió el boceto B entre tres (A vidrio sobre papel, B
+   laca y oro, C energía por celdas). Es la barra de la tarjeta «Tu garantía»
+   de Inicio; el riel de la Pista es el mismo, en pista-niveles.css.
+   - Va SOLO sobre la laca: el aro es de oro, y el oro no pisa papel.
+   - El largo es --f, de 0 a 1, y sale de progresoNivel(): la garantía real
+     entre el nivel de hoy y el siguiente. El destello de la punta se ubica con
+     el mismo --f, así que no se despega del líquido.
+   - Sin filtros, por los teléfonos baratos: degradados, sombras quietas, y
+     solo transform y opacity en movimiento, que no repintan. Con «menos
+     movimiento» se queda quieta y se ve igual de entera.
+   - Es dibujo. Lo que dice cuánto falta es el renglón de abajo. */
+.elixir{position:relative;height:24px;padding:4px;margin-top:var(--e3);border-radius:99px;border:1.5px solid transparent;
+  background:
+    linear-gradient(180deg, var(--elixir-noche) 0%, var(--elixir-noche-2) 62%, var(--elixir-noche) 100%) padding-box,
+    linear-gradient(180deg, var(--oro-luz) 0%, var(--oro-claro) 18%, var(--oro-dorado) 45%, var(--oro-sombra) 72%, var(--oro-claro) 100%) border-box;
+  box-shadow:inset 0 2px 5px color-mix(in srgb, var(--sombra) 70%, transparent),
+    0 0 22px color-mix(in srgb, var(--elixir-vivo) 22%, transparent)}
+/* el líquido, con su frente más claro */
+.elixir i{position:relative;display:block;height:100%;width:calc(100% * var(--f));border-radius:99px;overflow:hidden;
+  background:
+    radial-gradient(12px 75% at right center, var(--elixir-luz), color-mix(in srgb, var(--elixir-claro) 45%, transparent) 55%, transparent 85%),
+    linear-gradient(180deg, var(--elixir-luz) 0%, var(--elixir-claro) 14%, var(--elixir-vivo) 34%, var(--elixir) 64%, var(--elixir-hondo) 100%);
+  box-shadow:0 0 14px color-mix(in srgb, var(--elixir-vivo) 85%, transparent), 0 0 3px var(--elixir-claro)}
+/* la corriente: dos ondas y unas burbujas que avanzan. Las capas se repiten
+   cada 48, 72 y 144 px y el paso es de 144, así que la vuelta no salta. Van
+   en blanco dentro del SVG porque un dibujo en data: no lee variables. */
+.elixir i::before{content:'';position:absolute;top:0;bottom:0;left:-144px;right:0;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 14' preserveAspectRatio='none'%3E%3Cpath d='M0 5Q12 1.5 24 5T48 5' fill='none' stroke='white' stroke-opacity='.55' stroke-width='1'/%3E%3C/svg%3E") 0 0/48px 100%,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 14' preserveAspectRatio='none'%3E%3Cpath d='M0 9.5Q18 13 36 9.5T72 9.5' fill='none' stroke='white' stroke-opacity='.28' stroke-width='1.4'/%3E%3Ccircle cx='14' cy='8' r='1.1' fill='white' fill-opacity='.85'/%3E%3Ccircle cx='47' cy='4.6' r='.8' fill='white' fill-opacity='.7'/%3E%3C/svg%3E") 0 0/72px 100%,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 144 14' preserveAspectRatio='none'%3E%3Ccircle cx='30' cy='10.4' r='.9' fill='white' fill-opacity='.7'/%3E%3Ccircle cx='101' cy='3.8' r='1.2' fill='white' fill-opacity='.8'/%3E%3Ccircle cx='124' cy='9' r='.6' fill='white' fill-opacity='.6'/%3E%3C/svg%3E") 0 0/144px 100%;
+  animation:elixir-corre 5s linear infinite}
+/* un brillo que cruza el líquido cada tanto; quieto, queda afuera */
+.elixir i::after{content:'';position:absolute;top:0;bottom:0;left:0;width:45%;pointer-events:none;
+  background:linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--luz) 45%, transparent) 50%, transparent 80%);
+  transform:translateX(-110%);animation:elixir-brilla 3.6s ease-in-out 1s infinite}
+/* el reflejo del vidrio, encima del líquido */
+.elixir::before{content:'';position:absolute;z-index:1;top:4px;left:12px;right:12px;height:5px;border-radius:99px;pointer-events:none;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--luz) 55%, transparent), transparent)}
+/* el destello en la punta del líquido */
+.elixir::after{content:'';position:absolute;z-index:2;top:50%;left:calc(4px + (100% - 8px) * var(--f));
+  width:38px;height:38px;margin:-19px 0 0 -21px;pointer-events:none;
+  background:
+    radial-gradient(circle, var(--luz) 0 1.8px, transparent 2.8px),
+    linear-gradient(90deg, transparent 12%, color-mix(in srgb, var(--luz) 90%, transparent) 50%, transparent 88%) center/100% 1.4px no-repeat,
+    linear-gradient(180deg, transparent 22%, color-mix(in srgb, var(--luz) 80%, transparent) 50%, transparent 78%) center/1.4px 100% no-repeat,
+    radial-gradient(circle, color-mix(in srgb, var(--elixir-claro) 85%, transparent) 0 3px, color-mix(in srgb, var(--elixir-vivo) 32%, transparent) 9px, transparent 17px);
+  animation:elixir-late 2.4s ease-in-out infinite}
+@keyframes elixir-corre{from{transform:translateX(0)}to{transform:translateX(144px)}}
+@keyframes elixir-brilla{0%{transform:translateX(-110%)}55%,100%{transform:translateX(230%)}}
+@keyframes elixir-late{50%{opacity:.6;transform:scale(.82)}}
+@media (prefers-reduced-motion:reduce){.elixir i::before,.elixir i::after,.elixir::after{animation:none}}
 
 /* ---------------- botones y campos ---------------- */
 .btn{display:block;width:100%;padding:15px;border:0;border-radius:14px;font-size:16px;
@@ -965,8 +1034,12 @@ details.plegado>summary{padding:0 var(--e4)}
    guirnalda de focos de la cabecera, «¡Feliz Navidad!» junto al nivel y en la
    bienvenida, el gorro en la G, pino y acebo en las tarjetas y bolas en las perillas.
    Si un cliente dice que en diciembre no ve la guirnalda o el gorro, esta fecha dice si
-   tiene la versión que los trae. */
-var VERSION_APP = '2026-11-18';
+   tiene la versión que los trae.
+   20-nov-2026: la barra de la garantía es un elixir azul en un tubo con aro de oro,
+   en la tarjeta «Tu garantía» de Inicio (que pasa a la laca) y en el riel de la
+   Pista. Si un cliente dice que su barra sigue delgada y lisa, esta fecha dice si
+   tiene la versión que la trae. */
+var VERSION_APP = '2026-11-20';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
@@ -2482,11 +2555,15 @@ function vistaInicio() {
 
   if (S.respaldadoActivo) h += tarjetaRespaldadoActivo(S.respaldadoActivo, cuota);
 
-  h += '<div class="card" onclick="irA(\'garantia\')" style="cursor:pointer">' +
+  /* 20-nov-2026 — LA TARJETA PASA A LA LACA. Joan pidió la barra «como una
+     materia azul con energia» y escogió el boceto B: la tarjeta en laca, con
+     el elixir en un tubo de aro de oro (ver «el elixir» en la hoja). Es además
+     lo que dice la ley de la paleta: la garantía es del socio, y lo del socio
+     vive en la laca. En papel la cifra iba en la tinta del amarillo; aquí va
+     en su amarillo, y la frase en la letra de la de Mi garantía. */
+  h += '<div class="card laca" onclick="irA(\'garantia\')" style="cursor:pointer">' +
        '<div class="etq">Tu garantía</div>' +
-       /* Lo construido, pero sobre papel: acá el amarillo no puede pisar, pisa
-          su tinta. Blanco no, que blanco es cualquier cifra. */
-       '<div class="cifra sm oro-tinta">' + COP(S.garantia) + '</div>' +
+       '<div class="cifra sm oro">' + COP(S.garantia) + '</div>' +
        /* "Es lo que te deja pedir más" era la frase de cuando el cupo salía de
           multiplicar esto por un factor. Hoy no hay nada en el medio: la
           garantía ES el cupo, y decirlo así ahorra la pantalla entera de
@@ -2496,8 +2573,10 @@ function vistaInicio() {
           funciona» de Mi garantía (vistaGarantia), y lo que la garantía no es
           lo dicen además los términos §6. La frase no insinúa nada de eso:
           no la llama plata ni ahorro. */
-       '<p class="sub">' + esc(FRASE_GARANTIA) + '</p>' +
-       '<div class="barra"><i style="width:' + progresoNivel() + '%"></i></div>' +
+       '<p class="frase-garantia">' + esc(FRASE_GARANTIA) + '</p>' +
+       /* El elixir: --f es la garantía real hacia el nivel siguiente. Es
+          dibujo; cuánto falta lo dice el renglón de abajo. */
+       '<div class="elixir" aria-hidden="true" style="--f:' + (progresoNivel() / 100).toFixed(3) + '"><i></i></div>' +
        '<div class="muted" style="font-size:13px;margin-top:var(--e2)">' + textoProximoNivel() + '</div>' +
        '</div>';
 

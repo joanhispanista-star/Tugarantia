@@ -2783,8 +2783,17 @@
      veían como una cremallera), el gorro (ahora con peluche), los focos (con forma de foco
      navideño y casquillo verde) y el acebo (dos verdes, sin el borde claro de calcomanía).
      Mismos sitios, tamaños y reglas: solo cambian los dibujos de app/temporada.css.
+   · 20-nov, QUINTO COMMIT: LA BARRA DE LA GARANTÍA ES UN ELIXIR. NO ES DE TEMPORADA: se
+     queda todo el año. Joan: «mejora la barra de garantia … que sea como una materia azul
+     con energia … que se vea como ese elixir». Escogió el boceto B de tres: la tarjeta «Tu
+     garantía» de Inicio pasa a la laca, y la barra es un líquido azul en un tubo con aro de
+     oro, con ondas, burbujas, un brillo que la cruza y un destello en la punta. El riel de la
+     Pista es el mismo. El largo sigue siendo la garantía real. Toca app/socio.html
+     (VERSION_APP 2026-11-20) y app/pista-niveles.css; la hoja va caché-primero, así que sale
+     con el CACHE nuevo. Pruebas: pruebas/elixir.test.js. Para deshacer solo la barra, se
+     revierte este commit.
    Pruebas: pruebas/temporada.test.js. NO HAY BASE NUEVA. No se tocan motor.js ni puente.js.
-   PARA DESHACER: se quitan las seis líneas de las páginas (o se revierten los cuatro commits) y se
+   PARA DESHACER: se quitan las seis líneas de las páginas (o se revierten los cuatro primeros commits; el quinto no es de temporada) y se
    sale con el número siguiente; si solo molesta la fecha, cambia navidad() en temporada.js. */
 const CACHE = 'tugarantia-v152';
 const BASE = new URL('./', self.location).pathname;
