@@ -315,8 +315,10 @@ describe('la calculadora del pedido, en play/ y en index.html', () => {
     assert.deepEqual(srcs.slice(0, 3), ['app/cuenta.js', 'app/creditos.js', 'app/calculadora-solicitud.js'], 'cuenta.js va antes: es quien escribe los pesos');
     /* 23-oct-2026 — y después, solo app/instalar.js: la marca de «ya la
        abriste desde su ícono» que esconde la guía de instalar
-       (pruebas/instalar-ya-la-abriste.test.js). No toca la calculadora. */
-    assert.deepEqual(srcs.slice(3), ['app/instalar.js']);
+       (pruebas/instalar-ya-la-abriste.test.js). No toca la calculadora.
+       18-nov-2026 — y app/temporada.js: la guirnalda de Navidad de la cabecera, del
+       1-dic al 7-ene (pruebas/temporada.test.js). Tampoco la toca. */
+    assert.deepEqual(srcs.slice(3), ['app/instalar.js', 'app/temporada.js']);
     assert.match(I, /id="calcPedido"/);
     assert.match(I, /location\.href = 'play\/#registro'/);
     assert.match(I, /<a class="btn btn-rojo" href="play\/#registro">Abrir mi cuenta y pedirlo<\/a>/, 'sin JavaScript no queda el enlace al registro');

@@ -2756,7 +2756,63 @@
    CACHE y VERSION_SITIO suben a v153. NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierten este commit y 65b09e5; CACHE y VERSION_SITIO, que el revert deja
    en v152, suben a la siguiente libre. El número nunca baja. */
-const CACHE = 'tugarantia-v153';
+/* 18-nov-2026, v154 — rama navidad, PUBLICADA EL VIE 20-NOV encima de v153 (la portada).
+   Estaba prevista para el mié 25-nov, sola; Joan la adelantó: «cuando termines publica
+   todo», y escogió «Portada + Navidad + barra». La Navidad igual no se ve hasta el mar
+   1-dic (se prende sola); desde hoy solo se ve la barra de la garantía, el quinto commit.
+   CACHE y VERSION_SITIO suben a v154.
+   NAVIDAD, DEL 1-DIC AL 7-ENE. Joan, 18-nov: «que tengamos en la plataforma un diseño de
+   temporada navideña hasta el 7 de enero». Escogió el boceto 18-A, el alumbrado («Sí, lo
+   recomendado»): una guirnalda de focos que cuelga de la cabecera y «¡Feliz Navidad!»
+   junto al chip del nivel.
+   · app/temporada.js y app/temporada.css, NUEVOS (sin versión): se prende sola el mar
+     1-dic a las 00:00 y se apaga sola el vie 8-ene a las 00:00, en hora de Colombia
+     leída del reloj del teléfono (sin señal también). Vuelve sola cada diciembre.
+   · Una línea de hoja y una de guion en app/socio.html, play/index.html e index.html, más
+     VERSION_APP y VERSION_PLAY al 2026-11-18 (la prueba de las fechas lo exige). Ningún
+     otro HTML cambia: la guirnalda cuelga del .wrap de la cabecera por CSS.
+   · pruebas/pedir-a-la-medida.test.js: la lista de guiones de index.html suma
+     app/temporada.js.
+   · Ningún texto promete nada (ni regalos, ni bonos, ni rifas: Ley 643); los focos no
+     titilan si el teléfono pide menos movimiento; sin filtros: dos imágenes que se repiten.
+   · Para verla antes del 1-dic en un teléfono: …/app/socio.html?temporada=navidad.
+   · 18-nov, SEGUNDO COMMIT DE LA RAMA: NAVIDAD EN TODA LA APP. Joan: «desde la calculadora
+     hasta el logo que aparece al comienzo de la aplicacion todo tenga tematica y decoracion
+     navideña». Escogió el boceto A, «Pino y oro»: gorro de Papá Noel en la G (bienvenida y
+     cabecera), lluvia de oro y «¡Feliz Navidad!» en la bienvenida, rama de pino con bolas en
+     las tarjetas de laca, acebo en las de papel y en la pestaña encendida, y la perilla de
+     las calculadoras como bola de árbol (roja, azul, de oro). Todo en app/temporada.css; el
+     saludo de la bienvenida lo pone temporada.js. Ni los botones de pedir ni la Pista se
+     adornan. En diciembre el deslizador de la calculadora pierde el relleno rojo a la
+     izquierda de la perilla (Joan lo sabe). Ningún archivo nuevo: la precarga no cambia.
+   · 18-nov, TERCER COMMIT: TAMBIÉN play/ Y LA PORTADA. A la pregunta de si el pino iba también
+     en las tarjetas de play/ y de la portada, Joan: «Sí, también». En play/, la rama en sus
+     seis tarjetas de laca y el acebo en las de papel; en la portada, la rama en la caja de la
+     calculadora. En la app y en play/ llevan también las tarjetas que van en una caja con id:
+     el resultado de la calculadora de la app y la historia laboral, que el segundo commit
+     dejaba sin adorno. Y una regla para todas: la tarjeta que abre con un aviso (el ámbar de
+     la propuesta, el de los datos personales, un error; no el verde de «Listo») va sin
+     adorno, porque lo que pide atención no compite con un adorno. Tampoco se adorna el aviso
+     ámbar de la portada («haz la cuenta»). Solo cambia app/temporada.css; las páginas, en
+     comentarios.
+   · 20-nov, CUARTO COMMIT: LOS DIBUJOS, PULIDOS. Joan: «sigue puliendo los graficos». Se
+     redibujaron los cuatro que flojeaban: el pino (las agujas iban en hileras iguales y se
+     veían como una cremallera), el gorro (ahora con peluche), los focos (con forma de foco
+     navideño y casquillo verde) y el acebo (dos verdes, sin el borde claro de calcomanía).
+     Mismos sitios, tamaños y reglas: solo cambian los dibujos de app/temporada.css.
+   · 20-nov, QUINTO COMMIT: LA BARRA DE LA GARANTÍA ES UN ELIXIR. NO ES DE TEMPORADA: se
+     queda todo el año. Joan: «mejora la barra de garantia … que sea como una materia azul
+     con energia … que se vea como ese elixir». Escogió el boceto B de tres: la tarjeta «Tu
+     garantía» de Inicio pasa a la laca, y la barra es un líquido azul en un tubo con aro de
+     oro, con ondas, burbujas, un brillo que la cruza y un destello en la punta. El riel de la
+     Pista es el mismo. El largo sigue siendo la garantía real. Toca app/socio.html
+     (VERSION_APP 2026-11-20) y app/pista-niveles.css; la hoja va caché-primero, así que sale
+     con el CACHE nuevo. Pruebas: pruebas/elixir.test.js. Para deshacer solo la barra, se
+     revierte este commit.
+   Pruebas: pruebas/temporada.test.js. NO HAY BASE NUEVA. No se tocan motor.js ni puente.js.
+   PARA DESHACER: se quitan las seis líneas de las páginas (o se revierten los cuatro primeros
+   commits; el quinto no es de temporada) y se sale con el número siguiente; si solo molesta la fecha, cambia navidad() en temporada.js. */
+const CACHE = 'tugarantia-v154';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -2954,6 +3010,13 @@ const ARCHIVOS = [
      instalada sin senal abre igual (cada pagina se protege con
      `window.Actualizar`), pero no sabria avisar de la version nueva. */
   'app/actualizar.js',
+  /* 18-nov-2026 — NAVIDAD (rama navidad; ver su nota, arriba): la guirnalda de
+     la cabecera y el saludo, del 1-dic al 7-ene. Los piden app/socio.html,
+     play/ e index.html. Nuevos: sin versión en la dirección. Van aquí y no solo
+     en la caché al vuelo por lo de siempre (la nota de v4): en la PRIMERA visita
+     el service worker todavía no manda, y sin señal la guirnalda no saldría. */
+  'app/temporada.js',
+  'app/temporada.css',
   /* 21-oct-2026 — las letras de la cédula (play/, al escanear): el módulo
      chico, que recorta las franjas en el disparo y tiene que estar ahí sin
      esperar la red. El motor de app/lib/ocr/ (unos 6 MB) NO entra: precargarlo

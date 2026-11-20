@@ -91,14 +91,43 @@
 /* la primera negrita de la frase es la cifra: va en el amarillo de lo construido */
 .pn-grande b:first-of-type{color:var(--amarillo);font-size:19px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
 .pn-progreso{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;margin-top:12px}
-.pn-riel{position:relative;height:8px;border-radius:99px;background:color-mix(in srgb, var(--luz) 13%, transparent);
-  box-shadow:inset 0 1px 2px color-mix(in srgb, var(--sombra) 60%, transparent)}
-.pn-riel i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;
-  background:linear-gradient(90deg, color-mix(in srgb, var(--amarillo) 70%, var(--laca)), var(--amarillo));
-  box-shadow:0 0 12px color-mix(in srgb, var(--amarillo) 45%, transparent)}
-.pn-riel b{position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;
-  background:var(--amarillo);border:3px solid var(--laca);
-  box-shadow:0 0 0 2px color-mix(in srgb, var(--amarillo) 45%, transparent)}
+/* 20-nov-2026 — EL RIEL ES EL ELIXIR. El mismo de la tarjeta «Tu garantía» de
+   Inicio (ver «el elixir» en socio.html, con sus tokens --elixir-*): Joan lo
+   pidió «como una materia azul con energia». Mide lo mismo que antes, la
+   garantía real entre este mundo y el que sigue; cambia el dibujo. La <b> deja
+   de ser perilla y pasa a ser el destello de la punta: su left es el mismo
+   porcentaje que el ancho de <i>, y los 3 px del borde de adentro se le suman
+   en el margen. Sin filtros; solo transform y opacity en movimiento. */
+.pn-riel{position:relative;height:22px;border-radius:99px;border:1.5px solid transparent;
+  background:
+    linear-gradient(180deg, var(--elixir-noche) 0%, var(--elixir-noche-2) 62%, var(--elixir-noche) 100%) padding-box,
+    linear-gradient(180deg, var(--oro-luz) 0%, var(--oro-claro) 18%, var(--oro-dorado) 45%, var(--oro-sombra) 72%, var(--oro-claro) 100%) border-box;
+  box-shadow:inset 0 2px 5px color-mix(in srgb, var(--sombra) 70%, transparent),
+    0 0 22px color-mix(in srgb, var(--elixir-vivo) 22%, transparent)}
+.pn-riel i{position:absolute;left:3px;top:3px;bottom:3px;max-width:calc(100% - 6px);border-radius:99px;overflow:hidden;
+  background:
+    radial-gradient(12px 75% at right center, var(--elixir-luz), color-mix(in srgb, var(--elixir-claro) 45%, transparent) 55%, transparent 85%),
+    linear-gradient(180deg, var(--elixir-luz) 0%, var(--elixir-claro) 14%, var(--elixir-vivo) 34%, var(--elixir) 64%, var(--elixir-hondo) 100%);
+  box-shadow:0 0 14px color-mix(in srgb, var(--elixir-vivo) 85%, transparent), 0 0 3px var(--elixir-claro)}
+.pn-riel i::before{content:'';position:absolute;top:0;bottom:0;left:-144px;right:0;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 14' preserveAspectRatio='none'%3E%3Cpath d='M0 5Q12 1.5 24 5T48 5' fill='none' stroke='white' stroke-opacity='.55' stroke-width='1'/%3E%3C/svg%3E") 0 0/48px 100%,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 14' preserveAspectRatio='none'%3E%3Cpath d='M0 9.5Q18 13 36 9.5T72 9.5' fill='none' stroke='white' stroke-opacity='.28' stroke-width='1.4'/%3E%3Ccircle cx='14' cy='8' r='1.1' fill='white' fill-opacity='.85'/%3E%3Ccircle cx='47' cy='4.6' r='.8' fill='white' fill-opacity='.7'/%3E%3C/svg%3E") 0 0/72px 100%,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 144 14' preserveAspectRatio='none'%3E%3Ccircle cx='30' cy='10.4' r='.9' fill='white' fill-opacity='.7'/%3E%3Ccircle cx='101' cy='3.8' r='1.2' fill='white' fill-opacity='.8'/%3E%3Ccircle cx='124' cy='9' r='.6' fill='white' fill-opacity='.6'/%3E%3C/svg%3E") 0 0/144px 100%;
+  animation:pn-corre 5s linear infinite}
+.pn-riel i::after{content:'';position:absolute;top:0;bottom:0;left:0;width:45%;pointer-events:none;
+  background:linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--luz) 45%, transparent) 50%, transparent 80%);
+  transform:translateX(-110%);animation:pn-brilla 3.6s ease-in-out 1s infinite}
+.pn-riel b{position:absolute;top:50%;width:38px;height:38px;margin:-19px 0 0 -16px;pointer-events:none;
+  background:
+    radial-gradient(circle, var(--luz) 0 1.8px, transparent 2.8px),
+    linear-gradient(90deg, transparent 12%, color-mix(in srgb, var(--luz) 90%, transparent) 50%, transparent 88%) center/100% 1.4px no-repeat,
+    linear-gradient(180deg, transparent 22%, color-mix(in srgb, var(--luz) 80%, transparent) 50%, transparent 78%) center/1.4px 100% no-repeat,
+    radial-gradient(circle, color-mix(in srgb, var(--elixir-claro) 85%, transparent) 0 3px, color-mix(in srgb, var(--elixir-vivo) 32%, transparent) 9px, transparent 17px);
+  animation:pn-late 2.4s ease-in-out infinite}
+@keyframes pn-corre{from{transform:translateX(0)}to{transform:translateX(144px)}}
+@keyframes pn-brilla{0%{transform:translateX(-110%)}55%,100%{transform:translateX(230%)}}
+@keyframes pn-late{50%{opacity:.6;transform:scale(.82)}}
+@media (prefers-reduced-motion:reduce){.pn-riel i::before,.pn-riel i::after,.pn-riel b{animation:none}}
 /* el mundo que sigue, con su candado: todavía no es tuyo */
 .pn-cerrado{position:relative;display:block}
 .pn-cerrado .pn-medalla{filter:grayscale(.5) brightness(.72)}

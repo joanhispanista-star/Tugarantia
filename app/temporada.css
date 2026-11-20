@@ -1,0 +1,258 @@
+/* ==========================================================================
+ * LA TEMPORADA: NAVIDAD — 18-nov-2026 (la prende y la apaga temporada.js)
+ *
+ * El alumbrado que escogió Joan (boceto 18-A): una guirnalda de focos que
+ * cuelga del borde de abajo de la cabecera y «¡Feliz Navidad!» junto al chip
+ * del nivel. Nada de esto se ve sin la clase tg-navidad en <html>, que solo
+ * se pone del 1-dic al 7-ene.
+ *
+ * El mismo día Joan pidió el resto de la app y escogió «Pino y oro»: el
+ * gorro en la G, el oro que cae en la bienvenida, el pino y el acebo de las
+ * tarjetas y las perillas como bolas. Está al final, en «NAVIDAD EN TODA LA
+ * APP».
+ *
+ * POR QUÉ ASÍ, Y NO COMO EN EL BOCETO:
+ *   · El boceto dibujaba la guirnalda con JavaScript, foco por foco, con dos
+ *     sombras de filtro (drop-shadow) en cada uno y los 36 titilando. Un filtro
+ *     animado se vuelve a pintar en cada cuadro, y en un Android barato eso
+ *     traba la página justo en la pestaña de entrada. Aquí son DOS imágenes
+ *     que se repiten (un tramo de 110 px con cuatro focos), con el brillo ya
+ *     dibujado adentro (un degradado, no un filtro). Lo único que se anima es
+ *     la opacidad de las dos capas, que el teléfono resuelve sin repintar.
+ *   · Va en los ::before/::after del .wrap de la cabecera, que nadie más usa,
+ *     y no en los de .laca (son el filete y el grano). Así cuelga también de
+ *     las cabeceras que una página arma después (la de «Conectar la base»), y
+ *     sin una línea de HTML nueva en ninguna página.
+ *   · Se repite desde el centro: si el ancho no da un número entero de
+ *     tramos, la guirnalda se sale igual por los dos lados, como una de verdad.
+ *   · pointer-events:none: los focos tapan un poco el borde, pero nunca un
+ *     toque.
+ *
+ * Los colores de los focos son del dibujo, como los mundos de la Pista: rojo,
+ * verde, oro y azul. Los textos van con los tokens de la página.
+ * ======================================================================== */
+
+/* La marca de que esta hoja llegó (temporada.js la pregunta antes del saludo). */
+:root{--tg-temporada:1}
+
+html.tg-navidad .cab>.wrap::before,
+html.tg-navidad .cab>.wrap::after,
+html.tg-navidad .tope>.wrap::before,
+html.tg-navidad .tope>.wrap::after{
+  content:'';position:absolute;left:0;right:0;bottom:-14px;height:40px;
+  pointer-events:none;z-index:3;
+  background-repeat:repeat-x;background-position:center top;background-size:110px 40px;
+  /* El oscuro forzado (Samsung Internet) repinta imágenes: estos focos no se tocan. */
+  color-scheme:only light;
+  animation:tg-titila 2.4s ease-in-out infinite;
+}
+/* Capa 1: el cable, los cuatro sockets y los focos rojo y oro con su brillo. */
+html.tg-navidad .cab>.wrap::before,
+html.tg-navidad .tope>.wrap::before{
+  background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 110 40'><defs><g id='f'><path d='M-1.8 3.4c0 1.3-1.8 2.3-1.8 4.8 0 3.4 2.4 7.6 3.6 7.6s3.6-4.2 3.6-7.6c0-2.5-1.8-3.5-1.8-4.8z' fill='currentColor'/><ellipse cy='9' rx='1.7' ry='2.8' fill='%23fff' fill-opacity='.3'/><path d='M-2 6.6q.1 2.8 1.4 4.8' fill='none' stroke='%23fff' stroke-opacity='.75' stroke-width='.9' stroke-linecap='round'/></g></defs><radialGradient id='a'><stop offset='0' stop-color='%23E5484D' stop-opacity='.6'/><stop offset='1' stop-color='%23E5484D' stop-opacity='0'/></radialGradient><radialGradient id='b'><stop offset='0' stop-color='%23F5C542' stop-opacity='.6'/><stop offset='1' stop-color='%23F5C542' stop-opacity='0'/></radialGradient><path d='M0 6Q55 32 110 6' fill='none' stroke='%2325402D' stroke-width='1.3'/><g fill='%232E5A3A'><rect x='-2.1' y='-.4' width='4.2' height='4' rx='.9' transform='translate(22 14.3) rotate(7.9)'/><rect x='-2.1' y='-.4' width='4.2' height='4' rx='.9' transform='translate(44 18.5) rotate(2.7)'/><rect x='-2.1' y='-.4' width='4.2' height='4' rx='.9' transform='translate(66 18.5) rotate(-2.7)'/><rect x='-2.1' y='-.4' width='4.2' height='4' rx='.9' transform='translate(88 14.3) rotate(-7.9)'/></g><circle cx='20.7' cy='23.7' r='10' fill='url(%23a)'/><use href='%23f' color='%23E5484D' transform='translate(22 14.3) rotate(7.9)'/><circle cx='66.4' cy='28' r='10' fill='url(%23b)'/><use href='%23f' color='%23F5C542' transform='translate(66 18.5) rotate(-2.7)'/></svg>");
+}
+/* Capa 2: los focos verde y azul, que titilan a destiempo de la capa 1. */
+html.tg-navidad .cab>.wrap::after,
+html.tg-navidad .tope>.wrap::after{
+  background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 110 40'><defs><g id='f'><path d='M-1.8 3.4c0 1.3-1.8 2.3-1.8 4.8 0 3.4 2.4 7.6 3.6 7.6s3.6-4.2 3.6-7.6c0-2.5-1.8-3.5-1.8-4.8z' fill='currentColor'/><ellipse cy='9' rx='1.7' ry='2.8' fill='%23fff' fill-opacity='.3'/><path d='M-2 6.6q.1 2.8 1.4 4.8' fill='none' stroke='%23fff' stroke-opacity='.75' stroke-width='.9' stroke-linecap='round'/></g></defs><radialGradient id='c'><stop offset='0' stop-color='%232EAD5B' stop-opacity='.6'/><stop offset='1' stop-color='%232EAD5B' stop-opacity='0'/></radialGradient><radialGradient id='d'><stop offset='0' stop-color='%234FA3FF' stop-opacity='.6'/><stop offset='1' stop-color='%234FA3FF' stop-opacity='0'/></radialGradient><circle cx='43.6' cy='28' r='10' fill='url(%23c)'/><use href='%23f' color='%232EAD5B' transform='translate(44 18.5) rotate(2.7)'/><circle cx='89.3' cy='23.7' r='10' fill='url(%23d)'/><use href='%23f' color='%234FA3FF' transform='translate(88 14.3) rotate(-7.9)'/></svg>");
+  animation-delay:-1.2s;
+}
+/* La barra de arriba de la portada (.tope) es delgada y lleva «Entrar» a la
+   derecha: colgada como en la app, los focos se montaban sobre el borde del
+   botón. Ahí el cable va por el borde de abajo de la barra y los focos cuelgan
+   afuera (fotos del 18-nov, 360 px y computador). */
+html.tg-navidad .tope>.wrap::before,
+html.tg-navidad .tope>.wrap::after{bottom:-32px}
+@keyframes tg-titila{0%,100%{opacity:1}50%{opacity:.45}}
+/* Quien pidió menos movimiento ve los focos prendidos y quietos. */
+@media (prefers-reduced-motion:reduce){
+  html.tg-navidad .cab>.wrap::before,
+  html.tg-navidad .cab>.wrap::after,
+  html.tg-navidad .tope>.wrap::before,
+  html.tg-navidad .tope>.wrap::after{animation:none}
+}
+
+/* «¡Feliz Navidad!» junto al chip del nivel (lo pone temporada.js). Fuera de
+   temporada no se ve aunque alguien lo deje puesto.
+   El espacio entre los dos lo pone el CHIP (margin-right) y no el saludo: en
+   un teléfono de 320 px, o con un nivel de nombre largo, el saludo baja de
+   renglón, y con su propio margen saldría corrido 8 px del borde. Así baja
+   alineado con el chip, y con el mismo aire arriba que el chip. */
+.tg-saludo{display:none}
+html.tg-navidad #uNivel{margin-right:var(--e2,8px)}
+html.tg-navidad .tg-saludo{display:inline-block;margin-top:var(--e2,8px);vertical-align:2px;
+  font:italic 700 13px/1 Georgia,serif;color:var(--amarillo,#F5C542)}
+
+/* ═══ 18-nov-2026 (2) — NAVIDAD EN TODA LA APP: «PINO Y ORO» ═════════════════
+ *
+ * Joan, el mismo 18-nov: «no solo las pistas con tematicas de navidad, quiero
+ * que desde la calculadora hasta el logo que aparece al comienzo de la
+ * aplicacion todo tenga tematica y decoracion navideña». De dos bocetos sobre
+ * la app real escogió el A, «Pino y oro» (el B era nieve):
+ *
+ *   · El gorro de Papá Noel en la G: la de la bienvenida (#hola) y la de la
+ *     cabecera (la app, play/ y la portada).
+ *   · En la bienvenida, una lluvia de oro y «¡Feliz Navidad!» debajo del lema
+ *     (lo escribe temporada.js: esta hoja no escribe texto).
+ *   · Una rama de pino con dos bolas en las tarjetas de laca, y acebo en la
+ *     esquina de las de papel: en la app, en play/ y en la caja de la
+ *     calculadora de la portada.
+ *   · La perilla de las calculadoras es una bola de árbol: roja la del
+ *     quincenal, azul la del respaldado, de oro la de la solicitud.
+ *   · Acebo debajo de la pestaña encendida, en vez de la rayita.
+ *
+ * LO QUE NO SE ADORNA, A PROPÓSITO:
+ *   · Los botones de pedir (.btn): con moño, pedir prestado se vuelve fiesta.
+ *   · La Pista: tiene su Navidad propia (el árbol de «Diciembre puntual») y
+ *     su paleta no lleva rojo.
+ *   · La pantalla de arranque nativa de la APK: es una imagen de la APK y no
+ *     cambia sin publicar otra. El gorro sale en #hola, justo después.
+ *
+ * Sigue siendo barato: imágenes SVG dentro de la hoja (sin red), cero
+ * filtros, y lo que se mueve (el oro que cae, el gorro que llega con la G) va
+ * con transform y opacidad, que el teléfono resuelve sin repintar. Con «menos
+ * movimiento», quieto. El dibujo salió de un generador que vive con los
+ * bocetos, en las notas de la sesión (pista-18-nov/arnes/navidad-toda/).
+ * ======================================================================== */
+
+/* Las imágenes, una vez cada una: el gorro sale en dos sitios y las tarjetas
+   llevan dos reglas (una con :has y otra sin). Cuelgan de html.tg-navidad:
+   fuera de temporada ni existen. */
+html.tg-navidad{
+  --tg-gorro:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-300 -300 600 600'><defs><linearGradient id='t' x1='0' y1='0' x2='1' y2='.35'><stop offset='0' stop-color='%23EE4B52'/><stop offset='.55' stop-color='%23C81822'/><stop offset='1' stop-color='%238E0E15'/></linearGradient><linearGradient id='p' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%23FFFFFF'/><stop offset='1' stop-color='%23E2D6C8'/></linearGradient><radialGradient id='b' cx='.38' cy='.34' r='.7'><stop offset='0' stop-color='%23FFFFFF'/><stop offset='.7' stop-color='%23F3ECE2'/><stop offset='1' stop-color='%23D9CCBC'/></radialGradient></defs><g transform='rotate(-16)'><path d='M-127.7 -99.8A162 162 0 0 1 127.7 -99.8' fill='none' stroke='%23000' stroke-opacity='.28' stroke-width='44' stroke-linecap='round' transform='translate(0 9)'/><path d='M-115 -128C-105 -200 -40 -262 30 -268C95 -273 140 -245 168 -200C130 -222 95 -222 72 -200C92 -172 108 -150 115 -128Z' fill='url(%23t)'/><path d='M-88 -134C-80 -190 -40 -232 6 -246C-28 -222 -56 -184 -62 -134Z' fill='%23fff' fill-opacity='.16'/><path d='M72 -200C95 -222 130 -222 168 -200C135 -234 100 -236 76 -206Z' fill='%236E0A10' fill-opacity='.45'/><path d='M-127.7 -99.8A162 162 0 0 1 127.7 -99.8' fill='none' stroke='url(%23p)' stroke-width='32' stroke-linecap='round'/><g fill='none' stroke='url(%23p)' stroke-linecap='round'><path d='M-132.8-115.5A176 176 0 0 1 132.8-115.5' stroke-width='19' stroke-dasharray='0 13.1'/><path d='M-108.2-100.9A148 148 0 0 1 108.2-100.9' stroke-width='17' stroke-dasharray='0 12.1'/></g><circle cx='168' cy='-200' r='22' fill='none' stroke='url(%23b)' stroke-width='17' stroke-dasharray='0 9.9' stroke-linecap='round'/><circle cx='168' cy='-200' r='25' fill='url(%23b)'/></g></svg>");
+  --tg-oro-cae:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'><circle cx='18' cy='30' r='1.6' fill='%23F5C542' fill-opacity='0.8'/><circle cx='70' cy='12' r='1.1' fill='%23F5C542' fill-opacity='0.6'/><circle cx='120' cy='48' r='2' fill='%23F5C542' fill-opacity='0.9'/><circle cx='200' cy='22' r='1.3' fill='%23F5C542' fill-opacity='0.7'/><circle cx='40' cy='96' r='1.2' fill='%23F5C542' fill-opacity='0.55'/><circle cx='160' cy='88' r='1.8' fill='%23F5C542' fill-opacity='0.85'/><circle cx='226' cy='130' r='1.1' fill='%23F5C542' fill-opacity='0.6'/><circle cx='96' cy='150' r='1.5' fill='%23F5C542' fill-opacity='0.75'/><circle cx='20' cy='190' r='2.1' fill='%23F5C542' fill-opacity='0.9'/><circle cx='140' cy='206' r='1.2' fill='%23F5C542' fill-opacity='0.6'/><circle cx='190' cy='176' r='1.6' fill='%23F5C542' fill-opacity='0.8'/><circle cx='60' cy='226' r='1.1' fill='%23F5C542' fill-opacity='0.5'/><path d='M100 65L101.2 68.8L105 70L101.2 71.2L100 75L98.8 71.2L95 70L98.8 68.8Z' fill='%23FFF4CC'/><path d='M30 136L31 139L34 140L31 141L30 144L29 141L26 140L29 139Z' fill='%23FFF4CC'/><path d='M210 215.5L211.1 218.9L214.5 220L211.1 221.1L210 224.5L208.9 221.1L205.5 220L208.9 218.9Z' fill='%23FFF4CC'/><path d='M176 36.5L176.8 39.2L179.5 40L176.8 40.8L176 43.5L175.2 40.8L172.5 40L175.2 39.2Z' fill='%23FFF4CC'/></svg>");
+  --tg-rama:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 104 60'><linearGradient id='k' x1='0' x2='1'><stop offset='0' stop-color='%238C5A10'/><stop offset='.45' stop-color='%23FFE7A0'/><stop offset='1' stop-color='%23A8741C'/></linearGradient><radialGradient id='o' cx='.35' cy='.35' r='.75'><stop offset='0' stop-color='%23FFF4CC'/><stop offset='.45' stop-color='%23F5C542'/><stop offset='1' stop-color='%23A9690F'/></radialGradient><path d='M84 6V26' stroke='%23C9A13B' stroke-width='.7'/><rect x='81.3' y='24.6' width='5.4' height='3.2' rx='.9' fill='url(%23k)'/><circle cx='84' cy='35' r='8' fill='url(%23o)'/><ellipse cx='81.2' cy='32' rx='2.4' ry='1.4' fill='%23fff' fill-opacity='.55' transform='rotate(-35 81.2 32)'/><circle cx='87.4' cy='38.6' r='1' fill='%23fff' fill-opacity='.35'/><radialGradient id='m' cx='.35' cy='.35' r='.75'><stop offset='0' stop-color='%23FFFFFF'/><stop offset='.45' stop-color='%23F3ECE2'/><stop offset='1' stop-color='%23BFAF9C'/></radialGradient><path d='M72 8V17' stroke='%23C9A13B' stroke-width='.7'/><rect x='70.3' y='15.6' width='3.4' height='3.2' rx='.9' fill='url(%23k)'/><circle cx='72' cy='23' r='5' fill='url(%23m)'/><ellipse cx='70.3' cy='21.1' rx='1.5' ry='.9' fill='%23fff' fill-opacity='.55' transform='rotate(-35 70.3 21.1)'/><circle cx='74.1' cy='25.3' r='.6' fill='%23fff' fill-opacity='.35'/><g fill='none' stroke-linecap='round' stroke-linejoin='round'><path d='M111 8l1-11-10-8M106 8l4-10-8-6M108 9l-1-10-8-8M103 8l2-8-7-6M98 11l4-10-7-6M99 13l0-11-8-6M93 12l5-10-5-7M95 12l1-9-8-7M87 14l5-10-5-6M86 14l5-10-7-6M85 15l3-10-8-5M82 15l4-9-5-7M80 12l3-6-6-6M75 14l5-7-8-7M73 14l5-7-4-5M70 16l5-8-5-7M70 16l3-8-6-5M63 15l7-7-6-4M62 15l6-6-5-6M61 15l5-6-6-8M57 15l5-6-4-4M54 15l5-6-3-4M53 15l5-6-7-6M50 15l5-6-5-3M46 14l5-5-6-4M44 12l6-3-5-3M40 14l6-5-5-3M37 12l6-3-3-3M37 11l4-2-3-4M34 12l6-4-6-4' stroke='%23124A2B' stroke-width='2'/><path d='M108 3l-8-3-5 5M110 3l-9-1-6 7M108 5l-7-1-6 7M110 12l-8-4-6 3M108 13l-6-3-5 4M106 16l-4-4-5 4M105 21l-3-6-5 2M103 23l-2-5-6 3M101 26l-1-6-4 2M100 27l-1-5-5 3M97 29l0-4-4 2' stroke='%23124A2B' stroke-width='1.9'/><path d='M112-3Q76 13 36 8M100 0Q106 14 95 28' stroke='%235E4128' stroke-width='1.1'/><path d='M112-3Q94 5 75 7.8' stroke='%235E4128' stroke-width='1.9'/><path d='M108 5l3-8-8-3M106 7l2-8-10-4M103 8l4-9-6-2M99 8l4-7-5-4M97 9l4-8-5-3M95 12l3-10-7-4M93 9l4-6-8-4M89 12l5-8-8-5M88 14l4-10-7-5M87 10l3-5-9-4M84 12l3-6-8-4M79 10l4-4-5-2M78 12l3-5-4-4M75 13l3-6-4-2M73 15l4-8-5-4M69 13l5-5-4-4M66 13l5-5-4-2M65 13l4-4-7-5M61 13l5-4-5-5M59 12l4-3-4-3M55 13l6-4-5-3M55 13l3-4-4-3M50 14l6-5-6-3M48 13l5-4-4-4M46 12l4-3-4-3M45 11l4-2-4-2M39 12l6-3-5-3M38 10l5-1-4-3M36 10l4-2-5-4M33 10l4-2-4-2' stroke='%231F7343' stroke-width='1.5'/><path d='M106 4l-5-2-3 5M108 8l-6-3-4 3M106 9l-4-3-3 4M106 14l-4-5-5 4M105 17l-3-5-3 3M105 17l-3-4-3 3M102 21l-1-4-3 3M101 23l-1-4-3 2M100 24l0-3-5 2M98 28l0-5-4 3M96 31l0-5-4 2' stroke='%231F7343' stroke-width='1.4'/><path d='M36 8l-4.4 1M36 8l-4.5-.6M36 8l-4-2.1' stroke='%231F7343' stroke-width='1.3'/><path d='M95 28l-1.1 3.3M95 28l-2.2 2.8M95 28l-3 1.8' stroke='%231F7343' stroke-width='1.2'/><path d='M110-2l-6-1M108-1l-7-3M104 0l-6-2M101 1l-4-2M95 3l-6-3M92 4l-4-1M88 5l-5-3M84 6l-4-2M82 7l-3-2M78 7l-6-3M73 8l-3-2M69 9l-4-3M65 9l-5-3M62 9l-4-2M59 9l-3-2M54 9l-4-2M51 9l-4-2M47 9l-4-2M42 9l-4-2M40 8l-3-1' stroke='%2345A56A' stroke-width='0.9'/><path d='M100 1l-2 4M102 5l-3 5M102 9l-3 3M102 13l-3 3M101 17l-4 2M100 20l-4 2M96 26l-3 2' stroke='%2345A56A' stroke-width='0.9'/></g></svg>");
+  --tg-acebo:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 18'><defs><g id='h' stroke='%230B4424' stroke-width='.45' stroke-linejoin='round'><path d='M0 0Q2.6-1 3.5-3.2Q5.4-2 7-3.8Q8.6-2 10.5-3Q11.6-1 14 0Z' fill='%232F9A58'/><path d='M0 0Q2.6 1 3.5 3.2Q5.4 2 7 3.8Q8.6 2 10.5 3Q11.6 1 14 0Z' fill='%2317653A'/><path d='M1.2 0H12.6' stroke='%23A8DDB9' stroke-width='.5' stroke-linecap='round'/></g></defs><use href='%23h' transform='translate(19 8) scale(-.86 .86) rotate(15)'/><use href='%23h' transform='translate(21 8) rotate(15) scale(.86)'/><circle cx='20' cy='6.2' r='2.1' fill='%23D0142F' stroke='%237D0A1E' stroke-width='.35'/><circle cx='19.3' cy='5.4' r='.6' fill='%23fff' fill-opacity='.75'/><circle cx='17.6' cy='8.8' r='2' fill='%23D0142F' stroke='%237D0A1E' stroke-width='.35'/><circle cx='17' cy='8.1' r='.6' fill='%23fff' fill-opacity='.75'/><circle cx='22.4' cy='9' r='2' fill='%23D0142F' stroke='%237D0A1E' stroke-width='.35'/><circle cx='21.8' cy='8.3' r='.6' fill='%23fff' fill-opacity='.75'/></svg>");
+  --tg-acebo-nav:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 12'><defs><g id='h' stroke='%230B4424' stroke-width='.45' stroke-linejoin='round'><path d='M0 0Q2.6-1 3.5-3.2Q5.4-2 7-3.8Q8.6-2 10.5-3Q11.6-1 14 0Z' fill='%232F9A58'/><path d='M0 0Q2.6 1 3.5 3.2Q5.4 2 7 3.8Q8.6 2 10.5 3Q11.6 1 14 0Z' fill='%2317653A'/><path d='M1.2 0H12.6' stroke='%23A8DDB9' stroke-width='.5' stroke-linecap='round'/></g></defs><use href='%23h' transform='translate(10 6.5) scale(-.62 .62) rotate(10)'/><use href='%23h' transform='translate(12 6.5) rotate(10) scale(.62)'/><circle cx='10' cy='5.2' r='1.6' fill='%23D0142F' stroke='%237D0A1E' stroke-width='.35'/><circle cx='9.5' cy='4.6' r='.5' fill='%23fff' fill-opacity='.75'/><circle cx='12.6' cy='5.8' r='1.6' fill='%23D0142F' stroke='%237D0A1E' stroke-width='.35'/><circle cx='12.1' cy='5.2' r='.5' fill='%23fff' fill-opacity='.75'/></svg>");
+  --tg-bola-roja:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'><defs><radialGradient id='r' cx='.36' cy='.36' r='.75'><stop offset='0' stop-color='%23FF8A8E'/><stop offset='.45' stop-color='%23D81F26'/><stop offset='1' stop-color='%237E0B10'/></radialGradient><linearGradient id='o' x1='0' x2='1'><stop offset='0' stop-color='%23A9690F'/><stop offset='.5' stop-color='%23FFF4CC'/><stop offset='1' stop-color='%23A9690F'/></linearGradient></defs><circle cx='14' cy='16.5' r='11' fill='url(%23r)'/><circle cx='14' cy='2.2' r='1.4' fill='none' stroke='%23A9690F' stroke-width='.9'/><rect x='10.5' y='3' width='7' height='4.4' rx='1.2' fill='url(%23o)'/><ellipse cx='10' cy='12.5' rx='3.2' ry='2' fill='%23fff' fill-opacity='.45' transform='rotate(-35 10 12.5)'/></svg>");
+  --tg-bola-azul:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'><defs><radialGradient id='r' cx='.36' cy='.36' r='.75'><stop offset='0' stop-color='%239DBBFF'/><stop offset='.45' stop-color='%231B4FD8'/><stop offset='1' stop-color='%230D2A7A'/></radialGradient><linearGradient id='o' x1='0' x2='1'><stop offset='0' stop-color='%23A9690F'/><stop offset='.5' stop-color='%23FFF4CC'/><stop offset='1' stop-color='%23A9690F'/></linearGradient></defs><circle cx='14' cy='16.5' r='11' fill='url(%23r)'/><circle cx='14' cy='2.2' r='1.4' fill='none' stroke='%23A9690F' stroke-width='.9'/><rect x='10.5' y='3' width='7' height='4.4' rx='1.2' fill='url(%23o)'/><ellipse cx='10' cy='12.5' rx='3.2' ry='2' fill='%23fff' fill-opacity='.45' transform='rotate(-35 10 12.5)'/></svg>");
+  --tg-bola-oro:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'><defs><radialGradient id='r' cx='.36' cy='.36' r='.75'><stop offset='0' stop-color='%23FFF4CC'/><stop offset='.45' stop-color='%23F5C542'/><stop offset='1' stop-color='%23A9690F'/></radialGradient><linearGradient id='o' x1='0' x2='1'><stop offset='0' stop-color='%23A9690F'/><stop offset='.5' stop-color='%23FFF4CC'/><stop offset='1' stop-color='%23A9690F'/></linearGradient></defs><circle cx='14' cy='16.5' r='11' fill='url(%23r)'/><circle cx='14' cy='2.2' r='1.4' fill='none' stroke='%23A9690F' stroke-width='.9'/><rect x='10.5' y='3' width='7' height='4.4' rx='1.2' fill='url(%23o)'/><ellipse cx='10' cy='12.5' rx='3.2' ry='2' fill='%23fff' fill-opacity='.45' transform='rotate(-35 10 12.5)'/></svg>");
+}
+
+/* EL GORRO. Una sola imagen, dibujada en las coordenadas de la G (centro 0,0 y
+   radio 150, las del trazo de la G en socio.html) sobre un lienzo de 600. El
+   ala abraza el aro de arriba y termina antes del remate de la G: de ahí sale
+   la chispa de la bienvenida, y no se tapa.
+   En la bienvenida la G es el 68 % del sello y mide 340 unidades, así que el
+   lienzo es el 120 % del sello, centrado. Va en porcentaje para que siga al
+   sello en sus tres tamaños (200, 120 y 96 px en las pantallas bajas), y
+   llega con la misma animación de la G (hola-sello, de socio.html). */
+html.tg-navidad #hola .sello::after{content:'';position:absolute;left:-10%;top:-10%;width:120%;height:120%;
+  pointer-events:none;background:var(--tg-gorro) center/100% 100% no-repeat;
+  animation:hola-sello .9s cubic-bezier(.2,.9,.25,1) both}
+/* En la cabecera la G mide 30 px para 320 unidades: el lienzo mide 56,25 px,
+   centrado en la G (la primera de la marca, centrada en alto). Solo donde la
+   marca trae la G: PlataChat la cambia por la suya, y la pantalla de error
+   usa la imagen marca.svg. */
+html.tg-navidad .marca:has(>.g){position:relative}
+html.tg-navidad .marca:has(>.g)::before{content:'';position:absolute;left:-13.125px;top:calc(50% - 28.125px);
+  width:56.25px;height:56.25px;z-index:1;pointer-events:none;background:var(--tg-gorro) center/100% 100% no-repeat}
+
+/* LA LLUVIA DE ORO de la bienvenida: una baldosa de 240 px que baja
+   exactamente su alto en cada vuelta, y por eso no se ve el empalme. Va encima
+   de las capas del fondo y debajo del sello (z-index 2). #hola no se borra al
+   irse, solo se esconde (.fuera): ahí el oro se queda quieto, y no sigue
+   cayendo detrás de la app. */
+html.tg-navidad #hola::before{content:'';position:absolute;left:0;right:0;top:-240px;bottom:0;z-index:1;
+  pointer-events:none;background:var(--tg-oro-cae) 0 0/240px 240px repeat;animation:tg-cae 9s linear infinite}
+html.tg-navidad #hola.fuera::before{animation-play-state:paused}
+@keyframes tg-cae{to{transform:translateY(240px)}}
+
+/* «¡Feliz Navidad!» en la bienvenida, debajo del lema. Lo pone temporada.js
+   (el mismo SALUDO de la cabecera). Escondido fuera de temporada aunque
+   alguien lo deje puesto. En las pantallas bajas se achica, y en las muy
+   bajas se va con el lema (los mismos cortes de socio.html). */
+.tg-saludo-hola{display:none}
+html.tg-navidad #hola .tg-saludo-hola{display:block;margin-top:var(--e3,12px);
+  font:italic 700 15px/1 Georgia,serif;color:var(--amarillo,#F5C542);animation:hola-sube .7s ease 1s both}
+@media (max-height:500px){html.tg-navidad #hola .tg-saludo-hola{margin-top:var(--e2,8px);font-size:13px}}
+@media (max-height:300px){html.tg-navidad #hola .tg-saludo-hola{display:none}}
+
+/* LAS TARJETAS. La rama corre por el borde de arriba, dentro de los 20 px de
+   relleno, y las bolas cuelgan en los últimos 40 px, hasta 44 px de alto. Ahí
+   cae el rótulo: el de Entrar («Dinos cuánto necesitas y para cuándo») va en
+   dos renglones a 320 px y se metía entre las bolas (medido el 18-nov). Por
+   eso, en temporada, los rótulos de esas tarjetas dejan libres 36 px a la
+   derecha. El acebo de las de papel va entero dentro del relleno de arriba: no
+   hay texto que tape. La rama entra en las de laca como otra capa de fondo
+   (sus ::before y ::after ya son el grano y el filete); en las de papel solo
+   cambia background-image, para no pisar el color de ninguna. */
+html.tg-navidad #entrarCuerpo>.card.laca{background:var(--tg-rama) right top/104px 60px no-repeat,var(--placa)}
+html.tg-navidad #entrarCuerpo>.card.laca :is(.etq,.cs-etq){padding-right:36px}
+html.tg-navidad #entrarCuerpo>.card:not(.laca){background-image:var(--tg-acebo);background-repeat:no-repeat;
+  background-position:right 10px top 2px;background-size:36px 18px}
+/* Una tarjeta que abre con un aviso (el ámbar de «cuidado», el informativo o
+   uno simple; no el verde de «Listo») va sin adorno: lo que pide atención no
+   compite con un adorno. Pasa en la propuesta de play/ («Te hicimos una
+   propuesta. Léela con calma y decide.», arriba de las condiciones), en el
+   aviso de los datos personales y en los errores. Cuenta también el aviso que
+   va primero dentro de la primera caja: el chat de play/ pone su «No pude
+   traer tus mensajes» dentro de #hilo. En la app y en play/ va dentro de la
+   regla; en Entrar, aparte y quitando el acebo, para que sin :has se caiga
+   ella sola y el acebo se quede (tampoco tapa nada). */
+html.tg-navidad #entrarCuerpo>.card:not(.laca):has(>.aviso:not(.verde):first-child,>:first-child>.aviso:not(.verde):first-child){background-image:none}
+/* En la Pista no (ver arriba). Se sabe que es la Pista por la pestaña
+   encendida, no por las clases de adentro: así vale también para lo que se le
+   agregue (las misiones). Sin :has (un Chrome de antes de 2022) estas dos
+   reglas se caen enteras y las tarjetas salen sin adorno: nada se rompe. Por
+   eso van aparte de las de Entrar. Llevan las tarjetas sueltas del .panel y
+   también las que van en una caja con id dentro de él: el resultado de la
+   calculadora (#calcSalida, #calcComparar) y la historia laboral (#hlCuenta). */
+html.tg-navidad body:not(:has(#nav button.on[data-t="pista"])) :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>.card.laca{background:var(--tg-rama) right top/104px 60px no-repeat,var(--placa)}
+html.tg-navidad body:not(:has(#nav button.on[data-t="pista"])) :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>.card.laca :is(.etq,.cs-etq){padding-right:36px}
+html.tg-navidad body:not(:has(#nav button.on[data-t="pista"])) :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>.card:not(.laca):not(:has(>.aviso:not(.verde):first-child,>:first-child>.aviso:not(.verde):first-child)){background-image:var(--tg-acebo);background-repeat:no-repeat;
+  background-position:right 10px top 2px;background-size:36px 18px}
+/* play/ también (Joan, el mismo 18-nov: «Sí, también»). Allá las tarjetas van
+   sueltas en #cuerpo (la entrada y el registro) o en #lamina (la cuenta), o en
+   una caja con id dentro de ellos (la historia laboral, #hlCuenta). socio.html
+   siempre las mete en un .panel sin id y no tiene #lamina: estas reglas no la
+   tocan. play/ no tiene Pista. Sus avisos van sin adorno, como los de la
+   app: los sueltos no son .card, y la tarjeta que abre con uno tampoco lleva
+   (ver arriba). Sin :is ni :has (un Chrome de antes de 2022) la regla se cae,
+   la tarjeta sale sin adorno y nada se rompe. */
+html.tg-navidad :is(#cuerpo,#lamina,#cuerpo>div[id],#lamina>div[id])>.card.laca{background:var(--tg-rama) right top/104px 60px no-repeat,var(--placa)}
+html.tg-navidad :is(#cuerpo,#lamina,#cuerpo>div[id],#lamina>div[id])>.card.laca :is(.etq,.cs-etq){padding-right:36px}
+html.tg-navidad :is(#cuerpo,#lamina,#cuerpo>div[id],#lamina>div[id])>.card:not(.laca):not(:has(>.aviso:not(.verde):first-child,>:first-child>.aviso:not(.verde):first-child)){background-image:var(--tg-acebo);background-repeat:no-repeat;
+  background-position:right 10px top 2px;background-size:36px 18px}
+/* Y la portada. Ahí la única tarjeta es la caja de la calculadora
+   (#calcPedido), sobre la franja de laca: la rama va sola, porque el fondo ya
+   es el de la franja. Si la calculadora no llega, en la caja queda una frase
+   de ancho completo, que también deja libre la esquina. Lo demás son franjas,
+   la tabla de la escalera y el aviso ámbar de «haz la cuenta», que no se
+   adorna: es la advertencia del costo. */
+html.tg-navidad #calcPedido{background:var(--tg-rama) right top/104px 60px no-repeat}
+html.tg-navidad #calcPedido :is(.etq,.cs-etq){padding-right:36px}
+html.tg-navidad #calcPedido>p:first-child{padding-right:36px}
+
+/* LA PERILLA DE LA CALCULADORA, una bola de árbol: roja la del quincenal y
+   azul la del respaldado, así el color sigue diciendo de qué producto es.
+   Ojo: la perilla de 28 px que dibuja socio.html nunca se vio. El deslizador no
+   tiene appearance:none, y Chrome pinta el suyo con accent-color. En temporada
+   sí lo lleva: la barra pierde el relleno rojo a la izquierda de la perilla
+   (Joan lo sabe, 18-nov; el monto sigue en grande arriba) y la perilla pasa de
+   16 a 28 px, más fácil de agarrar. La barra va un poco más marcada: con el
+   --linea de socio.html, en modo oscuro casi no se veía. */
+html.tg-navidad #calcRange{-webkit-appearance:none;appearance:none}
+html.tg-navidad #calcRange::-webkit-slider-runnable-track{background:color-mix(in srgb, var(--gris) 40%, var(--papel))}
+html.tg-navidad #calcRange::-webkit-slider-thumb{margin-top:-11px;background:var(--tg-bola-roja) center/28px 28px no-repeat}
+html.tg-navidad #calcRange.azul::-webkit-slider-thumb{background:var(--tg-bola-azul) center/28px 28px no-repeat}
+html.tg-navidad #calcRange::-moz-range-track{height:6px;border-radius:99px;background:color-mix(in srgb, var(--gris) 40%, var(--papel))}
+html.tg-navidad #calcRange::-moz-range-thumb{width:28px;height:28px;border:0;border-radius:50%;
+  background:var(--tg-bola-roja) center/28px 28px no-repeat}
+html.tg-navidad #calcRange.azul::-moz-range-thumb{background:var(--tg-bola-azul) center/28px 28px no-repeat}
+/* La calculadora de la solicitud (Entrar, play/ y la portada) tiene su perilla
+   de oro sobre la laca: aquí es una bola de oro. Lleva el .cs para ganarle a su
+   propia regla (app/calculadora-solicitud.js). */
+html.tg-navidad .cs input[type=range]::-webkit-slider-thumb{border:0;background:var(--tg-bola-oro) center/34px 34px no-repeat}
+html.tg-navidad .cs input[type=range]::-moz-range-thumb{width:34px;height:34px;border:0;
+  background:var(--tg-bola-oro) center/34px 34px no-repeat}
+
+/* La pestaña encendida: acebo en vez de la rayita roja. */
+html.tg-navidad #nav button.on::after{width:22px;height:12px;bottom:5px;border-radius:0;
+  background:var(--tg-acebo-nav) center/22px 12px no-repeat}
+
+@media (prefers-reduced-motion:reduce){
+  html.tg-navidad #hola::before,
+  html.tg-navidad #hola .sello::after,
+  html.tg-navidad #hola .tg-saludo-hola{animation:none}
+}
