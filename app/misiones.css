@@ -1,0 +1,157 @@
+/* ============================================================================
+ * LAS MISIONES DE LA PISTA — la hoja de estilos (16 de noviembre de 2026)
+ * El cálculo y los textos están en misiones.js; el dibujo de la isla, en
+ * pista-niveles.js. Es la de los bocetos que aprobó Joan el 16-nov.
+ *
+ * TODO LLEVA EL PREFIJO mi-, por la misma razón que la Pista lleva pn-: una
+ * regla de aquí no le puede cambiar la cara a otra pantalla.
+ *
+ * LA LEY DE LA PALETA, igual que en la Pista:
+ *   · el amarillo (--amarillo) solo sobre laca: la píldora de estrellas, el
+ *     título, la quincena pasada, las rachas logradas y la llegada;
+ *   · en papel, las estrellas van en --amarillo-tinta;
+ *   · ni rojo ni ámbar: aquí nada es mora, y una misión que se pasó no es un
+ *     regaño (va apagada, no en rojo).
+ * La laca es oscura en los dos modos, y lo demás son tokens de la página:
+ * el modo oscuro sale solo.
+ * ==========================================================================*/
+:root{--mi-listo:1}
+
+.mi-ico{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.mi-est,.mi-van{color:var(--amarillo-tinta);letter-spacing:1px;font-size:14px;line-height:1}
+.mi-por{opacity:.32}
+
+/* ---------- en la isla: el título con el personaje y las estrellas ---------- */
+.mi-titulo{display:inline-flex;align-items:center;gap:5px;max-width:100%;margin-top:6px;padding:3px 8px 3px 5px;border-radius:999px;
+  font:inherit;font-size:11.5px;font-weight:700;color:var(--amarillo);border:1px solid color-mix(in srgb, var(--amarillo) 50%, transparent);
+  background:rgba(0,0,0,.28);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.mi-titulo span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mi-titulo .mi-ico{width:16px;height:16px;stroke-width:2}
+.mi-titulo i{font-style:normal;opacity:.8;margin-left:1px}
+.mi-titulo:focus-visible{outline:2px solid var(--amarillo);outline-offset:2px}
+.mi-pildora{position:absolute;left:12px;bottom:8px;z-index:2;display:flex;align-items:center;gap:6px;max-width:calc(100% - 24px);
+  padding:5px 10px 5px 7px;border-radius:999px;background:rgba(12,10,9,.66);border:1px solid color-mix(in srgb, var(--amarillo) 55%, transparent);
+  color:var(--blanco-laca);font-size:11.5px;pointer-events:none}
+.mi-pildora .mi-ico{width:15px;height:15px;color:var(--amarillo);fill:var(--amarillo);stroke:none}
+.mi-pildora b{color:var(--amarillo);font-size:13px}
+.mi-pildora span{opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- las tarjetas ---------- */
+.mi-card .mi-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.mi-corte{font-size:11.5px;font-weight:700;color:var(--tinta);padding:3px 8px;border-radius:999px;border:1px solid var(--linea);white-space:nowrap}
+.mi-fila{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--linea)}
+.mi-fila:last-of-type{border-bottom:0}
+.mi-punto{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none;border:1.5px solid var(--linea);color:var(--tinta);background:var(--papel)}
+.mi-fila.hecha .mi-punto{background:var(--laca);color:var(--amarillo);border-color:var(--laca)}
+.mi-fila.cerrada{opacity:.55}
+.mi-fila.cerrada .mi-punto{border-style:dashed}
+.mi-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.mi-txt b{font-size:14.5px}
+.mi-txt small{font-size:12.5px;color:var(--gris);line-height:1.35}
+.mi-ir{align-self:flex-start;margin-top:7px}
+.mi-premio{flex:none;text-align:right;white-space:nowrap}
+.mi-pasada{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 11px;border-radius:12px;background:var(--laca);color:var(--blanco-laca);font-size:12.5px;line-height:1.35}
+.mi-pasada .mi-ico{color:var(--amarillo);width:17px;height:17px}
+.mi-pasada b{color:var(--amarillo)}
+.mi-nota{font-size:12.5px;color:var(--gris);margin:10px 0 0;line-height:1.4}
+.mi-nota-arriba{margin-top:4px}
+.mi-sin{margin-top:8px}
+.mi-rachas-top{display:flex;gap:12px;align-items:center;margin-top:10px}
+.mi-fuego{width:44px;height:44px;flex:none;border-radius:12px;display:grid;place-items:center;background:var(--laca);color:var(--amarillo)}
+.mi-fuego .mi-ico{width:26px;height:26px}
+.mi-rachas-top small{display:block;font-size:12.5px;color:var(--gris);line-height:1.35}
+.mi-n{font-size:20px}
+.mi-rachas{display:flex;gap:10px;margin-top:12px}
+.mi-racha{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 0 8px;border-radius:12px;border:1.5px solid var(--linea)}
+.mi-racha i{font-style:normal;font-weight:800;font-size:20px}
+.mi-racha small{font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.mi-racha.hecha{background:var(--laca);border-color:var(--laca);color:var(--amarillo)}
+.mi-racha.hecha small{color:var(--blanco-laca);opacity:.75}
+.mi-racha.sigue{border-style:dashed;border-color:var(--amarillo-tinta)}
+.mi-racha.sigue small{color:var(--amarillo-tinta)}
+
+/* ---------- Tus islas: la lista (liviana) y el álbum (en una hoja) ---------- */
+.mi-al-intro{margin:4px 0 6px}
+.mi-lista-islas{list-style:none;margin:0;padding:0}
+.mi-lista-islas li{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--linea)}
+.mi-lista-islas li:last-child{border-bottom:0}
+.mi-lista-islas li > span{flex:1;min-width:0;display:flex;flex-direction:column}
+.mi-lista-islas b{font-size:14px}
+.mi-lista-islas small{font-size:12px;color:var(--gris)}
+.mi-lista-islas li.aqui small{color:var(--amarillo-tinta);font-weight:700}
+.mi-lista-islas em{font-style:normal;font-size:12px;font-weight:700;color:var(--tinta);white-space:nowrap}
+.mi-ver-islas{width:100%;margin-top:10px}
+.mi-albumes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.mi-al{border:1.5px solid var(--linea);border-radius:14px;overflow:hidden;padding-bottom:8px;text-align:center}
+.mi-al-dib{height:104px;overflow:hidden;background:var(--laca);display:grid;place-items:center}
+.mi-al-dib .pn-capas{width:100%}
+.mi-al b{display:block;margin-top:7px;font-size:13.5px}
+.mi-al small{display:block;font-size:11px;color:var(--gris);padding:0 6px;line-height:1.35}
+.mi-al .mi-al-st{margin-top:2px;color:var(--tinta);font-weight:700}
+.mi-al.aqui{border-color:var(--amarillo-tinta)}
+.mi-al.aqui small{color:var(--amarillo-tinta);font-weight:700}
+.mi-al.aqui .mi-al-st{color:var(--tinta)}
+.mi-al.luego .mi-al-dib{background:repeating-linear-gradient(135deg,#1b1d24 0 8px,#22252e 8px 16px);color:rgba(255,255,255,.6)}
+.mi-al.luego .mi-ico{width:28px;height:28px}
+
+/* ---------- la hoja del personaje y los títulos ---------- */
+.mi-hoja .pn-cuerpo-h{padding-top:18px}
+.mi-ops{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-top:9px}
+.mi-op{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 0 8px;border-radius:12px;border:1.5px solid var(--linea);background:var(--papel);
+  color:var(--tinta);font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.mi-op .mi-ico{width:26px;height:26px}
+.mi-op.sel{background:var(--laca);color:var(--amarillo);border-color:var(--laca)}
+.mi-op:focus-visible{outline:2px solid var(--tinta);outline-offset:2px}
+.mi-sep{margin-top:16px}
+.mi-tit-grande{font-family:Georgia,serif;font-size:21px;font-weight:700;margin:4px 0 0}
+.mi-titulos{list-style:none;margin:10px 0 0;padding:0;font-size:12.5px}
+.mi-titulos li{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--linea)}
+.mi-titulos li span{color:var(--gris)}
+.mi-titulos li b{text-align:right}
+.mi-titulos li.aqui b{color:var(--amarillo-tinta)}
+.mi-titulos li.luego b{color:var(--gris);font-weight:600}
+.mi-listo{width:100%;margin-top:14px}
+
+/* ---------- la llegada a un mundo (una sola vez) ---------- */
+.mi-llegada{position:fixed;top:0;right:0;bottom:0;left:0;z-index:60;overflow:auto;overscroll-behavior:contain;color:var(--blanco-laca);text-align:center;background:#07080C}
+.mi-chispas{position:absolute;top:0;right:0;bottom:0;left:0;pointer-events:none;opacity:.7;
+  background-image:radial-gradient(1.6px 1.6px at 12% 18%,#fff,transparent),radial-gradient(1.2px 1.2px at 82% 12%,#fff,transparent),
+  radial-gradient(1.4px 1.4px at 66% 28%,#F5C542,transparent),radial-gradient(1.2px 1.2px at 28% 34%,#fff,transparent),
+  radial-gradient(1.6px 1.6px at 90% 40%,#F5C542,transparent),radial-gradient(1.1px 1.1px at 8% 46%,#fff,transparent)}
+.mi-ll-arriba{position:relative;padding:28px 20px 0}
+.mi-ll-arriba .etq{color:var(--amarillo)}
+.mi-ll-sub{margin-top:10px;font-size:14px;opacity:.85}
+.mi-llegada h1{font-family:Georgia,serif;font-size:46px;line-height:1;margin:4px 0;color:#fff}
+.mi-ll-lema{font-family:Georgia,serif;font-style:italic;opacity:.85}
+.mi-ll-mundo{position:relative;max-width:488px;margin:-6px auto 0;
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 16%,#000 84%,transparent 100%);
+  mask-image:linear-gradient(to bottom,transparent 0,#000 16%,#000 84%,transparent 100%)}
+.mi-ll-medalla{position:relative;margin:-58px auto 0;width:max-content}
+.mi-ll-medalla .pn-medalla{width:70px;height:72px}
+.mi-ll-abajo{position:relative;max-width:440px;margin:0 auto;padding:8px 20px 28px}
+.mi-ll-tit{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--amarillo);font-weight:700}
+.mi-ll-tit b{display:block;font-family:Georgia,serif;font-size:21px;letter-spacing:0;text-transform:none;color:#fff;margin-top:4px}
+.mi-ll-cambia{margin:14px 0 0;padding:11px 13px;border-radius:12px;text-align:left;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+.mi-ll-cambia .etq{color:var(--amarillo)}
+.mi-ll-cambia p{margin:5px 0 0;font-size:13px;line-height:1.45}
+.mi-ll-album{font-size:12.5px;opacity:.8;margin:12px 0 14px}
+.mi-wa{display:flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.mi-ll-lleva{font-size:11.5px;opacity:.7;margin:7px 0 0;line-height:1.4}
+.mi-sec{width:100%;margin-top:12px;color:#fff!important;border-color:rgba(255,255,255,.35)!important;background:transparent!important}
+
+/* ---------- diciembre (18-nov) ----------
+   «Diciembre puntual» usa las filas de siempre. La tarjeta de Navidad va en
+   LACA: es lo del socio (su isla), y así el oro del saludo y los focos quedan
+   sobre la placa negra, como manda la paleta. La guirnalda cuelga del borde
+   de arriba de la tarjeta y se corta a lo ancho, nunca se estira. */
+.mi-navidad{overflow:hidden;padding-top:0}
+.mi-guirnalda{display:block;width:calc(100% + var(--e4) * 2);height:40px;margin:0 calc(var(--e4) * -1) var(--e1)}
+.mi-saludo{margin:2px 0 0;font:italic 700 24px/1.15 Georgia,serif;color:var(--amarillo)}
+.mi-navidad .mi-nota{color:color-mix(in srgb, var(--blanco-laca) 76%, transparent)}
+.mi-navidad .mi-wa{margin-top:var(--e3)}
+
+/* Las islas del álbum no se mecen: cuatro o cinco flotando a la vez es
+   trabajo de más para un teléfono barato. La de la llegada sí (y con
+   «reducir movimiento» se queda quieta, por la regla de pista-niveles.css).
+   Aquí no hay animaciones propias. */
+.mi-al-dib .pn-isla{animation:none!important}

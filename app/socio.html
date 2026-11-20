@@ -57,6 +57,9 @@
      prefijo pn- y se pinta con los tokens de esta página. Trae además la
      regla que deja caber SEIS pestañas en la barra de abajo. -->
 <link rel="stylesheet" href="pista-niveles.css">
+<!-- 16-nov-2026 — las misiones de la Pista (misiones.js): prefijo mi-, tokens de
+     esta página. Archivo nuevo: sin versión. -->
+<link rel="stylesheet" href="misiones.css">
 <style>
 /* ==========================================================================
  * LA LEY DE LA PALETA — 2 de agosto de 2026
@@ -1040,10 +1043,15 @@ details.plegado>summary{padding:0 var(--e4)}
    en la tarjeta «Tu garantía» de Inicio (que pasa a la laca) y en el riel de la
    Pista. Si un cliente dice que su barra sigue delgada y lisa, esta fecha dice si
    tiene la versión que la trae.
-   20-nov-2026 (v155): la Navidad se prende desde el 20-nov y no desde el 1-dic. Joan:
-   «sube lo de navidad desde ya». La fecha es la misma de v154, así que aquí distingue
-   el número del sello: si un cliente dice que en noviembre no ve la guirnalda, el pie
-   dice si tiene v155. */
+   18-nov-2026 (salió el 20-nov, en v155): la Pista completa: los nueve mundos a la
+   vista con lo que abre cada uno, el hito del millón, «Cómo subir más rápido» y más
+   luz en los dibujos; en diciembre, «Diciembre puntual» y la tarjeta de Navidad. Y el
+   préstamo con garantía ya no dice «costo mensual fijo» (lo fijo es la cuota).
+   20-nov-2026 (v155): la Navidad se prende desde el 20-nov y no desde el 1-dic (Joan:
+   «sube lo de navidad desde ya»), y sale la Pista completa de arriba. La fecha es la
+   misma de v154, así que aquí distingue el número del sello: si un cliente dice que en
+   noviembre no ve la guirnalda, o que no ve el último mundo destapado, el pie dice si
+   tiene v155. */
 var VERSION_APP = '2026-11-20';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
@@ -1172,8 +1180,15 @@ setTimeout(function () {
      en la dirección a propósito: es un archivo nuevo (no hay copia vieja con
      la que mezclarse) y es adorno, no plata; si no llega, la guardia de abajo
      no frena la app y la pestaña simplemente no se ofrece. El día que cambie
-     le toca su ?v= como a los demás (ya firma su llegada). -->
-<script src="pista-niveles.js"></script>
+     le toca su ?v= como a los demás (ya firma su llegada).
+     16-nov-2026 — Y CAMBIÓ (las misiones: las cosas de la isla, el personaje y
+     la llegada): va con ?v= como cualquier .js publicado que cambia, para que
+     una página nueva no corra con el de antes. Al publicar toma el número de
+     CACHE de ese día (pruebas/la-pagina-nueva-no-corre-con-un-js-viejo): salió con
+     v155, el 20-nov.
+     misiones.js es NUEVO: sin versión; si no llega, la Pista se ve como antes. -->
+<script src="pista-niveles.js?v=155"></script>
+<script src="misiones.js"></script>
 <script src="sesion-socio.js?v=143"></script>
 <script src="ver-como.js"></script>
 <!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
@@ -2411,6 +2426,9 @@ function irA(tab) {
   if (tab === 'calc') sincronizarCalc();
   if (tab === 'chat') arrancarChat();
   if (tab === 'inicio') montarHistoriaLaboral();   // 28-oct-2026
+  /* 16-nov-2026 — con la Pista ya pintada: las misiones anotan lo suyo en el
+     teléfono y, si llegó a un mundo nuevo, sale la llegada (una sola vez). */
+  if (tab === 'pista' && window.PistaNiveles && window.PistaNiveles.montar) window.PistaNiveles.montar();
   window.scrollTo(0, 0);
   avisarQueEsMomento();   // 21-oct-2026 — Inicio, Historial y Garantía son de la lista
 }
@@ -2549,7 +2567,7 @@ function vistaInicio() {
       (S.maxRespaldado > 0
         ? '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
           'Y con la garantía que ya te ganaste puedes pedir hasta ' + COP(S.maxRespaldado) +
-          ', con un costo mensual fijo que ves en pesos antes de pedir.</div>'
+          ', a cuotas mensuales fijas que ves en pesos antes de pedir.</div>'
         : '') +
       '<button class="btn arriba" onclick="irA(\'calc\')">Calcular y pedir</button>' +
       '</div>';
@@ -3767,7 +3785,7 @@ function sincronizarCalc() {
 
   $('calcMonto').textContent = COP(MONTO);
   $('calcSub').textContent = resp
-    ? 'Un costo mensual fijo, en pesos, sobre lo que pidas. Lo respalda la garantía que ya te ganaste.'
+    ? 'Cuotas mensuales fijas, y el costo en pesos antes de pedir. Lo respalda la garantía que ya te ganaste.'
     : 'El costo, en pesos, por quincena. Lo ves abajo antes de pedir.';
 
   var r = $('calcRange');
@@ -4644,7 +4662,19 @@ function vistaPista() {
   if (!window.PistaNiveles) return '';   // irA ya desvió a Inicio; esto es por si alguien la llama a mano
   return window.PistaNiveles.vista({
     nombre: S.nombre, garantia: S.garantia, creditos: S.creditos,
-    frase: textoProximoNivel(), centavos: centavosDeGarantia()
+    frase: textoProximoNivel(), centavos: centavosDeGarantia(),
+    /* 16-nov-2026 — LAS MISIONES (app/misiones.js): el perfil (solo QUÉ datos
+       tiene, como viaja en el paquete), la racha del motor, la cuenta para
+       guardar en el teléfono el personaje y el último mundo visto, el día de
+       hoy (el de este teléfono, como el resto de la página), cómo repintar la
+       pestaña y adónde ir a completar los datos. */
+    perfil: S.perfil, racha: Number(S.g && S.g.racha || 0), cuenta: S.cedula || S.codigo || '',
+    hoy: hoyISO(), repintar: function () { irA('pista'); }, alCompletarPerfil: function () { abrirPerfil(); },
+    /* 18-nov-2026 — LA PISTA COMPLETA: la garantía ganada y la libre, para el
+       hito del millón (el préstamo con garantía solo lo respalda la ganada, y
+       solo la libre: lo mismo que dice la calculadora), y el botón de invitar
+       de «Cómo subir más rápido», que es el mismo de Mi garantía. */
+    ganada: S.gd.ganada, respaldoLibre: S.maxRespaldado, alInvitar: function () { invitar(); }
   }) + pie();
 }
 function cerrarPista() {
@@ -4751,7 +4781,9 @@ function insignias() {
   var puntuales = S.pagados.filter(function (c) { return c.fecha_pagado && c.corte && c.fecha_pagado <= c.corte; });
   var orden = M.NIVELES;
   var lista = [
-    { em: '🌱', t: 'Primer crédito', ok: S.creditos.length >= 1 },
+    /* 16-nov-2026 (D3 de las misiones) — se ganaba al PEDIR el primer crédito.
+       Ninguna insignia premia pedir: ahora es al pagarlo. */
+    { em: '🌱', t: 'Primer crédito pagado', ok: S.pagados.length >= 1 },
     { em: '✅', t: 'Primer pago en fecha', ok: puntuales.length >= 1 },
     { em: '🔥', t: 'Racha de 3', ok: Number(S.g.racha || 0) >= 3 },
     { em: '⚡', t: 'Racha de 10', ok: Number(S.g.racha || 0) >= 10 },
@@ -4762,7 +4794,7 @@ function insignias() {
   ];
   var ganadas = lista.filter(function (i) { return i.ok; });
   var proxima = lista.filter(function (i) { return !i.ok; })[0];
-  if (!ganadas.length) return '<p class="muted" style="margin-top:var(--e3)">Todavía ninguna. La primera llega con tu primer crédito.</p>';
+  if (!ganadas.length) return '<p class="muted" style="margin-top:var(--e3)">Todavía ninguna. La primera llega cuando pagues tu primer crédito.</p>';
   return '<div class="insignias">' +
     ganadas.map(function (i) { return '<span class="ins"><em>' + i.em + '</em>' + esc(i.t) + '</span>'; }).join('') +
     (proxima ? '<span class="ins proxima"><em>' + proxima.em + '</em>Sigue: ' + esc(proxima.t) + '</span>' : '') +

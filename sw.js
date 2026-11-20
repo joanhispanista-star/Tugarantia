@@ -2812,6 +2812,59 @@
    Pruebas: pruebas/temporada.test.js. NO HAY BASE NUEVA. No se tocan motor.js ni puente.js.
    PARA DESHACER: se quitan las seis líneas de las páginas (o se revierten los cuatro primeros
    commits; el quinto no es de temporada) y se sale con el número siguiente; si solo molesta la fecha, cambia navidad() en temporada.js. */
+/* 16-nov-2026, v155 — rama misiones, PUBLICADA EL VIE 20-NOV dentro de v155, JUNTO con la
+   Pista completa (ver su nota, abajo). Estaba prevista para el lun 7-dic, después de
+   invita-y-crece (lun 30-nov) y de cadenas (jue 3-dic). Joan la adelantó el 20-nov
+   («Todo hoy»), así que esas dos ramas se mezclan ahora encima de esta. pista-niveles.js
+   va con ?v=155 (aquí y en socio.html).
+   LAS MISIONES. Joan: «en los niveles vamos a motivar más el cliente como con misiones…
+   que se sienta más interesante subir de nivel». Plan decidido el 16-nov («Sí, las
+   recomendadas») y bocetos aprobados ese día («Sí, así»).
+   · Dentro de la Pista (D7-A): las misiones de la quincena (pagar en la fecha ★, y
+     «Madrugador», 2 días antes ★★), el perfil (★ con 5, 10 y los 13 datos que no son
+     sensibles), las rachas de 3, 6 y 12 y la mejor racha.
+   · Cada 3 estrellas aparece una cosa en la isla (bandera, árbol, banca, farol, puesto
+     de mercado…). Las estrellas NO son plata, no suben el cupo ni mueven el nivel (D1-A).
+   · Un título por mundo, el personaje en la pista (moto, bici, carro, bus o a pie), la
+     llegada a un mundo nuevo (una sola vez) con su imagen para WhatsApp sin montos, y el
+     álbum «Tus islas».
+   · «Invita a alguien» está APAGADA hasta el abogado (D4, jue 26-nov). «Abona al
+     capital» no está: el paquete no trae la fecha de los abonos.
+   · La insignia «Primer crédito» pasa a «Primer crédito pagado» (D3).
+   Archivos: app/misiones.js y app/misiones.css NUEVOS; app/pista-niveles.js cambia
+   (?v=); app/socio.html. Pruebas: pruebas/misiones.test.js. NO HAY BASE NUEVA: el
+   personaje y el último mundo visto se guardan en el teléfono. */
+/* 18-nov-2026, v155 — rama pista-completa, ENCIMA de misiones, PUBLICADA EL VIE 20-NOV dentro
+   de v155. Estaba prevista para el lun 7-dic. Joan: «sube lo de navidad desde ya y los
+   ajustes que tienes subelo» («Todo hoy»). La Navidad (app/temporada.js) ya estaba en main
+   desde v154. pista-niveles.js va con ?v=155 (aquí y en socio.html). misiones.js y
+   misiones.css salen por primera vez: sin versión.
+   LA PISTA COMPLETA. Joan, 18-nov: «quiero que las pistas se vean todas incluso la ultima,
+   para que el cliente vea hasta que nivel puede llegar y los beneficios… indica como puedes
+   subir de nivel mas rapido… mejora los graficos tambien». Decidido ese día («Sí, lo
+   recomendado», P1 a P7).
+   · Los nueve mundos a la vista y en color, con lo que abre cada uno (sale del motor: el
+     cupo desde, y el techo de CUPO_MAXIMO) y lo que falta para el siguiente. El último ya no
+     va velado: «Misterio · Todos los mundos», con su medalla de ocho puntas.
+   · El hito del millón, entre el mundo donde se alcanza y el siguiente: el préstamo con
+     garantía a cuotas, en pesos (simularPrestamoRespaldado), que solo respalda la garantía
+     GANADA. No es un mundo y no invita a pedir.
+   · «Cómo subir más rápido»: completar los datos (los sensibles, aparte y sin botón), pagar
+     en la fecha (de cada $1.000 de costo, $800 se vuelven garantía) e invitar ($5.000
+     cuando el invitado paga, hasta la garantía ganada). Pedir más no sube, y lo dice.
+   · Más luz en los dibujos: rayos y motas en UNA capa que se mueve con transform, sin
+     filtros; quieta con «menos movimiento» y apagada en el álbum (nueve islas a la vez).
+   · DICIEMBRE, solo si llegó app/temporada.js (rama navidad; sin él no sale nada):
+     «Diciembre puntual» (los cortes de diciembre pagados en la fecha dejan un árbol en la
+     isla desde el 1 de enero, y se queda) y la tarjeta de Navidad para WhatsApp (la isla,
+     el nombre de pila y el saludo; ni montos ni nada del crédito). La tarjeta sale en
+     temporada, que desde v155 arranca el 20-nov.
+   · El préstamo con garantía ya no dice «costo mensual fijo» en Inicio ni en la
+     calculadora: lo fijo es la cuota. Queda el texto de motor.js, que va con la próxima
+     versión del motor (su ?v= se sube en todas las páginas que lo piden).
+   Archivos: app/pista-niveles.js (?v=) y .css, app/misiones.js y .css, app/socio.html.
+   Pruebas: pruebas/pista-niveles.test.js y pruebas/misiones.test.js. NO HAY BASE NUEVA. No
+   se tocan motor.js ni puente.js. */
 /* 20-nov-2026, v155 — LA NAVIDAD SE PRENDE DESDE YA. El mismo día que salió v154, después
    de ver la barra en su celular («Se ve bien»), Joan pidió: «sube lo de navidad desde ya y
    los ajustes que tienes subelo». Escogió «Todo hoy», y que los años siguientes también
@@ -2826,8 +2879,18 @@
    · VERSION_APP sigue en 2026-11-20 (la fecha de v154; lo que distingue es el número del
      sello, v155). VERSION_PLAY sube al 2026-11-20.
    · Pruebas: pruebas/temporada.test.js (la fecha, y el guion con versión).
-   NO HAY BASE NUEVA. PARA DESHACER SOLO LA FECHA: se quita el noviembre de navidad() en
-   temporada.js, el guion lleva el ?v= nuevo y se sale con el número siguiente. */
+   · Y SALEN LA PISTA COMPLETA Y LAS MISIONES (las dos notas de arriba), que estaban para el
+     lun 7-dic. Se salta la prueba en un Android barato del jue 3-dic: la hace Joan en su
+     celular apenas salga. pista-niveles.js pasa de ?v=150 a ?v=155 (aquí y en socio.html);
+     misiones.js y misiones.css, nuevos, van sin versión. En la mezcla solo chocaron estas
+     notas y el bloque de VERSION_APP. La tarjeta de Navidad de la Pista sale en temporada,
+     así que también desde el 20-nov; «Diciembre puntual», desde el 1-dic. Invitar sigue
+     apagado como misión hasta el abogado.
+   NO HAY BASE NUEVA. No se tocan motor.js ni puente.js.
+   PARA DESHACER SOLO LA FECHA: se quita el noviembre de navidad() en temporada.js, el guion
+   lleva el ?v= nuevo y se sale con el número siguiente. PARA DESHACER LA PISTA COMPLETA Y
+   LAS MISIONES: se revierte la mezcla (git revert -m 1), y CACHE, VERSION_SITIO y el ?v= de
+   pista-niveles.js suben al número siguiente. */
 const CACHE = 'tugarantia-v155';
 const BASE = new URL('./', self.location).pathname;
 
@@ -3064,8 +3127,13 @@ const ARCHIVOS = [
      protege sola si no llegan (la pestaña no se ofrece; y si llega el guion
      sin la hoja, dice que no terminó de bajar en vez de pintar a medias).
      Salen con v149 (ver su nota, arriba). */
-  'app/pista-niveles.js',
+  'app/pista-niveles.js?v=155',
   'app/pista-niveles.css',
+  /* 16-nov-2026 — LAS MISIONES DE LA PISTA (rama misiones; ver su nota, arriba).
+     pista-niveles.js cambió: va con ?v= y al publicar toma el número de CACHE de
+     ese día (v155, el 20-nov). misiones.js y misiones.css son NUEVOS: sin versión. */
+  'app/misiones.js',
+  'app/misiones.css',
   /* 10-nov-2026 — la pestaña «🗺️ Mapa»: sus dos guiones y su hoja los pide crm.html, así que
      llegan JUNTO con él (sin señal, la pestaña dice que el mapa no cargó en vez de romper).
      El mapa en sí (el JSON de panel/mapa/, ~600 KB desde v145) NO va aquí: se pide al abrir

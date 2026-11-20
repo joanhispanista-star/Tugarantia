@@ -80,6 +80,13 @@
     return _motor;
   }
 
+  /* Las misiones (app/misiones.js, 16-nov-2026): si llegaron, la pista las
+     pinta; si no, se ve como antes. Se buscan al pintar, no al cargar. */
+  function misiones() {
+    var g = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
+    return g.Misiones || null;
+  }
+
   var uid = 0;
   function nuevoId(p) { uid++; return 'pn' + p + uid; }
   function esc(s) {
@@ -105,7 +112,12 @@
      quien llegue a él). El NOMBRE del nivel no vive aquí: lo da el motor
      (nombreNivel), que es de Joan desde el 2-sep-2026. El lema sí: es el
      paisaje del mundo, dicho en dos palabras (los vio y los aprobó el 14-nov).
-     `velado` es el último: su medalla va en gris hasta llegar. */
+     18-nov-2026 — EL ÚLTIMO YA NO SE ESCONDE. Iba velado (medalla gris,
+     niebla y un «?» hasta llegar). Joan: «quiero que las pistas se vean todas
+     incluso la ultima, para que el cliente vea hasta que nivel puede llegar».
+     Escogió el boceto 18-A: «Todos los mundos», con las ocho medallas de antes
+     en órbita y una corona con una gema de cada mundo. El nombre del nivel
+     sigue siendo el del motor. */
   var MUNDOS = {
     'hierro':             { clase: 'pn-m-hierro',   lema: 'La forja' },
     'aluminio':           { clase: 'pn-m-aluminio', lema: 'El cielo' },
@@ -115,7 +127,7 @@
     'platino':            { clase: 'pn-m-platino',  lema: 'La aurora' },
     'diamante':           { clase: 'pn-m-diamante', lema: 'La cueva de cristal' },
     'materia oscura pro': { clase: 'pn-m-materia',  lema: 'La galaxia' },
-    'misterio':           { clase: 'pn-m-misterio', lema: 'Se descubre al llegar', velado: true }
+    'misterio':           { clase: 'pn-m-misterio', lema: 'Todos los mundos' }
   };
 
   /* La paleta de cada mundo: son materiales, como el oro de la marca, y no se
@@ -139,8 +151,10 @@
       pista: '#123446', borde: '#D9F5FF', kerb: ['#D9F5FF', '#F2B8FF'], chispa: '#FFFFFF' },
     'materia oscura pro': { cielo: ['#04020A', '#140A33', '#3A1678'], luz: '#B48CFF', lejos: '#2A1460', medio: '#1A0C3E', suelo: ['#160B33', '#05020D'],
       pista: '#1E1240', borde: '#DCD0FF', kerb: ['#FF8AD8', '#6E4DF2'], chispa: '#FFFFFF' },
-    'misterio': { cielo: ['#070707', '#151515', '#2C2C2C'], luz: '#9A9A9A', lejos: '#232323', medio: '#1A1A1A', suelo: ['#202020', '#0A0A0A'],
-      pista: '#242424', borde: '#5E5E5E', kerb: ['#3A3A3A', '#2A2A2A'], chispa: '#BDBDBD' }
+    /* 18-nov: el último, destapado (boceto 18-A). Noche violeta con la luz
+       tibia de todos los mundos; antes era una paleta gris de niebla. */
+    'misterio': { cielo: ['#05030D', '#1B0F3A', '#4B2466'], luz: '#FFE7C2', lejos: '#2A1B4A', medio: '#1D1238', suelo: ['#2B1D4D', '#0B0618'],
+      pista: '#2A1E46', borde: '#FFF3DE', kerb: ['#FFF3DE', '#FF9BD2'], chispa: '#FFFFFF' }
   };
 
   /* El grabado de cada medalla, en una caja de 100 × 100. */
@@ -153,7 +167,26 @@
     'platino': '<path d="M18 62 C30 40 42 58 52 40 C60 26 72 44 82 30" fill="none" stroke-width="5" stroke-linecap="round"/><path d="M18 74 C30 54 42 70 52 54 C60 42 72 58 82 46" fill="none" stroke-width="3" stroke-linecap="round" opacity=".7"/>',
     'diamante': '<path d="M28 42 L40 28 H60 L72 42 L50 74 Z"/><path d="M28 42 H72 M40 28 L45 42 L50 74 L55 42 L60 28" fill="none" stroke-width="2.4"/>',
     'materia oscura pro': '<circle cx="50" cy="50" r="7"/><path d="M57 46 C68 36 80 50 70 61 C61 71 42 71 33 61 M43 54 C32 64 20 50 30 39 C39 29 58 29 67 39" fill="none" stroke-width="4.2" stroke-linecap="round"/><circle cx="76" cy="30" r="2.2"/><circle cx="25" cy="72" r="1.8"/>',
-    'misterio': '<text x="50" y="52" text-anchor="middle" dominant-baseline="central" font-family="Georgia,serif" font-weight="700" font-size="50">?</text>'
+    /* una estrella de ocho puntas: una por cada mundo que hubo antes (era un «?») */
+    'misterio': '<path d="M50 14 L56 38 L76 24 L62 44 L86 50 L62 56 L76 76 L56 62 L50 86 L44 62 L24 76 L38 56 L14 50 L38 44 L24 24 L44 38 Z"/>'
+  };
+
+  /* Los metales de cada medalla: los MISMOS de app/pista-niveles.css (.pn-m-*,
+     de --pn-m1 a --pn-m5). Allá pintan las medallas de la página; aquí hacen
+     falta para las ocho que orbitan el último mundo, que salen también en la
+     imagen para compartir, y una imagen no ve la hoja de estilos: misiones.js
+     resuelve las variables con UN solo mundo, y las ocho habrían salido del
+     color del último. Una prueba compara las dos tablas. */
+  var METAL = {
+    'hierro':             ['#E9E4DE', '#B9B1AA', '#857D76', '#514A45', '#24201E'],
+    'aluminio':           ['#FFFFFF', '#DCE3EA', '#AAB6C2', '#6F7C89', '#36414C'],
+    'bronce':             ['#FBDDB8', '#E2A86F', '#B97A41', '#7A4A22', '#3F230D'],
+    'plata':              ['#FFFFFF', '#E6EAEE', '#BBC2C9', '#7F8891', '#3E454C'],
+    'oro':                ['#FFF6D6', '#F8D677', '#E2A93A', '#A86E14', '#5E3C05'],
+    'platino':            ['#FFFFFF', '#E6EBE9', '#BEC6C3', '#858D8A', '#3F4644'],
+    'diamante':           ['#FFFFFF', '#DCF6FF', '#93D6F0', '#3F93B8', '#173F55'],
+    'materia oscura pro': ['#E4DAFF', '#A991FF', '#6E4DF2', '#3A2496', '#150A36'],
+    'misterio':           ['#FFF8EA', '#F6C9E6', '#B49CFF', '#5A3FA6', '#1A1036']
   };
 
   /* La pista de cada mundo, en el plano del suelo (u de 0 a 300, v de 25 a
@@ -203,6 +236,15 @@
       '<ellipse cx="38" cy="30" rx="30" ry="17" transform="rotate(-28 38 30)" fill="url(#' + c + ')" opacity=".55"/>' +
       '</svg>';
   }
+  /* Una medalla DENTRO de otro dibujo (las ocho que orbitan el último mundo):
+     el <svg> pasa a <g>, centrada en (x, y), de `tam` de ancho y con los
+     metales escritos (METAL) en vez de las variables de la hoja. */
+  function medallaEn(nivel, x, y, tam) {
+    var k = tam / 100, m = METAL[nivel];
+    var g = medalla(nivel, 'pn-orbita').replace(/^<svg[^>]*>/, '<g>').replace(/<\/svg>$/, '</g>')
+      .replace(/var\(--pn-m([1-5])\)/g, function (t, i) { return m[i - 1]; });
+    return '<g transform="translate(' + r1(x - 50 * k) + ' ' + r1(y - 52 * k) + ') scale(' + k.toFixed(3) + ')">' + g + '</g>';
+  }
 
   /* ======================= EL PAISAJE ======================= */
   /* Un perfil de montaña de lado a lado. `picos` alterna cumbres y valles. */
@@ -248,7 +290,7 @@
   function horizonte(H, r) { return Math.round(H * (r || 0.44)); }
 
   /* El paisaje de un mundo, sin la pista. Devuelve {defs, cuerpo, frente}:
-     el frente (chispas, niebla) va encima del circuito. */
+     el frente (chispas, brillos) va encima del circuito. */
   function paisaje(nivel, W, H, rHz) {
     var P = PALETA[nivel], hz = horizonte(H, rHz), az = semilla(nivel.length * 131 + 7);
     var id = function (n) { return nuevoId(n); };
@@ -427,11 +469,22 @@
       }
       for (i = -8; i <= 8; i++) c += '<path d="M' + r1(W / 2 + i * 6) + ',' + hz + ' L' + r1(W / 2 + i * W * 0.16) + ',' + H + '" stroke="#A48BFF" stroke-opacity=".12" stroke-width=".8"/>';
     } else {
-      defs += rgrad(gL, '.5', '.5', '.5', [[0, '#9A9A9A', 0.25], [1, '#9A9A9A', 0]]);
-      c += '<path d="' + perfil(W, hz + 2, H * 0.2, 7, az, 'suave') + '" fill="' + P.lejos + '"/>';
-      c += '<rect y="' + hz + '" width="' + W + '" height="' + (H - hz) + '" fill="url(#' + gS + ')"/>';
-      for (i = 0; i < 6; i++) frente += '<ellipse cx="' + r1(az() * W) + '" cy="' + r1(H * (0.3 + az() * 0.6)) + '" rx="' + r1(W * (0.25 + az() * 0.3)) + '" ry="' + r1(H * (0.08 + az() * 0.08)) + '" fill="url(#' + gL + ')"/>';
-      frente += '<text x="' + W / 2 + '" y="' + (hz - H * 0.06) + '" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="' + r1(H * 0.3) + '" fill="#FFFFFF" opacity=".07">?</text>';
+      /* TODOS LOS MUNDOS (boceto 18-A, 18-nov-2026). Era niebla gris y un «?»;
+         ahora el último mundo se ve desde el primer día. Cielo de estrellas
+         de arriba abajo (la isla flota: no hay suelo) y, detrás de la isla,
+         las ocho medallas de los mundos de antes, en órbita y en su orden. */
+      defs += rgrad(gL, '.5', '.5', '.5', [[0, P.luz, 0.55], [1, P.luz, 0]]);
+      c = '<rect width="' + W + '" height="' + H + '" fill="url(#' + gC + ')"/>';
+      c += estrellas(W, H, 70, az, '#FFFFFF', H * 0.7);
+      var ocx = W / 2, ocy = H * 0.36, orx = W * 0.43, ory = H * 0.2, otam = Math.min(W * 0.085, H * 0.15);
+      c += '<ellipse cx="' + r1(ocx) + '" cy="' + r1(ocy + H * 0.08) + '" rx="' + r1(W * 0.3) + '" ry="' + r1(H * 0.3) + '" fill="url(#' + gL + ')"/>';
+      c += '<ellipse cx="' + r1(ocx) + '" cy="' + r1(ocy) + '" rx="' + r1(orx) + '" ry="' + r1(ory) + '" fill="none" stroke="' + P.luz + '" stroke-opacity=".35" stroke-width="1" stroke-dasharray="2 5"/>';
+      var antes = Object.keys(MUNDOS).filter(function (n) { return n !== nivel; });
+      antes.forEach(function (n, k) {
+        var an2 = (196 + k * (148 / Math.max(1, antes.length - 1))) * Math.PI / 180;
+        c += medallaEn(n, ocx + orx * Math.cos(an2), ocy + ory * Math.sin(an2), otam);
+      });
+      for (i = 0; i < 12; i++) frente += '<circle cx="' + r1(az() * W) + '" cy="' + r1(az() * H) + '" r="' + (0.4 + az() * 0.9).toFixed(1) + '" fill="' + P.chispa + '" opacity="' + (0.25 + az() * 0.45).toFixed(2) + '"/>';
     }
     return { defs: defs, cuerpo: c, frente: frente, hz: hz };
   }
@@ -487,7 +540,8 @@
     'materia oscura pro': { forma: 'disco', lados: 64, exp: 2.2, ruido: 0, mella: 0.3, faceta: 0.12, q2: 0.42, q3: 0.78, alto: 6, hondo: 72, lado: 1,
       suelo: ['#2C1C66', '#0D0722'], canto: ['#4A34A8', '#120930'], roca: ['#38277A', '#05020C'], filo: '#E4DAFF', halo: '#B48CFF', haloOp: 0.5, monu: [112, 90], islotes: [[0.09, 0.78, 0.1], [0.93, 0.9, 0.07]] },
     'misterio': { forma: 'roca', lados: 52, ruido: 0.05, mella: 0.15, faceta: 0.06, q2: 0.4, q3: 0.74, alto: 7, hondo: 66, lado: -1,
-      suelo: ['#3E3E3E', '#1C1C1C'], canto: ['#5C5C5C', '#2A2A2A'], roca: ['#4A4A4A', '#0C0C0C'], filo: '#8A8A8A', halo: '#777777', haloOp: 0.2, monu: [150, 96] }
+      /* 18-nov: de gris a perla y lila (boceto 18-A) */
+      suelo: ['#EFE4FF', '#A993E0'], canto: ['#E2D4FF', '#6C58A8'], roca: ['#8D78C9', '#1E1440'], filo: '#FFFFFF', halo: '#FFD7F0', haloOp: 0.5, monu: [150, 96] }
   };
 
   /* El borde de la isla, en el plano del suelo: una superelipse (un óvalo
@@ -616,7 +670,15 @@
         '<polygon points="' + B.map(function (p) { return L.g(150 + (p[0] - 150) * 0.955, 90 + (p[1] - 90) * 0.955); }).join(' ') + '" fill="none" stroke="#FFC6EC" stroke-opacity=".95" stroke-width="' + r1(1 * L.s) + '"/>';
       return s;
     },
-    'misterio': function () { return ''; }
+    /* motas de luz de los ocho mundos de antes, regadas por la cubierta */
+    'misterio': function (L, az) {
+      var s = '', luces = Object.keys(PALETA).filter(function (n) { return n !== 'misterio'; }).map(function (n) { return PALETA[n].luz; });
+      for (var i = 0; i < 24; i++) {
+        var q = L.P(30 + az() * 240, 20 + az() * 145, 0);
+        s += '<circle cx="' + r1(q[0]) + '" cy="' + r1(q[1]) + '" r="' + r1((0.9 + az() * 1.1) * q[2]) + '" fill="' + luces[i % luces.length] + '" opacity=".6"/>';
+      }
+      return s;
+    }
   };
 
   /* ---------- la isla: canto, panza y suelo ---------- */
@@ -751,8 +813,11 @@
 
   /* ---------- la pista, ya sobre la isla ---------- */
   var FUENTE = '-apple-system,Segoe UI,Roboto,system-ui,sans-serif';
+  /* el ancho de la calzada y de cada piano, en unidades de suelo: también los
+     mide `sitios` para que nada de lo construido quede encima */
+  var ANCHO_PISTA = 19, KERB_PISTA = 3.2;
   function pista(nivel, L, o) {
-    var P = PALETA[nivel], N = 160, ANCHO = 19, KERB = 3.2, s = L.s, i;
+    var P = PALETA[nivel], N = 160, ANCHO = ANCHO_PISTA, KERB = KERB_PISTA, s = L.s, i;
     var c = muestras(CIRCUITOS[nivel], N);
     var nor = c.map(function (p, x) {
       var a = c[(x - 1 + N) % N], b = c[(x + 1) % N], tx = b[0] - a[0], ty = b[1] - a[1], l = Math.sqrt(tx * tx + ty * ty) || 1;
@@ -791,11 +856,15 @@
       var mz = function (ii, tt) { return [ext[ii][0] + (int[ii][0] - ext[ii][0]) * tt, ext[ii][1] + (int[ii][1] - ext[ii][1]) * tt]; };
       h += '<polygon points="' + [mz(b2, a / 6), mz(b2, (a + 1) / 6), mz(b2 + 1, (a + 1) / 6), mz(b2 + 1, a / 6)].map(pt).join(' ') + '" fill="' + ((a + b2) % 2 ? '#0C0A0B' : '#FFFFFF') + '"/>';
     }
-    /* lo recorrido: el amarillo de lo construido, con su funda oscura */
+    /* lo recorrido: el amarillo de lo construido, con su funda oscura. Desde
+       el 18-nov brilla (boceto 14-A): un trazo ancho y muy tenue debajo hace
+       de resplandor, sin filtro de desenfoque, que en un teléfono barato
+       obliga a repintar la isla mientras flota. */
     if (o.f != null && o.f > 0) {
       defs += '<path id="' + id.hecho + '" d="' + linea(centro.slice(0, Math.max(2, Math.round(N * o.f)) + 1)) + '"/>';
       var punta = 'fill="none" stroke-linecap="round" stroke-linejoin="round" ';
-      h += usa(id.hecho, punta + 'stroke="#F5C542" stroke-opacity=".25" stroke-width="' + r1(8 * s) + '"') +
+      h += usa(id.hecho, punta + 'stroke="#F5C542" stroke-opacity=".12" stroke-width="' + r1(16 * s) + '"') +
+           usa(id.hecho, punta + 'stroke="#F5C542" stroke-opacity=".25" stroke-width="' + r1(8 * s) + '"') +
            usa(id.hecho, punta + 'stroke="#0C0A0B" stroke-opacity=".6" stroke-width="' + r1(4.6 * s) + '"') +
            usa(id.hecho, punta + 'stroke="#F5C542" stroke-width="' + r1(3 * s) + '"');
     }
@@ -829,8 +898,17 @@
     cosas.push({ v: c[0][1], svg: g });
     /* el socio: un pin de pie, con su sombra y un pulso en el suelo */
     if (o.f != null && !o.sinMarcador) {
-      var im = Math.min(N - 1, Math.round(N * o.f)), q0 = centro[im], rr = 12.5 * q0[2], cab = L.P(c[im][0], c[im][1], 30);
-      cosas.push({ v: c[im][1] - 0.01, svg:
+      var im = Math.min(N - 1, Math.round(N * o.f)), q0 = centro[im], rr = (o.personaje ? 15 : 12.5) * q0[2], cab = L.P(c[im][0], c[im][1], o.personaje ? 33 : 30);
+      /* EL FARO de «aquí estás» (boceto 14-A, 18-nov): una columna de luz que
+         sube del marcador, como en el mapa de un juego. Va detrás del pin. */
+      var idF = nuevoId('fa'), idB = nuevoId('fb'), tope = L.P(c[im][0], c[im][1], 120), bw = rr * 0.9;
+      defs += '<linearGradient id="' + idF + '" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FFE7A3" stop-opacity=".9"/>' +
+        '<stop offset=".35" stop-color="#F5C542" stop-opacity=".4"/><stop offset="1" stop-color="#F5C542" stop-opacity="0"/></linearGradient>' +
+        rgrad(idB, '.5', '.5', '.5', [[0, '#FFE7A3', 0.85], [1, '#F5C542', 0]]);
+      var faro = '<ellipse cx="' + r1(q0[0]) + '" cy="' + r1(q0[1]) + '" rx="' + r1(rr * 2.4) + '" ry="' + r1(rr) + '" fill="url(#' + idB + ')"/>' +
+        '<rect x="' + r1(q0[0] - bw * 1.6) + '" y="' + r1(tope[1]) + '" width="' + r1(bw * 3.2) + '" height="' + r1(Math.max(0, q0[1] - tope[1])) + '" fill="url(#' + idF + ')" opacity=".5"/>' +
+        '<rect x="' + r1(q0[0] - bw / 2) + '" y="' + r1(tope[1]) + '" width="' + r1(bw) + '" height="' + r1(Math.max(0, q0[1] - tope[1])) + '" fill="url(#' + idF + ')"/>';
+      cosas.push({ v: c[im][1] - 0.01, svg: faro +
         '<ellipse cx="' + r1(q0[0]) + '" cy="' + r1(q0[1]) + '" rx="' + r1(rr * 0.95) + '" ry="' + r1(rr * 0.4) + '" fill="#000" opacity=".5"/>' +
         '<ellipse class="pn-pulso" cx="' + r1(q0[0]) + '" cy="' + r1(q0[1]) + '" rx="' + r1(rr * 1.5) + '" ry="' + r1(rr * 0.62) + '" fill="none" stroke="#F5C542" stroke-width="' + r1(1.5 * s) + '"/>' +
         '<path d="M' + pt(q0) + ' L' + r1(cab[0]) + ',' + r1(cab[1] + rr) + '" stroke="#0C0A0B" stroke-opacity=".55" stroke-width="' + r1(4.4 * s) + '" stroke-linecap="round"/>' +
@@ -838,7 +916,11 @@
         '<circle cx="' + r1(cab[0]) + '" cy="' + r1(cab[1]) + '" r="' + r1(rr * 1.5) + '" fill="#F5C542" opacity=".2"/>' +
         '<circle cx="' + r1(cab[0]) + '" cy="' + r1(cab[1]) + '" r="' + r1(rr) + '" fill="#F5C542" stroke="#0C0A0B" stroke-width="' + r1(1.9 * s) + '"/>' +
         '<path d="M' + r1(cab[0] - rr * 0.62) + ',' + r1(cab[1] - rr * 0.35) + ' A' + r1(rr * 0.72) + ',' + r1(rr * 0.72) + ' 0 0 1 ' + r1(cab[0] + rr * 0.1) + ',' + r1(cab[1] - rr * 0.72) + '" fill="none" stroke="#FFFFFF" stroke-opacity=".75" stroke-width="' + r1(1.2 * s) + '" stroke-linecap="round"/>' +
-        '<text x="' + r1(cab[0]) + '" y="' + r1(cab[1] + 0.5) + '" text-anchor="middle" dominant-baseline="central" font-family="' + FUENTE + '" font-size="' + r1(rr * 1.08) + '" font-weight="800" fill="#0C0A0B">' + esc(o.letra || '') + '</text>' });
+        (o.personaje
+          /* el personaje que escogió (moto, bici…), en vez de la inicial: un
+             ícono de 24 × 24 de trazo, que le pasa app/misiones.js */
+          ? '<g transform="translate(' + r1(cab[0] - rr * 0.78) + ' ' + r1(cab[1] - rr * 0.78) + ') scale(' + (rr * 1.56 / 24).toFixed(3) + ')" style="color:#0C0A0B" fill="none" stroke="#0C0A0B" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' + o.personaje + '</g>'
+          : '<text x="' + r1(cab[0]) + '" y="' + r1(cab[1] + 0.5) + '" text-anchor="middle" dominant-baseline="central" font-family="' + FUENTE + '" font-size="' + r1(rr * 1.08) + '" font-weight="800" fill="#0C0A0B">' + esc(o.letra || '') + '</text>') });
     }
     return { defs: defs, base: h, cosas: cosas };
   }
@@ -934,8 +1016,17 @@
         '<path d="M-25,-25 A25,7.4 0 0 0 25,-25" fill="none" stroke="#DCD0FF" stroke-opacity=".8" stroke-width="1" stroke-linecap="round"/></g>' +
         estrella(-15, -39, 1.8) + estrella(16, -12, 1.5);
     },
+    /* 18-nov: una corona con una gema del color de cada mundo de antes (era un «?») */
     'misterio': function () {
-      return '<text x="0" y="-10" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="40" fill="#FFFFFF" opacity=".3">?</text>';
+      var s = sombra(20) + '<circle cx="0" cy="-26" r="30" fill="#FFE7C2" opacity=".2"/>' +
+        /* del metal del mundo Oro (METAL.oro), no del amarillo de la página */
+        '<path d="M-19,-5 L-23,-34 L-11,-21 L0,-42 L11,-21 L23,-34 L19,-5 Z" fill="#F8D677" stroke="#FFF6D6" stroke-width="1.1"/>' +
+        '<path d="M-19,-5 L-23,-34 L-11,-21 L0,-42 L0,-5 Z" fill="#FFF6D6" opacity=".45"/>' +
+        '<rect x="-20" y="-10" width="40" height="7" rx="2" fill="#A86E14"/>';
+      Object.keys(PALETA).filter(function (n) { return n !== 'misterio'; }).forEach(function (n, i) {
+        s += '<circle cx="' + r1(-16.6 + i * 4.75) + '" cy="-6.5" r="1.9" fill="' + PALETA[n].luz + '" stroke="#FFFFFF" stroke-width=".5"/>';
+      });
+      return s + estrella(0, -44, 2.6) + estrella(-23, -36, 1.9) + estrella(23, -36, 1.9);
     }
   };
 
@@ -984,6 +1075,195 @@
     'misterio': []
   };
 
+  /* ---------- lo que construyen las estrellas (misiones, 16-nov-2026) ----------
+     Cada 3 estrellas de las misiones aparece una cosa en la isla del mundo
+     donde se ganaron (app/misiones.js decide cuántas; aquí solo se dibujan).
+     Son cosas de barrio, no de plata: nada de monedas, cofres ni billetes, por
+     la misma regla de la garantía (decisión del 21-oct). Se dibujan como los
+     adornos: en unidades de suelo, de pie sobre (0,0). El orden lo aprobó Joan
+     en los bocetos del 16-nov (bandera, árbol, banca, farol, puesto de
+     mercado); después se repiten, hasta MAX_COSAS por isla. */
+  var COSAS = {
+    bandera: '<g transform="scale(.62) translate(-9 -37)"><ellipse cx="9" cy="37" rx="7" ry="2.2" fill="#000" opacity=".28"/><path d="M8 37V5" stroke="#F3EBDD" stroke-width="2" stroke-linecap="round"/><path d="M9 6c5 1.2 9-1.4 15 .6v10c-6-2-10 .6-15-.6z" fill="#F5C542"/><path d="M9 6c5 1.2 9-1.4 15 .6v3c-6-2-10 .6-15-.6z" fill="#fff" opacity=".22"/><path d="m16.4 9.2.9 1.9 2 .2-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.2z" fill="#3A2A12"/><circle cx="8" cy="4.6" r="1.6" fill="#F5C542"/></g>',
+    arbol: '<g transform="scale(.56) translate(-17 -41)"><ellipse cx="17" cy="41" rx="10" ry="2.6" fill="#000" opacity=".28"/><rect x="15" y="27" width="4" height="14" rx="1.5" fill="#6B4A2F"/><circle cx="17" cy="18" r="11" fill="#3E6B48"/><circle cx="11.5" cy="22" r="7" fill="#355E3F"/><circle cx="22.5" cy="21.5" r="7.5" fill="#46774F"/><circle cx="14" cy="13" r="5" fill="#6E9E68" opacity=".75"/></g>',
+    banca: '<g transform="scale(.5) translate(-20 -27)"><ellipse cx="20" cy="27" rx="15" ry="2.4" fill="#000" opacity=".28"/><path d="M5 15h30v4H5z" fill="#9A6A45"/><path d="M5 15h30v1.4H5z" fill="#C08A5E"/><path d="M6 8h28v4H6z" fill="#8A5C3B"/><path d="M8 19v7M32 19v7M9 12v3M31 12v3" stroke="#3E2A1C" stroke-width="2"/></g>',
+    /* la luz del farol son dos círculos tenues y no un degradado: un id de
+       degradado repetido en la página (la isla grande y las del álbum) se
+       pinta con el primero que encuentre, y ese puede estar oculto */
+    farol: '<g transform="scale(.5) translate(-15 -47)"><circle cx="15" cy="11" r="12" fill="#FFE7A3" opacity=".16"/><circle cx="15" cy="11" r="7.5" fill="#FFE7A3" opacity=".22"/><ellipse cx="15" cy="47" rx="6" ry="2" fill="#000" opacity=".28"/><path d="M15 46V16" stroke="#2B2B2E" stroke-width="2.4"/><path d="M10 15h10l-1.5-8h-7z" fill="#FFE7A3" stroke="#2B2B2E" stroke-width="1.6"/><path d="M9 7h12l-6-4z" fill="#2B2B2E"/></g>',
+    puesto: '<g transform="scale(.52) translate(-22 -37)"><ellipse cx="22" cy="37" rx="17" ry="2.6" fill="#000" opacity=".28"/><path d="M8 20h28v15H8z" fill="#B98B5E"/><path d="M8 20h28v3H8z" fill="#D9AE7E"/><path d="M6 10h32l-2 10H8z" fill="#F3EBDD"/><path d="M10 10h6l-1 10h-5zM22 10h6l1 10h-6zM34 10h4l-2 10h-3z" fill="#C0392B"/><path d="M9 20v15M35 20v15" stroke="#5A3D26" stroke-width="2"/><circle cx="15" cy="27" r="2.6" fill="#E8833A"/><circle cx="21" cy="27.5" r="2.6" fill="#7BB661"/><circle cx="27" cy="27" r="2.6" fill="#D94A3A"/></g>'
+  };
+  /* El árbol de Navidad de «Diciembre puntual» (18-nov-2026, app/misiones.js):
+     no es de los que construyen las estrellas, así que no va en ORDEN_COSAS.
+     Del alto de las cosas (CAJA_COSA), con la estrella arriba y cuatro bolas
+     de los colores del alumbrado de la app. */
+  var ARBOL_NAVIDAD = '<g transform="scale(.6) translate(-17 -40)"><ellipse cx="17" cy="40" rx="10" ry="2.6" fill="#000" opacity=".28"/>' +
+    '<rect x="15" y="33" width="4" height="7" rx="1" fill="#6B4A2F"/>' +
+    '<path d="M17 6 L27.5 19 H22.5 L30.5 33 H3.5 L11.5 19 H6.5 Z" fill="#2E7D4F"/><path d="M17 6 L6.5 19 H11.5 L3.5 33 H17 Z" fill="#3F9A63"/>' +
+    '<circle cx="12" cy="27.5" r="1.8" fill="#E5484D"/><circle cx="22.5" cy="29" r="1.8" fill="#F5C542"/><circle cx="19.5" cy="20.5" r="1.6" fill="#4FA3FF"/><circle cx="13.5" cy="17" r="1.4" fill="#F5C542"/><circle cx="21" cy="14" r="1.2" fill="#E5484D"/>' +
+    '<path d="m17 1.2 1.3 2.7 3 .4-2.2 2 .6 2.9L17 7.8l-2.7 1.4.6-2.9-2.2-2 3-.4z" fill="#F5C542" stroke="#FFF3C9" stroke-width=".5"/></g>';
+  var ORDEN_COSAS = ['bandera', 'arbol', 'banca', 'farol', 'puesto', 'arbol', 'farol', 'banca', 'arbol', 'puesto', 'farol', 'arbol'];
+  var MAX_COSAS = ORDEN_COSAS.length, AGRANDA_COSA = 1.7;
+  /* Lo que ocupa una cosa de pie (la más ancha y la más alta mandan), en
+     unidades de suelo antes de agrandarla. */
+  var CAJA_COSA = { medio: 8.6, alto: 23 };
+  /* Lo que ocupan el monumento y los adornos, medido con holgura sobre sus
+     dibujos (el más grande manda: el avión de Aluminio sube a 62). */
+  var CAJA_MONU = { medio: 27, alto: 50 }, CAJA_ADORNO = { medio: 13, alto: 28 };
+
+  /* DÓNDE VA CADA COSA. No hay una tabla escrita a mano por mundo: se calcula
+     con la misma proyección, una vez por mundo, y se guarda. Se mide en la
+     pantalla y no en el suelo, porque lo que no puede pasar es que se VEA
+     encima de algo: una cosa de pie delante de la pista la tapa aunque en el
+     suelo esté lejos. Las reglas, en orden:
+       1. de pie en la cubierta, con margen del borde (el 84 % del contorno),
+          y no tan al fondo que se meta debajo del rótulo del mundo;
+       2. su silueta no toca la pista ni sus pianos (ahí van las piedras y el
+          marcador), ni el pórtico de la meta con su letrero, ni el monumento,
+          ni los adornos del mundo;
+       3. ninguna tapa a otra;
+       4. de las que quedan, se escoge la más despejada y después, una a una,
+          la más lejos de las ya escogidas: así se reparten por la isla en vez
+          de amontonarse en el primer hueco.
+     Como la escala del lienzo es la misma a lo ancho y a lo alto, lo que se
+     mide con `proyectar` vale para cualquier tamaño de pantalla. */
+  var SITIOS = {};
+  function dentro(pts, x, y) {
+    var adentro = false;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      var xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) adentro = !adentro;
+    }
+    return adentro;
+  }
+  function cajaDePie(u, v, caja, agranda) {
+    var q = proyectar(u, v, 0), k = q[2], m = caja.medio * agranda * k;
+    return [q[0] - m, q[1] - caja.alto * agranda * k, q[0] + m, q[1] + 2 * k];
+  }
+  function chocan(a, b, margen) {
+    return a[0] - margen < b[2] && b[0] - margen < a[2] && a[1] - margen < b[3] && b[1] - margen < a[3];
+  }
+  function sitios(nivel) {
+    if (SITIOS[nivel]) return SITIOS[nivel];
+    var N = 160, MEDIO = ANCHO_PISTA / 2 + KERB_PISTA, c = muestras(CIRCUITOS[nivel], N), isl = ISLA[nivel];
+    var cubierta = contorno(nivel).map(function (p) { return [150 + (p[0] - 150) * 0.84, 90 + (p[1] - 90) * 0.84]; });
+    /* la calzada, como nube de puntos en la pantalla: cinco a lo ancho de cada
+       muestra. Los pianos del borde sí se pueden tapar un poco (un árbol al
+       lado de la carretera); la calzada no, que ahí van las piedras y el
+       marcador. Y la cosa no puede estar PARADA en la pista: eso se mide en
+       el suelo (lejos). */
+    var pista = [], i;
+    for (i = 0; i < N; i++) {
+      var a = c[(i - 1 + N) % N], b = c[(i + 1) % N], tx = b[0] - a[0], ty = b[1] - a[1], l = Math.sqrt(tx * tx + ty * ty) || 1;
+      [-ANCHO_PISTA / 2, -ANCHO_PISTA / 4, 0, ANCHO_PISTA / 4, ANCHO_PISTA / 2].forEach(function (o) {
+        pista.push(proyectar(c[i][0] - ty / l * o, c[i][1] + tx / l * o, 0));
+      });
+    }
+    /* el pórtico de la meta (26 de alto) y, encima, su letrero */
+    var n0 = [-(c[1][1] - c[N - 1][1]), c[1][0] - c[N - 1][0]], l0 = Math.sqrt(n0[0] * n0[0] + n0[1] * n0[1]) || 1;
+    var porti = [];
+    [1, -1].forEach(function (lado) {
+      var u = c[0][0] + n0[0] / l0 * (MEDIO + 1) * lado, v = c[0][1] + n0[1] / l0 * (MEDIO + 1) * lado;
+      porti.push(proyectar(u, v, 0), proyectar(u, v, 48));
+    });
+    function lejos(u, v) {
+      var d = Infinity;
+      for (var z = 0; z < N; z++) d = Math.min(d, Math.pow(c[z][0] - u, 2) + Math.pow(c[z][1] - v, 2));
+      return Math.sqrt(d);
+    }
+    var bloqueos = [[Math.min(porti[0][0], porti[2][0]) - 6, Math.min(porti[1][1], porti[3][1]) - 6,
+                     Math.max(porti[0][0], porti[2][0]) + 6, Math.max(porti[0][1], porti[2][1]) + 2]];
+    bloqueos.push(cajaDePie(isl.monu[0], isl.monu[1], CAJA_MONU, 1.35));
+    (ADORNOS[nivel] || []).forEach(function (ad) { bloqueos.push(cajaDePie(ad[0], ad[1], CAJA_ADORNO, 1.4)); });
+
+    var cand = [];
+    for (var v = 4; v <= 166; v += 4) for (var u = -40; u <= 340; u += 5) {
+      if (!dentro(cubierta, u, v) || lejos(u, v) < MEDIO + 4) continue;
+      var bx = cajaDePie(u, v, CAJA_COSA, AGRANDA_COSA), malo = false, holgura = Infinity, q = proyectar(u, v, 0);
+      for (var k = 0; k < bloqueos.length && !malo; k++) if (chocan(bx, bloqueos[k], 1)) malo = true;
+      for (var p = 0; p < pista.length && !malo; p++) {
+        var t = pista[p];
+        if (t[0] > bx[0] - 1.5 && t[0] < bx[2] + 1.5 && t[1] > bx[1] - 1.5 && t[1] < bx[3] + 1.5) malo = true;
+        else holgura = Math.min(holgura, Math.sqrt(Math.pow(t[0] - q[0], 2) + Math.pow(t[1] - q[1], 2)));
+      }
+      if (!malo) cand.push({ u: u, v: v, x: q[0], y: q[1], caja: bx, holgura: holgura });
+    }
+    var hechos = [];
+    while (hechos.length < MAX_COSAS) {
+      var mejor = null, nota = -1;
+      for (var j = 0; j < cand.length; j++) {
+        var cj = cand[j], libre = true, lejos = Infinity;
+        for (var h = 0; h < hechos.length && libre; h++) {
+          if (chocan(cj.caja, hechos[h].caja, 1.5)) libre = false;
+          else lejos = Math.min(lejos, Math.sqrt(Math.pow(cj.x - hechos[h].x, 2) + Math.pow(cj.y - hechos[h].y, 2)));
+        }
+        if (!libre) continue;
+        var n = hechos.length ? lejos : cj.holgura;
+        if (n > nota) { nota = n; mejor = cj; }
+      }
+      if (!mejor) break;
+      hechos.push(mejor);
+    }
+    SITIOS[nivel] = hechos.map(function (x) { return [x.u, x.v]; });
+
+    /* lo que hace falta para buscar el sitio del árbol, si alguna vez hace falta */
+    DATOS_SITIOS[nivel] = { c: c, N: N, MEDIO: MEDIO, pista: pista, bloqueos: bloqueos, hechos: hechos, cubierta: cubierta };
+    return SITIOS[nivel];
+  }
+  var DATOS_SITIOS = {}, SITIO_ARBOL = {};
+  /* EL SITIO DEL ÁRBOL de «Diciembre puntual» (18-nov-2026). No entra en la
+     cuenta de las cosas: es un logro aparte y se queda. Tampoco puede tapar
+     una cosa ni quitarle el sitio a una que viene, y ninguna isla tiene un
+     sitio de sobra (de 6 a 11, medido). Así que va en el BORDE de la
+     cubierta, en el anillo que las cosas dejan libre (ellas guardan margen
+     del borde, regla 1), por delante, sin tocar la pista, el pórtico, el
+     monumento, los adornos ni los sitios de las cosas. De los que quedan, el
+     más despejado. Se busca solo para la isla que lo lleva, y una vez: hacerlo
+     junto con los sitios casi triplicaba lo que tarda abrir la Pista (de 68 a
+     197 ms las nueve islas, en un computador), y casi nadie lo tiene. */
+  function sitioArbol(nivel) {
+    if (SITIO_ARBOL[nivel] !== undefined) return SITIO_ARBOL[nivel];
+    sitios(nivel);
+    var z = DATOS_SITIOS[nivel];
+    if (!z) return null;
+    function aLaPista(u, v) {
+      var d = Infinity;
+      for (var k = 0; k < z.N; k++) d = Math.min(d, Math.pow(z.c[k][0] - u, 2) + Math.pow(z.c[k][1] - v, 2));
+      return Math.sqrt(d);
+    }
+    var borde = contorno(nivel).map(function (p) { return [150 + (p[0] - 150) * 0.97, 90 + (p[1] - 90) * 0.97]; });
+    var arbol = null, nota = -1;
+    for (var v = -30; v <= 90; v += 3) for (var u = -50; u <= 350; u += 4) {
+      if (!dentro(borde, u, v) || dentro(z.cubierta, u, v) || aLaPista(u, v) < z.MEDIO + 4) continue;
+      var b = cajaDePie(u, v, CAJA_COSA, AGRANDA_COSA), q = proyectar(u, v, 0), mal = false, holgura = Infinity, k;
+      for (k = 0; k < z.bloqueos.length && !mal; k++) if (chocan(b, z.bloqueos[k], 1)) mal = true;
+      for (k = 0; k < z.hechos.length && !mal; k++) {
+        if (chocan(b, z.hechos[k].caja, 1.5)) mal = true;
+        else holgura = Math.min(holgura, Math.sqrt(Math.pow(q[0] - z.hechos[k].x, 2) + Math.pow(q[1] - z.hechos[k].y, 2)));
+      }
+      for (k = 0; k < z.pista.length && !mal; k++) {
+        var t = z.pista[k];
+        if (t[0] > b[0] - 1.5 && t[0] < b[2] + 1.5 && t[1] > b[1] - 1.5 && t[1] < b[3] + 1.5) mal = true;
+        else holgura = Math.min(holgura, Math.sqrt(Math.pow(t[0] - q[0], 2) + Math.pow(t[1] - q[1], 2)));
+      }
+      if (!mal && holgura > nota) { nota = holgura; arbol = [u, v]; }
+    }
+    SITIO_ARBOL[nivel] = arbol;
+    return arbol;
+  }
+  /* Las cosas de una isla, listas para ponerlas de pie. `cuantas` son las
+     hechas; `sigue`, la que viene (se pinta apagada, como promesa). */
+  function cosasDe(nivel, L, cuantas, sigue) {
+    var lugares = sitios(nivel), out = [], n = Math.min(Math.max(0, cuantas | 0), lugares.length, MAX_COSAS);
+    for (var i = 0; i < n; i++) out.push(dePie(L, lugares[i][0], lugares[i][1], COSAS[ORDEN_COSAS[i]], AGRANDA_COSA));
+    if (sigue && n < lugares.length) {
+      var x = dePie(L, lugares[n][0], lugares[n][1], COSAS[ORDEN_COSAS[n]], AGRANDA_COSA);
+      x.svg = '<g class="pn-sigue" opacity=".34">' + x.svg + '</g>';
+      out.push(x);
+    }
+    return out;
+  }
+
   /* ---------- el mundo entero: tres capas ---------- */
   function capa(clase, W, H, defs, cuerpo) {
     return '<svg class="pn-capa ' + clase + '" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid slice"><defs>' + defs + '</defs>' + cuerpo + '</svg>';
@@ -994,9 +1274,13 @@
     var arriba = H * (o.cielo != null ? o.cielo : 0.4);
     var L = lienzo(nivel, { x: 5, y: arriba, w: W - 10, h: H - arriba - (o.margenAbajo != null ? o.margenAbajo : 6) });
     var isl = isla(nivel, L), pis = pista(nivel, L, o);
-    var id = { halo: nuevoId('mh'), metal: nuevoId('mm'), vin: nuevoId('mv'), som: nuevoId('ms'), nie: nuevoId('mn'), nub: nuevoId('mb') };
+    var id = { halo: nuevoId('mh'), metal: nuevoId('mm'), vin: nuevoId('mv'), som: nuevoId('ms'), nub: nuevoId('mb') };
     var cosas = pis.cosas.concat(ADORNOS[nivel].map(function (a) { return dePie(L, a[0], a[1], a[2], 1.4); }));
     cosas.push(dePie(L, c.monu[0], c.monu[1], MONUMENTO[nivel](id), 1.35));
+    /* lo que construyeron sus estrellas (app/misiones.js dice cuántas) */
+    if (o.cosas) cosas = cosas.concat(cosasDe(nivel, L, o.cosas, o.sigue));
+    /* el árbol de «Diciembre puntual»: misiones.js dice si lo ganó y en qué isla */
+    if (o.navidad) { var sa = sitioArbol(nivel); if (sa) cosas.push(dePie(L, sa[0], sa[1], ARBOL_NAVIDAD, AGRANDA_COSA)); }
     /* de lo más lejano a lo más cercano: lo de adelante tapa lo de atrás */
     cosas.sort(function (a, b) { return b.v - a.v; });
     var defsI = isl.defs + pis.defs + rgrad(id.halo, '.5', '.5', '.5', [[0, c.halo, 0.6], [1, c.halo, 0]]) +
@@ -1015,8 +1299,8 @@
         '<ellipse cx="' + r1(x) + '" cy="' + r1(y) + '" rx="' + r1(w / 2) + '" ry="' + r1(w * 0.085) + '" fill="' + mezcla(c.suelo[0], bruma, 0.5) + '"/>' +
         '<ellipse cx="' + r1(x - w * 0.1) + '" cy="' + r1(y - w * 0.012) + '" rx="' + r1(w * 0.27) + '" ry="' + r1(w * 0.04) + '" fill="' + mezcla(c.filo, bruma, 0.4) + '" opacity=".75"/>';
     });
-    var niebla = '';
-    if (nivel === 'misterio') niebla = '<rect width="' + W + '" height="' + H + '" fill="url(#' + id.nie + ')"/>';
+    /* (18-nov-2026: aquí iba la niebla que tapaba el último mundo; se fue con
+       el «?», porque ahora ese mundo se ve como todos) */
     var frente = fondo.frente;
     var defsF = '';
     if (nivel === 'aluminio') {
@@ -1030,12 +1314,56 @@
       });
     }
     frente += '<rect width="' + W + '" height="' + H + '" fill="url(#' + id.vin + ')"/>';
+    var luz = o.sinLuz ? { defs: '', rayos: '', motas: '' } : luzYVida(nivel, W, H);
     return '<div class="pn-capas ' + MUNDOS[nivel].clase + '" style="padding-top:' + (H / W * 100).toFixed(3) + '%" aria-hidden="true">' +
-      capa('pn-fondo', W, H, fondo.defs + rgrad(id.som, '.5', '.5', '.5', [[0, '#000000', 0.5], [1, '#000000', 0]]), fondo.cuerpo + lejos + som) +
-      capa('pn-isla', W, H, defsI + rgrad(id.nie, '.5', '.62', '.6', [[0, '#8A8A8A', 0.5], [0.6, '#5A5A5A', 0.35], [1, '#2A2A2A', 0]]),
-        isl.bajo + isl.techo + pis.base + cosas.map(function (x) { return x.svg; }).join('') + niebla) +
+      capa('pn-fondo', W, H, fondo.defs + luz.defs + rgrad(id.som, '.5', '.5', '.5', [[0, '#000000', 0.5], [1, '#000000', 0]]), fondo.cuerpo + luz.rayos + lejos + som) +
+      capa('pn-isla', W, H, defsI,
+        isl.bajo + isl.techo + pis.base + cosas.map(function (x) { return x.svg; }).join('')) +
+      (luz.motas ? capa('pn-motas', W, H, '', luz.motas) : '') +
       capa('pn-frente', W, H, defsF + rgrad(id.vin, '.5', '.56', '.78', [[0, '#000000', 0], [0.62, '#000000', 0], [1, '#000000', 0.5]]), frente) +
       '</div>';
+  }
+
+  /* LUZ Y VIDA (boceto 14-A del 17-nov, que Joan escogió el 18-nov con «mejora
+     los graficos tambien»). Lo que hacía el boceto, hecho para un teléfono
+     barato:
+       · los rayos del mundo entran de arriba y van QUIETOS en el fondo,
+         detrás de la isla: se pintan una vez;
+       · las motas de luz son una capa aparte (.pn-motas) que se mueve ENTERA,
+         una sola animación que el teléfono compone. El boceto animaba 72
+         círculos uno por uno, con desenfoque, y eso repinta en cada cuadro;
+         aquí son 20, y las «lejanas» son más grandes y más tenues en vez de
+         borrosas;
+       · no hay `saturate` ni mezcla de capas sobre la escena: los dos obligan
+         a repintarla entera mientras la isla flota.
+     Con «reducir movimiento» las motas se quedan quietas (la hoja de estilos). */
+  function luzYVida(nivel, W, H) {
+    var P = PALETA[nivel], az = semilla(nivel.length * 977 + 3), S = [W * 0.72, -H * 0.1], largo = H * 1.35, i;
+    var idR = nuevoId('ry'), idS = nuevoId('so');
+    var defs = '<radialGradient id="' + idR + '" gradientUnits="userSpaceOnUse" cx="' + r1(S[0]) + '" cy="' + r1(S[1]) + '" r="' + r1(largo) + '">' +
+      '<stop offset="0" stop-color="' + P.luz + '" stop-opacity=".7"/><stop offset=".55" stop-color="' + P.luz + '" stop-opacity=".22"/>' +
+      '<stop offset="1" stop-color="' + P.luz + '" stop-opacity="0"/></radialGradient>' +
+      rgrad(idS, '.5', '.5', '.5', [[0, P.luz, 0.38], [1, P.luz, 0]]);
+    var rayos = '<circle cx="' + r1(S[0]) + '" cy="' + r1(S[1] + H * 0.1) + '" r="' + r1(H * 0.42) + '" fill="url(#' + idS + ')"/>';
+    for (i = 0; i < 7; i++) {
+      var a = (98 + i * 8.5 + az() * 3) * Math.PI / 180, w = (3 + (i % 3) * 2) * Math.PI / 180;
+      rayos += '<polygon points="' + r1(S[0]) + ',' + r1(S[1]) + ' ' + r1(S[0] + largo * Math.cos(a - w)) + ',' + r1(S[1] + largo * Math.sin(a - w)) + ' ' +
+        r1(S[0] + largo * Math.cos(a + w)) + ',' + r1(S[1] + largo * Math.sin(a + w)) + '" fill="url(#' + idR + ')" opacity="' + (0.45 + az() * 0.3).toFixed(2) + '"/>';
+    }
+    var motas = '';
+    for (i = 0; i < 20; i++) {
+      var x = W * (0.04 + az() * 0.92), y = H * (0.14 + az() * 0.8), r = W * (0.0026 + az() * 0.0075), lejos = az() < 0.35;
+      motas += '<circle cx="' + r1(x) + '" cy="' + r1(y) + '" r="' + r1(lejos ? r * 2.2 : r) + '" fill="' + P.chispa + '" opacity="' +
+        (lejos ? 0.16 + az() * 0.14 : 0.55 + az() * 0.4).toFixed(2) + '"/>';
+    }
+    /* y unos pocos destellos en cruz, como sobre lo que brilla */
+    for (i = 0; i < 6; i++) {
+      var dx = W * (0.12 + az() * 0.76), dy = H * (0.3 + az() * 0.5), dz = W * (0.006 + az() * 0.009);
+      motas += '<path d="M' + r1(dx) + ' ' + r1(dy - dz * 2.4) + ' L' + r1(dx + dz * 0.35) + ' ' + r1(dy - dz * 0.35) + ' L' + r1(dx + dz * 2.4) + ' ' + r1(dy) +
+        ' L' + r1(dx + dz * 0.35) + ' ' + r1(dy + dz * 0.35) + ' L' + r1(dx) + ' ' + r1(dy + dz * 2.4) + ' L' + r1(dx - dz * 0.35) + ' ' + r1(dy + dz * 0.35) +
+        ' L' + r1(dx - dz * 2.4) + ' ' + r1(dy) + ' L' + r1(dx - dz * 0.35) + ' ' + r1(dy - dz * 0.35) + ' Z" fill="#FFFFFF" opacity="' + (0.5 + az() * 0.4).toFixed(2) + '"/>';
+    }
+    return { defs: defs, rayos: rayos, motas: motas };
   }
 
 
@@ -1183,6 +1511,7 @@
     return '$' + n;
   }
   function inicial(nombre) { return String(nombre || '').replace(/^\s+/, '').charAt(0).toUpperCase(); }
+  function mayuscula(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   function centavosDe(d) {
     var c = Number(d && d.centavos);
     if (!(c > 0)) c = Number(motor().FACTOR_GARANTIA || 0) * 100;
@@ -1190,7 +1519,7 @@
   }
 
   /* ======================= LA PANTALLA ======================= */
-  var ULTIMO = null, ABIERTA = null, VUELVE_A = null;
+  var ULTIMO = null, ABIERTA = null, VUELVE_A = null, MI = null, AL_CERRAR = null;
   var MAX_SELLOS = 4;   // los que caben legibles en una fila de 360 px
   function documento() { return typeof document !== 'undefined' ? document : null; }
   /* El dibujo se arma para el ancho de ESTE teléfono: en uno de 360 la escena
@@ -1221,12 +1550,25 @@
   /* El mundo en grande. La frase de «te faltan» es la de Inicio, que la
      página pasa hecha (textoProximoNivel): una sola frase para las dos
      pantallas. Si no llega, se arma aquí con las mismas palabras. */
-  function heroe(e, d, aqui) {
+  function heroe(e, d, aqui, mi) {
     var m = motor(), W = anchoPantalla(), H = Math.round(Math.min(W * 1.22, 440));
     var nombre = m.nombreNivel(e.nivel), mu = MUNDOS[e.nivel];
     var op = { cielo: 0.3, margenAbajo: 30, f: e.fraccion, letra: inicial(d.nombre),
       piedras: aqui.map(function (p) { return { f: fraccionEn(e.actual, p.quedo), sello: p.en_fecha }; }) };
     if (e.sig) op.meta = 'Meta · ' + e.sig.nombre;
+    /* lo que construyeron sus estrellas y su personaje (app/misiones.js) */
+    if (mi) {
+      op.cosas = mi.isla.cosas; op.sigue = mi.isla.sigue;
+      /* el árbol de «Diciembre puntual», si lo ganó en esta isla (18-nov) */
+      op.navidad = !!(mi.navidad_en && mi.navidad_en[e.nivel]);
+      /* En un teléfono de 320 px «Aquí estás» ya baja a su propio renglón, y el
+         chip del título suma otro: caía encima del letrero «Meta · Plata» de la
+         isla (foto del 16-nov). Ahí el lienzo crece y la isla baja del mismo
+         tamaño, en vez de esconder algo: subir solo el cielo la achicaba y el
+         letrero seguía debajo del chip. */
+      if (W < 320) { H += 36; op.cielo = 0.37; }
+      if (mi.personaje && misiones().ICONOS[mi.personaje]) op.personaje = misiones().ICONOS[mi.personaje];
+    }
     var pct = (e.fraccion * 100).toFixed(1);
     var frase = d.frase || (e.sig
       ? 'Te faltan <b>' + esc(COP(e.faltan)) + '</b> de garantía para pasar a <b>' + esc(e.sig.nombre) + '</b>.'
@@ -1240,7 +1582,8 @@
           '<div class="pn-titulos"><div class="pn-arriba"><span class="pn-etq">Mundo ' + (e.i + 1) + ' de ' + e.filas.length + '</span>' +
           '<span class="pn-estado">Aquí estás</span></div>' +
           '<h2' + (nombre.length > 10 ? ' class="pn-largo"' : '') + '>' + esc(nombre) + '</h2>' +
-          '<div class="pn-lema">' + esc(mu.lema) + '</div></div></div></div>' +
+          '<div class="pn-lema">' + esc(mu.lema) + '</div>' + (mi ? misiones().chip(mi) : '') + '</div></div>' +
+        (mi ? misiones().pildora(mi) : '') + '</div>' +
       '<div class="pn-pie"><div class="pn-grande">' + frase + '</div>' +
         (e.sig
           ? '<div class="pn-progreso">' + medalla(e.nivel, 'pn-chica') +
@@ -1250,12 +1593,57 @@
           : '<div class="pn-cifras"><span>Empieza en ' + COP(e.actual.desde) + '</span><span>vas en <b>' + COP(e.garantia) + '</b></span></div>') +
       '</div></div>';
   }
-  /* Lo que mueve: PAGAR. Y los pagos de este mundo, cada uno con su piedra. */
+  /* CÓMO SUBIR MÁS RÁPIDO (18-nov-2026). Joan: «indica como puedes subir de
+     nivel mas rapido». Son las TRES cosas que de verdad suben la garantía, con
+     las cifras del motor y las de este cliente, y ninguna es pedir más (es
+     crédito: subir no se gana pidiendo). Tres cuidados:
+       · LOS DATOS SENSIBLES no se cuentan entre «los que te faltan»: la selfie
+         (biométrico) y la ubicación piden cada uno su autorización aparte, y
+         un botón que empuja a darlos por un premio no es un consentimiento
+         libre (Ley 1581). Se dice cuánto suman, sin botón.
+       · PAGAR TARDE ya no quita garantía (23-sep: en fecha y tarde valen lo
+         mismo), pero el recargo por mora no suma nada (27-sep). Se dice así,
+         sin asustar y sin premiar el atraso.
+       · INVITAR le suma al que invita solo cuando el invitado paga, y no pasa
+         de la garantía que el que invita se ganó pagando (TOPE_REFERIDOS). Se
+         dice el tope. No se muestra a nadie más (Ley 2300). */
+  var SENSIBLES = ['foto_selfie', 'ubicacion'];
+  function comoSubir(d) {
+    var m = motor(), cents = centavosDe(d), filas = [], datos = null, M = misiones();
+    if (d.perfil && typeof m.garantiaPorDatos === 'function') {
+      try { datos = m.garantiaPorDatos(d.perfil); } catch (x) { datos = null; }
+    }
+    if (datos) {
+      var sens = (M && M.SENSIBLES) || SENSIBLES;
+      var comunes = datos.faltantes.filter(function (x) { return sens.indexOf(x.id) < 0; });
+      var delicados = datos.faltantes.filter(function (x) { return sens.indexOf(x.id) >= 0; });
+      var suma = function (l) { return l.reduce(function (t, x) { return t + (Number(x.valor) || 0); }, 0); };
+      if (comunes.length) {
+        filas.push('<p><b>Completa tus datos.</b> Te ' + (comunes.length === 1 ? 'falta 1 y vale' : 'faltan ' + comunes.length + ' y valen') +
+          ' <b class="pn-c">' + COP(suma(comunes)) + '</b> de garantía, una sola vez.</p>' +
+          (delicados.length ? '<p class="pn-nota-s">' + esc(mayuscula(delicados.map(function (x) { return x.id === 'foto_selfie' ? 'la selfie' : 'tu ubicación'; }).join(' y '))) +
+            ' ' + (delicados.length === 1 ? 'suma' : 'suman') + ' ' + COP(suma(delicados)) + ' más, ' + (delicados.length === 1 ? 'con su' : 'cada una con su') + ' autorización aparte.</p>' : '') +
+          (typeof d.alCompletarPerfil === 'function' ? '<button type="button" class="btn sm sec pn-boton" id="pnDatos" onclick="PistaNiveles.completarDatos()">Completar mis datos</button>' : ''));
+      }
+    }
+    filas.push('<p><b>Paga cada crédito, y mejor en la fecha.</b> ' +
+      (cents > 0 ? 'De cada $1.000 de costo que pagas, <b class="pn-c">' + COP(cents * 10) + '</b> se vuelven garantía. ' : 'Cada peso de costo que pagas suma garantía. ') +
+      'Pagar tarde no te la quita, pero el recargo por atraso no suma nada.</p>');
+    var porUno = Number(m.GARANTIA_POR_REFERIDO) || 0;
+    if (porUno > 0) {
+      var tope = !(m.TOPE_REFERIDOS && m.TOPE_REFERIDOS.hasta_la_ganada === false);
+      filas.push('<p><b>Invita a alguien de confianza.</b> <b class="pn-c">' + COP(porUno) + '</b> de garantía por cada persona, cuando pague su crédito' +
+        (tope ? ', y hasta la garantía que tú ya te ganaste pagando' : '') + '.</p>' +
+        (typeof d.alInvitar === 'function' ? '<button type="button" class="btn sm sec pn-boton" id="pnInvitar" onclick="PistaNiveles.invitar()">Invitar a alguien</button>' : ''));
+    }
+    return '<div class="etq">Cómo subir más rápido</div><ol class="pn-sube">' + filas.map(function (f) { return '<li>' + f + '</li>'; }).join('') + '</ol>' +
+      '<p class="pn-pie-s">Pedir más no te sube: te sube lo que pagas.</p>';
+  }
+  /* Lo que mueve: PAGAR. Y los pagos de este mundo, cada uno con su piedra.
+     (18-nov: el párrafo de arriba pasó a ser «Cómo subir más rápido».) */
   function tarjetaMueve(e, d, aqui) {
-    var nombre = motor().nombreNivel(e.nivel), cents = centavosDe(d);
-    var h = '<div class="card"><div class="etq">Lo que te mueve</div>' +
-      '<p class="pn-p">Cada crédito que <b>pagas</b> te suma garantía' +
-      (cents > 0 ? ': <b>' + cents + ' centavos</b> de cada peso de costo' : '') + '. <b>Pedir no suma: suma pagar.</b></p>';
+    var nombre = motor().nombreNivel(e.nivel);
+    var h = '<div class="card">' + comoSubir(d);
     if (!aqui.length) {
       return h + '<div class="laca pn-sellos"><div class="etq">Tus pagos en ' + esc(nombre) + '</div>' +
         '<p class="pn-vacio">Todavía no hay ninguno. Aquí queda una piedra por cada crédito que pagues; con sello, si lo pagas en la fecha.</p></div></div>';
@@ -1273,31 +1661,104 @@
         ? '<p class="pn-vacio">Son los últimos ' + ver.length + '. Antes hay ' + (aqui.length - ver.length) + ' más en este mundo.</p>' : '') +
       '</div><p class="sub">Pagar en la fecha le pone sello a la piedra.</p></div>';
   }
-  function tarjetaMundos(e) {
-    var n = e.filas.length, hecho = n > 1 ? (e.i + e.fraccion) / (n - 1) * 100 : 0;
-    return '<div class="card"><div class="etq">Los ' + n + ' mundos</div>' +
-      '<div class="pn-fila"><div class="pn-tira" style="--pn-hecho:' + hecho.toFixed(1) + '%">' + e.filas.map(function (f, i) {
-        var est = i < e.i ? 'pn-paso' : i === e.i ? 'pn-aqui' : (MUNDOS[f.nivel] && MUNDOS[f.nivel].velado ? 'pn-velado' : 'pn-delante');
-        var pie = i === e.i ? 'aquí estás' : i < e.i ? 'pasaste' : 'desde ' + corto(f.desde);
-        return '<button type="button" class="pn-mundo ' + est + '" id="pnMundo' + i + '" onclick="PistaNiveles.abrir(\'' + f.nivel + '\')">' +
-          '<span class="pn-anillo">' + medalla(f.nivel, 'pn-media') + '</span>' +
-          '<span class="pn-nm">' + esc(f.nombre) + '</span><span class="pn-rq">' + pie + '</span></button>';
-      }).join('') + '</div></div>' +
-      '<p class="sub" style="margin-top:6px">Toca un mundo para ver qué lo abre.</p></div>';
+  /* LO QUE ABRE CADA MUNDO (18-nov-2026). Joan: «para que el cliente vea hasta
+     que nivel puede llegar y los beneficios». Solo lo que el motor YA hace, y
+     leído del motor: el cupo es la garantía uno a uno hasta el techo
+     (CUPO_MAXIMO), y el primer mundo arranca con el cupón de los datos
+     (CUPON_KYC_MAXIMO). Nada de tasas más bajas ni regalos por nivel: el
+     motor no los da. El boceto decía «y préstamo con garantía» en Oro; no va,
+     porque ese préstamo no lo abre un mundo sino la garantía GANADA (el hito
+     de abajo): un cliente puede estar en Oro sin haberla. */
+  function abre(f) {
+    var m = motor(), techo = Number(m.CUPO_MAXIMO) || 0;
+    if (!(f.desde > 0)) return 'Tu cupo arranca con tus datos: hasta ' + COP(m.CUPON_KYC_MAXIMO);
+    if (techo > 0 && f.desde >= techo) return 'Tu cupo llega al techo: ' + pegado(corto(techo));
+    return 'Cupo desde ' + pegado(corto(f.desde));
+  }
+  /* «$400 mil» no se parte en dos renglones (en 320 px quedaba «mil» solo
+     abajo). Es el carácter de espacio duro y no la entidad: corto() también
+     escribe dentro de las imágenes, y un SVG suelto no conoce &nbsp;. Por eso
+     va solo aquí, en lo que es HTML. */
+  function pegado(s) { return String(s).replace(/ (mil|M)$/, '\u00A0$1'); }
+  var CANDADO = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>';
+  /* EL HITO DEL MILLÓN. Joan: «despues del primer millon en garantia inician
+     beneficios como creditos a cuotas». En el motor eso ya existe: el préstamo
+     con garantía, de MONTO_MINIMO_RESPALDADO para arriba, que solo respalda la
+     garantía GANADA (la que se ganó pagando; el cupón de los datos y los
+     referidos no cuentan). No es un mundo: va como hito entre el mundo donde
+     se puede alcanzar y el siguiente. El ejemplo sale de
+     simularPrestamoRespaldado, la misma cuenta de la calculadora, y se dice
+     en pesos: el cliente no ve porcentajes (8-sep). Nada aquí invita a
+     pedirlo: ni botón ni cifra de cuánto podría sacar. */
+  function hitoMillon(d) {
+    var m = motor(), min = Number(m.MONTO_MINIMO_RESPALDADO) || 0, ej = null;
+    if (!(min > 0) || typeof m.simularPrestamoRespaldado !== 'function') return '';
+    try { ej = m.simularPrestamoRespaldado(min, 4); } catch (x) { ej = null; }
+    var h = '<div class="pn-hito"><div class="pn-hito-k">' + CANDADO + 'Con ' + COP(min) + ' de garantía ganada</div>' +
+      '<p><b>Préstamo con garantía:</b> a cuotas mensuales fijas, de ' + m.PLAZO_RESPALDADO_MIN + ' a ' + m.PLAZO_RESPALDADO_MAX + ' meses.' +
+      (ej ? ' Por ' + COP(min) + ' a 4 meses: cuotas de ' + COP(ej.cuota_fija) + ' y ' + COP(ej.costo_total) + ' de costo en total.' : '') + '</p>';
+    var ganada = Number(d.ganada);
+    if (d.ganada != null && isFinite(ganada)) {
+      var libre = Number(d.respaldoLibre), sabeLibre = d.respaldoLibre != null && isFinite(libre), estado;
+      if (sabeLibre && libre >= min) estado = 'Ya lo tienes abierto.';
+      else if (ganada >= min) estado = 'Ya llegaste.' + (sabeLibre ? ' Hoy parte de tu garantía ganada respalda lo que debes; al pagarlo, se libera.' : '');
+      else estado = 'Llevas <b>' + COP(ganada) + '</b> de garantía ganada. Te faltan ' + COP(min - ganada) + '.';
+      h += '<div class="pn-hito-riel"><i style="width:' + Math.max(0, Math.min(100, ganada / min * 100)).toFixed(1) + '%"></i></div>' +
+        '<div class="pn-hito-va">' + estado + '</div>';
+    }
+    return h + '</div>';
+  }
+  /* LOS NUEVE MUNDOS, Y LO QUE ABRE CADA UNO (18-nov-2026: era una tira de
+     medallas que había que deslizar, con el último velado). Todos a la vista,
+     con su título y lo que abren. De lo que viene solo se dice cuánto falta
+     para el SIGUIENTE: un «te faltan doce millones» no acerca a nadie, y a
+     alguien lo empuja a pedir para llegar. Cada fila abre la hoja del mundo. */
+  function tarjetaMundos(e, d) {
+    var M = misiones(), T = (M && M.TITULOS) || {}, n = e.filas.length, min = Number(motor().MONTO_MINIMO_RESPALDADO) || 0, hito = false;
+    var h = '<div class="card pn-mapa"><div class="etq">Los ' + n + ' mundos, y lo que abre cada uno</div>';
+    e.filas.forEach(function (f, i) {
+      if (!hito && min > 0 && f.desde > min) { h += hitoMillon(d || {}); hito = true; }
+      var est = i < e.i ? 'paso' : i === e.i ? 'aqui' : i === e.i + 1 ? 'sigue' : 'delante';
+      var der = est === 'paso' ? '✓ pasaste' : est === 'aqui' ? 'aquí estás' : est === 'sigue' ? 'faltan<br>' + COP(e.faltan) : '';   // exacto: es la misma cifra de arriba
+      h += '<button type="button" class="pn-fm pn-' + est + '" id="pnMundo' + i + '" onclick="PistaNiveles.abrir(\'' + f.nivel + '\')">' +
+        '<span class="pn-fm-med">' + medalla(f.nivel, 'pn-media') + '</span>' +
+        '<span class="pn-fm-txt"><span class="pn-fm-nom">' + esc(f.nombre) + ' <span class="pn-fm-lema">· ' + esc(MUNDOS[f.nivel].lema) + '</span></span>' +
+          '<span class="pn-fm-abre">' + esc(abre(f)) + '</span>' +
+          (T[f.nivel] ? '<span class="pn-fm-tit">Título: ' + esc(T[f.nivel]) + '</span>' : '') + '</span>' +
+        '<span class="pn-fm-der">' + der + '</span></button>';
+    });
+    if (!hito) h += hitoMillon(d || {});
+    /* «Atrasarte no te baja», y no «nadie baja»: la promesa de que el nivel
+       nunca baja quedó derogada el 2-sep (si un ajuste baja la garantía, el
+       nivel baja con ella). Lo que sí es cierto es lo de la mora. */
+    return h + '<p class="pn-pie-s">Atrasarte no te baja de mundo: te sube lo que pagas.</p></div>';
   }
 
-  /* LO QUE LA PÁGINA LLAMA. d = { nombre, garantia, creditos, frase, centavos }.
+  /* LO QUE LA PÁGINA LLAMA. d = { nombre, garantia, creditos, frase, centavos },
+     y desde el 18-nov también: ganada y respaldoLibre (el hito del millón),
+     alInvitar y alCompletarPerfil (los botones de «Cómo subir más rápido»).
      Devuelve el HTML de la pestaña; no toca el documento. */
   function vista(d) {
     d = d || {};
-    ULTIMO = d; ABIERTA = null; VUELVE_A = null;
+    ULTIMO = d; ABIERTA = null; VUELVE_A = null; MI = null; AL_CERRAR = null;
     if (!motor()) return '';
     if (!cssLlego()) {
       return '<div class="card"><p class="muted" style="margin:0">La pista no terminó de bajar. Con señal, cierra la app y vuelve a abrirla.</p></div>';
     }
     var e = donde(d.garantia), rec = recorrido(e.garantia, d.creditos);
     var aqui = rec.filter(function (p) { return p.nivel === e.nivel; });
-    return heroe(e, d, aqui) + tarjetaMueve(e, d, aqui) + tarjetaMundos(e);
+    /* Las misiones van DENTRO de la pista (decisión D7-A del 16-nov): las de
+       la quincena bajo la isla, y las de una vez, la racha y el álbum bajo
+       los pagos. Si su archivo no llegó, todo sigue como antes. */
+    var M = misiones(), mi = null;
+    try { mi = M ? M.paraLaPista(d, e, rec) : null; } catch (x) { mi = null; }
+    MI = mi;
+    /* En temporada, «Diciembre puntual» y la tarjeta de Navidad van debajo de
+       las misiones de la quincena (18-nov); cada una decide si sale. */
+    var temporada = mi ? (typeof M.tarjetaDiciembre === 'function' ? M.tarjetaDiciembre(mi) : '') +
+      (typeof M.tarjetaNavidad === 'function' ? M.tarjetaNavidad(mi) : '') : '';
+    return heroe(e, d, aqui, mi) + (mi ? M.tarjetaQuincena(mi) : '') + temporada + tarjetaMueve(e, d, aqui) +
+      (mi ? M.tarjetaUnaVez(mi) + M.tarjetaRachas(mi) + M.tarjetaIslas(mi) : '') + tarjetaMundos(e, d);
   }
 
   /* La hoja de un mundo. Del que SIGUE se dice cuánto falta; de los de más
@@ -1335,6 +1796,10 @@
     } else {
       h += '<div class="pn-bloque"><div class="pn-k">Ya lo pasaste</div><p>Iba ' + tramo + '. Tú vas en <b>' + COP(e.garantia) + '</b>.</p></div>';
     }
+    /* lo que abre (18-nov): la misma frase de la tarjeta de los mundos, y el título */
+    var T = (misiones() && misiones().TITULOS) || {};
+    h += '<div class="pn-bloque"><div class="pn-k">' + (i === e.filas.length - 1 ? 'Lo que hay allá' : 'Lo que abre') + '</div><p>' + esc(abre(f)) + '.' +
+      (T[nivel] ? ' Título: <b>' + esc(T[nivel]) + '</b>.' : '') + '</p></div>';
     if (est !== 'paso') {
       h += '<div class="pn-bloque"><div class="pn-k">' + (est === 'aqui' ? 'Qué te hace avanzar' : 'Qué te acerca') + '</div><p>Pagar. ' +
         (cents > 0 ? 'De cada peso de costo que pagas, ' + cents + ' centavos se vuelven garantía. ' : '') + 'Pedir no suma.</p></div>';
@@ -1354,12 +1819,18 @@
      deslizarse. El velo ya recibe los toques y la hoja no le pasa su
      deslizamiento al fondo (overscroll-behavior, en la hoja de estilos). */
   function abrir(nivel) {
+    if (!ULTIMO) return false;
+    return abrirCon(hoja(nivel), nivel);
+  }
+  /* Cualquier hoja o pantalla encima de la pista va por aquí, en #pnHoja: la
+     de un mundo, la del personaje y la llegada (app/misiones.js). `alCerrar`
+     corre al cerrarla, de la manera que sea (botón, velo o Escape). */
+  function abrirCon(html, cual, alCerrar) {
     var d = documento(), caja = d && d.getElementById('pnHoja');
-    if (!caja || !ULTIMO) return false;
-    var html = hoja(nivel);
-    if (!html) return false;
+    if (!caja || !html) return false;
     caja.innerHTML = html;
-    ABIERTA = nivel;
+    ABIERTA = cual;
+    AL_CERRAR = typeof alCerrar === 'function' ? alCerrar : null;
     try {
       VUELVE_A = d.activeElement && d.activeElement.id ? d.activeElement.id : null;
       /* sin correr la página: la hoja ya está a la vista, abajo */
@@ -1371,10 +1842,22 @@
     var d = documento(), caja = d && d.getElementById('pnHoja');
     if (caja) caja.innerHTML = '';
     ABIERTA = null;
+    var despues = AL_CERRAR; AL_CERRAR = null;
     try {
       var v = VUELVE_A && d.getElementById(VUELVE_A); if (v && v.focus) v.focus({ preventScroll: true });
     } catch (e) { /* nada */ }
     VUELVE_A = null;
+    if (despues) despues();
+  }
+  /* Los botones de «Cómo subir más rápido» (18-nov) llaman a la página: la
+     Pista no sabe abrir el perfil ni WhatsApp, y no tiene por qué saber. */
+  function completarDatos() { var d = ULTIMO; if (d && typeof d.alCompletarPerfil === 'function') { d.alCompletarPerfil(); return true; } return false; }
+  function invitar() { var d = ULTIMO; if (d && typeof d.alInvitar === 'function') { d.alInvitar(); return true; } return false; }
+  /* Lo que la página llama DESPUÉS de pintar la pestaña: las misiones anotan
+     lo suyo en el teléfono y, si llegó a un mundo nuevo, sale la llegada. */
+  function montar() {
+    var M = misiones();
+    return (M && MI) ? M.montar(MI) : null;
   }
   /* Escape cierra la hoja, como cualquier ventana. Un solo oyente, puesto al
      cargar; donde no hay documento (una prueba que pide el archivo a secas),
@@ -1388,13 +1871,20 @@
   })();
 
   return {
-    VERSION: '2026-11-14',
-    vista: vista, abrir: abrir, cerrar: cerrar,
+    VERSION: '2026-11-18',
+    vista: vista, abrir: abrir, cerrar: cerrar, abrirCon: abrirCon, montar: montar,
+    completarDatos: completarDatos, invitar: invitar,
     /* Para las pruebas, y para quien quiera saber en qué va. */
     hoja: hoja, donde: donde, recorrido: recorrido, queCambia: queCambia, enFecha: enFecha,
     muestras: muestras, mundo: mundo, medalla: medalla,
     abierta: function () { return ABIERTA; },
     MUNDOS: MUNDOS, PALETA: PALETA, ISLA: ISLA, CIRCUITOS: CIRCUITOS, GLIFOS: GLIFOS,
-    MONUMENTO: MONUMENTO, ADORNOS: ADORNOS, TEXTURA: TEXTURA, MAX_SELLOS: MAX_SELLOS
+    MONUMENTO: MONUMENTO, ADORNOS: ADORNOS, TEXTURA: TEXTURA, MAX_SELLOS: MAX_SELLOS,
+    /* lo que construyen las estrellas de las misiones (app/misiones.js) */
+    COSAS: COSAS, ORDEN_COSAS: ORDEN_COSAS, MAX_COSAS: MAX_COSAS, sitios: sitios,
+    /* 18-nov: la Pista completa (lo que abre cada mundo, cómo subir, el último
+       mundo a la vista, luz y vida, y el árbol de «Diciembre puntual») */
+    abre: abre, hitoMillon: hitoMillon, comoSubir: comoSubir, METAL: METAL, medallaEn: medallaEn,
+    luzYVida: luzYVida, sitioArbol: sitioArbol, ARBOL_NAVIDAD: ARBOL_NAVIDAD
   };
 });
