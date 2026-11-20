@@ -2741,7 +2741,22 @@
    PARA DESHACER: se revierte el commit de v152; CACHE y VERSION_SITIO, que el revert deja en
    v151, suben a v153, y mapa-lugares.js, que vuelve a ?v=151, pasa a ?v=153 en crm.html, en
    ARCHIVOS y en su prueba (la regla de la nota de v139). El número nunca baja. */
-const CACHE = 'tugarantia-v152';
+/* 20-nov-2026, v153 — SALE DESPUÉS DE v152 (main = 2d318f6). Rama v153-portada, encima de
+   portada-sin-como-entrar (65b09e5).
+   LA PORTADA SIN LA FRANJA «CÓMO ENTRAR». Joan, 17-nov: «mucha informacion que el cliente no
+   leera, mas simplificado». Se va la franja del final de index.html y el «Entrar» de la cabecera
+   lleva directo a play/. Lo que la franja decía ya se dice donde hace falta: que la cuenta se abre
+   sola y cada solicitud se revisa a mano (arriba, en la portada), y que quien ya era cliente entra
+   sin ningún código (en la fachada de play/, al registrarse).
+   · Es el plan B del 18-nov: las fotos de la gente de «Para qué te sirve» iban a salir en esta
+     versión, pero la clave de Cloudflare no estaba el jueves 19-nov a las 20:00. Salen aparte,
+     con la siguiente libre (receta: RECETA-FOTOS-GENTE.md, fuera de git).
+   Solo cambian index.html y dos pruebas (dos-links, una-puerta-cierres-socio). index.html está en
+   ARCHIVOS, así que sube el CACHE: ningún teléfono se queda con la franja vieja.
+   CACHE y VERSION_SITIO suben a v153. NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   PARA DESHACER: se revierten este commit y 65b09e5; CACHE y VERSION_SITIO, que el revert deja
+   en v152, suben a la siguiente libre. El número nunca baja. */
+const CACHE = 'tugarantia-v153';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
