@@ -100,15 +100,59 @@ describe('1 · el plan del repaso: una cuenta aparte, sin pantalla', () => {
     assert.equal(largo.paradas, PN.MAX_PARADAS);
   });
 
-  test('NO SE ALARGA: con cuarenta pagos dura casi lo mismo que con ocho, y nunca más de 25 segundos', () => {
+  /* Segunda vuelta del 23-nov: Joan lo pidió «mas despacio y suave», y una
+     vuelta tarda el doble. Con ocho pagos son unos 18 s; lo que se cuida es
+     que la historia larga no lo estire: cuarenta pagos, 7 s más, no cinco veces. */
+  test('NO SE ALARGA: con cuarenta pagos dura unos segundos más que con ocho, y nunca más de 28', () => {
     const hace = n => { const cs = []; for (let i = 0; i < n; i++) cs.push(cred('C' + i, 15000, '2026-03-10', '2026-03-10')); return cs; };
     const ocho = PN.duracionRepaso(planDe({ nombre: 'A', garantia: 300000, creditos: hace(8) }));
     const cuarenta = PN.duracionRepaso(planDe({ nombre: 'A', garantia: 700000, creditos: hace(40) }));
     const cien = PN.duracionRepaso(planDe({ nombre: 'A', garantia: 1700000, creditos: hace(100) }));
-    assert.ok(ocho >= 8000 && ocho <= 20000, 'ocho pagos: ' + ocho + ' ms');
-    assert.ok(cuarenta <= 25000, 'cuarenta pagos: ' + cuarenta + ' ms');
-    assert.ok(cien <= 30000, 'cien pagos: ' + cien + ' ms');
+    assert.ok(ocho >= 12000 && ocho <= 24000, 'ocho pagos: ' + ocho + ' ms');
+    assert.ok(cuarenta <= 28000, 'cuarenta pagos: ' + cuarenta + ' ms');
+    assert.ok(cien <= 33000, 'cien pagos: ' + cien + ' ms');
     assert.ok(cuarenta - ocho < 9000, 'la duración crece con la historia: ' + ocho + ' → ' + cuarenta);
+  });
+
+  /* «cambia de direccion todo el tiempo, como si fuera en reversa» (Joan, al ver
+     la primera versión, que era un dibujo de lado que se volteaba). El carrito
+     se arma en el suelo de la pista y mira hacia donde va: en TODOS los mundos
+     y en toda la vuelta, la trompa va delante de la cola en el sentido de la
+     marcha, y de un paso al siguiente no da un salto de rumbo. */
+  test('el carrito mira hacia donde va: nunca en reversa, y gira sin saltos', () => {
+    const op = { cielo: 0.3, margenAbajo: 30 };
+    M.NIVELES.forEach(n => {
+      let antes = null;
+      for (let x = 0; x < 160; x += 1) {
+        const a = PN.carroEn(n, 358, 437, op, x, 0), b = PN.carroEn(n, 358, 437, op, x + 1, 0);
+        const rumbo = [a.trompa[0] - a.cola[0], a.trompa[1] - a.cola[1]], marcha = [b.centro[0] - a.centro[0], b.centro[1] - a.centro[1]];
+        const largo = Math.hypot(rumbo[0], rumbo[1]), paso = Math.hypot(marcha[0], marcha[1]);
+        assert.ok(largo > 4, n + ' x=' + x + ': el carrito se aplastó (' + largo.toFixed(1) + ' px)');
+        if (paso > 0.05) {
+          const cos = (rumbo[0] * marcha[0] + rumbo[1] * marcha[1]) / (largo * paso);
+          assert.ok(cos > 0.5, n + ' x=' + x + ': el carrito no mira hacia donde va (cos ' + cos.toFixed(2) + ')');
+        }
+        const ang = Math.atan2(rumbo[1], rumbo[0]);
+        if (antes != null) {
+          let giro = Math.abs(ang - antes); if (giro > Math.PI) giro = 2 * Math.PI - giro;
+          assert.ok(giro < 0.75, n + ' x=' + x + ': saltó de rumbo ' + (giro * 180 / Math.PI).toFixed(0) + '° en un paso');
+        }
+        antes = ang;
+      }
+    });
+  });
+
+  test('el carrito va sobre el eje de la pista, y su tamaño no depende del reloj', () => {
+    const op = { cielo: 0.3, margenAbajo: 30 }, ruta = PN.rutaDe('oro', 358, 437, op);
+    [0, 17, 80.5, 159].forEach(x => {
+      const F = PN.carroEn('oro', 358, 437, op, x, 0), i = Math.floor(x), w = x - i, p = ruta[i], q = ruta[(i + 1) % 160];
+      assert.ok(Math.abs(F.centro[0] - (p[0] + (q[0] - p[0]) * w)) < 0.01 && Math.abs(F.centro[1] - (p[1] + (q[1] - p[1]) * w)) < 0.01, 'x=' + x + ': fuera del eje');
+      /* el reloj solo mueve la llama y las chispas */
+      const G = PN.carroEn('oro', 358, 437, op, x, 777);
+      ['alto', 'bajo', 'techo', 'cabina', 'ruedas', 'sombra', 'faros', 'stop', 'luz', 'franja'].forEach(k => assert.equal(G[k], F[k], k + ' cambia con el reloj'));
+      assert.notEqual(G.llama, F.llama);
+      assert.notEqual(G.chispas, F.chispas);
+    });
   });
 
   test('sin pagos no hay repaso, y con datos raros no revienta', () => {
@@ -149,8 +193,10 @@ function mundoDeMentira(o) {
   const els = {}, rotulos = [], bajadas = [];
   const nodo = attrs => ({ attrs: attrs || {}, setAttribute(k, v) { this.attrs[k] = String(v); },
     getAttribute(k) { return this.attrs[k] != null ? this.attrs[k] : null; } });
-  const SELECTORES = { '.pn-carro': /<g class="pn-carro"/g, '.pn-carro-n': /<g class="pn-carro-n"/g, '[data-hecho]': /<path data-hecho="1"/g,
+  /* lo que el repaso busca en el mundo, y el atributo que lee de cada cosa */
+  const SELECTORES = { '[data-p]': /<path data-p="([a-z0-9]+)"/g, '.pn-carro-n': /<g class="pn-carro-n"/g, '[data-hecho]': /<path data-hecho="1"/g,
     '.pn-piedra': /<g class="pn-piedra"/g, '.pn-llama-s': /<g class="pn-llama-s" data-i="(\d+)"/g };
+  const ATRIBUTO = { '[data-p]': 'data-p', '.pn-llama-s': 'data-i' };
   function elemento(id) {
     const clases = new Set();
     const e = { id, _html: '', _cache: {}, offsetHeight: id === 'nav' ? 56 : 0,
@@ -164,7 +210,7 @@ function mundoDeMentira(o) {
       if (!SELECTORES[sel]) throw new Error('el repaso busca algo que la prueba no conoce: ' + sel);
       if (!e._cache[sel]) {
         const re = new RegExp(SELECTORES[sel].source, 'g'), out = []; let m;
-        while ((m = re.exec(e._html))) out.push(nodo(m[1] != null ? { 'data-i': m[1] } : {}));
+        while ((m = re.exec(e._html))) out.push(nodo(m[1] != null ? { [ATRIBUTO[sel]]: m[1] } : {}));
         e._cache[sel] = out;
       }
       return e._cache[sel];
@@ -262,14 +308,23 @@ describe('2 · el repaso, corrido entero', () => {
       const esc = W.els.pnEscena;
       /* al arrancar: el mundo es Hierro, sin marcador, con el carrito y sus dos piedras apagadas */
       assert.match(esc.innerHTML, /class="pn-capas pn-m-hierro"/);
-      const carro = esc.querySelector('.pn-carro'), estela = esc.querySelector('[data-hecho]'), piedras = esc.querySelectorAll('.pn-piedra');
-      assert.ok(carro && estela && piedras.length === 2);
+      const piezas = esc.querySelectorAll('[data-p]'), estela = esc.querySelector('[data-hecho]'), piedras = esc.querySelectorAll('.pn-piedra');
+      assert.equal(piezas.length, 13, 'el carrito no trae sus trece piezas');
+      assert.ok(estela && piedras.length === 2);
       assert.equal(piedras.filter(p => /pn-ya/.test(p.attrs.class || '')).length, 0);
-      const t0 = carro.attrs.transform, largo0 = (estela.attrs.d || '').length;
-      W.avanza(900);
-      assert.notEqual(carro.attrs.transform, t0, 'el carrito no se movió');
+      const pieza = n => piezas.find(p => p.attrs['data-p'] === n);
+      const d0 = pieza('alto').attrs.d, largo0 = (estela.attrs.d || '').length;
+      assert.match(d0, /^M[\d.-]+,[\d.-]+( L[\d.-]+,[\d.-]+)+ Z$/, 'la carrocería no es un trazado');
+      W.avanza(1500);
+      assert.notEqual(pieza('alto').attrs.d, d0, 'el carrito no se movió');
       assert.ok((estela.attrs.d || '').length >= largo0, 'la estela se acortó');
-      assert.match(carro.attrs.transform, /^translate\([\d.-]+ [\d.-]+\) scale\(-?[\d.]+ [\d.]+\)$/);
+      /* a los 1,5 s ya llegó al primer pago y está en su segundo de parada:
+         quieto, pero vivo (la llama de atrás cambia de un cuadro a otro) */
+      assert.equal(W.rotulos[W.rotulos.length - 1].includes('Pago 1 de 5'), true, 'la prueba no está en la parada del primer pago');
+      const llama0 = pieza('llama').attrs.d, quieto = pieza('alto').attrs.d;
+      W.avanza(64);
+      assert.equal(pieza('alto').attrs.d, quieto, 'en la parada el carrito se movió');
+      assert.notEqual(pieza('llama').attrs.d, llama0, 'parado, el carrito se quedó sin vida');
       W.avanza(2600);
       assert.ok(piedras.filter(p => /pn-ya/.test(p.attrs.class || '')).length >= 1, 'pasó por un pago y la piedra sigue apagada');
       /* la placa del nombre va con el carrito, y no se sale del dibujo */
@@ -277,6 +332,20 @@ describe('2 · el repaso, corrido entero', () => {
       assert.ok(placa && /^translate\(/.test(placa.attrs.transform || ''));
       const x = Number((/translate\(([\d.-]+) /.exec(placa.attrs.transform) || [])[1]);
       assert.ok(x > 10 && x < 480, 'la placa se salió: ' + x);
+    });
+  });
+
+  test('al cruzar la meta de un mundo se sueltan las estrellas, y en el mundo siguiente ya no están', () => {
+    conPantalla({}, W => {
+      PN.vista(DOS_MUNDOS); PN.repasar(false);
+      const esc = W.els.pnEscena;
+      for (let i = 0; i < 400 && !/Pasaste a Aluminio/.test(W.rotulos[W.rotulos.length - 1]); i++) W.avanza(32);
+      assert.match(W.rotulos[W.rotulos.length - 1], /¡Pasaste a Aluminio!/);
+      assert.equal(esc.clases.has('pn-cruzo'), true, 'cruzó la meta sin fiesta');
+      for (let i = 0; i < 200 && !/^Mundo 2 de 9 Aluminio/.test(W.rotulos[W.rotulos.length - 1]); i++) W.avanza(32);
+      assert.equal(esc.clases.has('pn-cruzo'), false, 'las estrellas de Hierro siguieron en Aluminio');
+      PN.saltar();
+      assert.equal(esc.clases.has('pn-cruzo'), false);
     });
   });
 
@@ -469,7 +538,15 @@ describe('4 · los dibujos: azul del elixir, su nombre, y nada que le pese al te
     assert.equal(/pn-carro/.test(PN.vista(DOS_MUNDOS)), false, 'la pestaña quieta trae un carrito');
     assert.equal(/pn-carro/.test(PN.hoja('oro')), false);
     const con = PN.mundo('hierro', 328, 400, { f: 0.5, carro: true, nombre: 'Camila' });
-    assert.match(con, /<g class="pn-carro" transform="translate\(/);
+    assert.match(con, /<g class="pn-carro"><path data-p="luz" /);
+    assert.equal((con.match(/<path data-p="/g) || []).length, 13);
+    /* y con él, lo que pasa en la pista cuando llega a un pago y cuando cruza la meta */
+    const conPago = PN.mundo('hierro', 328, 400, { f: 0.5, carro: true, nombre: 'Camila', piedras: [{ f: 0.3, sello: true, mas: '+$48.000' }] });
+    assert.match(conPago, /<ellipse class="pn-onda"/);
+    assert.match(conPago, /<g class="pn-mas"><text [^>]*>\+\$48\.000<\/text><\/g>/);
+    assert.equal((conPago.match(/class="pn-fiesta-d/g) || []).length, 9);
+    /* fuera del repaso, ni onda ni cifra ni estrellas: la pista quieta no las pinta */
+    assert.equal(/pn-onda|pn-mas|pn-fiesta/.test(PN.vista(DOS_MUNDOS)), false);
     assert.match(con, /<g class="pn-carro-n"[\s\S]*?>Camila<\/text>/);
   });
 
@@ -484,12 +561,12 @@ describe('4 · los dibujos: azul del elixir, su nombre, y nada que le pese al te
 
   const sinNotas = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
   const reglas = [...sinNotas.matchAll(/(^|\}|\{)\s*([^{}@]+)\{([^{}]*)\}/g)].map(m => ({ sel: m[2].trim(), cuerpo: m[3] }));
-  const nuevas = reglas.filter(r => /\.pn-(llama|carro|piedra|rp|rec|repasando|llego)/.test(r.sel));
+  const nuevas = reglas.filter(r => /\.pn-(llama|carro|piedra|rp|rec|repasando|llego|onda|mas|fiesta|cruzo|ya)/.test(r.sel));
 
   test('lo nuevo de la hoja: sin filtros, y lo que se mueve solo cambia transform y opacity', () => {
     assert.ok(nuevas.length >= 20, 'no encontré las reglas nuevas: ' + nuevas.length);
     nuevas.forEach(r => assert.equal(/(^|[;\s])(-webkit-)?(backdrop-)?filter\s*:/.test(r.cuerpo), false, r.sel + ' usa filtros'));
-    ['pn-llama', 'pn-rp'].forEach(k => {
+    ['pn-llama', 'pn-rp', 'pn-onda', 'pn-mas', 'pn-fiesta'].forEach(k => {
       const kf = new RegExp('@keyframes ' + k + '\\{([\\s\\S]*?\\})\\}').exec(sinNotas);
       assert.ok(kf, 'falta @keyframes ' + k);
       [...kf[1].matchAll(/([a-z-]+)\s*:/g)].map(x => x[1]).forEach(p =>

@@ -827,18 +827,82 @@
   var LLAMA = '<path d="M0,0.4 C-3.6,-1.6 -3.2,-6.2 -0.7,-11.4 C-0.2,-8.6 2.9,-7.4 3.3,-3.6 C3.6,-1.2 2.2,0.4 0,0.4 Z" fill="' + ELIXIR.vivo + '" fill-opacity=".9"/>' +
     '<path d="M0,0 C-2.2,-1.4 -2,-4.6 -0.4,-7.6 C0,-5.9 1.9,-5 2.1,-2.6 C2.2,-1 1.3,0 0,0 Z" fill="' + ELIXIR.claro + '"/>' +
     '<path d="M0,-0.5 C-1,-1.2 -0.9,-2.8 -0.1,-4.2 C0.1,-3.3 0.9,-2.8 0.9,-1.7 C0.9,-1 0.5,-0.5 0,-0.5 Z" fill="' + ELIXIR.luz + '"/>';
-  /* El carrito: de lado, mirando a la derecha (el repaso lo voltea según para
-     dónde vaya la pista), con las ruedas en el suelo (0,0) y su llama azul
-     detrás. El amarillo es el del marcador: es el mismo socio, rodando. */
-  var CARRITO = '<ellipse cx="0" cy="0.8" rx="11" ry="2.8" fill="#000" opacity=".42"/>' +
-    '<path d="M-9.4,-4.6 C-13,-6.6 -15.4,-3.8 -19,-4.4 C-15.6,-2.6 -13.4,-0.9 -9.4,-2.2 Z" fill="' + ELIXIR.vivo + '"/>' +
-    '<path d="M-9.4,-4.1 C-11.8,-5 -13,-3.6 -15,-3.8 C-13,-2.8 -11.8,-2 -9.4,-2.6 Z" fill="' + ELIXIR.luz + '"/>' +
-    '<path d="M-9.4,-2 L-9.4,-6.2 Q-9.4,-8.2 -7.4,-8.2 L-2.4,-8.2 L0.8,-11.8 L6,-11.8 Q7.7,-11.8 8.2,-10.2 L9.6,-6.6 Q10.4,-6.2 10.4,-5 L10.4,-2 Z" fill="#F5C542" stroke="#0C0A0B" stroke-width="1.1" stroke-linejoin="round"/>' +
-    '<path d="M1.5,-10.8 L5.7,-10.8 L7.1,-7.4 L-0.9,-7.4 Z" fill="#0C0A0B" fill-opacity=".86"/>' +
-    '<path d="M-9.4,-4.9 H10.4" stroke="#0C0A0B" stroke-opacity=".45" stroke-width=".9"/>' +
-    '<circle cx="-5.2" cy="-1.7" r="2.7" fill="#0C0A0B" stroke="#FBF7F4" stroke-width=".8"/><circle cx="-5.2" cy="-1.7" r=".9" fill="#FBF7F4"/>' +
-    '<circle cx="5.6" cy="-1.7" r="2.7" fill="#0C0A0B" stroke="#FBF7F4" stroke-width=".8"/><circle cx="5.6" cy="-1.7" r=".9" fill="#FBF7F4"/>' +
-    '<circle cx="9.9" cy="-4.5" r=".95" fill="#FFF6D6"/>';
+  /* EL CARRITO, SOBRE EL SUELO DE LA PISTA (23-nov-2026, segunda vuelta).
+     La primera versión era un dibujo de lado que se volteaba según para dónde
+     fuera la pista. Joan, al verla: «cambia de direccion todo el tiempo, como
+     si fuera en reversa». En una pista que da la vuelta, un dibujo de lado
+     siempre mira mal en algún tramo. Ahora el carrito se ARMA en el suelo de
+     la pista, en las mismas unidades de la calzada: su sitio y su rumbo salen
+     del eje (la tangente, suavizada entre muestras), y cada esquina se
+     proyecta con la misma cuenta que la pista. Gira con las curvas, se achica
+     al alejarse y nunca va en reversa. Tiene alto (la carrocería y el techo
+     van más arriba que las ruedas), y eso le da cuerpo sin dibujar caras.
+     `x` es su sitio en muestras del eje (0 a 160, con decimales) y `t` los
+     milisegundos del reloj, que mueven la llama y las chispas de atrás.
+     Devuelve el trazado de cada pieza; quien lo llama solo los escribe. */
+  var CARRO = { largo: 21, ancho: 10.4 };   // medias medidas, en unidades de suelo. Es más ancho que la calzada (19) a propósito: a escala no se vería en un teléfono, y es el protagonista
+  var CASCO = [[-1, -0.74], [-0.84, -1], [0.5, -1], [0.88, -0.82], [1, -0.4], [1, 0.4], [0.88, 0.82], [0.5, 1], [-0.84, 1], [-1, 0.74]];
+  /* las piezas, en el orden en que se pintan: de abajo hacia arriba */
+  var PIEZAS_CARRO = [
+    ['luz', 'fill="#FFF6D6" fill-opacity=".17"'],
+    ['sombra', 'fill="#000000" fill-opacity=".42"'],
+    ['chispas', 'fill="' + ELIXIR.luz + '" fill-opacity=".92"'],
+    ['llama', 'fill="' + ELIXIR.vivo + '"'],
+    ['llama2', 'fill="' + ELIXIR.luz + '"'],
+    ['ruedas', 'fill="#0C0A0B" stroke="#FBF7F4" stroke-opacity=".7" stroke-width=".6"'],
+    ['bajo', 'fill="#A9690F" stroke="#0C0A0B" stroke-width="1" stroke-linejoin="round"'],
+    ['alto', 'fill="#F5C542" stroke="#0C0A0B" stroke-width="1" stroke-linejoin="round"'],
+    ['franja', 'fill="#0C0A0B" fill-opacity=".5"'],
+    ['cabina', 'fill="#0C0A0B"'],
+    ['techo', 'fill="#FFE08A" stroke="#0C0A0B" stroke-width=".8" stroke-linejoin="round"'],
+    ['faros', 'fill="#FFF6D6"'],
+    ['stop', 'fill="#FF6B6F"']
+  ];
+  function formaCarro(L, c, x, t) {
+    var N = c.length, i0 = Math.floor(x), w = x - i0, A = CARRO.largo, B = CARRO.ancho;
+    function en(k) { return c[((k % N) + N) % N]; }
+    function tang(k) {
+      var a = en(k - 2), b = en(k + 3), du = b[0] - a[0], dv = b[1] - a[1], l = Math.sqrt(du * du + dv * dv) || 1;
+      return [du / l, dv / l];
+    }
+    var a = en(i0), b = en(i0 + 1), pu = a[0] + (b[0] - a[0]) * w, pv = a[1] + (b[1] - a[1]) * w;
+    var t0 = tang(i0), t1 = tang(i0 + 1), tu = t0[0] + (t1[0] - t0[0]) * w, tv = t0[1] + (t1[1] - t0[1]) * w, tl = Math.sqrt(tu * tu + tv * tv) || 1;
+    tu /= tl; tv /= tl;
+    var nu = -tv, nv = tu;
+    /* lon: hacia adelante (1 es la trompa); lat: de lado; alto: hacia arriba */
+    function Q(lon, lat, alto) { return L.P(pu + tu * lon * A + nu * lat * B, pv + tv * lon * A + nv * lat * B, alto || 0); }
+    function poli(pts, alto, k) { k = k || 1; return 'M' + pts.map(function (p) { return pt(Q(p[0] * k, p[1] * k, alto)); }).join(' L') + ' Z'; }
+    function caja(l0, l1, a0, a1, alto) { return poli([[l0, a0], [l1, a0], [l1, a1], [l0, a1]], alto); }
+    t = t || 0;
+    /* la llama de atrás respira, y cuatro chispas se van quedando */
+    var largoLlama = 0.62 + 0.2 * Math.sin(t / 60) + 0.08 * Math.sin(t / 23), chispas = '';
+    for (var k = 0; k < 4; k++) {
+      var fase = ((t / 420) + k * 0.31) % 1, lon = -1.5 - k * 0.42 - fase * 0.5, lat = Math.sin(t / 110 + k * 2.1) * 0.42;
+      var z = 0.15 * (1 - fase * 0.6) * (1 - k * 0.12);
+      chispas += poli([[lon - z, lat], [lon, lat - z * 1.9], [lon + z, lat], [lon, lat + z * 1.9]], 3) + ' ';
+    }
+    return {
+      luz: poli([[1, -0.5], [2.5, -1.7], [2.5, 1.7], [1, 0.5]], 0.3),
+      sombra: poli(CASCO, 0, 1.1),
+      chispas: chispas,
+      llama: poli([[-0.98, -0.46], [-0.98, 0.46], [-0.98 - largoLlama, 0]], 4.2),
+      llama2: poli([[-0.98, -0.24], [-0.98, 0.24], [-0.98 - largoLlama * 0.55, 0]], 4.2),
+      ruedas: caja(0.34, 0.74, -1.16, -0.84, 0.6) + ' ' + caja(0.34, 0.74, 0.84, 1.16, 0.6) + ' ' +
+              caja(-0.78, -0.38, -1.16, -0.84, 0.6) + ' ' + caja(-0.78, -0.38, 0.84, 1.16, 0.6),
+      bajo: poli(CASCO, 2.4),
+      alto: poli(CASCO, 7.4),
+      franja: caja(-0.96, 0.97, -0.17, 0.17, 7.4),
+      cabina: poli([[-0.5, -0.74], [0.28, -0.74], [0.48, -0.52], [0.48, 0.52], [0.28, 0.74], [-0.5, 0.74]], 7.4),
+      techo: poli([[-0.4, -0.58], [0.18, -0.58], [0.18, 0.58], [-0.4, 0.58]], 12.4),
+      faros: caja(0.93, 1.01, -0.76, -0.46, 5.4) + ' ' + caja(0.93, 1.01, 0.46, 0.76, 5.4),
+      stop: caja(-1.01, -0.95, -0.74, -0.46, 5.6) + ' ' + caja(-1.01, -0.95, 0.46, 0.74, 5.6),
+      /* para la placa del nombre (encima del techo) y para las pruebas */
+      cima: Q(0, 0, 24), trompa: Q(1, 0, 0), cola: Q(-1, 0, 0), centro: Q(0, 0, 0)
+    };
+  }
+  function carroSvg(F) {
+    return '<g class="pn-carro">' + PIEZAS_CARRO.map(function (p) { return '<path data-p="' + p[0] + '" ' + p[1] + ' d="' + F[p[0]] + '"/>'; }).join('') + '</g>';
+  }
   function pista(nivel, L, o) {
     var P = PALETA[nivel], N = 160, ANCHO = ANCHO_PISTA, KERB = KERB_PISTA, s = L.s, i;
     var c = muestras(CIRCUITOS[nivel], N);
@@ -906,20 +970,27 @@
         '<ellipse cx="' + r1(q[0]) + '" cy="' + r1(q[1] + 1.2 * q[2]) + '" rx="' + r1(rx) + '" ry="' + r1(ry) + '" fill="#000" opacity=".45"/>' +
         '<ellipse cx="' + r1(q[0]) + '" cy="' + r1(q[1]) + '" rx="' + r1(rx) + '" ry="' + r1(ry) + '" fill="' + (pi.sello ? '#F5C542' : '#0C0A0B') + '" stroke="' + (pi.sello ? '#0C0A0B' : '#F5C542') + '" stroke-width="' + r1(1.3 * s) + '"/>' +
         (pi.sello ? '<path d="M' + r1(q[0] - rx * 0.45) + ',' + r1(q[1]) + ' l' + r1(rx * 0.3) + ',' + r1(ry * 0.4) + ' l' + r1(rx * 0.55) + ',' + r1(-ry * 0.75) + '" fill="none" stroke="#0C0A0B" stroke-width="' + r1(1.3 * s) + '" stroke-linecap="round" stroke-linejoin="round"/>' : '') +
+        /* EN EL REPASO, cada pago salta a la vista: una onda que se abre en el
+           suelo y lo que sumó subiendo por encima del carrito y de su placa
+           (`mas`, que pone el repaso con la cifra del plan; más abajo quedaba
+           tapado por el nombre). Las dos van apagadas y se sueltan
+           cuando el carrito llega (.pn-ya); fuera del repaso no se pintan. */
+        (pi.mas ? '<ellipse class="pn-onda" cx="' + r1(q[0]) + '" cy="' + r1(q[1]) + '" rx="' + r1(rx * 1.5) + '" ry="' + r1(ry * 1.5) + '" fill="none" stroke="' + ELIXIR.claro + '" stroke-width="' + r1(1.8 * s) + '"/>' +
+          '<g transform="translate(' + r1(o._W ? Math.max(36, Math.min(o._W - 36, q[0])) : q[0]) + ' ' + r1(q[1] - 24 * q[2] - 32) + ')"><g class="pn-mas">' +
+          '<text x="0" y="0" text-anchor="middle" font-family="' + FUENTE + '" font-size="13" font-weight="800" fill="#F5C542" stroke="#0C0A0B" stroke-width="3.2" stroke-linejoin="round" paint-order="stroke">' + esc(pi.mas) + '</text></g></g>' : '') +
         '</g>';
     });
     /* EL CARRITO del repaso (23-nov-2026). Va en el suelo, antes de lo que está
        de pie: así lo de adelante lo tapa y él no tapa nada de atrás. Nace
        apagado (la hoja de estilos lo enciende solo mientras dura el repaso) y
-       el repaso lo mueve cambiándole el transform, que es lo único que cambia. */
+       el repaso le reescribe el trazado de cada pieza, cuadro a cuadro. */
     if (o.carro) {
-      h += '<g class="pn-carro" transform="translate(' + r1(centro[0][0]) + ' ' + r1(centro[0][1]) + ') scale(' + centro[0][2].toFixed(3) + ')">' + CARRITO + '</g>';
-      /* y su nombre encima, en una placa aparte: el carrito se voltea según
-         para dónde vaya, y un letrero volteado no se lee */
+      var F0 = formaCarro(L, c, 0, 0);
+      h += carroSvg(F0);
+      /* y su nombre encima, en una placa aparte que no gira con él */
       if (o.nombre) {
         var cn = String(o.nombre), cw = Math.max(30, cn.length * 6.3 + 16);
-        h += '<g class="pn-carro-n" transform="translate(' + r1(centro[0][0]) + ' ' + r1(centro[0][1] - 30) + ')">' +
-          '<path d="M-3.4,-1 L0,3.6 L3.4,-1 Z" fill="#0C0A0B"/>' +
+        h += '<g class="pn-carro-n" transform="translate(' + r1(F0.cima[0]) + ' ' + r1(F0.cima[1] - 4) + ')">' +
           '<rect x="' + r1(-cw / 2) + '" y="-17" width="' + r1(cw) + '" height="17" rx="8.5" fill="#0C0A0B" fill-opacity=".92" stroke="#F5C542" stroke-width="1.1"/>' +
           '<text x="0" y="-5.1" text-anchor="middle" font-family="' + FUENTE + '" font-size="10.6" font-weight="800" letter-spacing=".2" fill="#FBF7F4">' + esc(cn) + '</text></g>';
       }
@@ -956,6 +1027,19 @@
         '<text x="' + r1(mx) + '" y="' + r1(my - 1.9) + '" text-anchor="middle" font-family="' + FUENTE + '" font-size="8.6" font-weight="800" letter-spacing=".8" fill="#FBF7F4">' + esc(o.meta.toUpperCase()) + '</text>';
     }
     cosas.push({ v: c[0][1], svg: g });
+    /* LA FIESTA DE LA META (solo en el repaso): un puñado de estrellas sobre el
+       pórtico, apagadas; se sueltan cuando el carrito cruza a otro mundo
+       (.pn-cruzo, que pone el repaso en la escena). */
+    if (o.carro) {
+      var fx = (ta[0] + tb[0]) / 2, fy = Math.min(ta[1], tb[1]) - 4, fiesta = '', tonos = ['#F5C542', ELIXIR.claro, '#FFFFFF'];
+      for (i = 0; i < 9; i++) {
+        var an = (198 + i * 18) * Math.PI / 180, rad = 20 + (i % 3) * 10, ex = fx + Math.cos(an) * rad * 1.5, ey = fy + Math.sin(an) * rad, ez = 3 + (i % 2) * 1.7;
+        fiesta += '<g class="pn-fiesta-d' + (i % 3 ? ' pn-f' + (i % 3) : '') + '"><path d="M' + r1(ex) + ',' + r1(ey - ez * 1.5) + ' L' + r1(ex + ez * 0.4) + ',' + r1(ey - ez * 0.4) +
+          ' L' + r1(ex + ez * 1.5) + ',' + r1(ey) + ' L' + r1(ex + ez * 0.4) + ',' + r1(ey + ez * 0.4) + ' L' + r1(ex) + ',' + r1(ey + ez * 1.5) + ' L' + r1(ex - ez * 0.4) + ',' + r1(ey + ez * 0.4) +
+          ' L' + r1(ex - ez * 1.5) + ',' + r1(ey) + ' L' + r1(ex - ez * 0.4) + ',' + r1(ey - ez * 0.4) + ' Z" fill="' + tonos[i % 3] + '"/></g>';
+      }
+      cosas.push({ v: c[0][1] - 0.02, svg: '<g class="pn-fiesta">' + fiesta + '</g>' });
+    }
     /* el socio: un pin de pie, con su sombra y un pulso en el suelo */
     if (o.f != null && !o.sinMarcador) {
       var im = Math.min(N - 1, Math.round(N * o.f)), q0 = centro[im], rr = (o.personaje ? 15 : 12.5) * q0[2], cab = L.P(c[im][0], c[im][1], o.personaje ? 33 : 30);
@@ -1410,10 +1494,19 @@
      `mundo` y de `pista`. Lo usa el repaso para llevar el carrito; no dibuja
      nada. Si `mundo` cambia cómo arma el lienzo, esto cambia con él (una
      prueba compara un punto con el del dibujo). */
-  function rutaDe(nivel, W, H, opciones) {
+  function sueloDe(nivel, W, H, opciones) {
     var o = opciones || {}, arriba = H * (o.cielo != null ? o.cielo : 0.4);
     var L = lienzo(nivel, { x: 5, y: arriba, w: W - 10, h: H - arriba - (o.margenAbajo != null ? o.margenAbajo : 6) });
-    return muestras(CIRCUITOS[nivel], 160).map(function (p) { return L.P(p[0], p[1], 0); });
+    return { L: L, c: muestras(CIRCUITOS[nivel], 160) };
+  }
+  function rutaDe(nivel, W, H, opciones) {
+    var s = sueloDe(nivel, W, H, opciones);
+    return s.c.map(function (p) { return s.L.P(p[0], p[1], 0); });
+  }
+  /* El carrito en un sitio del eje (x, en muestras): para las pruebas. */
+  function carroEn(nivel, W, H, opciones, x, t) {
+    var s = sueloDe(nivel, W, H, opciones);
+    return formaCarro(s.L, s.c, x, t);
   }
 
   /* LUZ Y VIDA (boceto 14-A del 17-nov, que Joan escogió el 18-nov con «mejora
@@ -1845,19 +1938,20 @@
          llegada a un mundo, que es otra hoja.
        · CON «MENOS MOVIMIENTO» NO CORRE: se ve la pista ya recorrida, como
          siempre. Tampoco donde no hay con qué animar (el banco de pruebas).
-       · EN UN TELÉFONO BARATO: por cuadro cambia un transform y el trazado de
-         la estela, dentro de la capa de la isla, que ya se repinta por el
-         pulso del marcador. Sin filtros. Los tiempos van por el reloj del
+       · EN UN TELÉFONO BARATO: por cuadro se reescriben los trazados del
+         carrito (trece piezas chicas) y el de la estela, dentro de la capa de
+         la isla, que ya se repinta por el pulso del marcador. Sin filtros. Los tiempos van por el reloj del
          navegador, no por cuadros: en un teléfono lento se ve a saltos, pero
          dura lo mismo.
        · AL SALIR de la pestaña se detiene (la página llama a `detener`), y si
          la pantalla se repintó por debajo, se da cuenta sola y no toca nada.
        · LAS PALABRAS: lo que sumó cada pago a su garantía, en pesos. No invita
          a pedir, no promete nada y no llama a la garantía plata ni ahorro. */
-  var MAX_PARADAS = 8, MS_PARADA = 1000, MS_FRENO = 260, MS_VUELTA = 2200, MS_VUELTA_RAPIDA = 1200, MS_CAMBIO = 900, MS_LLEGADA = 2600, MS_ARRANQUE = 350;
-  /* El carrito va más grande que su tamaño «real» sobre la pista: a escala no
-     se vería en un teléfono, y es el protagonista del repaso. */
-  var ESCALA_CARRO = 2.3;
+  /* Segunda vuelta, 23-nov. Joan: «que tampoco se vea tan entrecortado los
+     movimientos, mas despacio y suave». Una vuelta entera tarda el doble que
+     antes (4,4 s), llegar a una parada nunca menos de medio segundo, y el paso
+     acelera y frena con una curva más blanda (ver `correr`). */
+  var MAX_PARADAS = 8, MS_PARADA = 1000, MS_FRENO = 560, MS_VUELTA = 4400, MS_VUELTA_RAPIDA = 1900, MS_CAMBIO = 1150, MS_LLEGADA = 2600, MS_ARRANQUE = 520;
   function planRepaso(e, rec) {
     rec = rec || [];
     if (!e || !e.filas || !rec.length) return { mundos: [], pagos: 0, paradas: 0, arranca: 0 };
@@ -1934,22 +2028,23 @@
   function escenaDe(w) {
     var H0 = HERO, op = { cielo: H0.op.cielo, margenAbajo: H0.op.margenAbajo, f: Math.max(w.hasta, 0.02), nombre: H0.op.nombre,
       carro: true, sinMarcador: true,
-      piedras: w.pagos.map(function (p) { return { f: p.f, sello: p.en_fecha }; }) };
+      piedras: w.pagos.map(function (p) { return { f: p.f, sello: p.en_fecha, mas: '+' + COP(p.dejo) }; }) };
     if (w.sigue) op.meta = 'Meta · ' + w.sigue;
     if (w.hoy) { op.cosas = H0.op.cosas; op.sigue = H0.op.sigue; op.navidad = H0.op.navidad; }
     return op;
   }
   /* El carrito y la punta de la estela en la fracción f (0 a 1) de la vuelta. */
   function ponerEn(r, f) {
-    var N = r.ruta.length, x = Math.max(0, Math.min(N, f * N)), i = Math.min(N - 1, Math.floor(x)), t = x - i;
-    var a = r.ruta[i], b = r.ruta[(i + 1) % N];
-    var px = a[0] + (b[0] - a[0]) * t, py = a[1] + (b[1] - a[1]) * t, k = (a[2] + (b[2] - a[2]) * t) * ESCALA_CARRO;
-    if (Math.abs(b[0] - a[0]) > 0.05) r.mira = b[0] >= a[0] ? 1 : -1;
-    if (r.carro) r.carro.setAttribute('transform', 'translate(' + r1(px) + ' ' + r1(py) + ') scale(' + (r.mira * k).toFixed(3) + ' ' + k.toFixed(3) + ')');
-    /* la placa del nombre va encima del carrito, derecha y sin salirse del dibujo */
+    var N = r.ruta.length, x = Math.max(0, Math.min(N, f * N)), i = Math.min(N - 1, Math.floor(x));
+    var F = formaCarro(r.suelo.L, r.suelo.c, x, reloj()), px = F.centro[0], py = F.centro[1], k;
+    for (k in r.partes) if (Object.prototype.hasOwnProperty.call(r.partes, k) && F[k] != null) r.partes[k].setAttribute('d', F[k]);
+    /* la placa del nombre va encima del techo, derecha y sin salirse del
+       dibujo. Cerca de la meta va DEBAJO del carrito: arriba está el letrero
+       del pórtico («Meta · Bronce») y se tapaban el uno al otro. */
     if (r.placa) {
-      var medio = r.anchoPlaca / 2 + 4, nx = Math.max(medio, Math.min(HERO.W - medio, px));
-      r.placa.setAttribute('transform', 'translate(' + r1(nx) + ' ' + r1(py - 13 * k - 6) + ')');
+      var medio = r.anchoPlaca / 2 + 4, nx = Math.max(medio, Math.min(HERO.W - medio, F.cima[0]));
+      var m0 = r.ruta[0], enLaMeta = Math.abs(px - m0[0]) < 96 && py < m0[1] + 34;
+      r.placa.setAttribute('transform', 'translate(' + r1(nx) + ' ' + r1(enLaMeta ? py + 30 : F.cima[1] - 4) + ')');
     }
     if (r.hecho) {
       var pts = [];
@@ -1962,28 +2057,52 @@
     while (r.il < r.llamas.length && Number(r.llamas[r.il].getAttribute('data-i')) <= i) { r.llamas[r.il].setAttribute('class', 'pn-llama-s pn-ya'); r.il++; }
     r.f = f;
   }
+  /* De un sitio a otro, acelerando y frenando con una curva blanda (cúbica):
+     arranca despacio, corre en el medio y llega despacio. */
   function correr(r, hasta, frena, alLlegar) {
     var desde = r.f, ms = msTramo(r.w, hasta - desde, frena), t0 = reloj();
     if (hasta <= desde || ms < 1) { if (hasta > desde) ponerEn(r, hasta); return alLlegar(); }
+    r.rodando = true;
     (function cuadro() {
       if (!sigueAhi(r)) return;
-      var u = Math.min(1, (reloj() - t0) / ms), suave = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+      var u = Math.min(1, (reloj() - t0) / ms), suave = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
       ponerEn(r, desde + (hasta - desde) * suave);
-      if (u < 1) r.raf = requestAnimationFrame(cuadro); else alLlegar();
+      if (u < 1) r.raf = requestAnimationFrame(cuadro); else { r.rodando = false; alLlegar(); }
     })();
+  }
+  /* Parado también está vivo: la llama y las chispas siguen moviéndose
+     mientras espera en un pago. Un solo latido para todo el repaso; mientras
+     el carrito rueda no hace nada, porque `correr` ya lo pinta. */
+  function latir(r) {
+    (function cuadro() {
+      if (!sigueAhi(r)) return;
+      if (!r.rodando && r.suelo) ponerEn(r, r.f);
+      r.rafVivo = requestAnimationFrame(cuadro);
+    })();
+  }
+  function soltar(r) {
+    try {
+      if (typeof cancelAnimationFrame === 'function') { if (r.raf) cancelAnimationFrame(r.raf); if (r.rafVivo) cancelAnimationFrame(r.rafVivo); }
+    } catch (x) { /* nada */ }
+    clearTimeout(r.timer);
   }
   function espera(r, ms, sigue) { r.timer = setTimeout(function () { if (sigueAhi(r)) sigue(); }, ms); }
   function mundoDelRepaso(r) {
     r.im++;
     if (r.im >= r.plan.mundos.length) return llegada(r);
     var w = r.plan.mundos[r.im], H0 = HERO, op = escenaDe(w);
+    if (r.esc.classList) r.esc.classList.remove('pn-cruzo');
     r.esc.innerHTML = mundo(w.nivel, H0.W, H0.H, op);
-    r.ruta = rutaDe(w.nivel, H0.W, H0.H, op);
-    r.carro = r.esc.querySelector('.pn-carro'); r.hecho = r.esc.querySelector('[data-hecho]');
+    r.suelo = sueloDe(w.nivel, H0.W, H0.H, op);
+    r.ruta = r.suelo.c.map(function (p) { return r.suelo.L.P(p[0], p[1], 0); });
+    r.hecho = r.esc.querySelector('[data-hecho]');
     r.placa = r.esc.querySelector('.pn-carro-n');
     r.anchoPlaca = Math.max(30, String(op.nombre || '').length * 6.3 + 16);
+    r.partes = {};
+    var piezas = r.esc.querySelectorAll('[data-p]');
+    for (var q = 0; q < piezas.length; q++) r.partes[piezas[q].getAttribute('data-p')] = piezas[q];
     r.piedras = r.esc.querySelectorAll('.pn-piedra'); r.llamas = r.esc.querySelectorAll('.pn-llama-s');
-    r.il = 0; r.mira = 1; r.w = w; r.ip = 0;
+    r.il = 0; r.rodando = false; r.w = w; r.ip = 0;
     r.rp.innerHTML = rotuloMundo(w);
     ponerEn(r, w.desde);
     espera(r, MS_ARRANQUE, function () { pagoDelRepaso(r); });
@@ -1993,6 +2112,8 @@
     if (r.ip >= w.pagos.length) {
       return correr(r, w.hasta, true, function () {
         if (w.hoy) return llegada(r);
+        /* cruzó la meta: se sueltan las estrellas del pórtico */
+        if (r.esc.classList) r.esc.classList.add('pn-cruzo');
         r.rp.innerHTML = rotuloCruce(w);
         espera(r, MS_CAMBIO, function () { mundoDelRepaso(r); });
       });
@@ -2012,11 +2133,11 @@
   function llegada(r, sinRotulo) {
     if (!r || !r.vivo) return;
     r.vivo = false;
-    try { if (r.raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(r.raf); } catch (x) { /* nada */ }
-    clearTimeout(r.timer);
+    soltar(r);
     var d = documento(), H0 = HERO;
     if (RP === r) RP = null;
     if (!d || !H0 || d.getElementById('pnEscena') !== r.esc) return;
+    if (r.esc.classList) r.esc.classList.remove('pn-cruzo');
     r.esc.innerHTML = mundo(H0.e.nivel, H0.W, H0.H, H0.op);
     r.hero.classList.remove('pn-repasando');
     if (sinRotulo) { r.rp.innerHTML = ''; return; }
@@ -2041,10 +2162,11 @@
     detener();
     clearTimeout(FIN);   // el rótulo de una llegada anterior ya no manda
     if (aMano) { try { window.scrollTo(0, 0); } catch (x) { /* sin ventana no se sube */ } }
-    RP = { plan: plan, im: -1, hero: hero, esc: esc0, rp: rp, vivo: true, f: 0, raf: 0, timer: 0, il: 0, llamas: [], piedras: [], mira: 1 };
+    RP = { plan: plan, im: -1, hero: hero, esc: esc0, rp: rp, vivo: true, f: 0, raf: 0, rafVivo: 0, timer: 0, il: 0, llamas: [], piedras: [], partes: {}, rodando: false };
     hero.classList.remove('pn-llego');
     hero.classList.add('pn-repasando');
     mundoDelRepaso(RP);
+    if (RP) latir(RP);
     /* un instante después: la página sube al tope al cambiar de pestaña, y
        esto va cuando ya subió */
     setTimeout(function () { acomodar(hero); }, 40);
@@ -2072,8 +2194,7 @@
     var r = RP; RP = null;
     if (!r) return;
     r.vivo = false;
-    try { if (r.raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(r.raf); } catch (x) { /* nada */ }
-    clearTimeout(r.timer);
+    soltar(r);
   }
   /* LO QUE ABRE CADA MUNDO (18-nov-2026). Joan: «para que el cliente vea hasta
      que nivel puede llegar y los beneficios». Solo lo que el motor YA hace, y
@@ -2300,7 +2421,7 @@
     vista: vista, abrir: abrir, cerrar: cerrar, abrirCon: abrirCon, montar: montar,
     /* 23-nov-2026: el recorrido por mundo y el repaso del carrito */
     repasar: repasar, saltar: saltar, detener: detener, repasando: function () { return !!RP; },
-    planRepaso: planRepaso, duracionRepaso: duracionRepaso, rutaDe: rutaDe, primerNombre: primerNombre,
+    planRepaso: planRepaso, duracionRepaso: duracionRepaso, rutaDe: rutaDe, primerNombre: primerNombre, carroEn: carroEn,
     tarjetaRecorrido: tarjetaRecorrido, ELIXIR: ELIXIR, MAX_PARADAS: MAX_PARADAS, MAX_LLAMAS: MAX_LLAMAS,
     MAX_FILAS_REC: MAX_FILAS_REC, MS_PARADA: MS_PARADA,
     completarDatos: completarDatos, invitar: invitar,
