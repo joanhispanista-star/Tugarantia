@@ -349,6 +349,35 @@ describe('2 · el repaso, corrido entero', () => {
     });
   });
 
+  test('abrir la hoja de un mundo mientras corre: el carrito llega de una vez y la hoja abre', () => {
+    conPantalla({}, W => {
+      PN.vista(DOS_MUNDOS); PN.repasar(false); W.avanza(1500);
+      assert.equal(PN.repasando(), true);
+      assert.equal(PN.abrir('oro'), true);
+      assert.equal(PN.repasando(), false, 'el carrito siguió corriendo debajo de la hoja');
+      assert.equal(W.els.pnHero.clases.has('pn-repasando'), false);
+      assert.match(W.els.pnEscena.innerHTML, /class="pn-capas pn-m-aluminio"/);
+      assert.ok(W.els.pnHoja.innerHTML.length > 100, 'la hoja no abrió');
+      W.avanza(20000);
+      assert.equal(W.pendientes(), 0);
+      PN.cerrar();
+    });
+  });
+
+  test('«Verlo en la pista» con el rótulo de la llegada todavía puesto: el reloj viejo no le borra nada al repaso nuevo', () => {
+    conPantalla({}, W => {
+      PN.vista(DOS_MUNDOS); PN.repasar(false);
+      W.avanza(PN.duracionRepaso(planDe(DOS_MUNDOS)) - 2000);   // ya llegó: está el rótulo de «hoy»
+      assert.equal(W.els.pnHero.clases.has('pn-llego'), true, 'la prueba no llegó al rótulo de la llegada');
+      assert.equal(PN.repasar(true), true);
+      assert.equal(W.els.pnHero.clases.has('pn-llego'), false);
+      W.avanza(2500);   // pasa la hora en que el reloj viejo habría borrado el rótulo
+      assert.equal(PN.repasando(), true);
+      assert.equal(W.els.pnHero.clases.has('pn-repasando'), true);
+      assert.notEqual(W.els.pnRp.innerHTML, '', 'el reloj de la llegada anterior borró el rótulo del repaso nuevo');
+    });
+  });
+
   test('montar lo arranca solo si la página dice que viene ENTRANDO', () => {
     conPantalla({}, W => {
       PN.vista(DOS_MUNDOS);

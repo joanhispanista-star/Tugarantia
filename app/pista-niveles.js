@@ -1918,6 +1918,7 @@
   }
 
   var RP = null;   // el repaso en curso, o null
+  var FIN = 0;     // el reloj que quita el rótulo de la llegada
   function reduceMovimiento() {
     try { return !!(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
     catch (x) { return false; }
@@ -2021,7 +2022,7 @@
     if (sinRotulo) { r.rp.innerHTML = ''; return; }
     r.rp.innerHTML = rotuloLlegada(H0.e);
     r.hero.classList.add('pn-llego');
-    setTimeout(function () {
+    FIN = setTimeout(function () {
       var dd = documento();
       if (!dd || dd.getElementById('pnEscena') !== r.esc || RP) return;
       r.hero.classList.remove('pn-llego'); r.rp.innerHTML = '';
@@ -2038,6 +2039,7 @@
     var hero = d.getElementById('pnHero'), esc0 = d.getElementById('pnEscena'), rp = d.getElementById('pnRp');
     if (!hero || !esc0 || !rp || typeof esc0.querySelector !== 'function' || !hero.classList) return false;
     detener();
+    clearTimeout(FIN);   // el rótulo de una llegada anterior ya no manda
     if (aMano) { try { window.scrollTo(0, 0); } catch (x) { /* sin ventana no se sube */ } }
     RP = { plan: plan, im: -1, hero: hero, esc: esc0, rp: rp, vivo: true, f: 0, raf: 0, timer: 0, il: 0, llamas: [], piedras: [], mira: 1 };
     hero.classList.remove('pn-llego');
@@ -2243,6 +2245,9 @@
   function abrirCon(html, cual, alCerrar) {
     var d = documento(), caja = d && d.getElementById('pnHoja');
     if (!caja || !html) return false;
+    /* 23-nov-2026 — si el carrito iba corriendo, llega de una vez: una hoja
+       encima de un mundo que sigue cambiando debajo no se entiende. */
+    if (RP) llegada(RP, true);
     caja.innerHTML = html;
     ABIERTA = cual;
     AL_CERRAR = typeof alCerrar === 'function' ? alCerrar : null;
