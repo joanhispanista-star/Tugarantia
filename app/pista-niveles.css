@@ -62,6 +62,96 @@
   .pn-hoja{animation:none}
 }
 
+/* ---------- la estela azul, las llamitas y el carrito (23-nov-2026) ----------
+   La llama late: se estira y se apaga un poco, anclada al suelo. Son siete como
+   mucho y solo cambian transform y opacity. El carrito nace apagado y solo se
+   ve mientras dura el repaso (.pn-repasando, que pone pista-niveles.js en el
+   mundo): ahí las piedras y las llamitas arrancan apagadas y se encienden una
+   por una (.pn-ya) cuando el carrito pasa. */
+.pn-llama{transform-box:fill-box;transform-origin:50% 100%;animation:pn-llama 1.25s ease-in-out infinite alternate}
+.pn-llama.pn-l1{animation-delay:-.4s}
+.pn-llama.pn-l2{animation-delay:-.85s}
+@keyframes pn-llama{from{transform:scale(1,1);opacity:.96}to{transform:scale(.84,1.2);opacity:.72}}
+.pn-carro,.pn-carro-n{opacity:0}
+.pn-piedra,.pn-llama-s{transition:opacity .3s ease}
+.pn-repasando .pn-carro,.pn-repasando .pn-carro-n{opacity:1}
+.pn-repasando .pn-piedra,.pn-repasando .pn-llama-s{opacity:0}
+.pn-repasando .pn-piedra.pn-ya,.pn-repasando .pn-llama-s.pn-ya{opacity:1}
+@media (prefers-reduced-motion:reduce){
+  .pn-llama{animation:none}
+  .pn-piedra,.pn-llama-s{transition:none}
+}
+
+/* ---------- el repaso: el rótulo de cada pago y «Saltar» ----------
+   El rótulo va en el PIE del mundo, en el sitio de «te faltan», que se esconde
+   mientras tanto sin soltar su espacio (visibility): así la tarjeta no cambia
+   de alto y nada de abajo salta. Dice el mundo donde fue el pago y lo que
+   sumó, en el amarillo de lo construido. Mientras corre, el título del mundo
+   de hoy y la píldora de las estrellas se apartan: lo que se está viendo
+   puede ser un mundo de antes. */
+.pn-rp{display:none;position:absolute;left:12px;right:12px;top:0;z-index:3;padding:9px 14px 10px;border-radius:16px;
+  color:var(--blanco-laca);background:color-mix(in srgb, var(--blanco-laca) 7%, transparent);
+  border:1px solid color-mix(in srgb, var(--elixir-vivo) 45%, transparent);
+  box-shadow:0 0 22px color-mix(in srgb, var(--elixir-vivo) 18%, transparent)}
+.pn-repasando .pn-rp,.pn-llego .pn-rp{display:block}
+.pn-repasando .pn-pie,.pn-llego .pn-pie{min-height:124px}
+.pn-repasando .pn-pie > :not(.pn-rp),.pn-llego .pn-pie > :not(.pn-rp){visibility:hidden}
+.pn-rp-m{display:flex;align-items:center;gap:8px;min-height:30px}
+.pn-rp-m .pn-medalla.pn-chica{width:28px;height:29px}
+.pn-rp-m span{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;font-weight:800;
+  color:color-mix(in srgb, var(--pn-m2) 92%, transparent)}
+.pn-rp-m b{font-size:15px;margin-left:auto}
+.pn-rp-p{margin-top:6px;padding-top:7px;border-top:1px solid color-mix(in srgb, var(--blanco-laca) 16%, transparent);
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;animation:pn-rp .28s ease-out}
+.pn-rp-p b{font-size:25px;line-height:1.05;letter-spacing:-.02em;color:var(--amarillo);font-variant-numeric:tabular-nums}
+.pn-rp-p span{font-size:14px;font-weight:600}
+.pn-rp-p i{flex:1 0 100%;font-style:normal;font-size:12.5px;color:color-mix(in srgb, var(--blanco-laca) 68%, transparent)}
+.pn-rp-cruce b{font-size:20px;color:var(--blanco-laca)}
+.pn-rp-fin{margin-top:0;padding-top:0;border-top:0}
+@keyframes pn-rp{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+.pn-rp-saltar{display:none;position:absolute;right:12px;bottom:10px;z-index:4;min-height:36px;padding:8px 16px;border-radius:99px;
+  font:inherit;font-size:13px;font-weight:700;cursor:pointer;color:var(--blanco-laca);
+  background:color-mix(in srgb, var(--laca) 78%, transparent);border:1px solid color-mix(in srgb, var(--blanco-laca) 42%, transparent)}
+.pn-repasando .pn-rp-saltar{display:block}
+.pn-repasando .pn-cabeza,.pn-repasando .mi-pildora{opacity:0;pointer-events:none}
+.pn-repasando .pn-lienzo::after{display:none}
+@media (prefers-reduced-motion:reduce){.pn-rp-p{animation:none}}
+
+/* ---------- tu recorrido: el historial, por mundo ----------
+   Sobre laca. Un bloque por mundo (el de hoy abierto, los de antes plegados),
+   y en cada uno sus pagos: la piedra, cuándo fue y lo que sumó. */
+.pn-rec{margin-top:var(--e3)}
+.pn-rec-cab{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pn-rec-ver{min-height:36px;padding:7px 14px;border-radius:99px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;
+  color:var(--elixir-luz);background:color-mix(in srgb, var(--elixir) 34%, transparent);
+  border:1px solid color-mix(in srgb, var(--elixir-vivo) 70%, transparent)}
+.pn-rec-m{margin-top:var(--e3);border-radius:14px;padding:10px 12px;
+  background:color-mix(in srgb, var(--blanco-laca) 6%, transparent);
+  border:1px solid color-mix(in srgb, var(--pn-m2) 30%, transparent)}
+.pn-rec-s{display:flex;align-items:center;gap:10px;list-style:none;cursor:default}
+.pn-rec-s::-webkit-details-marker{display:none}
+.pn-rec-m > summary.pn-rec-s{cursor:pointer}
+.pn-rec-m > summary.pn-rec-s::after{content:'';margin-left:auto;width:8px;height:8px;flex:none;
+  border-right:2px solid color-mix(in srgb, var(--blanco-laca) 60%, transparent);
+  border-bottom:2px solid color-mix(in srgb, var(--blanco-laca) 60%, transparent);transform:rotate(45deg)}
+.pn-rec-m[open] > summary.pn-rec-s::after{transform:rotate(225deg)}
+.pn-rec-mt{display:flex;flex-direction:column;min-width:0}
+.pn-rec-mt b{font-size:16px;line-height:1.2;color:var(--blanco-laca)}
+.pn-rec-mt i{font-style:normal;font-size:12px;color:color-mix(in srgb, var(--blanco-laca) 64%, transparent)}
+.pn-rec-l{list-style:none;margin:8px 0 0;padding:0}
+.pn-rec-f{display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;padding:8px 0;
+  border-top:1px solid color-mix(in srgb, var(--blanco-laca) 12%, transparent)}
+.pn-rec-p svg{width:30px;height:30px;display:block}
+.pn-rec-t,.pn-rec-v{display:flex;flex-direction:column;min-width:0}
+.pn-rec-t b{font-size:14px;color:var(--blanco-laca)}
+.pn-rec-t i,.pn-rec-v i{font-style:normal;font-size:12px;color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)}
+.pn-rec-v{text-align:right}
+.pn-rec-v b{font-size:16px;color:var(--amarillo);font-variant-numeric:tabular-nums}
+.pn-rec-mas{margin-top:4px}
+.pn-rec-mas > summary{padding:8px 0;font-size:13px;font-weight:700;cursor:pointer;color:var(--elixir-claro)}
+.pn-rec-pie{margin:var(--e3) 0 0;font-size:13px;line-height:1.45;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent)}
+.pn-rec-pie b{color:var(--amarillo)}
+
 /* ---------- la medalla ---------- */
 .pn-medalla{width:52px;height:54px;flex:none;display:block;overflow:visible}
 .pn-medalla.pn-chica{width:36px;height:37.5px}
@@ -254,16 +344,9 @@
 .pn-nota{font-size:12.5px}
 .pn-cerrar{margin-top:var(--e3);padding:12px}
 
-/* ---------- la barra de pestañas, con una más ----------
-   Con «Pista» son seis. Repartidas en partes iguales (flex:1), «Calculadora»
-   y «Mi garantía» ya no cabían en su sexto de pantalla: en 360 px «Mi
-   garantía» se partía en dos renglones, y hasta los 412 px seguía justo. Así
-   que cada pestaña mide lo que mide su palabra y el resto se reparte (auto),
-   nada se parte (nowrap) y, por debajo de 400 px, la letra baja medio punto.
-   Va por #nav para ganarle a la regla de la página, que se escribe después. */
-@media (max-width:479px){
-  #nav button{flex:1 1 auto;white-space:nowrap;padding-left:1px;padding-right:1px}
-}
-@media (max-width:399px){
-  #nav button{font-size:10.5px;letter-spacing:-.25px}
-}
+/* ---------- la barra de pestañas ----------
+   23-nov-2026 — aquí iban dos reglas para que cupieran SEIS pestañas (cada una
+   a la medida de su palabra y, bajo 400 px, con la letra medio punto más
+   chica). Ya son cuatro: «Mi garantía» e «Historial» viven dentro de «Pista»
+   (las pestañitas .subtabs de la página). Con cuatro caben repartidas en
+   partes iguales, que es la regla de la página, y esas dos reglas se fueron. */

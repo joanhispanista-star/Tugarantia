@@ -312,7 +312,10 @@ const regla = sel => {
 };
 const IMAGENES = Object.fromEntries([...REGLAS.matchAll(/--(tg-[\w-]+):url\("data:image\/svg\+xml,([^"]*)"\)/g)].map(m => [m[1], m[2]]));
 const svgDe = n => { assert.ok(IMAGENES[n], 'falta --' + n); return IMAGENES[n].replace(/%23/g, '#'); };
-const PISTA_NO = 'body:not(:has(#nav button.on[data-t="pista"]))';
+/* 23-nov-2026 — era la pestaña encendida (#nav button.on[data-t="pista"]); ahora
+   es el mundo pintado: Mi garantía e Historial viven dentro de esa pestaña y
+   siguen llevando su adorno. */
+const PISTA_NO = 'body:not(:has(#pnHero))';
 
 describe('toda la app: el gorro, el oro, el pino, el acebo y las bolas (18-nov, «Pino y oro»)', () => {
   test('cada dibujo se define una vez, en html.tg-navidad, y no sobra ni falta ninguno', () => {
@@ -413,13 +416,14 @@ describe('toda la app: el gorro, el oro, el pino, el acebo y las bolas (18-nov, 
     assert.ok(REGLAS.includes('@media (max-height:300px){html.tg-navidad #hola .tg-saludo-hola{display:none}}'));
     assert.match(SOCIO, /@media \(max-height:300px\)\{[^@]*#hola \.lema\{display:none\}/);
   });
-  test('la Pista no se adorna, y se sabe por la pestaña encendida (vale también para lo que se le agregue)', () => {
+  test('la Pista no se adorna, y se sabe por su mundo pintado (vale también para lo que se le agregue)', () => {
     const adornan = BLOQUES.filter(b => /var\(--tg-(rama|acebo)\)/.test(b.cuerpo) && b.sel.includes('.panel>'));
     assert.equal(adornan.length, 2);
     adornan.forEach(b => assert.ok(b.sel.startsWith('html.tg-navidad ' + PISTA_NO + ' :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>'), b.sel));
-    assert.match(SOCIO, /<nav class="nav" id="nav">/);
-    assert.match(SOCIO, /data-t="pista"/);
-    assert.match(SOCIO, /classList\.toggle\('on', b\[i\]\.dataset\.t === tab\)/);
+    /* el mundo lo pinta pista-niveles.js con ese id, y solo en la pantalla de la Pista */
+    const PISTA = fs.readFileSync(path.join(__dirname, '..', 'app', 'pista-niveles.js'), 'utf8');
+    assert.match(PISTA, /class="laca pn-hero ' \+ mu\.clase \+ '" id="pnHero"/);
+    assert.equal(/pnHero/.test(SOCIO.replace(/\/\*[\s\S]*?\*\//g, '')), false, 'la página pinta un #pnHero fuera de la Pista');
   });
   test('las reglas de play/ (tarjetas en #cuerpo o en #lamina, sueltas o en una caja con id) no alcanzan la app: allá todo va en un .panel sin id', () => {
     const dePlay = BLOQUES.filter(b => b.sel.includes(':is(#cuerpo,#lamina,#cuerpo>div[id],#lamina>div[id])>'));

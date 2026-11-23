@@ -78,7 +78,10 @@ function abrirSocio(o) {
        página, igual que pCargando y pCuenta. Sin esto el banco lo daría por
        visible aunque su archivo no llegara, y no se podría probar que una
        pestaña sin con qué pintarse no se ofrece. */
-    classList: clases(['pCargando', 'pCuenta', 'navPista'].indexOf(id) >= 0 ? ['oculto'] : []),
+    /* 23-nov-2026 — navPista ya NO nace oculta en la página (la pestaña es la
+       única puerta a Mi garantía y al Historial, que viven adentro), así que
+       aquí tampoco: el banco tiene que parecerse a la página. */
+    classList: clases(['pCargando', 'pCuenta'].indexOf(id) >= 0 ? ['oculto'] : []),
     _oyentes: {},
     addEventListener(t, fn) { (this._oyentes[t] = this._oyentes[t] || []).push(fn); },
     querySelectorAll: () => [], querySelector: () => null, focus() {}, scrollTop: 0, scrollHeight: 0

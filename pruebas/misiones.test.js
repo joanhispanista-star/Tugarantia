@@ -576,7 +576,8 @@ describe('12 · diciembre: «Diciembre puntual» y la tarjeta de Navidad', () =>
   test('el árbol se ve en su isla: en la Pista y en el álbum', () => {
     const mi = de(conDiciembre(dic15('2026-12-15'), dic31('2026-12-30')), '2027-01-03');
     const h = PN.vista(Object.assign(datosDe(armar(conDiciembre(dic15('2026-12-15'), dic31('2026-12-30')), '2027-01-03')), { hoy: '2027-01-03' }));
-    assert.ok(h.slice(0, h.indexOf('pn-pie')).includes(PN.ARBOL_NAVIDAD), 'el árbol no está en la isla de la Pista');
+    /* 23-nov-2026: con la clase entera, porque ahora también existe pn-piedra */
+    assert.ok(h.slice(0, h.indexOf('class="pn-pie"')).includes(PN.ARBOL_NAVIDAD), 'el árbol no está en la isla de la Pista');
     assert.match(JS, /sinLuz: true, cosas: x\.cosas, navidad: arbolEn\(mi, f\.nivel\)/, 'el álbum no pinta el árbol de cada isla');
     assert.ok(plano(MI.tarjetaDiciembre(mi)).includes('¡Lo lograste! Pagaste en la fecha tus cortes de diciembre. El árbol ya está en tu isla de Bronce, y se queda.'));
   });

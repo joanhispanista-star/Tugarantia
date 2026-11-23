@@ -2909,7 +2909,34 @@
    CACHE y VERSION_SITIO suben a v156; VERSION_APP, al 23-nov. NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO, que el revert deja en v155, suben
    a la siguiente libre. El número nunca baja. */
-const CACHE = 'tugarantia-v156';
+/* 23-nov-2026, v157 — SALE DESPUÉS DE v156 (main = ede7e74). Rama v157-pista-unica.
+   LA PISTA ÚNICA: UNA PESTAÑA, EL RECORRIDO POR MUNDO, LA ESTELA AZUL, EL NOMBRE Y EL CARRITO.
+   Joan: «quiero que la pestaña de tu garantia, pista y la pestaña de historial se unifiquen en
+   una sola pestaña y que se llame pista, que desde la pista se vea el historial que tiene y en
+   que pista estaba ese historial… que se vea como una llamita azul por donde paso… que no sea
+   una letra si no el nombre de la persona… y que cada vez que entre la persona a la pista se vea
+   una animacion de un pequeño carrito pasando por la pista como mostrando el historial y que en
+   cada parada sea un pago y pare por un segundo mostrando ese pago con lo que le sumo de garantia».
+   · La barra de abajo tiene cuatro pestañas (Inicio, Calculadora, Pista, Chat). «Mi garantía» e
+     «Historial» son pestañitas DENTRO de Pista (subPista, en app/socio.html) y por dentro siguen
+     siendo las mismas pantallas, con sus reglas de «se actualiza sola». La pestaña ya no nace
+     oculta: sin pista-niveles.js abre en Mi garantía.
+   · «Tu recorrido»: todos los pagos, agrupados por el mundo donde cayó cada uno, con lo que sumó
+     a la garantía y en cuánto quedó. Reemplaza a «Tus pagos en <mundo>» (los últimos cuatro).
+   · Lo recorrido es una estela azul (el azul del elixir) con llamitas, y el marcador lleva el
+     primer nombre en una placa, no la inicial.
+   · El repaso: al ENTRAR a la Pista, un carrito recorre los mundos por los que pasó, para un
+     segundo en cada uno de los últimos ocho pagos y dice lo que sumó. Con «Saltar». No corre con
+     «menos movimiento», ni encima de la llegada a un mundo, ni cuando la pestaña se repinta por
+     dentro. Sin filtros: por cuadro cambian un transform y el trazado de la estela.
+   · La Navidad reconoce la Pista por su mundo pintado (#pnHero) y ya no por la pestaña
+     encendida: Mi garantía e Historial siguen con su adorno (app/temporada.css).
+   Cambian app/pista-niveles.js (a ?v=157 en app/socio.html y en ARCHIVOS), app/pista-niveles.css,
+   app/socio.html y app/temporada.css, y sus pruebas (una nueva: pista-unica).
+   CACHE y VERSION_SITIO suben a v157. NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   PARA DESHACER: se revierte el commit; CACHE, VERSION_SITIO y el ?v= de pista-niveles.js, que el
+   revert deja en v156 y en 155, suben al número siguiente. El número nunca baja. */
+const CACHE = 'tugarantia-v157';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3145,7 +3172,7 @@ const ARCHIVOS = [
      protege sola si no llegan (la pestaña no se ofrece; y si llega el guion
      sin la hoja, dice que no terminó de bajar en vez de pintar a medias).
      Salen con v149 (ver su nota, arriba). */
-  'app/pista-niveles.js?v=155',
+  'app/pista-niveles.js?v=157',
   'app/pista-niveles.css',
   /* 16-nov-2026 — LAS MISIONES DE LA PISTA (rama misiones; ver su nota, arriba).
      pista-niveles.js cambió: va con ?v= y al publicar toma el número de CACHE de

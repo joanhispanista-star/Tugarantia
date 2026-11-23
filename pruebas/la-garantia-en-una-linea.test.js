@@ -100,7 +100,9 @@ const CONCREDITO = () => appDeLaClienta([credito('c1'),
   credito('c2', { numero: 2, fechaDesembolso: '2026-10-16', cicloActual: '2026-10-30', pagado: false,
                   fechaPago: undefined, cicloPago: undefined, gananciaPago: 0 })],
   '2026-10-21');
-const pantalla = (A, js) => { if (js) A.ev(js); return A.elem('cuerpo').innerHTML; };
+/* 23-nov-2026 — sin las pestañitas de dentro de «Pista» (Pista · Mi garantía ·
+   Historial), que van arriba de Mi garantía: aquí se mira la pantalla. */
+const pantalla = (A, js) => { if (js) A.ev(js); return String(A.elem('cuerpo').innerHTML).replace(/<div class="subtabs"[\s\S]*?<\/div>/, ''); };
 const COP = (A, n) => A.ev('COP(' + Number(n) + ')');
 
 /* ======================================================================== */

@@ -816,6 +816,29 @@
   /* el ancho de la calzada y de cada piano, en unidades de suelo: también los
      mide `sitios` para que nada de lo construido quede encima */
   var ANCHO_PISTA = 19, KERB_PISTA = 3.2;
+  /* EL AZUL DEL ELIXIR, para lo que se dibuja dentro de un SVG (23-nov-2026).
+     Son los mismos tokens --elixir-* de app/socio.html: dentro de un atributo
+     de trazo no se puede escribir var(), y una prueba compara las dos tablas
+     para que no se separen. */
+  var ELIXIR = { hondo: '#0A2783', medio: '#1D5BE3', vivo: '#3A9BFF', claro: '#8FD8FF', luz: '#DDF7FF', noche: '#040817' };
+  var MAX_LLAMAS = 7;
+  /* Una llama de pie, en unidades de suelo: la lengua de afuera en el azul
+     vivo, la de adentro en el claro y el corazón casi blanco. */
+  var LLAMA = '<path d="M0,0.4 C-3.6,-1.6 -3.2,-6.2 -0.7,-11.4 C-0.2,-8.6 2.9,-7.4 3.3,-3.6 C3.6,-1.2 2.2,0.4 0,0.4 Z" fill="' + ELIXIR.vivo + '" fill-opacity=".9"/>' +
+    '<path d="M0,0 C-2.2,-1.4 -2,-4.6 -0.4,-7.6 C0,-5.9 1.9,-5 2.1,-2.6 C2.2,-1 1.3,0 0,0 Z" fill="' + ELIXIR.claro + '"/>' +
+    '<path d="M0,-0.5 C-1,-1.2 -0.9,-2.8 -0.1,-4.2 C0.1,-3.3 0.9,-2.8 0.9,-1.7 C0.9,-1 0.5,-0.5 0,-0.5 Z" fill="' + ELIXIR.luz + '"/>';
+  /* El carrito: de lado, mirando a la derecha (el repaso lo voltea según para
+     dónde vaya la pista), con las ruedas en el suelo (0,0) y su llama azul
+     detrás. El amarillo es el del marcador: es el mismo socio, rodando. */
+  var CARRITO = '<ellipse cx="0" cy="0.8" rx="11" ry="2.8" fill="#000" opacity=".42"/>' +
+    '<path d="M-9.4,-4.6 C-13,-6.6 -15.4,-3.8 -19,-4.4 C-15.6,-2.6 -13.4,-0.9 -9.4,-2.2 Z" fill="' + ELIXIR.vivo + '"/>' +
+    '<path d="M-9.4,-4.1 C-11.8,-5 -13,-3.6 -15,-3.8 C-13,-2.8 -11.8,-2 -9.4,-2.6 Z" fill="' + ELIXIR.luz + '"/>' +
+    '<path d="M-9.4,-2 L-9.4,-6.2 Q-9.4,-8.2 -7.4,-8.2 L-2.4,-8.2 L0.8,-11.8 L6,-11.8 Q7.7,-11.8 8.2,-10.2 L9.6,-6.6 Q10.4,-6.2 10.4,-5 L10.4,-2 Z" fill="#F5C542" stroke="#0C0A0B" stroke-width="1.1" stroke-linejoin="round"/>' +
+    '<path d="M1.5,-10.8 L5.7,-10.8 L7.1,-7.4 L-0.9,-7.4 Z" fill="#0C0A0B" fill-opacity=".86"/>' +
+    '<path d="M-9.4,-4.9 H10.4" stroke="#0C0A0B" stroke-opacity=".45" stroke-width=".9"/>' +
+    '<circle cx="-5.2" cy="-1.7" r="2.7" fill="#0C0A0B" stroke="#FBF7F4" stroke-width=".8"/><circle cx="-5.2" cy="-1.7" r=".9" fill="#FBF7F4"/>' +
+    '<circle cx="5.6" cy="-1.7" r="2.7" fill="#0C0A0B" stroke="#FBF7F4" stroke-width=".8"/><circle cx="5.6" cy="-1.7" r=".9" fill="#FBF7F4"/>' +
+    '<circle cx="9.9" cy="-4.5" r=".95" fill="#FFF6D6"/>';
   function pista(nivel, L, o) {
     var P = PALETA[nivel], N = 160, ANCHO = ANCHO_PISTA, KERB = KERB_PISTA, s = L.s, i;
     var c = muestras(CIRCUITOS[nivel], N);
@@ -856,27 +879,64 @@
       var mz = function (ii, tt) { return [ext[ii][0] + (int[ii][0] - ext[ii][0]) * tt, ext[ii][1] + (int[ii][1] - ext[ii][1]) * tt]; };
       h += '<polygon points="' + [mz(b2, a / 6), mz(b2, (a + 1) / 6), mz(b2 + 1, (a + 1) / 6), mz(b2 + 1, a / 6)].map(pt).join(' ') + '" fill="' + ((a + b2) % 2 ? '#0C0A0B' : '#FFFFFF') + '"/>';
     }
-    /* lo recorrido: el amarillo de lo construido, con su funda oscura. Desde
-       el 18-nov brilla (boceto 14-A): un trazo ancho y muy tenue debajo hace
-       de resplandor, sin filtro de desenfoque, que en un teléfono barato
-       obliga a repintar la isla mientras flota. */
-    if (o.f != null && o.f > 0) {
-      defs += '<path id="' + id.hecho + '" d="' + linea(centro.slice(0, Math.max(2, Math.round(N * o.f)) + 1)) + '"/>';
+    /* LO RECORRIDO ES UNA ESTELA AZUL (23-nov-2026). Joan: «que se vea como una
+       llamita azul por donde paso». Era el amarillo de lo construido; ahora es
+       el azul del elixir —el mismo de la barra de la garantía, porque es la
+       misma cosa: lo que lleva hecho— con el corazón casi blanco, como una
+       llama. Sigue sin filtros: el resplandor son trazos anchos y tenues, que
+       en un teléfono barato no obligan a repintar la isla mientras flota. El
+       trazado va marcado (data-hecho) porque el repaso lo va alargando
+       detrás del carrito (ver EL REPASO). */
+    var hastaI = (o.f != null && o.f > 0) ? Math.max(2, Math.round(N * o.f)) : 0;
+    if (hastaI) {
+      defs += '<path data-hecho="1" id="' + id.hecho + '" d="' + linea(centro.slice(0, hastaI + 1)) + '"/>';
       var punta = 'fill="none" stroke-linecap="round" stroke-linejoin="round" ';
-      h += usa(id.hecho, punta + 'stroke="#F5C542" stroke-opacity=".12" stroke-width="' + r1(16 * s) + '"') +
-           usa(id.hecho, punta + 'stroke="#F5C542" stroke-opacity=".25" stroke-width="' + r1(8 * s) + '"') +
-           usa(id.hecho, punta + 'stroke="#0C0A0B" stroke-opacity=".6" stroke-width="' + r1(4.6 * s) + '"') +
-           usa(id.hecho, punta + 'stroke="#F5C542" stroke-width="' + r1(3 * s) + '"');
+      h += '<g>' +
+           usa(id.hecho, punta + 'stroke="' + ELIXIR.vivo + '" stroke-opacity=".16" stroke-width="' + r1(18 * s) + '"') +
+           usa(id.hecho, punta + 'stroke="' + ELIXIR.vivo + '" stroke-opacity=".34" stroke-width="' + r1(9 * s) + '"') +
+           usa(id.hecho, punta + 'stroke="' + ELIXIR.noche + '" stroke-opacity=".6" stroke-width="' + r1(5.2 * s) + '"') +
+           usa(id.hecho, punta + 'stroke="' + ELIXIR.claro + '" stroke-width="' + r1(3.3 * s) + '"') +
+           usa(id.hecho, punta + 'stroke="' + ELIXIR.luz + '" stroke-opacity=".9" stroke-width="' + r1(1.1 * s) + '"') + '</g>';
     }
-    /* los pagos: una piedra por crédito pagado, con sello si fue en fecha */
+    /* los pagos: una piedra por crédito pagado, con sello si fue en fecha. Cada
+       una va en su grupo: el repaso las enciende una por una. */
     (o.piedras || []).forEach(function (pi) {
       var q = centro[Math.min(N - 1, Math.round(N * pi.f))], rx = 6.8 * q[2], ry = rx * 0.66;
-      h += '<ellipse cx="' + r1(q[0]) + '" cy="' + r1(q[1] + 1.2 * q[2]) + '" rx="' + r1(rx) + '" ry="' + r1(ry) + '" fill="#000" opacity=".45"/>' +
-        '<ellipse cx="' + r1(q[0]) + '" cy="' + r1(q[1]) + '" rx="' + r1(rx) + '" ry="' + r1(ry) + '" fill="' + (pi.sello ? '#F5C542' : '#0C0A0B') + '" stroke="' + (pi.sello ? '#0C0A0B' : '#F5C542') + '" stroke-width="' + r1(1.3 * s) + '"/>';
-      if (pi.sello) h += '<path d="M' + r1(q[0] - rx * 0.45) + ',' + r1(q[1]) + ' l' + r1(rx * 0.3) + ',' + r1(ry * 0.4) + ' l' + r1(rx * 0.55) + ',' + r1(-ry * 0.75) + '" fill="none" stroke="#0C0A0B" stroke-width="' + r1(1.3 * s) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+      h += '<g class="pn-piedra">' +
+        '<ellipse cx="' + r1(q[0]) + '" cy="' + r1(q[1] + 1.2 * q[2]) + '" rx="' + r1(rx) + '" ry="' + r1(ry) + '" fill="#000" opacity=".45"/>' +
+        '<ellipse cx="' + r1(q[0]) + '" cy="' + r1(q[1]) + '" rx="' + r1(rx) + '" ry="' + r1(ry) + '" fill="' + (pi.sello ? '#F5C542' : '#0C0A0B') + '" stroke="' + (pi.sello ? '#0C0A0B' : '#F5C542') + '" stroke-width="' + r1(1.3 * s) + '"/>' +
+        (pi.sello ? '<path d="M' + r1(q[0] - rx * 0.45) + ',' + r1(q[1]) + ' l' + r1(rx * 0.3) + ',' + r1(ry * 0.4) + ' l' + r1(rx * 0.55) + ',' + r1(-ry * 0.75) + '" fill="none" stroke="#0C0A0B" stroke-width="' + r1(1.3 * s) + '" stroke-linecap="round" stroke-linejoin="round"/>' : '') +
+        '</g>';
     });
+    /* EL CARRITO del repaso (23-nov-2026). Va en el suelo, antes de lo que está
+       de pie: así lo de adelante lo tapa y él no tapa nada de atrás. Nace
+       apagado (la hoja de estilos lo enciende solo mientras dura el repaso) y
+       el repaso lo mueve cambiándole el transform, que es lo único que cambia. */
+    if (o.carro) {
+      h += '<g class="pn-carro" transform="translate(' + r1(centro[0][0]) + ' ' + r1(centro[0][1]) + ') scale(' + centro[0][2].toFixed(3) + ')">' + CARRITO + '</g>';
+      /* y su nombre encima, en una placa aparte: el carrito se voltea según
+         para dónde vaya, y un letrero volteado no se lee */
+      if (o.nombre) {
+        var cn = String(o.nombre), cw = Math.max(30, cn.length * 6.3 + 16);
+        h += '<g class="pn-carro-n" transform="translate(' + r1(centro[0][0]) + ' ' + r1(centro[0][1] - 30) + ')">' +
+          '<path d="M-3.4,-1 L0,3.6 L3.4,-1 Z" fill="#0C0A0B"/>' +
+          '<rect x="' + r1(-cw / 2) + '" y="-17" width="' + r1(cw) + '" height="17" rx="8.5" fill="#0C0A0B" fill-opacity=".92" stroke="#F5C542" stroke-width="1.1"/>' +
+          '<text x="0" y="-5.1" text-anchor="middle" font-family="' + FUENTE + '" font-size="10.6" font-weight="800" letter-spacing=".2" fill="#FBF7F4">' + esc(cn) + '</text></g>';
+      }
+    }
 
     var cosas = [];
+    /* LAS LLAMITAS: de trecho en trecho sobre lo recorrido, de pie como todo lo
+       demás (lo de adelante las tapa). Pocas, a propósito: son siete como
+       mucho, y cada una late con su propia animación de opacidad y de alto. */
+    if (hastaI) {
+      var cada = Math.max(9, Math.ceil(hastaI / MAX_LLAMAS));
+      for (var ll = Math.round(cada / 2), kl = 0; ll < hastaI - 2 && kl < MAX_LLAMAS; ll += cada, kl++) {
+        var ql = centro[ll];
+        cosas.push({ v: c[ll][1] + 0.02, svg: '<g class="pn-llama-s" data-i="' + ll + '" transform="translate(' + r1(ql[0]) + ' ' + r1(ql[1]) + ') scale(' + (ql[2] * 2.1).toFixed(3) + ')">' +
+          '<g class="pn-llama' + (kl % 3 ? ' pn-l' + (kl % 3) : '') + '">' + LLAMA + '</g></g>' });
+      }
+    }
     /* la meta: un pórtico de pie sobre la salida, con su letrero */
     var uA = c[0][0] + nor[0][0] * (ANCHO / 2 + KERB + 1), vA = c[0][1] + nor[0][1] * (ANCHO / 2 + KERB + 1);
     var uB = c[0][0] - nor[0][0] * (ANCHO / 2 + KERB + 1), vB = c[0][1] - nor[0][1] * (ANCHO / 2 + KERB + 1);
@@ -908,7 +968,25 @@
       var faro = '<ellipse cx="' + r1(q0[0]) + '" cy="' + r1(q0[1]) + '" rx="' + r1(rr * 2.4) + '" ry="' + r1(rr) + '" fill="url(#' + idB + ')"/>' +
         '<rect x="' + r1(q0[0] - bw * 1.6) + '" y="' + r1(tope[1]) + '" width="' + r1(bw * 3.2) + '" height="' + r1(Math.max(0, q0[1] - tope[1])) + '" fill="url(#' + idF + ')" opacity=".5"/>' +
         '<rect x="' + r1(q0[0] - bw / 2) + '" y="' + r1(tope[1]) + '" width="' + r1(bw) + '" height="' + r1(Math.max(0, q0[1] - tope[1])) + '" fill="url(#' + idF + ')"/>';
-      cosas.push({ v: c[im][1] - 0.01, svg: faro +
+      /* SU NOMBRE, NO UNA LETRA (23-nov-2026). Joan: «que no sea una letra si no
+         el nombre de la persona para que sea claro». Una placa encima del pin,
+         con la letra de los letreros de la pista. Va a un tamaño fijo, como el
+         letrero de la meta: achicada con la distancia no se leería. No se sale
+         del dibujo por los lados (o._W es el ancho del lienzo, que pone
+         `mundo`). Dentro del pin va su personaje si lo escogió y, si no, una
+         figura: la inicial se va. Quien llame sin `nombre` (y con `letra`)
+         sigue viendo la inicial. */
+      var placa = '';
+      if (o.nombre) {
+        var nom = String(o.nombre), pw = Math.max(30, nom.length * 6.3 + 16), px = cab[0], py = cab[1] - rr - 8;
+        if (o._W) px = Math.max(pw / 2 + 4, Math.min(o._W - pw / 2 - 4, px));
+        placa = '<path d="M' + r1(cab[0] - 3.4) + ',' + r1(py - 1) + ' L' + r1(cab[0]) + ',' + r1(py + 3.6) + ' L' + r1(cab[0] + 3.4) + ',' + r1(py - 1) + ' Z" fill="#0C0A0B"/>' +
+          '<rect x="' + r1(px - pw / 2) + '" y="' + r1(py - 17) + '" width="' + r1(pw) + '" height="17" rx="8.5" fill="#0C0A0B" fill-opacity=".92" stroke="#F5C542" stroke-width="1.1"/>' +
+          '<text x="' + r1(px) + '" y="' + r1(py - 5.1) + '" text-anchor="middle" font-family="' + FUENTE + '" font-size="10.6" font-weight="800" letter-spacing=".2" fill="#FBF7F4">' + esc(nom) + '</text>';
+      }
+      var figura = '<circle cx="' + r1(cab[0]) + '" cy="' + r1(cab[1] - rr * 0.26) + '" r="' + r1(rr * 0.3) + '" fill="#0C0A0B"/>' +
+        '<path d="M' + r1(cab[0] - rr * 0.56) + ',' + r1(cab[1] + rr * 0.62) + ' a' + r1(rr * 0.56) + ',' + r1(rr * 0.52) + ' 0 0 1 ' + r1(rr * 1.12) + ',0 Z" fill="#0C0A0B"/>';
+      cosas.push({ v: c[im][1] - 0.01, svg: '<g>' + faro +
         '<ellipse cx="' + r1(q0[0]) + '" cy="' + r1(q0[1]) + '" rx="' + r1(rr * 0.95) + '" ry="' + r1(rr * 0.4) + '" fill="#000" opacity=".5"/>' +
         '<ellipse class="pn-pulso" cx="' + r1(q0[0]) + '" cy="' + r1(q0[1]) + '" rx="' + r1(rr * 1.5) + '" ry="' + r1(rr * 0.62) + '" fill="none" stroke="#F5C542" stroke-width="' + r1(1.5 * s) + '"/>' +
         '<path d="M' + pt(q0) + ' L' + r1(cab[0]) + ',' + r1(cab[1] + rr) + '" stroke="#0C0A0B" stroke-opacity=".55" stroke-width="' + r1(4.4 * s) + '" stroke-linecap="round"/>' +
@@ -920,7 +998,9 @@
           /* el personaje que escogió (moto, bici…), en vez de la inicial: un
              ícono de 24 × 24 de trazo, que le pasa app/misiones.js */
           ? '<g transform="translate(' + r1(cab[0] - rr * 0.78) + ' ' + r1(cab[1] - rr * 0.78) + ') scale(' + (rr * 1.56 / 24).toFixed(3) + ')" style="color:#0C0A0B" fill="none" stroke="#0C0A0B" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' + o.personaje + '</g>'
-          : '<text x="' + r1(cab[0]) + '" y="' + r1(cab[1] + 0.5) + '" text-anchor="middle" dominant-baseline="central" font-family="' + FUENTE + '" font-size="' + r1(rr * 1.08) + '" font-weight="800" fill="#0C0A0B">' + esc(o.letra || '') + '</text>') });
+          : o.nombre ? figura
+          : '<text x="' + r1(cab[0]) + '" y="' + r1(cab[1] + 0.5) + '" text-anchor="middle" dominant-baseline="central" font-family="' + FUENTE + '" font-size="' + r1(rr * 1.08) + '" font-weight="800" fill="#0C0A0B">' + esc(o.letra || '') + '</text>') +
+        placa + '</g>' });
     }
     return { defs: defs, base: h, cosas: cosas };
   }
@@ -1273,6 +1353,7 @@
     var fondo = paisaje(nivel, W, H, o.horizonte != null ? o.horizonte : 0.46);
     var arriba = H * (o.cielo != null ? o.cielo : 0.4);
     var L = lienzo(nivel, { x: 5, y: arriba, w: W - 10, h: H - arriba - (o.margenAbajo != null ? o.margenAbajo : 6) });
+    o._W = W;   // para que la placa del nombre no se salga del dibujo (ver `pista`)
     var isl = isla(nivel, L), pis = pista(nivel, L, o);
     var id = { halo: nuevoId('mh'), metal: nuevoId('mm'), vin: nuevoId('mv'), som: nuevoId('ms'), nub: nuevoId('mb') };
     var cosas = pis.cosas.concat(ADORNOS[nivel].map(function (a) { return dePie(L, a[0], a[1], a[2], 1.4); }));
@@ -1322,6 +1403,17 @@
       (luz.motas ? capa('pn-motas', W, H, '', luz.motas) : '') +
       capa('pn-frente', W, H, defsF + rgrad(id.vin, '.5', '.56', '.78', [[0, '#000000', 0], [0.62, '#000000', 0], [1, '#000000', 0.5]]), frente) +
       '</div>';
+  }
+
+  /* POR DÓNDE VA LA PISTA EN LA PANTALLA: los 160 puntos del eje de la calzada
+     de un mundo, ya proyectados ([x, y, escala]), con las MISMAS cuentas de
+     `mundo` y de `pista`. Lo usa el repaso para llevar el carrito; no dibuja
+     nada. Si `mundo` cambia cómo arma el lienzo, esto cambia con él (una
+     prueba compara un punto con el del dibujo). */
+  function rutaDe(nivel, W, H, opciones) {
+    var o = opciones || {}, arriba = H * (o.cielo != null ? o.cielo : 0.4);
+    var L = lienzo(nivel, { x: 5, y: arriba, w: W - 10, h: H - arriba - (o.margenAbajo != null ? o.margenAbajo : 6) });
+    return muestras(CIRCUITOS[nivel], 160).map(function (p) { return L.P(p[0], p[1], 0); });
   }
 
   /* LUZ Y VIDA (boceto 14-A del 17-nov, que Joan escogió el 18-nov con «mejora
@@ -1511,6 +1603,13 @@
     return '$' + n;
   }
   function inicial(nombre) { return String(nombre || '').replace(/^\s+/, '').charAt(0).toUpperCase(); }
+  /* «Camila», de «Camila Rojas»: como la saluda la app. Largo, se corta: la placa
+     de la pista no puede tapar el mundo. */
+  function primerNombre(nombre) {
+    var n = String(nombre || '').replace(/^\s+/, '').split(/\s+/)[0] || '';
+    n = n.charAt(0).toUpperCase() + n.slice(1);
+    return n.length > 12 ? n.slice(0, 11) + '…' : n;
+  }
   function mayuscula(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   function centavosDe(d) {
     var c = Number(d && d.centavos);
@@ -1519,7 +1618,7 @@
   }
 
   /* ======================= LA PANTALLA ======================= */
-  var ULTIMO = null, ABIERTA = null, VUELVE_A = null, MI = null, AL_CERRAR = null;
+  var ULTIMO = null, ABIERTA = null, VUELVE_A = null, MI = null, AL_CERRAR = null, HERO = null, REC = [];
   var MAX_SELLOS = 4;   // los que caben legibles en una fila de 360 px
   function documento() { return typeof document !== 'undefined' ? document : null; }
   /* El dibujo se arma para el ancho de ESTE teléfono: en uno de 360 la escena
@@ -1553,7 +1652,7 @@
   function heroe(e, d, aqui, mi) {
     var m = motor(), W = anchoPantalla(), H = Math.round(Math.min(W * 1.22, 440));
     var nombre = m.nombreNivel(e.nivel), mu = MUNDOS[e.nivel];
-    var op = { cielo: 0.3, margenAbajo: 30, f: e.fraccion, letra: inicial(d.nombre),
+    var op = { cielo: 0.3, margenAbajo: 30, f: e.fraccion, nombre: primerNombre(d.nombre), letra: inicial(d.nombre),
       piedras: aqui.map(function (p) { return { f: fraccionEn(e.actual, p.quedo), sello: p.en_fecha }; }) };
     if (e.sig) op.meta = 'Meta · ' + e.sig.nombre;
     /* lo que construyeron sus estrellas y su personaje (app/misiones.js) */
@@ -1573,8 +1672,11 @@
     var frase = d.frase || (e.sig
       ? 'Te faltan <b>' + esc(COP(e.faltan)) + '</b> de garantía para pasar a <b>' + esc(e.sig.nombre) + '</b>.'
       : 'Estás en el nivel más alto.');
-    return '<div class="laca pn-hero ' + mu.clase + '">' +
-      '<div class="pn-lienzo">' + mundo(e.nivel, W, H, op) +
+    /* lo que el repaso necesita para volver a pintar esta misma escena, y las
+       de los mundos de antes, del mismo tamaño (ver EL REPASO) */
+    HERO = { e: e, W: W, H: H, op: op };
+    return '<div class="laca pn-hero ' + mu.clase + '" id="pnHero">' +
+      '<div class="pn-lienzo"><div id="pnEscena">' + mundo(e.nivel, W, H, op) + '</div>' +
         /* «Aquí estás» va en el mismo renglón de «Mundo 2 de 9» y, si no cabe,
            baja sola al siguiente: puesta fija en la esquina se montaba sobre
            el rótulo en un teléfono de 320 px, y sobre un nombre largo en todos. */
@@ -1583,8 +1685,15 @@
           '<span class="pn-estado">Aquí estás</span></div>' +
           '<h2' + (nombre.length > 10 ? ' class="pn-largo"' : '') + '>' + esc(nombre) + '</h2>' +
           '<div class="pn-lema">' + esc(mu.lema) + '</div>' + (mi ? misiones().chip(mi) : '') + '</div></div>' +
-        (mi ? misiones().pildora(mi) : '') + '</div>' +
-      '<div class="pn-pie"><div class="pn-grande">' + frase + '</div>' +
+        (mi ? misiones().pildora(mi) : '') +
+        /* «Saltar» el repaso: escondido hasta que corre. Va al final del
+           lienzo para que lo primero que se lea de la tarjeta siga siendo el
+           mundo. */
+        '<button type="button" class="pn-rp-saltar" id="pnSaltar" onclick="PistaNiveles.saltar()">Saltar</button></div>' +
+      /* El rótulo del repaso va AQUÍ, en el pie y encima de «te faltan» (que se
+         esconde mientras tanto): puesto sobre el mundo tapaba media pista, y
+         lo de abajo hablaba del mundo de hoy mientras se veía uno de antes. */
+      '<div class="pn-pie"><div class="pn-rp" id="pnRp" aria-live="polite"></div><div class="pn-grande">' + frase + '</div>' +
         (e.sig
           ? '<div class="pn-progreso">' + medalla(e.nivel, 'pn-chica') +
             '<div class="pn-riel"><i style="width:' + pct + '%"></i><b style="left:' + pct + '%"></b></div>' +
@@ -1641,25 +1750,319 @@
   }
   /* Lo que mueve: PAGAR. Y los pagos de este mundo, cada uno con su piedra.
      (18-nov: el párrafo de arriba pasó a ser «Cómo subir más rápido».) */
-  function tarjetaMueve(e, d, aqui) {
-    var nombre = motor().nombreNivel(e.nivel);
-    var h = '<div class="card">' + comoSubir(d);
-    if (!aqui.length) {
-      return h + '<div class="laca pn-sellos"><div class="etq">Tus pagos en ' + esc(nombre) + '</div>' +
-        '<p class="pn-vacio">Todavía no hay ninguno. Aquí queda una piedra por cada crédito que pagues; con sello, si lo pagas en la fecha.</p></div></div>';
+  /* 23-nov-2026 — aquí iban también «Tus pagos en <mundo>», los últimos cuatro
+     del mundo de hoy. Se fueron a «Tu recorrido» (tarjetaRecorrido), que los
+     trae TODOS y en el mundo donde se hicieron: dos listas de los mismos pagos
+     en la misma pantalla era justo lo que Joan pidió juntar. */
+  function tarjetaMueve(e, d) {
+    return '<div class="card">' + comoSubir(d) + '</div>';
+  }
+
+  /* ======================= TU RECORRIDO: EL HISTORIAL, POR MUNDO =======================
+     23-nov-2026. Joan: «que desde la pista se vea el historial que tiene y en
+     que pista estaba ese historial». Es la lista de `recorrido` (los créditos
+     pagados, con la garantía en que quedó la cuenta al pagar cada uno,
+     reconstruida hacia atrás), agrupada por el mundo en que cayó cada pago:
+     el de hoy abierto y arriba, los de antes plegados debajo.
+       · Cada pago dice su fecha, si fue en la fecha (la piedra con sello), lo
+         que le sumó a la garantía y en cuánto quedó. En PESOS: el cliente no ve
+         porcentajes.
+       · La garantía se nombra como lo que es. Ni plata, ni ahorro, ni saldo:
+         es lo que le deja pedir más, y lo construyó pagando.
+       · No hay ninguna frase que invite a pedir: aquí solo se ve lo pagado.
+       · Los créditos abiertos no salen: no son un pago todavía, y lo que falta
+         de ellos está en Inicio.
+     Va sobre laca, como todo lo que es del socio: ahí vive el amarillo. */
+  var MAX_FILAS_REC = 6;   // por mundo, a la vista; los de antes van plegados
+  function filaRecorrido(p, n, anio) {
+    return '<li class="pn-rec-f' + (p.en_fecha ? ' pn-si' : '') + '">' +
+      '<span class="pn-rec-p">' + piedraSvg(p.en_fecha) + '</span>' +
+      '<span class="pn-rec-t"><b>Pago ' + n + '</b><i>' + esc(fechaCorta(p.fecha, anio) || '—') + (p.en_fecha ? ' · en la fecha' : '') + '</i></span>' +
+      '<span class="pn-rec-v"><b>+' + COP(p.dejo) + '</b><i>quedaste en ' + COP(p.quedo) + '</i></span></li>';
+  }
+  function tarjetaRecorrido(e, rec) {
+    var cab = '<div class="card laca pn-rec" id="pnRecorrido"><div class="pn-rec-cab"><div class="etq">Tu recorrido</div>';
+    if (!rec.length) {
+      return cab + '</div><p class="pn-vacio">Todavía no hay ningún pago. Aquí va a quedar cada crédito que pagues, con lo que le sumó a tu garantía; con sello, si lo pagas en la fecha.</p></div>';
     }
-    var sellos = aqui.filter(function (p) { return p.en_fecha; }).length, ver = aqui.slice(-MAX_SELLOS);
-    var anio = String(ver[ver.length - 1].fecha || '').slice(0, 4);
-    return h + '<div class="laca pn-sellos"><div class="pn-cabeza-s"><div class="etq">Tus pagos en ' + esc(nombre) + '</div>' +
-      '<span>' + sellos + ' de ' + aqui.length + ' en fecha</span></div>' +
-      '<div class="pn-fila-s">' + ver.map(function (p) {
-        return '<div class="pn-sello' + (p.en_fecha ? ' pn-si' : '') + '">' + piedraSvg(p.en_fecha) +
-          '<span class="pn-d">' + esc(fechaCorta(p.fecha, anio) || '—') + '</span>' +
-          '<span class="pn-q">' + (p.en_fecha ? 'con sello' : 'sin sello') + '</span></div>';
-      }).join('') + '</div>' +
-      (aqui.length > ver.length
-        ? '<p class="pn-vacio">Son los últimos ' + ver.length + '. Antes hay ' + (aqui.length - ver.length) + ' más en este mundo.</p>' : '') +
-      '</div><p class="sub">Pagar en la fecha le pone sello a la piedra.</p></div>';
+    var anio = String(rec[rec.length - 1].fecha || '').slice(0, 4), h = cab +
+      '<button type="button" class="pn-rec-ver" id="pnVerRecorrido" onclick="PistaNiveles.repasar(true)">▶ Verlo en la pista</button></div>' +
+      '<p class="pn-vacio">Cada pago, en el mundo donde lo hiciste, y lo que le sumó a tu garantía.</p>';
+    /* del mundo de hoy hacia atrás; dentro de cada mundo, el pago más nuevo arriba */
+    for (var k = e.i; k >= 0; k--) {
+      var fila = e.filas[k], suyos = [];
+      rec.forEach(function (p, n) { if (p.nivel === fila.nivel) suyos.push({ p: p, n: n + 1 }); });
+      if (!suyos.length) continue;
+      suyos.reverse();
+      var enF = suyos.filter(function (x) { return x.p.en_fecha; }).length;
+      var titulo = medalla(fila.nivel, 'pn-chica') + '<span class="pn-rec-mt"><b>' + esc(fila.nombre) + '</b><i>' +
+        (k === e.i ? 'aquí estás' : 'ya lo pasaste') + ' · ' + suyos.length + ' pago' + (suyos.length !== 1 ? 's' : '') +
+        ', ' + enF + ' en la fecha</i></span>';
+      var ver = suyos.slice(0, MAX_FILAS_REC), antes = suyos.slice(MAX_FILAS_REC);
+      var lista = '<ol class="pn-rec-l">' + ver.map(function (x) { return filaRecorrido(x.p, x.n, anio); }).join('') + '</ol>' +
+        (antes.length
+          ? '<details class="pn-rec-mas"><summary>' + (antes.length === 1 ? 'Ver el pago de antes en ' : 'Ver los ' + antes.length + ' de antes en ') + esc(fila.nombre) + '</summary><ol class="pn-rec-l">' +
+            antes.map(function (x) { return filaRecorrido(x.p, x.n, anio); }).join('') + '</ol></details>'
+          : '');
+      h += k === e.i
+        ? '<div class="pn-rec-m ' + MUNDOS[fila.nivel].clase + '"><div class="pn-rec-s">' + titulo + '</div>' + lista + '</div>'
+        : '<details class="pn-rec-m ' + MUNDOS[fila.nivel].clase + '"><summary class="pn-rec-s">' + titulo + '</summary>' + lista + '</details>';
+    }
+    var g0 = Math.max(0, rec[0].quedo - rec[0].dejo);
+    return h + '<p class="pn-rec-pie">' + (g0 > 0 ? 'Arrancaste en ' + COP(g0) + '. ' : '') +
+      'Hoy vas en <b>' + COP(e.garantia) + '</b>: lo construiste pagando. Pagar en la fecha le pone sello a la piedra.</p></div>';
+  }
+
+  /* ======================= EL REPASO: EL CARRITO RECORRE LA HISTORIA =======================
+     23-nov-2026. Joan: «cada vez que entre la persona a la pista se vea una
+     animacion de un pequeño carrito pasando por la pista como mostrando el
+     historial y que en cada parada sea un pago y pare por un segundo mostrando
+     ese pago con lo que le sumo de garantia… que le de esperanza».
+
+     El carrito sale del mundo donde arrancó, para en cada pago y cruza la meta
+     de cada mundo hasta llegar a donde está hoy. La estela azul se va
+     alargando detrás, y cada piedra se enciende cuando pasa.
+
+     LO QUE SE CUIDA:
+       · EL PLAN ES UNA CUENTA APARTE (planRepaso), sin pantalla: qué mundos,
+         qué pagos y dónde para. Así se prueba sin navegador, y lo que mueve el
+         carrito no decide nada.
+       · NO SE ALARGA: para un segundo en los últimos MAX_PARADAS pagos; por los
+         de antes pasa encendiéndolos sin detenerse, y los mundos donde no para
+         los recorre más rápido. Con cuarenta pagos dura unos segundos más que
+         con ocho, no cinco veces más, y siempre hay «Saltar».
+       · SOLO AL ENTRAR a la pestaña desde otra (lo dice la página en `montar`),
+         no cada vez que la pestaña se repinta por dentro. Y nunca encima de la
+         llegada a un mundo, que es otra hoja.
+       · CON «MENOS MOVIMIENTO» NO CORRE: se ve la pista ya recorrida, como
+         siempre. Tampoco donde no hay con qué animar (el banco de pruebas).
+       · EN UN TELÉFONO BARATO: por cuadro cambia un transform y el trazado de
+         la estela, dentro de la capa de la isla, que ya se repinta por el
+         pulso del marcador. Sin filtros. Los tiempos van por el reloj del
+         navegador, no por cuadros: en un teléfono lento se ve a saltos, pero
+         dura lo mismo.
+       · AL SALIR de la pestaña se detiene (la página llama a `detener`), y si
+         la pantalla se repintó por debajo, se da cuenta sola y no toca nada.
+       · LAS PALABRAS: lo que sumó cada pago a su garantía, en pesos. No invita
+         a pedir, no promete nada y no llama a la garantía plata ni ahorro. */
+  var MAX_PARADAS = 8, MS_PARADA = 1000, MS_FRENO = 260, MS_VUELTA = 2200, MS_VUELTA_RAPIDA = 1200, MS_CAMBIO = 900, MS_LLEGADA = 2600, MS_ARRANQUE = 350;
+  /* El carrito va más grande que su tamaño «real» sobre la pista: a escala no
+     se vería en un teléfono, y es el protagonista del repaso. */
+  var ESCALA_CARRO = 2.3;
+  function planRepaso(e, rec) {
+    rec = rec || [];
+    if (!e || !e.filas || !rec.length) return { mundos: [], pagos: 0, paradas: 0, arranca: 0 };
+    var f = e.filas, g0 = Math.max(0, rec[0].quedo - rec[0].dejo), n0 = motor().nivelPorGarantia(g0), i0 = 0, k;
+    for (k = 0; k < f.length; k++) if (f[k].nivel === n0) i0 = k;
+    if (i0 > e.i) i0 = e.i;   // un ajuste pudo bajarla: nunca se arranca más arriba de donde está hoy
+    var desdeParada = Math.max(0, rec.length - MAX_PARADAS), mundos = [];
+    for (k = i0; k <= e.i; k++) {
+      var fila = f[k], hoy = k === e.i, pagos = [];
+      rec.forEach(function (p, n) {
+        if (p.nivel !== fila.nivel) return;
+        pagos.push({ n: n + 1, f: fraccionEn(fila, p.quedo), dejo: p.dejo, quedo: p.quedo, fecha: p.fecha,
+                     en_fecha: !!p.en_fecha, para: n >= desdeParada });
+      });
+      /* un mundo donde no para en ningún pago se recorre más rápido: son los
+         de más atrás de una historia larga */
+      mundos.push({ nivel: fila.nivel, nombre: fila.nombre, i: k, de: f.length,
+        rapido: !pagos.some(function (x) { return x.para; }),
+        desde: k === i0 ? fraccionEn(fila, g0) : 0, hasta: hoy ? e.fraccion : 1, hoy: hoy,
+        sigue: f[k + 1] ? f[k + 1].nombre : null, pagos: pagos });
+    }
+    return { mundos: mundos, pagos: rec.length, paradas: rec.length - desdeParada, arranca: g0,
+             anio: String(rec[rec.length - 1].fecha || '').slice(0, 4) };
+  }
+  /* Lo que tarda un tramo: proporcional a lo que recorre. Para llegar a una
+     PARADA nunca menos de MS_FRENO (un salto seco no se ve); por un pago donde
+     no para, pasa de largo sin perder tiempo. */
+  function msTramo(w, df, frena) {
+    var ms = Math.round((w && w.rapido ? MS_VUELTA_RAPIDA : MS_VUELTA) * Math.max(0, df));
+    return frena ? Math.max(MS_FRENO, ms) : ms;
+  }
+  /* Cuánto dura, en milisegundos: para la prueba que cuida que no se alargue. */
+  function duracionRepaso(plan) {
+    var ms = 0;
+    (plan.mundos || []).forEach(function (w) {
+      var f = w.desde;
+      ms += MS_ARRANQUE;
+      w.pagos.forEach(function (p) { var a = Math.max(f, p.f); ms += msTramo(w, a - f, p.para) + (p.para ? MS_PARADA : 0); f = a; });
+      ms += msTramo(w, w.hasta - f, true) + (w.hoy ? 0 : MS_CAMBIO);
+    });
+    return ms + MS_LLEGADA;
+  }
+  /* Los rótulos del repaso. Texto de aquí, con las cifras del plan. */
+  function rotuloMundo(w) {
+    return '<div class="pn-rp-m ' + MUNDOS[w.nivel].clase + '">' + medalla(w.nivel, 'pn-chica') +
+      '<span>Mundo ' + (w.i + 1) + ' de ' + w.de + '</span><b>' + esc(w.nombre) + '</b></div>';
+  }
+  function rotuloPago(w, p, plan) {
+    return rotuloMundo(w) + '<div class="pn-rp-p"><b>+' + COP(p.dejo) + '</b><span>a tu garantía</span>' +
+      '<i>Pago ' + p.n + ' de ' + plan.pagos + ' · ' + esc(fechaCorta(p.fecha, plan.anio) || '') + (p.en_fecha ? ' · en la fecha' : '') + '</i></div>';
+  }
+  function rotuloCruce(w) {
+    return rotuloMundo(w) + '<div class="pn-rp-p pn-rp-cruce"><b>¡Pasaste a ' + esc(w.sigue || '') + '!</b></div>';
+  }
+  function rotuloLlegada(e) {
+    return '<div class="pn-rp-p pn-rp-fin"><b>' + COP(e.garantia) + '</b><span>de garantía hoy</span>' +
+      '<i>La construiste pago a pago' + (e.sig ? ', y sigues hacia ' + esc(e.sig.nombre) : '') + '.</i></div>';
+  }
+
+  var RP = null;   // el repaso en curso, o null
+  function reduceMovimiento() {
+    try { return !!(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+    catch (x) { return false; }
+  }
+  function reloj() { return (typeof performance !== 'undefined' && performance && typeof performance.now === 'function') ? performance.now() : 0; }
+  /* ¿Siguen en la pantalla las cajas con las que arrancó? Si la pestaña se
+     repintó (otra pestaña, una sesión que venció), no: y entonces no se toca
+     nada, porque lo que hay ahora es de otra pintada. */
+  function sigueAhi(r) {
+    var d = documento();
+    return !!(r && r.vivo && d && d.getElementById('pnEscena') === r.esc);
+  }
+  function escenaDe(w) {
+    var H0 = HERO, op = { cielo: H0.op.cielo, margenAbajo: H0.op.margenAbajo, f: Math.max(w.hasta, 0.02), nombre: H0.op.nombre,
+      carro: true, sinMarcador: true,
+      piedras: w.pagos.map(function (p) { return { f: p.f, sello: p.en_fecha }; }) };
+    if (w.sigue) op.meta = 'Meta · ' + w.sigue;
+    if (w.hoy) { op.cosas = H0.op.cosas; op.sigue = H0.op.sigue; op.navidad = H0.op.navidad; }
+    return op;
+  }
+  /* El carrito y la punta de la estela en la fracción f (0 a 1) de la vuelta. */
+  function ponerEn(r, f) {
+    var N = r.ruta.length, x = Math.max(0, Math.min(N, f * N)), i = Math.min(N - 1, Math.floor(x)), t = x - i;
+    var a = r.ruta[i], b = r.ruta[(i + 1) % N];
+    var px = a[0] + (b[0] - a[0]) * t, py = a[1] + (b[1] - a[1]) * t, k = (a[2] + (b[2] - a[2]) * t) * ESCALA_CARRO;
+    if (Math.abs(b[0] - a[0]) > 0.05) r.mira = b[0] >= a[0] ? 1 : -1;
+    if (r.carro) r.carro.setAttribute('transform', 'translate(' + r1(px) + ' ' + r1(py) + ') scale(' + (r.mira * k).toFixed(3) + ' ' + k.toFixed(3) + ')');
+    /* la placa del nombre va encima del carrito, derecha y sin salirse del dibujo */
+    if (r.placa) {
+      var medio = r.anchoPlaca / 2 + 4, nx = Math.max(medio, Math.min(HERO.W - medio, px));
+      r.placa.setAttribute('transform', 'translate(' + r1(nx) + ' ' + r1(py - 13 * k - 6) + ')');
+    }
+    if (r.hecho) {
+      var pts = [];
+      for (var j = 0; j <= i; j++) pts.push(r1(r.ruta[j][0]) + ',' + r1(r.ruta[j][1]));
+      pts.push(r1(px) + ',' + r1(py));
+      if (pts.length < 2) pts.push(pts[0]);
+      r.hecho.setAttribute('d', 'M' + pts.join(' L'));
+    }
+    /* las llamitas se encienden cuando el carrito ya pasó por su sitio */
+    while (r.il < r.llamas.length && Number(r.llamas[r.il].getAttribute('data-i')) <= i) { r.llamas[r.il].setAttribute('class', 'pn-llama-s pn-ya'); r.il++; }
+    r.f = f;
+  }
+  function correr(r, hasta, frena, alLlegar) {
+    var desde = r.f, ms = msTramo(r.w, hasta - desde, frena), t0 = reloj();
+    if (hasta <= desde || ms < 1) { if (hasta > desde) ponerEn(r, hasta); return alLlegar(); }
+    (function cuadro() {
+      if (!sigueAhi(r)) return;
+      var u = Math.min(1, (reloj() - t0) / ms), suave = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+      ponerEn(r, desde + (hasta - desde) * suave);
+      if (u < 1) r.raf = requestAnimationFrame(cuadro); else alLlegar();
+    })();
+  }
+  function espera(r, ms, sigue) { r.timer = setTimeout(function () { if (sigueAhi(r)) sigue(); }, ms); }
+  function mundoDelRepaso(r) {
+    r.im++;
+    if (r.im >= r.plan.mundos.length) return llegada(r);
+    var w = r.plan.mundos[r.im], H0 = HERO, op = escenaDe(w);
+    r.esc.innerHTML = mundo(w.nivel, H0.W, H0.H, op);
+    r.ruta = rutaDe(w.nivel, H0.W, H0.H, op);
+    r.carro = r.esc.querySelector('.pn-carro'); r.hecho = r.esc.querySelector('[data-hecho]');
+    r.placa = r.esc.querySelector('.pn-carro-n');
+    r.anchoPlaca = Math.max(30, String(op.nombre || '').length * 6.3 + 16);
+    r.piedras = r.esc.querySelectorAll('.pn-piedra'); r.llamas = r.esc.querySelectorAll('.pn-llama-s');
+    r.il = 0; r.mira = 1; r.w = w; r.ip = 0;
+    r.rp.innerHTML = rotuloMundo(w);
+    ponerEn(r, w.desde);
+    espera(r, MS_ARRANQUE, function () { pagoDelRepaso(r); });
+  }
+  function pagoDelRepaso(r) {
+    var w = r.w;
+    if (r.ip >= w.pagos.length) {
+      return correr(r, w.hasta, true, function () {
+        if (w.hoy) return llegada(r);
+        r.rp.innerHTML = rotuloCruce(w);
+        espera(r, MS_CAMBIO, function () { mundoDelRepaso(r); });
+      });
+    }
+    var p = w.pagos[r.ip], k = r.ip;
+    correr(r, Math.max(r.f, p.f), p.para, function () {
+      if (r.piedras[k]) r.piedras[k].setAttribute('class', 'pn-piedra pn-ya');
+      r.rp.innerHTML = rotuloPago(w, p, r.plan);
+      r.ip++;
+      /* donde no para, sigue de largo: la piedra se enciende y el rótulo
+         cambia mientras pasa */
+      if (p.para) espera(r, MS_PARADA, function () { pagoDelRepaso(r); }); else pagoDelRepaso(r);
+    });
+  }
+  /* El final, llegue como llegue (corriendo o con «Saltar»): la escena de hoy,
+     entera y quieta, como la pinta `heroe`. */
+  function llegada(r, sinRotulo) {
+    if (!r || !r.vivo) return;
+    r.vivo = false;
+    try { if (r.raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(r.raf); } catch (x) { /* nada */ }
+    clearTimeout(r.timer);
+    var d = documento(), H0 = HERO;
+    if (RP === r) RP = null;
+    if (!d || !H0 || d.getElementById('pnEscena') !== r.esc) return;
+    r.esc.innerHTML = mundo(H0.e.nivel, H0.W, H0.H, H0.op);
+    r.hero.classList.remove('pn-repasando');
+    if (sinRotulo) { r.rp.innerHTML = ''; return; }
+    r.rp.innerHTML = rotuloLlegada(H0.e);
+    r.hero.classList.add('pn-llego');
+    setTimeout(function () {
+      var dd = documento();
+      if (!dd || dd.getElementById('pnEscena') !== r.esc || RP) return;
+      r.hero.classList.remove('pn-llego'); r.rp.innerHTML = '';
+    }, MS_LLEGADA);
+  }
+  /* Arranca el repaso. `aMano` es el botón «Verlo en la pista»: sube la página
+     para que el mundo quede a la vista. Devuelve si arrancó. */
+  function repasar(aMano) {
+    var d = documento(), H0 = HERO;
+    if (!d || !H0 || ABIERTA || reduceMovimiento()) return false;
+    if (typeof requestAnimationFrame !== 'function' || typeof setTimeout !== 'function') return false;
+    var plan = planRepaso(H0.e, REC);
+    if (!plan.pagos || !plan.mundos.length) return false;
+    var hero = d.getElementById('pnHero'), esc0 = d.getElementById('pnEscena'), rp = d.getElementById('pnRp');
+    if (!hero || !esc0 || !rp || typeof esc0.querySelector !== 'function' || !hero.classList) return false;
+    detener();
+    if (aMano) { try { window.scrollTo(0, 0); } catch (x) { /* sin ventana no se sube */ } }
+    RP = { plan: plan, im: -1, hero: hero, esc: esc0, rp: rp, vivo: true, f: 0, raf: 0, timer: 0, il: 0, llamas: [], piedras: [], mira: 1 };
+    hero.classList.remove('pn-llego');
+    hero.classList.add('pn-repasando');
+    mundoDelRepaso(RP);
+    /* un instante después: la página sube al tope al cambiar de pestaña, y
+       esto va cuando ya subió */
+    setTimeout(function () { acomodar(hero); }, 40);
+    return true;
+  }
+  /* QUE EL RÓTULO SE VEA. El mundo es alto, y en un teléfono el rótulo de cada
+     pago quedaba debajo de la barra de pestañas: se veía el carrito parar y no
+     se leía por qué. Si el pie del mundo cae debajo de la barra, la página
+     baja lo justo para que quede encima. Nunca sube, y en una pantalla donde
+     ya cabe no hace nada. `nav` es la barra de la página; si no está, se mide
+     contra el borde de la pantalla. */
+  function acomodar(hero) {
+    try {
+      var d = documento(), alto = window.innerHeight || 0;
+      if (!d || !alto || !hero || typeof hero.getBoundingClientRect !== 'function') return;
+      var nav = d.getElementById('nav'), piso = alto - (nav && nav.offsetHeight ? nav.offsetHeight : 0) - 8;
+      var baja = hero.getBoundingClientRect().bottom - piso;
+      if (baja > 1) window.scrollBy(0, Math.round(baja));
+    } catch (x) { /* sin ventana no se acomoda */ }
+  }
+  /* «Saltar»: al final, sin rótulo. */
+  function saltar() { if (RP) llegada(RP, true); return true; }
+  /* Lo llama la página al salir de la pestaña: se para sin tocar lo que haya. */
+  function detener() {
+    var r = RP; RP = null;
+    if (!r) return;
+    r.vivo = false;
+    try { if (r.raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(r.raf); } catch (x) { /* nada */ }
+    clearTimeout(r.timer);
   }
   /* LO QUE ABRE CADA MUNDO (18-nov-2026). Joan: «para que el cliente vea hasta
      que nivel puede llegar y los beneficios». Solo lo que el motor YA hace, y
@@ -1740,7 +2143,8 @@
      Devuelve el HTML de la pestaña; no toca el documento. */
   function vista(d) {
     d = d || {};
-    ULTIMO = d; ABIERTA = null; VUELVE_A = null; MI = null; AL_CERRAR = null;
+    detener();   // si venía un repaso de la pintada anterior, se queda ahí
+    ULTIMO = d; ABIERTA = null; VUELVE_A = null; MI = null; AL_CERRAR = null; HERO = null; REC = [];
     if (!motor()) return '';
     if (!cssLlego()) {
       return '<div class="card"><p class="muted" style="margin:0">La pista no terminó de bajar. Con señal, cierra la app y vuelve a abrirla.</p></div>';
@@ -1752,12 +2156,14 @@
        los pagos. Si su archivo no llegó, todo sigue como antes. */
     var M = misiones(), mi = null;
     try { mi = M ? M.paraLaPista(d, e, rec) : null; } catch (x) { mi = null; }
-    MI = mi;
+    MI = mi; REC = rec;
     /* En temporada, «Diciembre puntual» y la tarjeta de Navidad van debajo de
        las misiones de la quincena (18-nov); cada una decide si sale. */
     var temporada = mi ? (typeof M.tarjetaDiciembre === 'function' ? M.tarjetaDiciembre(mi) : '') +
       (typeof M.tarjetaNavidad === 'function' ? M.tarjetaNavidad(mi) : '') : '';
-    return heroe(e, d, aqui, mi) + (mi ? M.tarjetaQuincena(mi) : '') + temporada + tarjetaMueve(e, d, aqui) +
+    /* 23-nov-2026 — «Tu recorrido» va pegado al mundo: es el historial de esa
+       misma pista, y lo que el carrito acaba de contar. */
+    return heroe(e, d, aqui, mi) + tarjetaRecorrido(e, rec) + (mi ? M.tarjetaQuincena(mi) : '') + temporada + tarjetaMueve(e, d) +
       (mi ? M.tarjetaUnaVez(mi) + M.tarjetaRachas(mi) + M.tarjetaIslas(mi) : '') + tarjetaMundos(e, d);
   }
 
@@ -1855,9 +2261,14 @@
   function invitar() { var d = ULTIMO; if (d && typeof d.alInvitar === 'function') { d.alInvitar(); return true; } return false; }
   /* Lo que la página llama DESPUÉS de pintar la pestaña: las misiones anotan
      lo suyo en el teléfono y, si llegó a un mundo nuevo, sale la llegada. */
-  function montar() {
-    var M = misiones();
-    return (M && MI) ? M.montar(MI) : null;
+  /* 23-nov-2026 — y si la página dice que el cliente viene ENTRANDO a la
+     pestaña (`o.entrando`), arranca el repaso del carrito. Después de las
+     misiones: si salió la llegada a un mundo, esa hoja manda y el repaso no
+     corre encima (lo puede ver después con «Verlo en la pista»). */
+  function montar(o) {
+    var M = misiones(), r = (M && MI) ? M.montar(MI) : null;
+    if (o && o.entrando) { try { repasar(false); } catch (x) { detener(); } }
+    return r;
   }
   /* Escape cierra la hoja, como cualquier ventana. Un solo oyente, puesto al
      cargar; donde no hay documento (una prueba que pide el archivo a secas),
@@ -1871,8 +2282,13 @@
   })();
 
   return {
-    VERSION: '2026-11-18',
+    VERSION: '2026-11-23',
     vista: vista, abrir: abrir, cerrar: cerrar, abrirCon: abrirCon, montar: montar,
+    /* 23-nov-2026: el recorrido por mundo y el repaso del carrito */
+    repasar: repasar, saltar: saltar, detener: detener, repasando: function () { return !!RP; },
+    planRepaso: planRepaso, duracionRepaso: duracionRepaso, rutaDe: rutaDe, primerNombre: primerNombre,
+    tarjetaRecorrido: tarjetaRecorrido, ELIXIR: ELIXIR, MAX_PARADAS: MAX_PARADAS, MAX_LLAMAS: MAX_LLAMAS,
+    MAX_FILAS_REC: MAX_FILAS_REC, MS_PARADA: MS_PARADA,
     completarDatos: completarDatos, invitar: invitar,
     /* Para las pruebas, y para quien quiera saber en qué va. */
     hoja: hoja, donde: donde, recorrido: recorrido, queCambia: queCambia, enFecha: enFecha,

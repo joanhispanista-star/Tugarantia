@@ -191,16 +191,19 @@ html.tg-navidad #entrarCuerpo>.card:not(.laca){background-image:var(--tg-acebo);
    regla; en Entrar, aparte y quitando el acebo, para que sin :has se caiga
    ella sola y el acebo se quede (tampoco tapa nada). */
 html.tg-navidad #entrarCuerpo>.card:not(.laca):has(>.aviso:not(.verde):first-child,>:first-child>.aviso:not(.verde):first-child){background-image:none}
-/* En la Pista no (ver arriba). Se sabe que es la Pista por la pestaña
-   encendida, no por las clases de adentro: así vale también para lo que se le
-   agregue (las misiones). Sin :has (un Chrome de antes de 2022) estas dos
+/* En la Pista no (ver arriba). Se sabe que es la Pista porque su mundo está
+   pintado (#pnHero, de pista-niveles.js), y vale para todo lo que vaya en esa
+   pantalla (el recorrido, las misiones). Hasta el 23-nov se sabía por la
+   pestaña encendida de la barra; ese día «Mi garantía» e «Historial» pasaron a
+   vivir DENTRO de esa pestaña, y con la regla vieja se quedaban sin adorno
+   ellas también. Sin :has (un Chrome de antes de 2022) estas dos
    reglas se caen enteras y las tarjetas salen sin adorno: nada se rompe. Por
    eso van aparte de las de Entrar. Llevan las tarjetas sueltas del .panel y
    también las que van en una caja con id dentro de él: el resultado de la
    calculadora (#calcSalida, #calcComparar) y la historia laboral (#hlCuenta). */
-html.tg-navidad body:not(:has(#nav button.on[data-t="pista"])) :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>.card.laca{background:var(--tg-rama) right top/104px 60px no-repeat,var(--placa)}
-html.tg-navidad body:not(:has(#nav button.on[data-t="pista"])) :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>.card.laca :is(.etq,.cs-etq){padding-right:36px}
-html.tg-navidad body:not(:has(#nav button.on[data-t="pista"])) :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>.card:not(.laca):not(:has(>.aviso:not(.verde):first-child,>:first-child>.aviso:not(.verde):first-child)){background-image:var(--tg-acebo);background-repeat:no-repeat;
+html.tg-navidad body:not(:has(#pnHero)) :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>.card.laca{background:var(--tg-rama) right top/104px 60px no-repeat,var(--placa)}
+html.tg-navidad body:not(:has(#pnHero)) :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>.card.laca :is(.etq,.cs-etq){padding-right:36px}
+html.tg-navidad body:not(:has(#pnHero)) :is(#cuerpo>.panel,#cuerpo>.panel>div[id])>.card:not(.laca):not(:has(>.aviso:not(.verde):first-child,>:first-child>.aviso:not(.verde):first-child)){background-image:var(--tg-acebo);background-repeat:no-repeat;
   background-position:right 10px top 2px;background-size:36px 18px}
 /* play/ también (Joan, el mismo 18-nov: «Sí, también»). Allá las tarjetas van
    sueltas en #cuerpo (la entrada y el registro) o en #lamina (la cuenta), o en

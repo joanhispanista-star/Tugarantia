@@ -685,6 +685,16 @@ details.plegado>summary{padding:0 var(--e4)}
 .nav button.on{color:var(--tinta)}
 .nav button.on::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
   bottom:8px;width:18px;height:2px;border-radius:2px;background:var(--rojo)}
+/* 23-nov-2026 — LAS PESTAÑITAS DE DENTRO DE «PISTA» (subPista): Pista, Mi
+   garantía e Historial, que hasta hoy eran tres botones de la barra de abajo.
+   Una fila de tres, arriba de la pantalla. La que está abierta va en tinta
+   sobre papel con su filete: el rojo no, que es de la barra de abajo y del
+   botón de avanzar. Miden 44 px de alto, que es lo que pide un dedo. */
+.subtabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:var(--e1);padding:var(--e1);
+  margin-bottom:var(--e3);border-radius:14px;background:var(--fondo);border:1px solid var(--linea)}
+.subtabs button{min-height:44px;padding:var(--e2) var(--e1);border:0;border-radius:10px;background:transparent;
+  color:var(--gris);font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.subtabs button.on{background:var(--papel);color:var(--tinta);box-shadow:inset 0 0 0 1.5px var(--tinta)}
 
 .panel{animation:sube .3s cubic-bezier(.2,.8,.2,1)}
 @keyframes sube{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -1054,14 +1064,19 @@ details.plegado>summary{padding:0 var(--e4)}
    tiene v155.
    23-nov-2026 (v156): con dos o más créditos abiertos, Inicio los muestra por separado
    (crédito A, crédito B…) y suma lo de todos. Si una clienta dice que solo le sale uno de
-   sus créditos, esta fecha dice si tiene la versión que los separa. */
+   sus créditos, esta fecha dice si tiene la versión que los separa.
+   23-nov-2026 (v157): «Mi garantía» e «Historial» viven dentro de la pestaña «Pista»; la
+   Pista trae «Tu recorrido» (los pagos por mundo), la estela azul, su nombre en el marcador
+   y el carrito que repasa la historia al entrar. La fecha es la misma de v156, así que aquí
+   distingue el número del sello: si un cliente dice que sigue viendo seis pestañas abajo, o
+   que no ve el carrito, el pie dice si tiene v157. */
 var VERSION_APP = '2026-11-23';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
    tiene lo último (las fechas son tres y van a mano). Sube con CACHE, siempre:
    pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v156';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v157';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1104,12 +1119,15 @@ setTimeout(function () {
   <nav class="nav" id="nav">
     <button data-t="inicio" class="on">Inicio</button>
     <button data-t="calc">Calculadora</button>
-    <button data-t="garantia">Mi garantía</button>
-    <!-- 14-nov-2026 — «Pista»: el mundo del nivel. Nace oculta y la enciende
-         el bloque de abajo SOLO si pista-niveles.js llegó: una pestaña que no
-         tiene con qué pintarse no se ofrece. -->
-    <button data-t="pista" id="navPista" class="oculto">Pista</button>
-    <button data-t="historial">Historial</button>
+    <!-- 23-nov-2026 — UNA SOLA PESTAÑA, «Pista». Joan: «quiero que la pestaña
+         de tu garantia, pista y la pestaña de historial se unifiquen en una
+         sola pestaña y que se llame pista». Eran tres botones aquí («Mi
+         garantía», «Pista» e «Historial»); queda este, y las otras dos son
+         pestañitas DENTRO de la Pista (subPista, más abajo). Ya no nace
+         oculta: si pista-niveles.js no llega, la pestaña abre en «Mi garantía»
+         (irA), porque esconderla dejaría al cliente sin su garantía y sin su
+         historial. -->
+    <button data-t="pista" id="navPista">Pista</button>
     <!-- 26-oct-2026 (chat-1) — «Chat», la palabra que usa Joan, y el número de
          lo que le falta por leer (#chNavN, « (2)»), que late en toda la app y
          no solo dentro de la pestaña. Sin número cuando no se sabe. -->
@@ -1190,7 +1208,7 @@ setTimeout(function () {
      CACHE de ese día (pruebas/la-pagina-nueva-no-corre-con-un-js-viejo): salió con
      v155, el 20-nov.
      misiones.js es NUEVO: sin versión; si no llega, la Pista se ve como antes. -->
-<script src="pista-niveles.js?v=155"></script>
+<script src="pista-niveles.js?v=157"></script>
 <script src="misiones.js"></script>
 <script src="sesion-socio.js?v=143"></script>
 <script src="ver-como.js"></script>
@@ -2454,15 +2472,38 @@ function entradaMotor() {
            acumulada: S.gd.ganada, ajuste: 0, comprometida: S.gd.comprometida };
 }
 
+/* 23-nov-2026 — LO QUE VIVE DENTRO DE «PISTA». La barra de abajo tiene una sola
+   pestaña para las tres; por dentro siguen siendo tres pantallas con su nombre
+   de siempre ('pista', 'garantia', 'historial'), porque cada una tiene sus
+   reglas: «se actualiza sola» recarga en Garantía e Historial y nunca con la
+   pista abierta, y a Garantía se vuelve desde el perfil. Lo que cambia es por
+   dónde se llega: las pestañitas de arriba (subPista). */
+var EN_PISTA = ['pista', 'garantia', 'historial'];
+function subPista(tab) {
+  var ops = [['pista', 'Pista'], ['garantia', 'Mi garantía'], ['historial', 'Historial']];
+  /* Sin pista-niveles.js no hay mundo que pintar: quedan las otras dos. */
+  if (!window.PistaNiveles) ops.shift();
+  return '<div class="subtabs" role="tablist" aria-label="Dentro de Pista">' + ops.map(function (o) {
+    return '<button type="button" role="tab" aria-selected="' + (o[0] === tab ? 'true' : 'false') + '"' +
+      (o[0] === tab ? ' class="on"' : '') + ' onclick="irA(\'' + o[0] + '\')">' + o[1] + '</button>';
+  }).join('') + '</div>';
+}
 function irA(tab) {
-  if (tab === 'pista' && !window.PistaNiveles) tab = 'inicio';   // 14-nov-2026 — sin su archivo no hay pista: a Inicio, entero
+  /* 23-nov-2026 — sin su archivo no hay mundo, pero la pestaña sigue ahí: abre
+     en «Mi garantía» (hasta el 23-nov mandaba a Inicio, cuando «Mi garantía» e
+     «Historial» tenían su propio botón en la barra). */
+  if (tab === 'pista' && !window.PistaNiveles) tab = 'garantia';
+  /* ¿Viene de otra pestaña? Solo entonces corre el repaso del carrito: si la
+     pista se repinta por dentro (las misiones lo hacen), no vuelve a correr. */
+  var entrando = tab === 'pista' && TAB !== 'pista';
   TAB = tab;
   PANTALLA = tab;   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   pararChat();      // 26-oct-2026 — el hilo que se movía solo se para al salir de Chat (arrancarChat lo vuelve a armar)
   cerrarPista();    // 14-nov-2026 — la hoja de un mundo vive fuera del panel (#pnHoja): repintar no se la lleva, hay que quitarla
+  var enPista = EN_PISTA.indexOf(tab) >= 0;
   var b = $('nav').querySelectorAll('button');
-  for (var i = 0; i < b.length; i++) b[i].classList.toggle('on', b[i].dataset.t === tab);
-  $('cuerpo').innerHTML = '<div class="panel">' +
+  for (var i = 0; i < b.length; i++) b[i].classList.toggle('on', b[i].dataset.t === (enPista ? 'pista' : tab));
+  $('cuerpo').innerHTML = '<div class="panel">' + (enPista ? subPista(tab) : '') +
     (tab === 'inicio' ? vistaInicio() :
      tab === 'calc' ? vistaCalculadora() :
      tab === 'garantia' ? vistaGarantia() :
@@ -2473,7 +2514,7 @@ function irA(tab) {
   if (tab === 'inicio') montarHistoriaLaboral();   // 28-oct-2026
   /* 16-nov-2026 — con la Pista ya pintada: las misiones anotan lo suyo en el
      teléfono y, si llegó a un mundo nuevo, sale la llegada (una sola vez). */
-  if (tab === 'pista' && window.PistaNiveles && window.PistaNiveles.montar) window.PistaNiveles.montar();
+  if (tab === 'pista' && window.PistaNiveles && window.PistaNiveles.montar) window.PistaNiveles.montar({ entrando: entrando });
   window.scrollTo(0, 0);
   avisarQueEsMomento();   // 21-oct-2026 — Inicio, Historial y Garantía son de la lista
 }
@@ -4805,10 +4846,13 @@ function vistaPista() {
   }) + pie();
 }
 function cerrarPista() {
+  /* 23-nov-2026 — y el repaso del carrito se detiene: lo que estaba moviendo
+     se va con la pantalla. */
+  if (window.PistaNiveles && window.PistaNiveles.detener) window.PistaNiveles.detener();
   if (window.PistaNiveles && window.PistaNiveles.abierta()) window.PistaNiveles.cerrar();
 }
-/* La pestaña se ofrece SOLO si su archivo llegó (ver #navPista). */
-if (window.PistaNiveles && $('navPista')) $('navPista').classList.remove('oculto');
+/* 23-nov-2026 — la pestaña ya no nace oculta (ver #navPista): sin su archivo
+   abre en «Mi garantía». */
 
 /* ========================== HISTORIAL ========================== */
 function vistaHistorial() {

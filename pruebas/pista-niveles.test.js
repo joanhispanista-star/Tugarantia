@@ -243,8 +243,17 @@ describe('5 · lo que dice la pestaña', () => {
     assert.ok(T.includes(COP(200000) + ' vas en ' + COP(297600) + ' ' + COP(400000)));
   });
 
+  /* 23-nov-2026 — «Tus pagos en Aluminio» (los últimos cuatro del mundo de hoy)
+     pasó a ser «Tu recorrido»: TODOS los pagos, cada uno en el mundo donde
+     cayó, con lo que sumó y en cuánto quedó. La cuenta de la prueba: 297.600
+     hoy; hacia atrás, 257.600, 225.600 (los tres de Aluminio), 195.200 y
+     169.600 (los dos de Hierro), y arrancó en 147.200. */
   test('los pagos de ESTE mundo, con su fecha y su sello', () => {
-    assert.ok(T.includes('Tus pagos en Aluminio 2 de 3 en fecha 15 oct con sello 3 nov sin sello 13 nov con sello'), T);
+    assert.ok(T.includes('Tu recorrido ▶ Verlo en la pista Cada pago, en el mundo donde lo hiciste, y lo que le sumó a tu garantía. ' +
+      'Aluminio aquí estás · 3 pagos, 2 en la fecha ' +
+      'Pago 5 13 nov · en la fecha +' + COP(40000) + ' quedaste en ' + COP(297600) + ' ' +
+      'Pago 4 3 nov +' + COP(32000) + ' quedaste en ' + COP(257600) + ' ' +
+      'Pago 3 15 oct · en la fecha +' + COP(30400) + ' quedaste en ' + COP(225600)), T);
     /* en la pista: tres piedras (cada una con su sombra) y dos chulos */
     const isla = H.slice(H.indexOf('pn-isla'), H.indexOf('pn-frente'));
     assert.equal((isla.match(/<ellipse [^>]*fill="#F5C542" stroke="#0C0A0B"/g) || []).length, 2, 'no hay dos piedras con sello en la pista');
@@ -274,9 +283,18 @@ describe('5 · lo que dice la pestaña', () => {
     assert.match(CSS, /\.pn-cabeza h2\.pn-largo\{font-size:21px/);
   });
 
-  test('el marcador lleva la inicial del nombre, sin importar cómo venga escrito', () => {
-    assert.match(PN.vista({ nombre: '  josé luis', garantia: 50000, creditos: [] }), />J<\/text>/);
+  /* 23-nov-2026 — era la inicial. Joan: «que no sea una letra si no el nombre
+     de la persona para que sea claro». Va el primer nombre, con mayúscula, en
+     una placa sobre el pin; la inicial ya no se pinta. */
+  test('el marcador lleva su NOMBRE, no una letra, sin importar cómo venga escrito', () => {
+    const h = PN.vista({ nombre: '  josé luis', garantia: 50000, creditos: [] });
+    assert.match(h, />José<\/text>/);
+    assert.equal(/>J<\/text>/.test(h), false, 'volvió la inicial');
+    assert.match(PN.vista(EJEMPLO), />María<\/text>/);
     assert.equal(/>undefined<|>null</.test(PN.vista({ garantia: 50000, creditos: [] })), false);
+    assert.equal(PN.primerNombre('Maximiliano Andrés').length <= 12, true, 'un nombre largo tapa el mundo');
+    /* quien pinta un mundo suelto con `letra` (las hojas, las pruebas) la sigue viendo */
+    assert.match(PN.mundo('bronce', 328, 400, { f: 0.3, letra: 'L' }), />L<\/text>/);
   });
 });
 
@@ -286,8 +304,9 @@ describe('6 · los casos de las puntas', () => {
   test('la cuenta nueva: Hierro, sin pagos, y se dice qué va a aparecer ahí', () => {
     const t = plano(PN.vista({ nombre: 'Nueva', garantia: 100000, creditos: [] }));
     assert.ok(t.startsWith('Mundo 1 de 9 Aquí estás Hierro La forja'));
-    assert.ok(t.includes('Tus pagos en Hierro Todavía no hay ninguno. Aquí queda una piedra por cada crédito que pagues; con sello, si lo pagas en la fecha.'));
-    assert.equal(/\d de \d en fecha/.test(t), false, 'cuenta sellos de pagos que no existen');
+    assert.ok(t.includes('Tu recorrido Todavía no hay ningún pago. Aquí va a quedar cada crédito que pagues, con lo que le sumó a tu garantía; con sello, si lo pagas en la fecha.'), t);
+    assert.equal(/\d pagos?, \d en la fecha/.test(t), false, 'cuenta sellos de pagos que no existen');
+    assert.equal(/Verlo en la pista/.test(t), false, 'ofrece ver un recorrido que no existe');
   });
 
   test('el último mundo: no hay «te faltan», ni meta, ni candado', () => {
@@ -299,19 +318,27 @@ describe('6 · los casos de las puntas', () => {
     assert.equal(/>META · /.test(h), false, 'la pista del último mundo señala una meta que no hay');
   });
 
-  test('más pagos de los que caben: se ven los últimos y se dice cuántos hay antes', () => {
+  test('más pagos de los que caben: se ven los últimos y los de antes van plegados, no perdidos', () => {
     const cs = [];
-    for (let i = 0; i < 7; i++) cs.push(cred('C' + i, 10000, '2026-0' + (9 - i) + '-15', '2026-0' + (9 - i) + '-15'));
-    const t = plano(PN.vista({ nombre: 'Varios', garantia: 290000, creditos: cs }));
-    assert.ok(t.includes('7 de 7 en fecha'), 'el conteo no es de TODOS los pagos del mundo: ' + t);
-    assert.ok(t.includes('Son los últimos ' + PN.MAX_SELLOS + '. Antes hay ' + (7 - PN.MAX_SELLOS) + ' más en este mundo.'));
-    assert.equal((t.match(/con sello/g) || []).length, PN.MAX_SELLOS);
+    for (let i = 0; i < 9; i++) cs.push(cred('C' + i, 10000, '2026-0' + (9 - i) + '-15', '2026-0' + (9 - i) + '-15'));
+    const h = PN.vista({ nombre: 'Varios', garantia: 290000, creditos: cs }), t = plano(h);
+    assert.ok(t.includes('9 pagos, 9 en la fecha'), 'el conteo no es de TODOS los pagos del mundo: ' + t);
+    const antes = 9 - PN.MAX_FILAS_REC;
+    assert.ok(t.includes('Ver los ' + antes + ' de antes en Aluminio'), t);
+    /* todos están en la pantalla: los últimos a la vista y los demás dentro del pliegue */
+    assert.equal((h.match(/<li class="pn-rec-f/g) || []).length, 9);
+    const pliegue = h.slice(h.indexOf('<details class="pn-rec-mas">'), h.indexOf('</details>', h.indexOf('<details class="pn-rec-mas">')));
+    assert.equal((pliegue.match(/<li class="pn-rec-f/g) || []).length, antes);
+    /* y con uno solo de antes no dice «los 1» */
+    const siete = plano(PN.vista({ nombre: 'Varios', garantia: 290000, creditos: cs.slice(0, PN.MAX_FILAS_REC + 1) }));
+    assert.ok(siete.includes('Ver el pago de antes en Aluminio'), siete);
   });
 
   test('pagos de dos años: la fecha lleva el año cuando no es el del último', () => {
     const t = plano(PN.vista({ nombre: 'Años', garantia: 250000, creditos: [
       cred('B', 20000, '2027-01-15', '2027-01-15'), cred('A', 20000, '2026-12-15', '2026-12-15')] }));
-    assert.ok(t.includes('15 dic 2026 con sello 15 ene con sello'), t);
+    assert.ok(t.includes('Pago 2 15 ene · en la fecha'), t);
+    assert.ok(t.includes('Pago 1 15 dic 2026 · en la fecha'), t);
   });
 
   test('sin datos no revienta', () => {
@@ -559,7 +586,10 @@ async function app(paquete, opciones) {
   assert.ok(A.visible('pCuenta'), 'la app no abrió la cuenta: la prueba no estaría mirando nada');
   return A;
 }
-const cuerpo = A => A.elem('cuerpo').innerHTML;
+/* 23-nov-2026 — sin las pestañitas de dentro de «Pista» (Pista · Mi garantía ·
+   Historial), que van arriba de las tres pantallas: lo que se mira aquí es la
+   pantalla. Las pestañitas tienen sus pruebas en pista-unica.test.js. */
+const cuerpo = A => String(A.elem('cuerpo').innerHTML).replace(/<div class="subtabs"[\s\S]*?<\/div>/, '');
 
 describe('11 · la pestaña en la app: lo mismo que dicen las otras pantallas', () => {
 
@@ -572,10 +602,12 @@ describe('11 · la pestaña en la app: lo mismo que dicen las otras pantallas', 
     assert.ok(r.some(x => !x.en_fecha) && r.some(x => x.en_fecha));
   });
 
-  test('«Pista» está en la barra, entre Mi garantía e Historial, y encendida', async () => {
-    assert.match(SOCIO, /<button data-t="garantia">Mi garantía<\/button>\s*(<!--[\s\S]*?-->\s*)?<button data-t="pista" id="navPista" class="oculto">Pista<\/button>\s*<button data-t="historial">Historial<\/button>/);
+  /* 23-nov-2026 — estaba «entre Mi garantía e Historial»; ahora es la única de
+     las tres en la barra (las otras dos viven adentro) y no nace oculta. */
+  test('«Pista» está en la barra, entre Calculadora y Chat, y a la vista', async () => {
+    assert.match(SOCIO, /<button data-t="calc">Calculadora<\/button>\s*(<!--[\s\S]*?-->\s*)?<button data-t="pista" id="navPista">Pista<\/button>/);
     const A = await app(paqueteDe(historia()));
-    assert.equal(A.elem('navPista').classList.contains('oculto'), false, 'el archivo llegó y la pestaña sigue escondida');
+    assert.equal(A.elem('navPista').classList.contains('oculto'), false, 'la pestaña sigue escondida');
   });
 
   test('pinta el mundo del nivel que la página ya calculó, con la garantía del encabezado', async () => {
@@ -617,7 +649,7 @@ describe('11 · la pestaña en la app: lo mismo que dicen las otras pantallas', 
     const enFecha = aqui.filter(c => c.fecha_pagado <= c.corte).length;
     A.ev("irA('pista')");
     const t = plano(cuerpo(A));
-    assert.ok(t.includes('Tus pagos en ' + M.nombreNivel(nivel) + ' ' + enFecha + ' de ' + aqui.length + ' en fecha'), t);
+    assert.ok(t.includes(M.nombreNivel(nivel) + ' aquí estás · ' + aqui.length + ' pago' + (aqui.length !== 1 ? 's' : '') + ', ' + enFecha + ' en la fecha'), t);
     /* y el Historial llama «Pagado en fecha» a esos mismos */
     A.ev("irA('historial')");
     const hist = plano(cuerpo(A));
@@ -629,7 +661,12 @@ describe('11 · la pestaña en la app: lo mismo que dicen las otras pantallas', 
     paquete.creditos[0].cerrado_con_perdida = true;   // el más nuevo, el único que cae en Aluminio
     const A = await app(paquete);
     A.ev("irA('pista')");
-    assert.ok(plano(cuerpo(A)).includes('Todavía no hay ninguno.'), 'el cerrado con pérdida salió como una piedra');
+    /* 23-nov-2026 — el recorrido trae todos los mundos: en el de hoy no hay
+       ninguno (no sale su bloque «aquí estás»), y los seis de Hierro siguen. */
+    const t = plano(cuerpo(A));
+    assert.equal(/aquí estás · \d+ pago/.test(t), false, 'el cerrado con pérdida salió como un pago del mundo de hoy');
+    assert.ok(t.includes('Hierro ya lo pasaste · 6 pagos'), t);
+    assert.equal((cuerpo(A).match(/<li class="pn-rec-f/g) || []).length, 6);
   });
 });
 
@@ -695,19 +732,25 @@ describe('12 · la hoja de un mundo, abierta y cerrada', () => {
 
 describe('13 · es adorno: si no llega, la app sigue igual', () => {
 
-  test('sin su archivo la pestaña no se ofrece, y la cuenta abre', async () => {
+  /* 23-nov-2026 — sin su archivo la pestaña «no se ofrecía». Ya no puede
+     esconderse: es la única puerta a Mi garantía y al Historial. Se ofrece, y
+     abre en Mi garantía, sin la pestañita «Pista» adentro. */
+  test('sin su archivo la cuenta abre, y la pestaña sigue ahí', async () => {
     const A = await app(paqueteDe(historia()), { sin: ['pista-niveles.js'] });
-    assert.equal(A.elem('navPista').classList.contains('oculto'), true, 'la pestaña se ofrece sin tener con qué pintarse');
+    assert.equal(A.elem('navPista').classList.contains('oculto'), false, 'sin la pestaña no hay cómo llegar a Mi garantía ni al Historial');
     assert.ok(plano(cuerpo(A)).length > 200, 'Inicio quedó vacío');
     assert.deepEqual(A.avisos, []);
   });
 
-  test('y si algo la llama igual, cae en Inicio entero y no en una pantalla en blanco', async () => {
+  test('y al tocarla abre Mi garantía entera, no una pantalla en blanco', async () => {
     const A = await app(paqueteDe(historia()), { sin: ['pista-niveles.js'] });
-    const inicio = plano(cuerpo(A));
     A.ev("irA('pista')");
-    assert.equal(A.ev('TAB'), 'inicio');
-    assert.equal(plano(cuerpo(A)), inicio);
+    assert.equal(A.ev('TAB'), 'garantia');
+    assert.ok(plano(cuerpo(A)).startsWith('Tu garantía'), plano(cuerpo(A)).slice(0, 80));
+    const chips = plano((/<div class="subtabs"[\s\S]*?<\/div>/.exec(A.elem('cuerpo').innerHTML) || [''])[0]);
+    assert.equal(chips, 'Mi garantía Historial', 'ofrece la pestañita de una pista que no puede pintar');
+    A.ev("irA('historial')");
+    assert.ok(plano(cuerpo(A)).startsWith('Lo que llevas construido'));
   });
 
   /* 16-nov-2026 — salió sin versión (era nuevo) y firmaba su llegada «para el
@@ -742,11 +785,13 @@ describe('13 · es adorno: si no llega, la app sigue igual', () => {
       'la pista entró a PANTALLAS_SEGURAS: una recarga con la hoja de un mundo abierta se la lleva de debajo del dedo. Si es a propósito, cambia esta prueba y dilo en la nota de SE ACTUALIZA SOLA.');
   });
 
-  test('seis pestañas caben: cada una mide su palabra y ninguna se parte', () => {
-    assert.match(CSS, /@media \(max-width:479px\)\{\s*#nav button\{flex:1 1 auto;white-space:nowrap;/);
-    assert.match(CSS, /@media \(max-width:399px\)\{\s*#nav button\{font-size:10\.5px/);
+  /* 23-nov-2026 — eran seis, con dos reglas en esta hoja para que cupieran.
+     Son cuatro y caben repartidas en partes iguales, con la regla de la
+     página: esas dos reglas se fueron, y esta hoja ya no toca la barra. */
+  test('la barra tiene cuatro pestañas, y esta hoja ya no la toca', () => {
+    assert.equal(/#nav/.test(CSS.replace(/\/\*[\s\S]*?\*\//g, '')), false, 'la hoja de la pista volvió a tener reglas para la barra');
     const barra = SOCIO.slice(SOCIO.indexOf('<nav class="nav" id="nav">'), SOCIO.indexOf('</nav>')).replace(/<!--[\s\S]*?-->/g, '');
-    assert.deepEqual([...barra.matchAll(/data-t="([a-z]+)"/g)].map(m => m[1]), ['inicio', 'calc', 'garantia', 'pista', 'historial', 'chat']);
+    assert.deepEqual([...barra.matchAll(/data-t="([a-z]+)"/g)].map(m => m[1]), ['inicio', 'calc', 'pista', 'chat']);
   });
 });
 
