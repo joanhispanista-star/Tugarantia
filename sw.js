@@ -2891,7 +2891,25 @@
    lleva el ?v= nuevo y se sale con el número siguiente. PARA DESHACER LA PISTA COMPLETA Y
    LAS MISIONES: se revierte la mezcla (git revert -m 1), y CACHE, VERSION_SITIO y el ?v= de
    pista-niveles.js suben al número siguiente. */
-const CACHE = 'tugarantia-v155';
+/* 23-nov-2026, v156 — SALE DESPUÉS DE v155 (main = d74a250). Rama v156-dos-creditos.
+   DOS CRÉDITOS ABIERTOS, A Y B, Y LA BIENVENIDA QUE DICE TODAS LAS CUOTAS.
+   · La app (app/socio.html). Joan, mirando la app de una clienta desde el CRM: «ella tiene dos
+     creditos activos pero desde la app de cliente al inicio le aparece solo para pagar un
+     credito, separacelo por credito A Y B». Inicio pintaba el PRIMER crédito sin pagar del
+     paquete, y el paquete viaja del más nuevo al más viejo: salía el último que pidió y el otro,
+     el que vence primero, no aparecía. Ahora, con dos o más abiertos, hay un renglón por crédito
+     arriba (con la suma) y una tarjeta por crédito abajo, cada una con su letra y «el que
+     recibiste el…»; la A es el que recibió primero. Cada cifra es la misma que diría la app con
+     ese crédito solo: no hay ninguna cuenta de plata nueva. Con un solo crédito, todo igual.
+   · El CRM (panel/crm.html). La bienvenida de un crédito a cuotas decía solo la primera cuota.
+     Hay una plantilla nueva, «Bienvenida · crédito a cuotas», con un renglón por cuota (valor y
+     fecha, leídos del plan guardado: los mismos de «Tus cuotas» en la app). La escoge sola.
+   Cambian app/socio.html, panel/crm.html y tres pruebas (dos nuevas). Los dos .html van a la
+   red primero y están en ARCHIVOS: por eso sube el CACHE.
+   CACHE y VERSION_SITIO suben a v156; VERSION_APP, al 23-nov. NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO, que el revert deja en v155, suben
+   a la siguiente libre. El número nunca baja. */
+const CACHE = 'tugarantia-v156';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

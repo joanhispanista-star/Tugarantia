@@ -714,15 +714,23 @@ describe('13 · es adorno: si no llega, la app sigue igual', () => {
      día que cambie». Cambió con las misiones: ahora va con ?v=<CACHE>, como
      todo .js publicado que cambia (la regla y su número los vigila
      la-pagina-nueva-no-corre-con-un-js-viejo.test.js; aquí, solo la forma). */
+  /* 23-nov-2026 — el número es el de la versión en que el archivo CAMBIÓ por
+     última vez (155), no el del CACHE de hoy. v156 no toca pista-niveles.js, y
+     esta prueba, que lo amarraba al CACHE, obligaba a pedirlo con una dirección
+     nueva sin que hubiera cambiado. Se lee de la página: no puede pasar del
+     CACHE, y sw.js tiene que precargar esa misma dirección (la prueba de abajo). */
+  const NUMERO_PISTA = (/<script src="pista-niveles\.js\?v=(\d+)"><\/script>/.exec(SOCIO) || [])[1];
   test('se pide con versión en la dirección y firma su llegada', () => {
     const NUMERO = (/const CACHE = 'tugarantia-v(\d+)';/.exec(SW) || [])[1];
-    assert.match(SOCIO, new RegExp('<script src="pista-niveles\\.js\\?v=' + NUMERO + '"></script>'));
+    assert.ok(NUMERO_PISTA, 'pista-niveles.js se pide sin ?v=');
+    assert.ok(Number(NUMERO_PISTA) >= 155 && Number(NUMERO_PISTA) <= Number(NUMERO),
+      'pista-niveles.js?v=' + NUMERO_PISTA + ' con el CACHE en v' + NUMERO);
     assert.match(SOCIO, /<link rel="stylesheet" href="pista-niveles\.css">/);
     assert.ok(JS.includes('(window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1;'));
   });
 
   test('sw.js precarga el guion y la hoja con la misma dirección que pide la página', () => {
-    const NUMERO = (/const CACHE = 'tugarantia-v(\d+)';/.exec(SW) || [])[1];
+    const NUMERO = NUMERO_PISTA;
     const i = SW.indexOf('const ARCHIVOS = ['), lista = SW.slice(i, SW.indexOf('].map(f => BASE + f)', i));
     assert.match(lista, new RegExp("\\n  'app/pista-niveles\\.js\\?v=" + NUMERO + "',\\n  'app/pista-niveles\\.css',\\n"));
   });

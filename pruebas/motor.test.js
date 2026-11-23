@@ -5472,8 +5472,14 @@ describe('las plantillas hablan con una sola voz (4-ago-2026)', () => {
        reemplaza al recibo de «gracias por tu cumplimiento» cuando no hubo
        pago. Leída contra esta batería: plural («confirmamos», «nos debes»,
        «nos cuentas»), sin «obligación», sin singular, sin la marca y sin
-       ninguna dirección pegada. */
-    assert.equal(mensajes().length, 17, 'cambió el número de plantillas: revisá la voz');
+       ninguna dirección pegada.
+       23-nov-2026 — DIECIOCHO: la bienvenida de un crédito a cuotas
+       (bienvenidaCuotas: «Ya te quedó entregado tu crédito de {monto}. Lo pagas
+       en {n_cuotas} cuotas: … Aquí estamos para acompañarte»), que dice todas
+       las cuotas y no solo la primera. Leída contra esta batería: plural
+       («estamos»), sin «obligación», sin singular, sin la marca y sin ninguna
+       dirección pegada. El título de la prueba se quedó en «diecisiete». */
+    assert.equal(mensajes().length, 18, 'cambió el número de plantillas: revisá la voz');
     // En ninguna plantilla recomendada, y en ningún texto que le llegue al
     // socio. La palabra solo puede quedar viva en la regla que la borra.
     mensajes().forEach(m => assert.ok(!/obligaci[oó]n/i.test(m),

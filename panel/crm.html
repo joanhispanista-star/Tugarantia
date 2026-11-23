@@ -1591,6 +1591,18 @@ const PLANTILLAS_DEF={
      marca ya va en el remitente del WhatsApp: no hace falta repetirla, y menos
      donde se confunde con lo que el socio construyó. */
   bienvenida:{t:'Bienvenida · crédito nuevo',x:'Al desembolsar, para agradecer la confianza',m:'¡Hola {nombre}! De corazón, gracias por la confianza 🙂 Ya te quedó entregado tu crédito de {monto}. Con calma te recordamos que tu primera cuota de {saldo} es el {fecha_pago}. Aquí estamos para acompañarte en lo que necesites.'},
+  /* 23-nov-2026 — LA BIENVENIDA DE UN CRÉDITO A CUOTAS DICE TODAS LAS CUOTAS.
+     Joan: «al momento de hacer un credito de varias cuotas y registrarlo el
+     mensaje que se envia por whatsapp debe de mostrar no solo el pago de la
+     primera cuota si no todas las cuotas». La de arriba dice «tu primera cuota
+     de {saldo} es el {fecha_pago}» y ahí se queda: la clienta de 650.000 en dos
+     cuotas recibía el aviso de los 455.000 y de los 390.000 del 15-nov no le
+     quedaba nada escrito en el celular. Esta lleva {cuotas}: un renglón por
+     cuota, con su valor y su fecha, leídos del plan GUARDADO (varsDePlantilla),
+     que son los mismos que la app le pinta en «Tus cuotas». Va en pesos, sin
+     porcentajes. La escoge sola plantillaDeBienvenida: Joan no tiene que
+     acordarse de cambiarla en el desplegable. */
+  bienvenidaCuotas:{t:'Bienvenida · crédito a cuotas',x:'Al desembolsar un crédito a cuotas: dice todas las cuotas, con su valor y su fecha',m:'¡Hola {nombre}! De corazón, gracias por la confianza 🙂 Ya te quedó entregado tu crédito de {monto}. Lo pagas en {n_cuotas} cuotas:\n{cuotas}\nAquí estamos para acompañarte en lo que necesites.'},
   recordatorio2:{t:'Recordatorio · 2 días antes',x:'Aviso amable antes del vencimiento',m:'Hola {nombre}, ¿cómo va todo? Te escribimos 🙂 Solo para recordarte con tiempo que tu pago de {saldo} es el {fecha_pago}. Cualquier cosa nos cuentas y lo organizamos.'},
   recordatorio1:{t:'Recordatorio · 1 día antes',x:'El día previo',m:'Hola {nombre}, esperamos que estés muy bien. Mañana {fecha_pago} es tu pago de {saldo}. Si necesitas algo, nos avisas y lo cuadramos juntos con gusto.'},
   venceHoy:{t:'Vence hoy',x:'El día del pago',m:'Hola {nombre}, ¿cómo estás hoy? Te recordamos que hoy es tu pago de {saldo}. Si no alcanzas a cubrir todo, no te preocupes: puedes dejar la prórroga de {prorroga} y seguimos en la otra quincena. Quedamos pendientes para lo que necesites.'},
@@ -2686,6 +2698,10 @@ function aplicarVars(txt,p,s,enlace,extra){ const e=extra||{}; s=s||{};
      hace el celular, y gestionar lo avisa (avisoDeLlaves). Vacío, el recibo
      salía «recibimos tu abono de  🙂» y nadie lo veía antes de mandarlo. */
   .replaceAll('{abono}',e.abono!=null?e.abono:'{abono}')
+  /* 23-nov-2026 — {cuotas} y {n_cuotas}: solo los contesta la bienvenida a
+     cuotas (varsDePlantilla). Sin plan que listar se quedan con sus llaves,
+     como {abono}, y gestionar lo avisa antes de abrir WhatsApp. */
+  .replaceAll('{cuotas}',e.cuotas!=null?e.cuotas:'{cuotas}').replaceAll('{n_cuotas}',e.n_cuotas!=null?e.n_cuotas:'{n_cuotas}')
   /* El corte también sale del puente: `p.cicloActual` es el resumen de hoy y en
      un crédito con plan de pagos es la fecha de la CUOTA que sigue. */
   .replaceAll('{fecha_pago}',e.fecha_pago||(p?fmtFecha(PUENTE.corteDelCredito(p)):''))
@@ -6369,6 +6385,9 @@ function exportarICS(){
    Así que cada plantilla ofrece los suyos, y lo que quede suelto se avisa. */
 const TOKENS_QUINCENAL=['nombre','negocio','monto','saldo','prorroga','fecha_pago','dias_mora'];
 const TOKENS_POR_PLANTILLA={
+  /* 23-nov-2026: la bienvenida a cuotas no habla de {saldo} ni de {fecha_pago}
+     (son los de UNA cuota): lleva la lista entera. */
+  bienvenidaCuotas:['nombre','negocio','monto','n_cuotas','cuotas'],
   bienvenida:TOKENS_QUINCENAL, recordatorio2:TOKENS_QUINCENAL, recordatorio1:TOKENS_QUINCENAL,
   venceHoy:TOKENS_QUINCENAL, moraTemprana:TOKENS_QUINCENAL, mora:TOKENS_QUINCENAL,
   recibo:TOKENS_QUINCENAL.concat(['nivel']), prorroga:TOKENS_QUINCENAL,
@@ -6500,8 +6519,26 @@ function guardarPlantillas(){ document.querySelectorAll('#pltWrap textarea').for
    recalcularlo: por eso sigue diciendo la verdad aunque Joan reabra la gestión
    mañana o cambie de plantilla en el desplegable. */
 function ultimaProrroga(p){ const l=(p&&p.prorrogas)||[]; return l.length?l[l.length-1]:null; }
+/* 23-nov-2026 — ¿ES UN CRÉDITO PACTADO A VARIAS CUOTAS? El de alta con dos o
+   más. El «próximo pago acordado» es por dentro un plan de una cuota y no es
+   un crédito nuevo: se queda con los mensajes de siempre. */
+function esAVariasCuotas(p){
+  return !!p&&PUENTE.tienePlan(p)&&PUENTE.esPlanDeAlta(p)&&!PUENTE.esPacto(p)&&PUENTE.cuotasPlan(p).length>=2;
+}
+/* La bienvenida que le toca a ESTE crédito. La usan gestionar y el
+   desplegable (recalcGestion): pedir «bienvenida» para un crédito a cuotas da
+   la de cuotas, la escoja el momento del registro o Joan a mano. */
+function plantillaDeBienvenida(p,k){ return (k==='bienvenida'&&esAVariasCuotas(p))?'bienvenidaCuotas':k; }
+/* Un renglón por cuota: «• Cuota 1: $455.000 el 30 oct 2026». El valor es el
+   PACTADO de cada cuota (su `total` guardado) y la fecha, la suya: lo mismo
+   que viaja al paquete y que la app pinta en «Tus cuotas». */
+function listaDeCuotas(p){
+  return PUENTE.cuotasPlan(p).map(c=>'• Cuota '+c.n+': '+COP(Number(c.total)||0)+' el '+fmtFecha(String(c.fecha||'').slice(0,10))).join('\n');
+}
 function varsDePlantilla(p,k){
   if(!p) return {};
+  if(k==='bienvenidaCuotas') return esAVariasCuotas(p)
+    ? {cuotas:listaDeCuotas(p),n_cuotas:String(PUENTE.cuotasPlan(p).length)} : {};
   /* El mensaje del acuerdo habla del PACTO: su monto congelado y su fecha, no
      los del ciclo. Salen de p.acuerdo, que a su vez salió del motor al pactar. */
   if(k==='acuerdoPactado') return p.acuerdo
@@ -6540,6 +6577,8 @@ function gestionar(prestId,plantKey){
      resuelve el texto de ESA. Es la misma pareja aplicarVars + varsDePlantilla
      que usa mensajeParaCredito, y una prueba la vigila escrita acá: fue en esta
      línea donde el WhatsApp de la prórroga dijo 120.000 de 330.000. */
+  /* 23-nov-2026 — a un crédito a cuotas, la bienvenida que dice todas. */
+  plantKey=plantillaDeBienvenida(p,plantKey);
   let txt=aplicarVars(DB.plantillas[plantKey]||PLANTILLAS_DEF[plantKey].m,p,s,'',varsDePlantilla(p,plantKey));
   const ops=Object.keys(PLANTILLAS_DEF).map(k=>`<option value="${k}" ${k===plantKey?'selected':''}>${PLANTILLAS_DEF[k].t}</option>`).join('');
   let av=''; if(!r.ok)av+=`<div class="alerta warn">⚠️ <b>Fuera de horario (Ley 2300):</b> ${r.motivo}.</div>`; if(yaHoy)av+=`<div class="alerta warn">⚠️ Ya contactaste a este cliente hoy (máx 1/día).</div>`;
@@ -6560,8 +6599,10 @@ function avisoDeLlaves(txt){
   const ll=String(txt||'').match(/\{abono\}/g);
   return ll?'<div class="alerta warn">⚠️ Este mensaje dice <b>{abono}</b> y este crédito no tiene un abono + prórroga registrado ese día: no hay cifra que poner. Escoge otra plantilla o escribe el monto a mano.</div>':'';
 }
-function recalcGestion(prestId){ const p=DB.prestamos.find(x=>x.id===prestId),s=DB.socios.find(x=>x.id===p.socioId),k=document.getElementById('gPlant').value,txt=aplicarVars(DB.plantillas[k]||PLANTILLAS_DEF[k].m,p,s,'',varsDePlantilla(p,k));
+function recalcGestion(prestId){ const p=DB.prestamos.find(x=>x.id===prestId),s=DB.socios.find(x=>x.id===p.socioId),k=plantillaDeBienvenida(p,document.getElementById('gPlant').value),txt=aplicarVars(DB.plantillas[k]||PLANTILLAS_DEF[k].m,p,s,'',varsDePlantilla(p,k));
   const gl=document.getElementById('gLlaves'); if(gl) gl.innerHTML=avisoDeLlaves(txt);
+  /* 23-nov-2026 — si cambió a la de cuotas, el desplegable lo dice. */
+  if(document.getElementById('gPlant').value!==k) document.getElementById('gPlant').value=k;
   document.getElementById('gTexto').value=txt;document.getElementById('gPrev').textContent=txt;document.getElementById('gWa').href=waLink(waNum(s),txt);document.getElementById('gWa').setAttribute('onclick',`marcarGestion('${prestId}','${k}')`); }
 function marcarGestion(prestId,k){ const p=DB.prestamos.find(x=>x.id===prestId),s=DB.socios.find(x=>x.id===p.socioId); s.gestiones=s.gestiones||[]; s.gestiones.push({fecha:hoyISO(),canal:'whatsapp',plantilla:k}); guardar(); setTimeout(render,300); }
 
@@ -27237,7 +27278,7 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
    cuando alguien sospechaba.
    VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
    él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v155';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v156';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }

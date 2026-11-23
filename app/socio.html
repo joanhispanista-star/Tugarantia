@@ -1051,14 +1051,17 @@ details.plegado>summary{padding:0 var(--e4)}
    «sube lo de navidad desde ya»), y sale la Pista completa de arriba. La fecha es la
    misma de v154, así que aquí distingue el número del sello: si un cliente dice que en
    noviembre no ve la guirnalda, o que no ve el último mundo destapado, el pie dice si
-   tiene v155. */
-var VERSION_APP = '2026-11-20';
+   tiene v155.
+   23-nov-2026 (v156): con dos o más créditos abiertos, Inicio los muestra por separado
+   (crédito A, crédito B…) y suma lo de todos. Si una clienta dice que solo le sale uno de
+   sus créditos, esta fecha dice si tiene la versión que los separa. */
+var VERSION_APP = '2026-11-23';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
    tiene lo último (las fechas son tres y van a mano). Sube con CACHE, siempre:
    pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v155';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v156';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -2283,6 +2286,39 @@ function copiarEnlaceInstalar() {
   listo(false);
 }
 
+/* ==================== VARIOS CRÉDITOS ABIERTOS: A, B, C… ====================
+   23-nov-2026. Los créditos sin pagar, del que recibió primero al último. El
+   orden lo da el día del desembolso y, si dos son del mismo día, el número del
+   crédito: así la letra de cada uno no cambia de una visita a otra mientras
+   los dos sigan abiertos. Cuando el A se paga, el que era B pasa a ser el
+   único (sin letra) o el A: la letra nombra los que hay HOY, y por eso cada
+   tarjeta dice además cuánto fue y qué día lo recibió. */
+function creditosAbiertos(creditos) {
+  return (creditos || []).filter(function (c) { return c && !c.pagado; })
+    .map(function (c, i) { return { c: c, i: i }; })
+    .sort(function (a, b) {
+      var fa = String(a.c.desembolso || ''), fb = String(b.c.desembolso || '');
+      if (fa !== fb) return fa < fb ? -1 : 1;
+      var ka = String(a.c.codigo || ''), kb = String(b.c.codigo || '');
+      if (ka !== kb) return ka < kb ? -1 : 1;
+      /* Sin fecha ni número que los separe, el paquete manda: viaja del más
+         nuevo al más viejo, así que el de más atrás va primero. */
+      return b.i - a.i;
+    })
+    .map(function (x) { return x.c; });
+}
+var LETRAS_CREDITO = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+function letraDeCredito(i) { return LETRAS_CREDITO.charAt(i) || String(i + 1); }
+/* «el que recibiste el 3 nov»: lo que distingue un crédito de otro para quien
+   no se acuerda de cuál es el A. Solo el día: de un crédito abierto el paquete
+   trae el capital del ciclo (en un plan, el de la cuota), no lo que se prestó,
+   y decir esa cifra como «tu crédito de…» sería inventar. Sin fecha no dice
+   nada, y queda la letra. */
+function cualCredito(c) {
+  var f = /^\d{4}-\d{2}-\d{2}/.test(String((c && c.desembolso) || '')) ? String(c.desembolso).slice(0, 10) : '';
+  return f ? 'el que recibiste el ' + fmtFecha(f) : '';
+}
+
 /* ==================== PREPARAR AL SOCIO ==================== */
 /* S.codigo es el CL-0001 del cliente: su número de orden, para nombrarlo en
    un WhatsApp o en un recibo. No abre nada. (Hasta el 7-oct-2026 había al
@@ -2350,6 +2386,15 @@ function abrir(resp) {
     respaldados: respaldados,
     respaldadoActivo: abiertos[0] || null,
     activo: creditos.filter(function (c) { return !c.pagado; })[0] || null,
+    /* 23-nov-2026 — TODOS LOS CRÉDITOS ABIERTOS, no solo uno. `activo` es el
+       primero del paquete, y el paquete viaja del más nuevo al más viejo: a la
+       cliente con dos créditos abiertos Inicio le mostraba solo el último que
+       pidió y le callaba el otro, que es justo el que vence primero. Joan lo
+       vio el 23-nov mirando la app de una cliente desde el CRM: «le aparece
+       solo para pagar un credito, separacelo por credito A Y B». Aquí van
+       todos, del más viejo al más nuevo: el A es el que recibió primero.
+       `activo` se queda como estaba para quien tiene uno solo. */
+    activos: creditosAbiertos(creditos),
     /* 31-oct-2026 — el que Joan cerró sin que devolviera el capital
        (`cerrado_con_perdida`, del puente) está cerrado pero no pagado: no da
        «5 créditos pagados» ni «Primer pago en fecha». */
@@ -2461,6 +2506,61 @@ function proximoCorte() {
   return M.calcularFechaCorte(hoy);
 }
 
+/* ============ INICIO CON VARIOS CRÉDITOS ABIERTOS (23-nov-2026) ============
+   La tarjeta de arriba de Inicio sumaba UN crédito: el primero del paquete,
+   que es el último que pidió. A la cliente con dos abiertos le decía «Este
+   corte tienes que pagar» con la cifra de uno solo, y el otro —el más viejo, el
+   que vence primero— no salía en ninguna parte de Inicio. Aquí va un renglón
+   por crédito, con su letra, qué es y su fecha, y la cifra grande es la suma de
+   esos renglones: lo que ella ve sumado es lo que puede sumar con el dedo.
+   · No dice «este corte»: dos créditos pueden vencer en días distintos (un
+     crédito a cuotas lleva las fechas que puso Joan), y cada renglón dice el
+     suyo.
+   · Cada cifra es la MISMA que usa la tarjeta de un solo crédito: la de su
+     fecha si la última cuota todavía no empieza (cuotaEnSuFecha) y, si no, la
+     liquidación del puente, que ya trae el recargo. Aquí no se hace ninguna
+     cuenta de plata nueva: solo se suman cifras que el puente ya dijo.
+   · La cuota del préstamo con garantía entra con la regla de siempre: solo si
+     vence antes del corte que viene. */
+function tarjetaVariosCreditos(cuota, mismoCorte) {
+  var total = 0, filas = '', notas = '', acuerdos = '';
+  S.activos.forEach(function (c, i) {
+    var letra = letraDeCredito(i);
+    var ciclo = cicloDelCredito(c);
+    var q = liquidacion(c);
+    var atrasado = enMoraElCiclo(q);
+    var enSuFecha = cuotaEnSuFecha(c);
+    var monto = enSuFecha != null ? enSuFecha : (q ? q.total_a_pagar : 0);
+    total += monto;
+    var que = ciclo.pacto ? 'pago acordado'
+      : ciclo.en_plan ? 'cuota ' + ciclo.numero + ' de ' + ciclo.cuotas : 'quincenal';
+    var cuando = atrasado
+      ? 'vencía el ' + fmtFecha(c.corte) + (Number(q.recargo_mora) > 0 ? ', con el recargo' : '')
+      : 'el ' + fmtFecha(c.corte);
+    filas += fila('Crédito ' + letra + ' · ' + que + ', ' + cuando, COP(monto));
+    notas += otrasCuotasVencidas(ciclo, letra);
+    if (c.acuerdo && c.acuerdo.fecha) {
+      acuerdos += '<div class="aviso info"><b>🤝 Tienes un acuerdo en el crédito ' + esc(letra) +
+        '.</b> Quedamos en que pagas tu prórroga de <b>' + esc(COP(c.acuerdo.monto)) + '</b> el <b>' +
+        esc(fmtFecha(c.acuerdo.fecha)) + '</b>. Pagando ese día, ese valor te lo respetamos y tu pago pasa ' +
+        'tranquilo a la siguiente quincena.</div>';
+    }
+  });
+  var deCuota = mismoCorte ? Number(cuota.total || 0) : 0;
+  if (deCuota) filas += fila('Cuota ' + cuota.n + ' del préstamo con garantía, el ' + fmtFecha(cuota.fecha), COP(deCuota));
+  total += deCuota;
+  return '<div class="card laca">' +
+    '<div class="etq">Entre tus ' + S.activos.length + ' créditos tienes que pagar</div>' +
+    '<div class="cifra">' + COP(total) + '</div>' +
+    filas + notas +
+    '<div class="muted" style="font-size:13px;margin-top:var(--e2)">Abajo está cada crédito por separado, con su cuenta.</div>' +
+    '<div class="sep"></div>' +
+    '<div class="fila"><span class="k">Puedes pedir hasta</span>' +
+      '<span class="v oro">' + esc(COP(S.cupo)) + '</span></div>' +
+    '<button class="btn arriba" onclick="irA(\'calc\')">Calcular y pedir</button>' +
+    '</div>' + acuerdos;
+}
+
 function vistaInicio() {
   /* 8-oct-2026: el aviso de la responsable nueva va primero, una sola vez
      (avisoResponsable, junto a la autorización de datos). */
@@ -2507,7 +2607,12 @@ function vistaInicio() {
   var deCuota = mismoCorte ? Number(cuota.total || 0) : 0;
   var aPagar = deCredito + deCuota;
 
-  if (aPagar > 0) {
+  /* 23-nov-2026 — CON VARIOS CRÉDITOS ABIERTOS, cada uno con su renglón (ver
+     tarjetaVariosCreditos). Con uno solo, o ninguno, todo sigue como estaba. */
+  var varios = (S.activos || []).length > 1;
+  if (varios) {
+    h += tarjetaVariosCreditos(cuota, mismoCorte);
+  } else if (aPagar > 0) {
     /* La cifra que manda acá es una DEUDA, así que no va en amarillo: el
        amarillo es lo que el socio construyó. Sobre la laca la deuda va en la
        tinta de la placa, y el único amarillo de esta tarjeta es el cupo, que
@@ -2573,7 +2678,8 @@ function vistaInicio() {
       '</div>';
   }
 
-  h += S.activo ? tarjetaActivo(S.activo) :
+  h += varios ? S.activos.map(function (c, i) { return tarjetaActivo(c, i); }).join('') :
+       S.activo ? tarjetaActivo(S.activo) :
        '<div class="card"><div class="etq">Tu crédito</div>' +
        '<p style="margin:var(--e2) 0 0">No tienes ningún crédito abierto.</p>' +
        '<p class="sub">Tu cupo te está esperando para cuando lo necesites.</p></div>';
@@ -3263,7 +3369,12 @@ function diaDelPaquete() {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-function tarjetaActivo(c) {
+/* 23-nov-2026 — `idx` llega solo cuando hay VARIOS abiertos (vistaInicio): es
+   el puesto del crédito en S.activos, y con él la tarjeta lleva su letra, dice
+   cuál es («el que recibiste el 3 nov») y su recordatorio es el de ESE crédito.
+   Con uno solo no llega y la tarjeta es la de siempre, letra por letra. */
+function tarjetaActivo(c, idx) {
+  var letra = (idx != null && (S.activos || []).length > 1) ? letraDeCredito(idx) : '';
   var ciclo = cicloDelCredito(c);
   var q = liquidacion(c);            // capital, costo, recargo y total: del puente
   /* Los días del atraso son los MISMOS que causaron el recargo: salen de la
@@ -3289,13 +3400,22 @@ function tarjetaActivo(c) {
   var rotCosto = abonado ? 'Lo que falta del costo' : 'Costo';
   var filaAbonado = abonado ? fila('Ya abonaste a esta cuota', COP(abonado)) : '';
   var h = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center">' +
-    '<div class="etq">' + (ciclo.pacto ? 'Tu próximo pago, acordado con nosotros'
+    '<div class="etq">' + (letra
+        ? 'Crédito ' + letra + ' · ' + (ciclo.pacto ? 'pago acordado con nosotros'
+                         : ciclo.a_cuotas ? 'a cuotas · cuota ' + ciclo.numero + ' de ' + ciclo.cuotas
+                         : ciclo.en_plan ? 'plan de pagos · cuota ' + ciclo.numero + ' de ' + ciclo.cuotas
+                                         : 'quincenal')
+        : (ciclo.pacto ? 'Tu próximo pago, acordado con nosotros'
                          : ciclo.a_cuotas ? 'Tu crédito a cuotas · cuota ' + ciclo.numero + ' de ' + ciclo.cuotas
                          : ciclo.en_plan ? 'Tu plan de pagos · cuota ' + ciclo.numero + ' de ' + ciclo.cuotas
-                                         : 'Tu crédito de ahora') + '</div>' +
+                                         : 'Tu crédito de ahora')) + '</div>' +
     '<span class="pill ' + (enMora ? 'ambar' : '') + '">' +
     (enMora ? q.dias_mora + ' día' + (q.dias_mora !== 1 ? 's' : '') + ' de atraso' :
-     (faltan === 0 ? 'Vence hoy' : 'Faltan ' + Math.abs(faltan) + ' días')) + '</span></div>';
+     (faltan === 0 ? 'Vence hoy' : 'Faltan ' + Math.abs(faltan) + ' días')) + '</span></div>' +
+    /* Cuál es: con dos tarjetas iguales una debajo de la otra, la letra sola no
+       le dice a nadie cuál crédito es. */
+    (letra && cualCredito(c)
+      ? '<div class="muted" style="font-size:13px;margin-top:var(--e1)">Es ' + esc(cualCredito(c)) + '.</div>' : '');
 
   if (enMora) {
     /* Acá NO va cifra grande. La que manda en esta pantalla es la de arriba,
@@ -3405,8 +3525,10 @@ function tarjetaActivo(c) {
       'La entrada del plan ya la pagaste el día que lo pactamos.</div>';
   }
   if (c.prorrogas) h += fila('Prórrogas usadas', String(c.prorrogas));
-  h += '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="recordarme()">Que mi celular me lo recuerde</button>' +
-       '<div class="muted" id="recordarPie" style="font-size:12px;margin-top:var(--e2);text-align:center">' +
+  /* 23-nov-2026 — con varios abiertos, cada tarjeta recuerda SU crédito: el
+     botón lleva el puesto y el renglón de abajo, su propio id. */
+  h += '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="recordarme(' + (letra ? idx : '') + ')">Que mi celular me lo recuerde</button>' +
+       '<div class="muted" id="recordarPie' + (letra ? idx : '') + '" style="font-size:12px;margin-top:var(--e2);text-align:center">' +
        /* El corte ya pasado no admite un "dos días antes": el recordatorio que
           se arma es de hoy, y acá se dice lo mismo que va a hacer. */
        (enMora ? 'Te lo pone en el calendario de hoy, con el total de hoy.'
@@ -3558,7 +3680,9 @@ function bloqueACuotas(c, ciclo, q) {
 }
 /* Las cuotas vencidas DESPUÉS de la que está en curso (la en curso ya va en la
    cifra de Inicio), dichas por su número y su valor pactado. */
-function otrasCuotasVencidas(ciclo) {
+/* 23-nov-2026 — `letra` llega cuando hay varios créditos abiertos: sin ella,
+   «también venció la cuota 2» no dice de cuál de los dos. */
+function otrasCuotasVencidas(ciclo, letra) {
   if (!ciclo || !ciclo.a_cuotas) return '';
   var hoy = hoyISO();
   var otras = ciclo.plan.filter(function (x) {
@@ -3566,7 +3690,8 @@ function otrasCuotasVencidas(ciclo) {
     return x && !x.pagado && /^\d{4}-\d{2}-\d{2}$/.test(f) && f < hoy;
   }).slice(1);
   if (!otras.length) return '';
-  return '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">También ' +
+  return '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
+    (letra ? 'Del crédito ' + esc(letra) + ' también ' : 'También ') +
     (otras.length === 1 ? 'venció la cuota ' : 'vencieron las cuotas ') +
     otras.map(function (x) {
       return esc(String(x.n)) + ' (' + (Number(x.abonado) > 0 ? 'te faltan ' + esc(COP(x.falta)) : esc(COP(x.total))) + ')';
@@ -4279,15 +4404,17 @@ function armarICS(c) {
     'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'
   ]));
 }
-function recordarme() {
-  var c = S.activo;
+function recordarme(idx) {
+  /* 23-nov-2026 — `idx` llega de la tarjeta cuando hay varios abiertos. */
+  var varios = idx != null && S.activos && S.activos[idx];
+  var c = varios ? S.activos[idx] : S.activo;
   if (!c) return alert('No tienes ningún crédito abierto para recordar.');
   var a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([armarICS(c)], { type: 'text/calendar;charset=utf-8' }));
   a.download = 'pago-' + (c.codigo || 'credito') + '.ics';
   a.click();
   setTimeout(function () { URL.revokeObjectURL(a.href); }, 3000);
-  $('recordarPie').innerHTML = 'Listo. Ábrelo y toca “Agregar” para que quede en tu calendario. ' +
+  $('recordarPie' + (varios ? idx : '')).innerHTML = 'Listo. Ábrelo y toca “Agregar” para que quede en tu calendario. ' +
     'Te avisa <b>dos días antes</b> y otra vez el mismo día.';
 }
 
