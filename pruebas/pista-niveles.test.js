@@ -245,15 +245,17 @@ describe('5 · lo que dice la pestaña', () => {
 
   /* 23-nov-2026 — «Tus pagos en Aluminio» (los últimos cuatro del mundo de hoy)
      pasó a ser «Tu recorrido»: TODOS los pagos, cada uno en el mundo donde
-     cayó, con lo que sumó y en cuánto quedó. La cuenta de la prueba: 297.600
-     hoy; hacia atrás, 257.600, 225.600 (los tres de Aluminio), 195.200 y
-     169.600 (los dos de Hierro), y arrancó en 147.200. */
+     cayó, con lo que sumó. La cuenta de la prueba: 297.600 hoy; hacia atrás,
+     257.600, 225.600 (los tres de Aluminio), 195.200 y 169.600 (los dos de
+     Hierro). Esas cifras deciden el mundo de cada pago, pero NO se escriben:
+     son una reconstrucción, y al lado de un pago se leerían como un dato. */
   test('los pagos de ESTE mundo, con su fecha y su sello', () => {
     assert.ok(T.includes('Tu recorrido ▶ Verlo en la pista Cada pago, en el mundo donde lo hiciste, y lo que le sumó a tu garantía. ' +
       'Aluminio aquí estás · 3 pagos, 2 en la fecha ' +
-      'Pago 5 13 nov · en la fecha +' + COP(40000) + ' quedaste en ' + COP(297600) + ' ' +
-      'Pago 4 3 nov +' + COP(32000) + ' quedaste en ' + COP(257600) + ' ' +
-      'Pago 3 15 oct · en la fecha +' + COP(30400) + ' quedaste en ' + COP(225600)), T);
+      'Pago 5 13 nov · en la fecha +' + COP(40000) + ' a tu garantía ' +
+      'Pago 4 3 nov +' + COP(32000) + ' a tu garantía ' +
+      'Pago 3 15 oct · en la fecha +' + COP(30400) + ' a tu garantía'), T);
+    assert.equal(/quedaste en|Arrancaste en/.test(T), false, 'la pestaña escribe como dato una garantía reconstruida');
     /* en la pista: tres piedras (cada una con su sombra) y dos chulos */
     const isla = H.slice(H.indexOf('pn-isla'), H.indexOf('pn-frente'));
     assert.equal((isla.match(/<ellipse [^>]*fill="#F5C542" stroke="#0C0A0B"/g) || []).length, 2, 'no hay dos piedras con sello en la pista');

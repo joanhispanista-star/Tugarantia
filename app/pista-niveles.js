@@ -1764,9 +1764,15 @@
      pagados, con la garantía en que quedó la cuenta al pagar cada uno,
      reconstruida hacia atrás), agrupada por el mundo en que cayó cada pago:
      el de hoy abierto y arriba, los de antes plegados debajo.
-       · Cada pago dice su fecha, si fue en la fecha (la piedra con sello), lo
-         que le sumó a la garantía y en cuánto quedó. En PESOS: el cliente no ve
-         porcentajes.
+       · Cada pago dice su fecha, si fue en la fecha (la piedra con sello) y lo
+         que le sumó a la garantía. En PESOS: el cliente no ve porcentajes.
+       · NO DICE EN CUÁNTO QUEDÓ LA GARANTÍA DESPUÉS DE CADA PAGO. Esa cifra se
+         reconstruye hacia atrás desde la de hoy, y da por hecho que lo que no
+         vino de pagos (los datos, un invitado, un ajuste) estaba desde el
+         principio. Para poner una piedra en la pista alcanza; escrita con
+         pesos al lado de cada pago sería una cifra que pudo no ser. Lo que sí
+         se sabe exacto es lo que sumó cada pago y cuánto de lo de hoy salió de
+         pagar (`d.ganada`), y eso es lo que se dice.
        · La garantía se nombra como lo que es. Ni plata, ni ahorro, ni saldo:
          es lo que le deja pedir más, y lo construyó pagando.
        · No hay ninguna frase que invite a pedir: aquí solo se ve lo pagado.
@@ -1778,9 +1784,9 @@
     return '<li class="pn-rec-f' + (p.en_fecha ? ' pn-si' : '') + '">' +
       '<span class="pn-rec-p">' + piedraSvg(p.en_fecha) + '</span>' +
       '<span class="pn-rec-t"><b>Pago ' + n + '</b><i>' + esc(fechaCorta(p.fecha, anio) || '—') + (p.en_fecha ? ' · en la fecha' : '') + '</i></span>' +
-      '<span class="pn-rec-v"><b>+' + COP(p.dejo) + '</b><i>quedaste en ' + COP(p.quedo) + '</i></span></li>';
+      '<span class="pn-rec-v"><b>+' + COP(p.dejo) + '</b><i>a tu garantía</i></span></li>';
   }
-  function tarjetaRecorrido(e, rec) {
+  function tarjetaRecorrido(e, rec, d) {
     var cab = '<div class="card laca pn-rec" id="pnRecorrido"><div class="pn-rec-cab"><div class="etq">Tu recorrido</div>';
     if (!rec.length) {
       return cab + '</div><p class="pn-vacio">Todavía no hay ningún pago. Aquí va a quedar cada crédito que pagues, con lo que le sumó a tu garantía; con sello, si lo pagas en la fecha.</p></div>';
@@ -1808,9 +1814,12 @@
         ? '<div class="pn-rec-m ' + MUNDOS[fila.nivel].clase + '"><div class="pn-rec-s">' + titulo + '</div>' + lista + '</div>'
         : '<details class="pn-rec-m ' + MUNDOS[fila.nivel].clase + '"><summary class="pn-rec-s">' + titulo + '</summary>' + lista + '</details>';
     }
-    var g0 = Math.max(0, rec[0].quedo - rec[0].dejo);
-    return h + '<p class="pn-rec-pie">' + (g0 > 0 ? 'Arrancaste en ' + COP(g0) + '. ' : '') +
-      'Hoy vas en <b>' + COP(e.garantia) + '</b>: lo construiste pagando. Pagar en la fecha le pone sello a la piedra.</p></div>';
+    /* lo que de verdad salió de pagar: la garantía ganada, que la página
+       pasa exacta. Si no llega, se dice solo la de hoy. */
+    var ganada = Number(d && d.ganada);
+    return h + '<p class="pn-rec-pie">Hoy vas en <b>' + COP(e.garantia) + '</b> de garantía' +
+      (ganada > 0 ? ', y ' + COP(Math.min(ganada, e.garantia)) + ' los construiste pagando' : '') +
+      '. Pagar en la fecha le pone sello a la piedra.</p></div>';
   }
 
   /* ======================= EL REPASO: EL CARRITO RECORRE LA HISTORIA =======================
@@ -1905,7 +1914,7 @@
   }
   function rotuloLlegada(e) {
     return '<div class="pn-rp-p pn-rp-fin"><b>' + COP(e.garantia) + '</b><span>de garantía hoy</span>' +
-      '<i>La construiste pago a pago' + (e.sig ? ', y sigues hacia ' + esc(e.sig.nombre) : '') + '.</i></div>';
+      '<i>Lo lograste pago a pago' + (e.sig ? ', y sigues hacia ' + esc(e.sig.nombre) : '') + '.</i></div>';
   }
 
   var RP = null;   // el repaso en curso, o null
@@ -2163,7 +2172,7 @@
       (typeof M.tarjetaNavidad === 'function' ? M.tarjetaNavidad(mi) : '') : '';
     /* 23-nov-2026 — «Tu recorrido» va pegado al mundo: es el historial de esa
        misma pista, y lo que el carrito acaba de contar. */
-    return heroe(e, d, aqui, mi) + tarjetaRecorrido(e, rec) + (mi ? M.tarjetaQuincena(mi) : '') + temporada + tarjetaMueve(e, d) +
+    return heroe(e, d, aqui, mi) + tarjetaRecorrido(e, rec, d) + (mi ? M.tarjetaQuincena(mi) : '') + temporada + tarjetaMueve(e, d) +
       (mi ? M.tarjetaUnaVez(mi) + M.tarjetaRachas(mi) + M.tarjetaIslas(mi) : '') + tarjetaMundos(e, d);
   }
 

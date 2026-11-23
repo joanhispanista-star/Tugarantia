@@ -241,7 +241,7 @@ describe('2 · el repaso, corrido entero', () => {
         'Mundo 2 de 9 Aluminio +' + COP(30400) + ' a tu garantía Pago 3 de 5 · 15 oct · en la fecha',
         'Mundo 2 de 9 Aluminio +' + COP(32000) + ' a tu garantía Pago 4 de 5 · 3 nov',
         'Mundo 2 de 9 Aluminio +' + COP(40000) + ' a tu garantía Pago 5 de 5 · 13 nov · en la fecha',
-        COP(297600) + ' de garantía hoy La construiste pago a pago, y sigues hacia Bronce.',
+        COP(297600) + ' de garantía hoy Lo lograste pago a pago, y sigues hacia Bronce.',
         ''
       ]);
       assert.equal(PN.repasando(), false);
