@@ -2951,6 +2951,26 @@
    NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit (vuelven los .svg); CACHE y VERSION_SITIO suben al
    número siguiente. El número nunca baja. */
+/* v158 — 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (etapa U1 de
+   RECETA-PLAN-UN-SOLO-CRM.md). Joan: «quiero poder abrir el crm desde mi celular… tener toda
+   la informacion actualizada en mi telefono, no quiero subir nada a la nube de forma manual».
+   Lo que abría su iPhone era el Panel en el bolsillo, otra pantalla con su propia copia.
+   · panel/crm-remoto.js, NUEVO: en un celular sin cartera, la puerta de crm.html pide correo y
+     contraseña de la nube (no el PIN, que es de la gaveta de cada navegador). La cartera llega
+     con panel_traer, se arma en la MEMORIA de la página y se va al cerrar: la gaveta del CRM
+     (joan_socios_v1) nunca se crea en el celular. Vuelve a traer cada 5 minutos y al volver
+     a la página.
+   · Solo mira. Tres rejas: una acción cuyo nombre no está en la lista de mirar no corre;
+     guardar() se niega y la pantalla vuelve a lo de la nube; y nadie puede escribir la gaveta
+     por ningún camino. WhatsApp no se abre desde ahí (no quedaría anotado).
+   · No llegan prospectos, bases ni papeleras, ni el PIN del computador. Solicitudes, Chat,
+     Registrados, Ventas, Bases y Ajustes abren y dicen que por ahora se miran en el computador.
+   · En un computador no cambia nada: la decisión es por el tipo de aparato, nunca por el ancho.
+   Cambian panel/crm.html (ocho enganches) y entra panel/crm-remoto.js?v=158 a la precarga.
+   Pruebas nuevas: pruebas/crm-remoto.test.js. CACHE y VERSION_SITIO suben a v158.
+   NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
 const CACHE = 'tugarantia-v158';
 const BASE = new URL('./', self.location).pathname;
 
@@ -3017,6 +3037,8 @@ const ARCHIVOS = [
   'panel/nube.js?v=143',   // 4-nov-2026 — ?v=143: las fotos y el cupo, el abono con id, el PIN de este aparato (ver la nota de v143)
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
   'panel/nube-crm.js?v=143',   // 4-nov-2026 — ?v=143: una nota sobre la pestaña vieja; la regla mira el texto (ver la nota de v143)
+  /* 23-nov-2026 — el CRM en un celular, solo para mirar. Ver la nota de v158. */
+  'panel/crm-remoto.js?v=158',
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
   'panel/historiales-auto.js?v=147',
   /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132.

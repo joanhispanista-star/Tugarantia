@@ -1309,6 +1309,10 @@
      Va ANTES de puente.js porque guardar() lo necesita y guardar() se llama
      desde el arranque. -->
 <script src="nube.js?v=143"></script>
+<!-- 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (crm-remoto.js, etapa U1 de
+     RECETA-PLAN-UN-SOLO-CRM.md). En un computador no hace nada: decide por el tipo
+     de aparato, nunca por el ancho. Va después de nube.js, que es quien trae. -->
+<script src="crm-remoto.js?v=158"></script>
 <script src="../app/puente.js?v=143"></script>
 <!-- El chat, compartido con app/socio.html por la misma razón que el puente:
      quien decide de qué lado va un mensaje y cómo se escapa el texto vive en un
@@ -1812,12 +1816,19 @@ _selloDesdeDisco(false);
    esperáramos al próximo guardar(), cada carga volvería a correrla sobre
    créditos ya revisados — que fue exactamente el defecto que se arregla hoy. */
 if(_fechasMigradas) guardar();
+/* 23-nov-2026 — ¿Este CRM está abierto en un celular, mirando desde la nube? (crm-remoto.js).
+   Con `function`, que sube sola: cargar() y guardar() la llaman antes de su línea. Si la
+   pieza no llegó, es que no: el CRM de siempre. */
+function soloMirar(){ try{ return !!(window.CrmRemoto && CrmRemoto.activo()); }catch(e){ return false; } }
 function cargar(){
   /* Se pone en cero en CADA carga: el contador dice qué tocó ESTA pasada, no
      cuántas se tocaron desde que se abrió el Panel. Quien llama decide si hay
      que grabar la constancia. */
   _fechasMigradas=0;
-  let d={}; try{ d=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){}
+  /* 23-nov-2026 — EN UN CELULAR QUE SOLO MIRA, LA CARTERA NO SALE DE LA GAVETA: sale de
+     la memoria, donde crm-remoto.js armó lo que vino de la nube. Es el único cambio de
+     esta función; todo lo de abajo (los valores por defecto) le aplica igual. */
+  let d={}; try{ d=soloMirar() ? CrmRemoto.paraCargar() : JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){}
   d.socios=d.socios||d.clientes||[]; d.prestamos=d.prestamos||[]; d.papelera=d.papelera||[];
   /* 2-ago-2026: dos arreglos nuevos. Se AGREGAN, no se toca nada de lo de antes.
      Un respaldo viejo (o el localStorage de siempre) no los trae y por eso todas
@@ -1995,6 +2006,10 @@ function codRespaldado(r){ return PUENTE.codRespaldado(r); }
 var _guardadoOk = true;
 
 function guardar(deFondo){
+  /* 23-nov-2026 — UN CELULAR QUE SOLO MIRA NO GUARDA (crm-remoto.js). Va primero: aquí no
+     hay gaveta, ni sello, ni otra pestaña que mirar. La pieza decide si lo dice (cambió
+     algo con un toque) o si calla (una pintada), y devuelve la pantalla a lo de la nube. */
+  if (soloMirar()) return CrmRemoto.alGuardar(deFondo === 'de-fondo');
   /* 4-nov-2026 — UNA PESTAÑA VIEJA NO BORRA UN COBRO. Medido el 3-nov con este
      mismo archivo en dos pestañas: la A cobra y guarda; la B tiene un cuadro
      abierto, así que no se recarga sola (alEscribirOtraPagina espera), y al
@@ -14765,6 +14780,9 @@ function textoSalidaDeLaPuerta() {
    repone con innerHTML, y lo que trae _tarjetaPin es la que nació escondida. */
 var _cajonDeLaPuerta = null;
 function pintarSalidaDeLaPuerta() {
+  /* 23-nov-2026 — en un celular sin cartera la puerta es la del correo (crm-remoto.js): la
+     del PIN se queda debajo, escondida, y esta salida ya no tiene nada que ofrecer. */
+  try { if (window.CrmRemoto && CrmRemoto.puertaDeCorreo() && CrmRemoto.pintarPuerta()) return; } catch (e) {}
   const caja = document.getElementById('salidaPuerta');
   if (!caja) return;
   const t = textoSalidaDeLaPuerta();
@@ -26869,6 +26887,9 @@ function alTocarElMenu(ev) {
 }
 (function () { const lado = document.querySelector('.side'); if (lado) lado.addEventListener('click', alTocarElMenu); })();
 function entrar(){ const retomada=_retomandoDueno===true, campoPin=document.getElementById('pinInput');
+  /* 23-nov-2026 — con la puerta del correo, el PIN no abre nada: ni el 1234 de fábrica
+     con Enter sobre un campo escondido (crm-remoto.js). */
+  try{ if(window.CrmRemoto && CrmRemoto.puertaDeCorreo()) return; }catch(e){}
   if(!retomada) document.getElementById('pinErr').className='gate-err';
   /* 9-nov-2026 — EL PIN SE COMPARA CON LO QUE HAY EN EL DISCO, NO CON LO DE HACE HORAS
      (revisión de plata-e1). Una puerta abierta en un aparato sin cartera tiene en memoria
@@ -26994,6 +27015,23 @@ function esperarParaRecargar(){
    nada —lo que sube ya está en disco—; lo usará la bajada para no repintarle un
    formulario mientras escribe. No conoce ids sueltos: Ajustes es `v-cfg` (no
    existe ningún `v-ajustes`). Y si no sabe, dice que SÍ: se aplaza. */
+/* 23-nov-2026 — LO QUE crm-remoto.js PIDE PRESTADO. Abrir sin PIN y sin nada de lo que
+   entrar() arranca para el computador: ni la subida (NubeCRM), ni los historiales, ni la
+   publicación del equipo, ni el oyente de otras pestañas, ni la sesión de 24 h. Un celular
+   que mira no sube nada. Por eso es otra función y no un «si» más dentro de entrar(). */
+function abrirSoloMirar(){
+  _crmAbierto=true; DB=cargar();
+  document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='grid';
+  render();
+}
+/* Llegó algo nuevo de la nube, o una acción intentó cambiar algo: la pantalla vuelve a lo
+   que hay en la memoria. `trasNegar`: el cuadro abierto muestra un cambio que no existe, y
+   se cierra. La pestaña en la que está Joan no se mueve. */
+function repintarSoloMirar(trasNegar){
+  if(trasNegar){ try{ cerrarModal(); }catch(e){} }
+  DB=cargar(); render();
+  try{ if(_vistaCRM==='cobranzas') renderCobranzas(); if(_vistaCRM==='cal') renderCalendario(); }catch(e){}
+}
 function estoyOcupado(){ try{ if(modal.classList.contains('on')) return true; var a=document.activeElement; if(a && (a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.tagName==='SELECT'||a.isContentEditable)) return true; var v=document.querySelector('.view.on'); return !!(v && (v.id==='v-cfg' || v.id==='v-plantillas')); }catch(e){ return true; } }
 /* 1-oct-2026 — lo que hace el botón de la cinta cuando otra página escribió la
    cartera: las MISMAS tres líneas del arranque y de importar(), con el sello en
@@ -27258,6 +27296,11 @@ function abrirMapaClientes(){
    existen igual —se declaran antes de correr—, pero sus variables no, y por
    eso se mira TG_A_MEDIAS y que SESION_DURA_MS ya tenga valor. */
 try {
+  /* 23-nov-2026 — primero se decide la puerta de este aparato (crm-remoto.js). En un
+     computador contesta 'pin' y no toca nada; con #equipo, tampoco. */
+  try { if (!window.TG_A_MEDIAS && window.CrmRemoto && typeof abrirSoloMirar === 'function') CrmRemoto.alAbrir({
+    db: () => DB, abrir: abrirSoloMirar, repintar: repintarSoloMirar, ocupado: estoyOcupado,
+    equipo: () => String(location.hash || '').split('&')[0] === '#equipo' }); } catch (e) {}
   if (!window.TG_A_MEDIAS && typeof SESION_DURA_MS === 'number' && typeof retomarSesionAlAbrir === 'function') retomarSesionAlAbrir();
 } catch (e) {}
 </script>
