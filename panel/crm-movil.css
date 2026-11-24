@@ -294,6 +294,103 @@
   #tblNoToca>table>tbody>tr>td:nth-child(4)::before{content:"Vence"}
 
   /* ======================================================================
+     4b. SOCIOS Y CICLOS: CINCO TABLAS MÁS, UNA FICHA POR FILA  (24-nov-2026)
+     Eran las que seguían deslizándose de lado: 560 a 637 px dentro de 364
+     (medido en el iPhone de mentira). Mismo método del bloque 4, con el mismo
+     riesgo: los rótulos van por la POSICIÓN de la columna, atados al orden que
+     arman renderSocios (socTramos, socNiveles, socMigracion, socPerfiles) y
+     renderCiclos (tblCiclos). pruebas/crm-movil.test.js las pinta y compara
+     sus <th> con los rótulos de aquí. Si cambias una columna, cambia las dos.
+     Tres de las cinco no tienen columna de botones (son para leer), así que no
+     entran en la regla de «la fila de botones» del bloque 4.
+     ====================================================================== */
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table{display:block;min-width:0;width:100%}
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table>thead{display:none}
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table>:is(tbody,tfoot){display:block}
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table>:is(tbody,tfoot)>tr{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 10px;align-items:start;
+    padding:12px 14px 13px;border-bottom:1px solid var(--linea)}
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table>tbody>tr:last-child{border-bottom:none}
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table>:is(tbody,tfoot)>tr>td{
+    display:block;padding:0;border:0;min-width:0;font-size:13.5px;line-height:1.35;background:none;text-align:left!important;white-space:normal!important}
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table>tbody>tr>td>b:first-child{font-size:15.5px;line-height:1.25}
+  #socTramos>table>tbody>tr>td:is(:nth-child(2),:nth-child(3),:nth-child(4),:nth-child(5),:nth-child(6))::before,
+  #socNiveles>table>tbody>tr>td:is(:nth-child(2),:nth-child(3),:nth-child(4),:nth-child(5))::before,
+  #socMigracion>table>:is(tbody,tfoot)>tr>td:is(:nth-child(2),:nth-child(3),:nth-child(4),:nth-child(5),:nth-child(6))::before,
+  #socPerfiles>table>tbody>tr>td:is(:nth-child(2),:nth-child(3),:nth-child(4))::before,
+  #tblCiclos>table>tbody>tr>td:is(:nth-child(2),:nth-child(3),:nth-child(4),:nth-child(5),:nth-child(6),:nth-child(7))::before{
+    display:block;font-family:'Inter',system-ui,sans-serif;font-size:10px;font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--gris);margin-bottom:2px;line-height:1.3}
+
+  /* --- Socios, «Cartera por tramo»: Tramo · Días · Créditos · Por cobrar · Qué toca hacer · Canal --- */
+  #socTramos>table>tbody>tr{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr)}
+  #socTramos>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/4}
+  #socTramos>table>tbody>tr>td:nth-child(2){grid-area:2/1/3/2}
+  #socTramos>table>tbody>tr>td:nth-child(3){grid-area:2/2/3/3}
+  #socTramos>table>tbody>tr>td:nth-child(4){grid-area:2/3/3/4}
+  #socTramos>table>tbody>tr>td:nth-child(5){grid-area:3/1/4/4}
+  #socTramos>table>tbody>tr>td:nth-child(6){grid-area:4/1/5/4}
+  #socTramos>table>tbody>tr>td:nth-child(2)::before{content:"Días"}
+  #socTramos>table>tbody>tr>td:nth-child(3)::before{content:"Créditos"}
+  #socTramos>table>tbody>tr>td:nth-child(4)::before{content:"Por cobrar"}
+  #socTramos>table>tbody>tr>td:nth-child(5)::before{content:"Qué toca hacer"}
+  #socTramos>table>tbody>tr>td:nth-child(6)::before{content:"Canal"}
+
+  /* --- Socios, «Niveles»: Nivel · Prórrogas · Socios · Garantía · Cupo disponible --- */
+  #socNiveles>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/3}
+  #socNiveles>table>tbody>tr>td:nth-child(2){grid-area:2/1/3/2}
+  #socNiveles>table>tbody>tr>td:nth-child(3){grid-area:2/2/3/3}
+  #socNiveles>table>tbody>tr>td:nth-child(4){grid-area:3/1/4/2}
+  #socNiveles>table>tbody>tr>td:nth-child(5){grid-area:3/2/4/3}
+  #socNiveles>table>tbody>tr>td:nth-child(2)::before{content:"Prórrogas"}
+  #socNiveles>table>tbody>tr>td:nth-child(3)::before{content:"Socios"}
+  #socNiveles>table>tbody>tr>td:nth-child(4)::before{content:"Garantía"}
+  #socNiveles>table>tbody>tr>td:nth-child(5)::before{content:"Cupo disponible"}
+
+  /* --- Socios, «Revisión de la migración»: Cliente · Ganada pagando · Por sus datos · Ajuste · Garantía final · Cupo · botón --- */
+  #socMigracion>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/3}
+  #socMigracion>table>tbody>tr>td:nth-child(2){grid-area:2/1/3/2}
+  #socMigracion>table>tbody>tr>td:nth-child(3){grid-area:2/2/3/3}
+  #socMigracion>table>tbody>tr>td:nth-child(4){grid-area:3/1/4/2}
+  #socMigracion>table>tbody>tr>td:nth-child(5){grid-area:3/2/4/3}
+  #socMigracion>table>tbody>tr>td:nth-child(6){grid-area:4/1/5/2}
+  #socMigracion>table>tbody>tr>td:nth-child(7){grid-area:4/2/5/3;text-align:right!important}
+  #socMigracion>table>:is(tbody,tfoot)>tr>td:nth-child(2)::before{content:"Ganada pagando"}
+  #socMigracion>table>:is(tbody,tfoot)>tr>td:nth-child(3)::before{content:"Por sus datos"}
+  #socMigracion>table>:is(tbody,tfoot)>tr>td:nth-child(4)::before{content:"Ajuste"}
+  #socMigracion>table>:is(tbody,tfoot)>tr>td:nth-child(5)::before{content:"Garantía final"}
+  #socMigracion>table>:is(tbody,tfoot)>tr>td:nth-child(6)::before{content:"Cupo"}
+  #socMigracion>table>tfoot>tr>td:nth-child(1){grid-column:1/3;font-weight:700}
+  #socMigracion>table>tbody>tr>td:nth-child(7)>.btn{min-height:44px}
+
+  /* --- Socios, «Perfiles por completar»: Cliente · Perfil · Le falta · Garantía pendiente · botón --- */
+  #socPerfiles>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/3}
+  #socPerfiles>table>tbody>tr>td:nth-child(2){grid-area:2/1/3/2}
+  #socPerfiles>table>tbody>tr>td:nth-child(4){grid-area:2/2/3/3}
+  #socPerfiles>table>tbody>tr>td:nth-child(3){grid-area:3/1/4/3}
+  #socPerfiles>table>tbody>tr>td:nth-child(5){grid-area:4/1/5/3}
+  #socPerfiles>table>tbody>tr>td:nth-child(2)::before{content:"Perfil"}
+  #socPerfiles>table>tbody>tr>td:nth-child(3)::before{content:"Le falta"}
+  #socPerfiles>table>tbody>tr>td:nth-child(4)::before{content:"Garantía pendiente"}
+  #socPerfiles>table>tfoot>tr>td{grid-column:1/3}
+  #socPerfiles>table>tbody>tr>td:nth-child(5)>.btn{width:100%;justify-content:center;min-height:46px}
+
+  /* --- Ciclos: Quincena · Invertido · Por cobrar · Ganancia del ciclo · Descuentos dados · Capital perdido · Vencen --- */
+  #tblCiclos>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/3}
+  #tblCiclos>table>tbody>tr>td:nth-child(2){grid-area:2/1/3/2}
+  #tblCiclos>table>tbody>tr>td:nth-child(3){grid-area:2/2/3/3}
+  #tblCiclos>table>tbody>tr>td:nth-child(4){grid-area:3/1/4/2}
+  #tblCiclos>table>tbody>tr>td:nth-child(5){grid-area:3/2/4/3}
+  #tblCiclos>table>tbody>tr>td:nth-child(6){grid-area:4/1/5/2}
+  #tblCiclos>table>tbody>tr>td:nth-child(7){grid-area:4/2/5/3}
+  #tblCiclos>table>tbody>tr>td:nth-child(2)::before{content:"Invertido"}
+  #tblCiclos>table>tbody>tr>td:nth-child(3)::before{content:"Por cobrar"}
+  #tblCiclos>table>tbody>tr>td:nth-child(4)::before{content:"Ganancia del ciclo"}
+  #tblCiclos>table>tbody>tr>td:nth-child(5)::before{content:"Descuentos dados"}
+  #tblCiclos>table>tbody>tr>td:nth-child(6)::before{content:"Capital perdido"}
+  #tblCiclos>table>tbody>tr>td:nth-child(7)::before{content:"Vencen"}
+
+  /* ======================================================================
      5. LOS CUADROS, A PANTALLA COMPLETA
      Un solo cuadro sirve para todo (#modal). En el celular deja de flotar con 20
      px de aire a cada lado: ocupa la pantalla, el título se queda arriba y la ×

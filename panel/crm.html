@@ -670,7 +670,7 @@
      (media="not all"): la enciende panel/crm-movil.js, y solo en un celular o una
      tableta con el menú de Joan. En un computador no se enciende nunca, ni con la
      ventana angosta. Va después de la hoja de arriba porque la pisa. -->
-<link rel="stylesheet" href="crm-movil.css?v=162" media="not all" id="hojaMovil">
+<link rel="stylesheet" href="crm-movil.css?v=164" media="not all" id="hojaMovil">
 </head>
 <body>
 
@@ -1322,7 +1322,7 @@
      teléfono y mete en una caja las pestañas que no caben en la barra. Va después
      de crm-remoto.js, que es quien sabe si el aparato es un celular; y ANTES del
      guion de la página, que le cuelga irA a cada .navbtn dondequiera que esté. -->
-<script src="crm-movil.js?v=162"></script>
+<script src="crm-movil.js?v=164"></script>
 <script src="../app/puente.js?v=143"></script>
 <!-- El chat, compartido con app/socio.html por la misma razón que el puente:
      quien decide de qué lado va un mensaje y cómo se escapa el texto vive en un
@@ -12526,7 +12526,10 @@ function renderSocios(){
     (!foto.length?`<div class="empty"><div class="ic">📋</div><p>Sin clientes todavía.</p></div>`:
     `<div class="alerta ${sinRevisar.length?'warn':'info'}" style="margin-bottom:12px">
       ${sinRevisar.length
-        ? `Te faltan <b>${sinRevisar.length}</b> de ${foto.length} cliente(s) por revisar. Mira que el número le cuadre a cada uno: su historial sube solo a la nube, así que lo que ves aquí es lo que él ve en su app.`
+        ? (soloMirar()
+            /* 24-nov-2026 — en un celular que solo mira no hay «Revisar»: no se le pide lo que ahí no puede hacer. */
+            ? `Hay <b>${sinRevisar.length}</b> de ${foto.length} cliente(s) sin revisar. Lo que ves aquí es lo que cada uno ve en su app; la revisión se hace en tu computador.`
+            : `Te faltan <b>${sinRevisar.length}</b> de ${foto.length} cliente(s) por revisar. Mira que el número le cuadre a cada uno: su historial sube solo a la nube, así que lo que ves aquí es lo que él ve en su app.`)
         : `Ya revisaste a los ${foto.length} clientes. ✓`}
       ${conAjuste.length?`<br>Llevas ${conAjuste.length} ajuste(s) a mano, por ${COP(totalAjustes)} en total.`:''}
     </div>
@@ -27440,7 +27443,7 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
    cuando alguien sospechaba.
    VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
    él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v163';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v164';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }

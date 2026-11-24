@@ -3090,7 +3090,20 @@
    Pruebas: pruebas/crm-remoto.test.js (tres grupos nuevos) y pruebas/traer-en-un-celular.test.js.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
    número nunca baja. */
-const CACHE = 'tugarantia-v163';
+/* v164 — 24-nov-2026 — EN EL CELULAR, SOCIOS Y CICLOS YA NO SE DESLIZAN DE LADO.
+   Eran las cinco tablas que quedaban anchas en la hoja del teléfono (560 a 637 px dentro de
+   364, medido): «Cartera por tramo», «Niveles», «Revisión de la migración» y «Perfiles por
+   completar» en Socios, y la de Ciclos. Ahora cada fila es una ficha con sus rótulos, como
+   Créditos y Clientes (panel/crm-movil.css, bloque 4b). Los rótulos van por la posición de la
+   columna: pruebas/crm-movil.test.js pinta las cinco y compara sus <th> con la hoja.
+   Y una frase: en un celular que solo mira, «Revisión de la migración» ya no dice «Te faltan
+   N por revisar» (ahí no hay cómo): dice cuántos hay sin revisar y que se hace en el computador.
+   Cambia panel/crm-movil.css y una frase de panel/crm.html. La hoja y su pieza (crm-movil.js, que
+   no cambia) van siempre con el mismo número: las dos pasan a ?v=164 en crm.html y en la precarga.
+   En el computador no cambia nada: la hoja sigue apagada ahí (comprobado píxel a píxel).
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+const CACHE = 'tugarantia-v164';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3158,8 +3171,8 @@ const ARCHIVOS = [
   'panel/nube-crm.js?v=143',   // 4-nov-2026 — ?v=143: una nota sobre la pestaña vieja; la regla mira el texto (ver la nota de v143)
   /* 23-nov-2026 — el CRM en un celular, solo para mirar. Ver la nota de v158. */
   'panel/crm-remoto.js?v=163',
-  'panel/crm-movil.js?v=162',    // 24-nov-2026 — la barra de abajo y «Más» del CRM en un teléfono
-  'panel/crm-movil.css?v=162',   // la hoja del teléfono: llega apagada, la enciende crm-movil.js
+  'panel/crm-movil.js?v=164',    // 24-nov-2026 — la barra de abajo y «Más» del CRM en un teléfono
+  'panel/crm-movil.css?v=164',   // la hoja del teléfono: llega apagada, la enciende crm-movil.js
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
   'panel/historiales-auto.js?v=147',
   /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132.

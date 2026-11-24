@@ -431,6 +431,9 @@ describe('crm-movil · los rótulos de las fichas dicen lo que dice la tabla', (
   b.cargarCartera(cartera());
   b.ev('render()');
   b.ev('renderCobranzas()');
+  /* 24-nov-2026 — y las cinco de Socios y Ciclos (bloque 4b de la hoja). */
+  b.ev('renderSocios()');
+  b.ev('renderCiclos()');
 
   const limpio = h => String(h).replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
   function tabla(id) {
@@ -445,13 +448,21 @@ describe('crm-movil · los rótulos de las fichas dicen lo que dice la tabla', (
     };
   }
   const TABLAS = ['tblCred', 'tblClientes', 'cola', 'tblCobranzas', 'tblFueraCob', 'tblNoToca'];
+  /* 24-nov-2026 — las cinco de Socios y Ciclos. Van aparte porque tres de ellas son solo
+     para leer (no tienen columna de botones), y la regla de «la fila de botones» es de las seis. */
+  const DE_LEER = ['socTramos', 'socNiveles', 'socMigracion', 'socPerfiles', 'tblCiclos'];
   /* Los rótulos de la hoja, tal como están escritos: tabla, parte (cuerpo o pie), columna, texto. */
   const ROTULOS = Array.from(REGLAS.matchAll(/#(\w+)>table(?::first-of-type)?>([^{}>]+)>tr>td:nth-child\((\d+)\)::before\{content:"([^"]+)"/g))
     .map(m => ({ tabla: m[1], parte: m[2], n: Number(m[3]), texto: m[4] }));
   /* Donde la hoja abrevia o aclara a propósito, se declara aquí. Lo demás tiene que ser
      la MISMA palabra que el <th>. */
   const DICE = { 'Desembolso → vence': 'Desemb. → Quincena', 'Ganancia': ['Ganancia', 'Ganancia generada'] };
-  const vale = (rotulo, th) => [].concat(DICE[rotulo] || rotulo).some(x => x.toLowerCase() === String(th).toLowerCase());
+  /* En Ciclos el <th> trae una aclaración debajo («Descuentos dados · ya restados de la
+     ganancia»): el rótulo de la ficha es su primera línea. Solo estos tres pueden empezar igual
+     sin ser iguales; cualquier otro tiene que ser la misma palabra. */
+  const EMPIEZA = ['Invertido', 'Descuentos dados', 'Capital perdido'];
+  const vale = (rotulo, th) => [].concat(DICE[rotulo] || rotulo).some(x => x.toLowerCase() === String(th).toLowerCase()) ||
+    (EMPIEZA.includes(rotulo) && String(th).toLowerCase().startsWith(rotulo.toLowerCase()));
 
   test('las seis tablas se pintan, y cada fila trae tantas celdas como columnas', () => {
     TABLAS.forEach(id => {
@@ -466,7 +477,7 @@ describe('crm-movil · los rótulos de las fichas dicen lo que dice la tabla', (
 
   test('la hoja trae rótulos para las seis, y no para una tabla que no existe', () => {
     assert.ok(ROTULOS.length >= 20, 'se leyeron los rótulos de la hoja (' + ROTULOS.length + ')');
-    assert.deepEqual([...new Set(ROTULOS.map(r => r.tabla))].sort(), [...TABLAS].sort());
+    assert.deepEqual([...new Set(ROTULOS.map(r => r.tabla))].sort(), [...TABLAS, ...DE_LEER].sort());
   });
 
   test('cada rótulo del cuerpo está sobre la columna que dice su <th>', () => {
@@ -498,6 +509,41 @@ describe('crm-movil · los rótulos de las fichas dicen lo que dice la tabla', (
         Array.from(m[1].matchAll(/nth-child\((\d+)\)/g)).forEach(x => assert.ok(Number(x[1]) <= n, '#' + id + ': la hoja nombra la columna ' + x[1] + ' y hay ' + n));
       }
     });
+  });
+
+  /* 24-nov-2026 — SOCIOS Y CICLOS. */
+  test('las cinco de Socios y Ciclos se pintan con sus columnas de siempre, y cada fila trae tantas celdas como columnas', () => {
+    const COLUMNAS = { socTramos: 6, socNiveles: 5, socMigracion: 7, socPerfiles: 5, tblCiclos: 7 };
+    DE_LEER.forEach(id => {
+      const t = tabla(id);
+      assert.equal(t.th.length, COLUMNAS[id], '#' + id + ' cambió de columnas: la hoja del teléfono la rotula por posición (' + t.th.join(' | ') + ')');
+      assert.ok(t.filas.length >= 1, '#' + id + ' tiene filas');
+      t.filas.forEach(f => {
+        assert.equal(f.length, t.th.length, '#' + id + ': una fila de ' + f.length + ' celdas bajo ' + t.th.length + ' columnas');
+        assert.ok(f.every(c => c === 1), '#' + id + ': ninguna celda del cuerpo abarca dos columnas');
+      });
+    });
+  });
+  test('en Socios y Ciclos toda columna tiene su sitio en la ficha, y ninguna regla nombra una columna que no existe', () => {
+    DE_LEER.forEach(id => {
+      const n = tabla(id).th.length;
+      const puestas = new Set(Array.from(REGLAS.matchAll(new RegExp('#' + id + '>table>tbody>tr>td:nth-child\\((\\d+)\\)\\{grid-area:', 'g'))).map(m => Number(m[1])));
+      assert.deepEqual([...puestas].sort((a, c) => a - c), Array.from({ length: n }, (_, i) => i + 1), '#' + id + ': columnas con sitio en la ficha');
+      for (const m of REGLAS.matchAll(new RegExp('#' + id + '>table>[^{}]*?>tr>td:(?:is\\()?((?::nth-child\\(\\d+\\),?)+)', 'g'))) {
+        Array.from(m[1].matchAll(/nth-child\((\d+)\)/g)).forEach(x => assert.ok(Number(x[1]) <= n, '#' + id + ': la hoja nombra la columna ' + x[1] + ' y hay ' + n));
+      }
+      /* Cada columna con dato lleva su rótulo; la primera (el nombre) y la de botones, no. */
+      const rotuladas = ROTULOS.filter(r => r.tabla === id).map(r => r.n);
+      const th = tabla(id).th;
+      th.forEach((titulo, i) => { if (i > 0 && titulo) assert.ok(rotuladas.includes(i + 1), '#' + id + ': la columna «' + titulo + '» quedó sin rótulo en la ficha'); });
+    });
+  });
+  test('en un celular que solo mira, la revisión de la migración no le pide revisar: dice dónde se hace', () => {
+    const f = CRM.slice(CRM.indexOf("document.getElementById('socMigracion').innerHTML="), CRM.indexOf("document.getElementById('socPerfiles').innerHTML="));
+    const i = f.indexOf('? (soloMirar()'), j = f.indexOf('la revisión se hace en tu computador.`');
+    assert.ok(i >= 0 && j > i, 'la frase de la migración ya no tiene su rama de solo mirar');
+    assert.equal(/Te faltan|por revisar/.test(f.slice(i, j)), false, 'en el celular le sigue pidiendo revisar');
+    assert.match(f, /: `Te faltan <b>/, 'la frase del computador se perdió');
   });
 
   test('la fila de botones de cada ficha es la ÚLTIMA columna, la que no lleva título o dice «Gestión»', () => {
