@@ -206,10 +206,37 @@
     if (s < 86400) return 'hace ' + Math.round(s / 3600) + ' h';
     return 'hace ' + Math.round(s / 86400) + (Math.round(s / 86400) === 1 ? ' día' : ' días');
   }
-  /** La medianoche que viene, en el reloj del aparato. */
-  function medianocheQueViene(ahora) {
-    var a = new Date(ahora);
-    return new Date(a.getFullYear(), a.getMonth(), a.getDate() + 1).getTime();
+  /* ------------------------------------------------------------ quién entra
+     24-nov-2026 — Joan: «no quiero tener que ingresar con correo, por el momento
+     solo quiero que sea ingresar con mi numero de celular y la contraseña».
+     La cuenta de un celular es la MISMA de la app: Supabase la conoce por un
+     correo armado del número (CuentaSocio.correoDeTelefono, app/cuenta.js), y
+     quién es dueño lo decide el servidor (la tabla panel_duenos), no esta
+     pantalla: un celular que no esté anotado ahí entra a Supabase y panel_traer
+     le contesta «no autorizado». El correo de verdad sigue sirviendo (lleva @):
+     es la salida mientras el celular no esté anotado.
+     `cuenta` es el módulo de app/cuenta.js: una sola forma de armar ese correo. */
+  function usuarioDeLaPuerta(valor, cuenta) {
+    var v = texto(valor).trim();
+    if (!v) return { error: 'Falta tu celular.' };
+    if (v.indexOf('@') >= 0) return { correo: v, conCorreo: true };
+    if (!cuenta || typeof cuenta.correoDeTelefono !== 'function') return { error: 'No pude leer el celular: recarga la página.' };
+    var correo = cuenta.correoDeTelefono(v);
+    if (!correo) return { error: 'Ese celular no parece completo: son diez dígitos.' };
+    return { correo: correo, conCorreo: false };
+  }
+  /** El celular de una sesión abierta con celular, para dejarlo escrito en la
+      puerta. De una sesión abierta con correo no sale nada: un correo no se
+      pinta en un campo de celular. */
+  function celularDeSesion(correo, cuenta) {
+    try { return (cuenta && typeof cuenta.telefonoDeCorreo === 'function' && cuenta.telefonoDeCorreo(texto(correo))) || ''; } catch (e) { return ''; }
+  }
+  /** El servidor contestó que esa cuenta no es dueña del CRM: panel_traer lanza
+      «no autorizado», y nube.js lo traduce a «…no está en la lista de dueños». */
+  function noEsDueno(e) {
+    var x = objeto(e), cuerpo = '';
+    try { cuerpo = JSON.stringify(x.cuerpo || ''); } catch (e2) {}
+    return /no autorizado|lista de dueños/i.test(texto(x.motivo) + ' ' + texto(x.message) + ' ' + cuerpo);
   }
 
   /** Lo que dice la franja. Solo afirma lo que se midió: a qué hora se miró la
@@ -341,7 +368,7 @@
     esCelular: esCelular, gavetaConFichas: gavetaConFichas, quePuerta: quePuerta,
     paqueteParaMirar: paqueteParaMirar, armar: armar, contar: contar, ultimoCambio: ultimoCambio,
     horaCorta: horaCorta, cuandoFue: cuandoFue, haceCuanto: haceCuanto,
-    medianocheQueViene: medianocheQueViene, textoFranja: textoFranja,
+    usuarioDeLaPuerta: usuarioDeLaPuerta, celularDeSesion: celularDeSesion, noEsDueno: noEsDueno, textoFranja: textoFranja,
     accionDe: accionDe, esDeMirar: esDeMirar, codigoDeMirar: codigoDeMirar,
     enlaceQueEscribe: enlaceQueEscribe, tapaDe: tapaDe, motivoDeNoAbrir: motivoDeNoAbrir,
     queHacerConElControl: queHacerConElControl
@@ -365,7 +392,8 @@
     foto: null,           // DB como texto, justo antes del último toque
     devolviendo: false,   // true mientras se repone la pantalla: sus guardar() no hablan
     ganchos: null, reloj: null, relojFranja: null, aviso: null,
-    vigia: null           // el que avisa cuando crm.html pinta algo (el barrido)
+    vigia: null,          // el que avisa cuando crm.html pinta algo (el barrido)
+    esperando: false      // hay sesión guardada pero la primera traída falló: se reintenta
   };
 
   function almacen() { try { return W.localStorage; } catch (e) { return null; } }
@@ -562,11 +590,17 @@
       if (!c || !c.url || !c.anon) N.guardarConfig({ url: CONEXION.url, anon: CONEXION.anon });
     } catch (e) { /* sin sitio donde guardarla, entrar lo dirá */ }
   }
-  function leerHasta() {
+  /* 24-nov-2026 — LA MARCA YA NO VENCE. Joan: «como yo soy el dueño quiero que el
+     CRM siempre este abierto en mi celular, como cuando tu abres whatsapp». Antes
+     la entrada valía hasta la medianoche. La marca sigue existiendo porque dice
+     OTRA cosa: que esta sesión de la nube la abrió ESTA puerta. Sin ella, la
+     sesión que deja el Panel en el bolsillo abriría el CRM sola.
+     Lo que cierra ahora: «Salir», o que el servidor diga que la sesión ya no vale. */
+  function hayMarca() {
     var a = almacen();
-    try { var o = JSON.parse((a && a.getItem(LLAVE_HASTA)) || 'null'); return o && Number(o.hasta) ? Number(o.hasta) : 0; } catch (e) { return 0; }
+    try { return !!(a && a.getItem(LLAVE_HASTA)); } catch (e) { return false; }
   }
-  function ponerHasta(ms) { var a = almacen(); try { if (a) a.setItem(LLAVE_HASTA, JSON.stringify({ hasta: ms })); } catch (e) {} }
+  function ponerMarca() { var a = almacen(); try { if (a) a.setItem(LLAVE_HASTA, JSON.stringify({ desde: ahora(), siempre: true })); } catch (e) {} }
   function quitarHasta() { var a = almacen(); try { if (a) a.removeItem(LLAVE_HASTA); } catch (e) {} }
   function motivo(e) { return (e && e.motivo) || (e && e.message) || 'No pude hablar con la nube.'; }
 
@@ -593,7 +627,6 @@
      no tenga un cuadro abierto ni esté escribiendo. */
   function vuelta(todo) {
     if (!E.activo) return Promise.resolve();
-    if (ahora() >= leerHasta()) { salir(true); return Promise.resolve(); }
     return traer(todo).then(function (cambio) {
       if (cambio) E.pendiente = true;
       pintarSiSePuede();
@@ -666,6 +699,8 @@
       '.cr-puerta label{display:block;margin:10px 0 4px;font-size:12px;font-weight:700;color:var(--gris)}' +
       '.gate-card .cr-puerta input{font-family:inherit;font-size:16px;letter-spacing:0;text-align:left;padding:12px}' +
       '.cr-puerta .cr-nota{margin:12px 0 0;font-size:12px;color:var(--gris)}' +
+      '.gate-card .cr-puerta .cr-otra{display:block;width:100%;min-height:44px;margin:8px 0 0;padding:0;border:0;background:none;' +
+        'color:var(--gris);font:inherit;font-size:13px;font-weight:600;text-decoration:underline}' +
       '@media (prefers-reduced-motion:reduce){.cr-aviso{transition:none}}';
     D.head.appendChild(s);
   }
@@ -737,30 +772,47 @@
     caja.setAttribute('data-cr', '1');
     caja.setAttribute('autocomplete', 'on');
     caja.innerHTML =
-      '<p><b>¿Eres Joan?</b> Entra con tu correo y tu contraseña de la nube. No es tu PIN: el PIN vive en tu computador.</p>' +
-      '<label for="crCorreo">Correo</label>' +
-      '<input id="crCorreo" name="username" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false">' +
+      '<p><b>¿Eres Joan?</b> Entra con tu celular y tu contraseña.</p>' +
+      '<label for="crCorreo" id="crRotulo">Celular</label>' +
+      '<input id="crCorreo" name="username" type="tel" inputmode="tel" autocomplete="username" autocapitalize="none" spellcheck="false">' +
       '<label for="crClave">Contraseña</label>' +
       '<input id="crClave" name="password" type="password" autocomplete="current-password">' +
-      '<button type="submit" id="crEntrar">Entrar a mirar</button>' +
+      '<button type="submit" id="crEntrar">Entrar</button>' +
       '<div class="gate-err" id="crErr" aria-live="polite"></div>' +
-      '<p class="cr-nota">Este celular no guarda tu cartera: la trae de la nube cada vez y, por ahora, solo se mira. ' +
-      'La entrada vale hasta la medianoche.</p>';
+      '<button type="button" class="cr-otra" id="crReintentar" style="display:none">Reintentar</button>' +
+      '<button type="button" class="cr-otra" id="crOtra">Entrar con correo</button>' +
+      '<p class="cr-nota">Queda abierto en este celular hasta que toques «Salir». ' +
+      'No guarda tu cartera: la trae de la nube y, por ahora, solo se mira.</p>';
     var equipo = tarjeta.querySelector('.gate-link');
     tarjeta.insertBefore(caja, equipo || null);
     caja.addEventListener('submit', function (ev) { ev.preventDefault(); entrarConCorreo(); });
-    try { var s = N.sesion(); if (s && s.correo) $('crCorreo').value = s.correo; } catch (e) {}
+    $('crOtra').addEventListener('click', alternarCorreo);
+    $('crReintentar').addEventListener('click', function () { reintentar(true); });
+    try { var s = N.sesion(); var cel = s ? celularDeSesion(s.correo, W.CuentaSocio) : ''; if (cel) $('crCorreo').value = cel; } catch (e) {}
     return true;
   }
+  /* «Entrar con correo»: la salida mientras el celular no esté anotado como dueño.
+     Cambia el teclado del campo, nada más: la regla de quién entra es la misma. */
+  function alternarCorreo() {
+    var campo = $('crCorreo'), rotulo = $('crRotulo'), boton = $('crOtra');
+    if (!campo) return;
+    var aCorreo = campo.type !== 'email';
+    campo.type = aCorreo ? 'email' : 'tel';
+    campo.setAttribute('inputmode', aCorreo ? 'email' : 'tel');
+    campo.value = '';
+    if (rotulo) rotulo.textContent = aCorreo ? 'Correo' : 'Celular';
+    if (boton) boton.textContent = aCorreo ? 'Entrar con celular' : 'Entrar con correo';
+  }
   function entrarConCorreo() {
-    var correo = texto($('crCorreo').value).trim(), clave = $('crClave').value;
-    if (!correo || !clave) return decirEnPuerta('Falta tu correo o tu contraseña.');
+    var quien = usuarioDeLaPuerta($('crCorreo').value, W.CuentaSocio), clave = $('crClave').value;
+    if (quien.error) return decirEnPuerta(quien.error);
+    if (!clave) return decirEnPuerta('Falta tu contraseña.');
     $('crEntrar').disabled = true;
     decirEnPuerta('Entrando…', 'aviso');
     ponerConexionDeFabrica();
-    N.entrar(correo, clave).then(function () {
+    N.entrar(quien.correo, clave).then(function () {
       $('crClave').value = '';                // la contraseña no se queda en un campo abierto
-      ponerHasta(medianocheQueViene(ahora()));
+      ponerMarca();
       return abrirDesdeLaNube();
     }, function (e) {
       decirEnPuerta('No pude entrar: ' + motivo(e));
@@ -789,8 +841,38 @@
       arrancarRelojes();
     }, function (e) {
       E.db = null;
-      decirEnPuerta('No pude traer tu cartera: ' + motivo(e));
+      if (noEsDueno(e)) {
+        /* Entró a Supabase, pero el servidor dice que esa cuenta no es dueña. No se
+           deja una sesión viva detrás de la puerta del dueño. */
+        quitarHasta();
+        try { N.salir(); } catch (e2) {}
+        return decirEnPuerta('Ese usuario entra, pero todavía no está autorizado como dueño del CRM. ' +
+          'Falta anotarlo una vez en la base (panel_duenos).');
+      }
+      if (e && (e.estado === 401 || e.estado === 403 || /venció la sesión/i.test(motivo(e)))) {
+        quitarHasta();
+        return decirEnPuerta('La sesión de este celular ya no vale. Entra otra vez.');
+      }
+      /* Lo demás es la señal: la sesión sigue guardada y se reintenta sola. */
+      E.esperando = true;
+      var b = $('crReintentar'); if (b) b.style.display = '';
+      decirEnPuerta(e && e.sin_red
+        ? 'Sin señal: no pude traer tu cartera. Reintento solo cuando vuelva la señal.'
+        : 'No pude traer tu cartera: ' + motivo(e));
     });
+  }
+  /* Con la sesión guardada y sin cartera en pantalla (falló la primera traída):
+     volver a intentar cuando vuelva la señal, al volver a la página, o al tocar
+     «Reintentar». Nunca pide la contraseña otra vez por un fallo de red. */
+  function reintentar(aMano) {
+    if (E.activo || E.trayendo || !E.esperando) return;
+    var s = null;
+    try { s = N.sesion(); } catch (e) {}
+    if (!s || !s.access_token || !hayMarca()) { E.esperando = false; return; }
+    if (!aMano && D.visibilityState === 'hidden') return;
+    E.esperando = false;
+    var b = $('crReintentar'); if (b) b.style.display = 'none';
+    abrirDesdeLaNube();
   }
   function arrancarRelojes() {
     if (E.reloj) return;
@@ -805,8 +887,9 @@
     W.addEventListener('online', function () { vuelta(false); });
   }
 
-  /** «Salir», y la medianoche. Cierra la sesión de la nube en este aparato y
-      recarga: de la cartera no queda nada, porque nunca estuvo en el disco. */
+  /** «Salir», o una sesión que el servidor ya no acepta. Cierra la sesión de la
+      nube y recarga: de la cartera no queda nada, porque nunca estuvo en el disco.
+      OJO: NUBE.salir cierra esa cuenta en TODOS los aparatos donde esté abierta. */
   function salir(porVencida) {
     E.activo = false; E.db = null;
     quitarHasta();
@@ -838,14 +921,14 @@
     pintarPuerta();
     var s = null;
     try { s = N.sesion(); } catch (e) {}
-    if (s && s.access_token) {
-      if (ahora() < leerHasta()) abrirDesdeLaNube();
-      /* Una entrada de ayer no abre sola: se cierra de verdad, para que en un
-         celular prestado no quede una sesión viva detrás de una puerta. Solo si
-         esa entrada la abrió esta puerta (tiene su marca): la sesión del Panel
-         en el bolsillo no es nuestra para cerrarla. */
-      else if (leerHasta()) { quitarHasta(); try { N.salir(); } catch (e) {} }
-    }
+    /* Con la sesión que abrió ESTA puerta (tiene su marca), entra sola, sea de hoy
+       o de hace un mes: Joan pidió que quede abierto. La sesión del Panel en el
+       bolsillo no tiene marca: ni abre sola ni es nuestra para cerrarla. */
+    if (s && s.access_token && hayMarca()) abrirDesdeLaNube();
+    try {
+      W.addEventListener('online', function () { reintentar(false); });
+      D.addEventListener('visibilitychange', function () { reintentar(false); });
+    } catch (e2) {}
     return E.puerta;
   }
 

@@ -189,7 +189,6 @@ describe('crm-remoto · lo puro', () => {
     assert.equal(R.cuandoFue(new Date(2026, 10, 18, 15, 5).getTime(), ahora), 'el 18 de nov, 3:05 p. m.');
     assert.equal(R.haceCuanto(ahora - 3 * 3600000, ahora), 'hace 3 h');
     assert.equal(R.haceCuanto(ahora - 26 * 3600000, ahora), 'hace 1 día');
-    assert.equal(R.medianocheQueViene(ahora), new Date(2026, 10, 24, 0, 0, 0).getTime());
   });
 
   test('una acción pasa SOLO si su nombre está en la lista de mirar', () => {
@@ -355,7 +354,7 @@ function pantalla(o) {
   }, o.nube || {});
   const W = {
     document, navigator: o.navegador || IPHONE, Storage, localStorage: new Storage(),
-    NubeTuGarantia: nube,
+    NubeTuGarantia: nube, CuentaSocio: require('../app/cuenta.js'),
     open(url) { abiertas.push(String(url)); return {}; },
     setTimeout(f, ms) { pendientes.push({ f, ms }); return pendientes.length; }, clearTimeout() {},
     setInterval() { return 1; }, addEventListener() {},
@@ -412,7 +411,7 @@ describe('crm-remoto · la puerta y las rejas', () => {
     assert.equal(p.C.puertaDeCorreo(), false);
   });
 
-  test('en un celular sin cartera: correo y contraseña, y el PIN escondido', () => {
+  test('en un celular sin cartera: celular y contraseña, y el PIN escondido', () => {
     const p = pantalla();
     assert.equal(p.C.alAbrir(p.ganchos), 'correo');
     assert.equal(p.C.puertaDeCorreo(), true);
@@ -422,7 +421,10 @@ describe('crm-remoto · la puerta y las rejas', () => {
     assert.equal(p.porId.salidaPuerta.style.display, 'none', '«Traer mi cartera» ya no se ofrece aquí');
     const h = p.porId.crPuerta.innerHTML;
     assert.match(h, /autocomplete="current-password"/, 'para que el iPhone ofrezca la contraseña guardada');
-    assert.match(h, /No es tu PIN/);
+    assert.match(h, /Entra con tu celular y tu contraseña/);
+    assert.match(h, /id="crCorreo" name="username" type="tel" inputmode="tel"/, 'el campo es de celular');
+    assert.match(h, /Queda abierto en este celular hasta que toques «Salir»/);
+    assert.doesNotMatch(h, /medianoche/);
     assert.match(h, /solo se mira/);
     assert.ok(p.tarjeta.hijos.indexOf(p.porId.crPuerta) < p.tarjeta.hijos.findIndex(x => x.className === 'gate-link'), '«Soy del equipo» queda debajo');
     assert.equal(p.nube._traidas.length, 0, 'sin entrar no se trae nada');
@@ -451,7 +453,7 @@ describe('crm-remoto · la puerta y las rejas', () => {
     assert.equal(p.porId.crClave.value, '', 'la contraseña no se queda en el campo');
     assert.equal(p.almacen[R.GAVETA], undefined, 'la gaveta del CRM no existe');
     for (const k of Object.keys(p.almacen)) assert.ok(!p.almacen[k].includes('Camila'), 'ningún nombre queda en el disco (' + k + ')');
-    assert.deepEqual(JSON.parse(p.almacen[R.LLAVE_HASTA]), { hasta: new Date(2026, 10, 24).getTime() }, 'la entrada vale hasta la medianoche');
+    assert.equal(JSON.parse(p.almacen[R.LLAVE_HASTA]).siempre, true, 'la marca de esta puerta queda puesta, sin fecha de vencimiento');
     assert.deepEqual(p.nube._config, R.CONEXION, 'la conexión viene puesta de fábrica');
   });
 
@@ -465,12 +467,14 @@ describe('crm-remoto · la puerta y las rejas', () => {
   });
 
   test('si la traída falla NO abre, y dice que no pudo traer la cartera', async () => {
-    const p = pantalla({ traer: () => Promise.reject({ motivo: 'Tu usuario entró bien, pero no está en la lista de dueños.' }) });
+    const p = pantalla({ traer: () => Promise.reject({ motivo: 'La base contestó con un error.', estado: 500 }) });
     p.C.alAbrir(p.ganchos);
     await p.entrarBien();
     assert.equal(p.C.activo(), false);
     assert.equal(p.estado.abrio, 0);
-    assert.match(p.porId.crErr.textContent, /^No pude traer tu cartera: Tu usuario entró bien/);
+    assert.match(p.porId.crErr.textContent, /^No pude traer tu cartera: La base contestó/);
+    assert.equal(p.nube._salidas, 0, 'un error de la base no cierra la sesión');
+    assert.equal(p.porId.crReintentar.style.display, '', 'y se puede reintentar');
   });
 
   test('LA REJA DE LA GAVETA: con el CRM mirando, nadie escribe joan_socios_v1 por ningún camino', async () => {
@@ -548,21 +552,95 @@ describe('crm-remoto · la puerta y las rejas', () => {
     assert.equal(ev.frenado, undefined);
   });
 
-  test('una entrada de hoy abre sola; una de ayer no, y cierra la sesión de verdad', async () => {
-    const hoy = new Date(2026, 10, 23, 10, 30, 0).getTime();
-    const vale = pantalla({ sesion: { access_token: 't', correo: 'dueno@ejemplo.co' }, almacen: { [R.LLAVE_HASTA]: JSON.stringify({ hasta: hoy + 3600000 }) } });
-    vale.C.alAbrir(vale.ganchos);
-    await quieta(); await quieta();
-    assert.equal(vale.C.activo(), true);
-    assert.equal(vale.estado.abrio, 1);
+  /* 24-nov-2026 — Joan: «solo quiero que sea ingresar con mi numero de celular y la
+     contraseña… quiero que el CRM siempre este abierto en mi celular». */
+  test('quién entra: un celular es la cuenta de ese celular; lo que lleva @ es un correo', () => {
+    const C = require('../app/cuenta.js');
+    assert.deepEqual(R.usuarioDeLaPuerta('300 111 2233', C), { correo: C.correoDeTelefono('3001112233'), conCorreo: false });
+    assert.equal(R.usuarioDeLaPuerta('+57 300-111-2233', C).correo, C.correoDeTelefono('3001112233'), 'como la gente lo escribe');
+    assert.deepEqual(R.usuarioDeLaPuerta(' dueno@ejemplo.co ', C), { correo: 'dueno@ejemplo.co', conCorreo: true });
+    assert.match(R.usuarioDeLaPuerta('12345', C).error, /diez dígitos/);
+    assert.match(R.usuarioDeLaPuerta('', C).error, /Falta tu celular/);
+    assert.match(R.usuarioDeLaPuerta('3001112233', null).error, /recarga/, 'sin app/cuenta.js no se inventa el correo');
+    assert.equal(R.celularDeSesion(C.correoDeTelefono('3001112233'), C), '3001112233');
+    assert.equal(R.celularDeSesion('dueno@ejemplo.co', C), '', 'un correo no se pinta en el campo del celular');
+    assert.equal(R.noEsDueno({ motivo: 'No se pudo', cuerpo: { message: 'no autorizado' } }), true);
+    assert.equal(R.noEsDueno({ motivo: 'Sin conexión', sin_red: true }), false);
+  });
 
-    const vencida = pantalla({ sesion: { access_token: 't', correo: 'dueno@ejemplo.co' }, almacen: { [R.LLAVE_HASTA]: JSON.stringify({ hasta: hoy - 1000 }) } });
-    vencida.C.alAbrir(vencida.ganchos);
+  test('con celular y contraseña entra a la cuenta de ese celular', async () => {
+    const p = pantalla();
+    p.C.alAbrir(p.ganchos);
+    p.porId.crCorreo.value = '300 111 2233'; p.porId.crClave.value = 'la-buena';
+    p.porId.crPuerta.dispatch('submit', { preventDefault() {} });
     await quieta(); await quieta();
-    assert.equal(vencida.C.activo(), false);
-    assert.equal(vencida.nube._salidas, 1, 'en un celular prestado no queda una sesión viva detrás de la puerta');
-    assert.equal(vencida.almacen[R.LLAVE_HASTA], undefined);
-    assert.equal(vencida.nube._traidas.length, 0);
+    assert.equal(p.nube._sesion.correo, require('../app/cuenta.js').correoDeTelefono('3001112233'));
+    assert.equal(p.C.activo(), true);
+  });
+
+  test('un celular a medias no llega a la nube: se dice y ya', async () => {
+    const p = pantalla();
+    p.C.alAbrir(p.ganchos);
+    p.porId.crCorreo.value = '30011'; p.porId.crClave.value = 'la-buena';
+    p.porId.crPuerta.dispatch('submit', { preventDefault() {} });
+    await quieta();
+    assert.match(p.porId.crErr.textContent, /diez dígitos/);
+    assert.equal(p.nube._sesion, null);
+  });
+
+  test('SIEMPRE ABIERTO: con la marca de esta puerta la sesión abre sola, sea de hoy o de hace un mes', async () => {
+    const haceUnMes = new Date(2026, 9, 23, 10, 30, 0).getTime();
+    for (const marca of [{ desde: haceUnMes, siempre: true }, { hasta: haceUnMes }]) {
+      const p = pantalla({ sesion: { access_token: 't', correo: 'dueno@ejemplo.co' }, almacen: { [R.LLAVE_HASTA]: JSON.stringify(marca) } });
+      p.C.alAbrir(p.ganchos);
+      await quieta(); await quieta();
+      assert.equal(p.C.activo(), true);
+      assert.equal(p.estado.abrio, 1);
+      assert.equal(p.nube._salidas, 0, 'nadie cierra la sesión por vieja');
+    }
+  });
+
+  test('con el CRM abierto, pasar la medianoche no lo cierra', async () => {
+    const p = pantalla();
+    p.C.alAbrir(p.ganchos);
+    await p.entrarBien();
+    p.avanzar(30 * 3600000);
+    p.porId.crActualizar.dispatch('click');
+    await quieta(); await quieta();
+    assert.equal(p.C.activo(), true);
+    assert.equal(p.nube._salidas, 0);
+    assert.equal(p.recargas.length, 0);
+  });
+
+  test('sin señal al abrir: NO pide la contraseña otra vez; ofrece «Reintentar» y entra cuando vuelve', async () => {
+    const p = pantalla({ sesion: { access_token: 't', correo: 'dueno@ejemplo.co' }, almacen: { [R.LLAVE_HASTA]: '{"siempre":true}' },
+      traer: (desde, n) => (n === 1 ? Promise.reject({ motivo: 'Sin conexión.', sin_red: true }) : Promise.resolve(paquete())) });
+    p.C.alAbrir(p.ganchos);
+    await quieta(); await quieta();
+    assert.equal(p.C.activo(), false);
+    assert.match(p.porId.crErr.textContent, /Sin señal: no pude traer tu cartera/);
+    assert.equal(p.porId.crReintentar.style.display, '', 'el botón de reintentar sale');
+    assert.equal(p.nube._salidas, 0, 'la sesión sigue guardada');
+    assert.ok(p.almacen[R.LLAVE_HASTA], 'y la marca también');
+    p.porId.crReintentar.dispatch('click');
+    await quieta(); await quieta();
+    assert.equal(p.C.activo(), true, 'al reintentar entra, sin contraseña');
+    assert.equal(p.estado.abrio, 1);
+  });
+
+  test('una cuenta que entra pero NO es dueña no se queda adentro, y se dice qué falta', async () => {
+    /* Es la frase con la que nube.js traduce el «no autorizado» de panel_traer. */
+    assert.match(LEER('panel/nube.js'), /no está en la lista de dueños/);
+    const p = pantalla({ traer: () => Promise.reject({ motivo: 'Tu usuario entró bien, pero no está en la lista de dueños.', estado: 400 }) });
+    p.C.alAbrir(p.ganchos);
+    p.porId.crCorreo.value = '3001112233'; p.porId.crClave.value = 'la-buena';
+    p.porId.crPuerta.dispatch('submit', { preventDefault() {} });
+    await quieta(); await quieta(); await quieta();
+    assert.equal(p.C.activo(), false);
+    assert.equal(p.estado.abrio, 0);
+    assert.match(p.porId.crErr.textContent, /no está autorizado como dueño/);
+    assert.equal(p.nube._salidas, 1, 'no queda una sesión viva detrás de la puerta del dueño');
+    assert.equal(p.almacen[R.LLAVE_HASTA], undefined);
   });
 
   test('una sesión que NO abrió esta puerta (la del Panel en el bolsillo) ni abre sola ni se cierra', async () => {
@@ -571,7 +649,10 @@ describe('crm-remoto · la puerta y las rejas', () => {
     await quieta();
     assert.equal(p.C.activo(), false);
     assert.equal(p.nube._salidas, 0);
-    assert.equal(p.porId.crCorreo.value, 'dueno@ejemplo.co', 'pero el correo ya viene escrito');
+    assert.equal(p.porId.crCorreo.value, '', 'y su correo no se pinta en el campo del celular');
+    const q = pantalla({ sesion: { access_token: 't', correo: require('../app/cuenta.js').correoDeTelefono('3001112233') } });
+    q.C.alAbrir(q.ganchos);
+    assert.equal(q.porId.crCorreo.value, '3001112233', 'el celular de una sesión de celular sí viene escrito');
   });
 
   test('«Salir» cierra la sesión de la nube, quita la marca y recarga', async () => {

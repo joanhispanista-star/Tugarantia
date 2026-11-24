@@ -12845,7 +12845,10 @@ function renderRegistros(){
       <td>${abierto?'<span class="chip al-dia">📱 App</span>':'<span class="chip pagado">🎟️ '+escHTML(r.codigo||'Invitación')+'</span>'}</td>
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
-      <td>${fmtFecha(String(r.creado_en||'').slice(0,10))}</td>
+      ${/* 24-nov-2026 — CON LA HORA, Y EN EL DÍA DE AQUÍ. Joan: «quiero que se vea la hora y
+           fecha de registro». Salía solo el día, y cortado de la hora UTC: quien se
+           registraba después de las 7 p. m. aparecía con la fecha del día siguiente.
+           fmtFechaHora usa el día y la hora de este aparato. */''}<td style="white-space:nowrap">${r.creado_en?escHTML(fmtFechaHora(r.creado_en)):'—'}</td>
       <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${r.telefono?`<button class="btn btn-ghost btn-sm" onclick="escribirlePorLaApp('registro','${escHTML(String(r.id))}')" title="En el chat de su app, sin WhatsApp, solo si ese celular ya tiene cuenta (se le pregunta a la nube al tocarlo). Lo ve cuando abra la app: no le llega aviso al celular.">💬 Escribirle por la app</button> `:''}${r.telefono&&necesitaAvisoResponsable(r)?`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeAvisoResponsable(r)))}" title="Se registró con la política anterior: avísale que desde el 15-oct la responsable de sus datos es NEXECO S.A.S.">📣 Aviso de datos</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}${c0
         /* 7-oct-2026 — EL TOQUE. Cuando el puente lo reconoce con fuerza
            (la misma cédula, o el mismo celular sin nada que lo contradiga),
@@ -13014,6 +13017,8 @@ function verDatosRegistro(id){
     +'Nadie ha comprobado su identidad contra la Registraduría ni contra ninguna central: eso no se consulta. '
     +'Lo único que sabemos es de dónde salió cada texto, y eso lo dice el cotejo de aquí abajo. '
     +'Al abrirle la ficha se prellenan y viajan con el cliente.</div>'
+    /* 24-nov-2026 — cuándo se registró, con la hora (lo que el servidor anotó al recibirlo). */
+    +(r.creado_en?'<div class="info-row"><span class="k">Se registró el</span><span class="vv">'+escHTML(fmtFechaHora(r.creado_en))+'</span></div>':'')
     +(filas||'<div class="muted">No dejó datos además del nombre y el celular.</div>')
     +bloqueHuella(r.huella,{registro:r})
     +'<div class="sub-h">Fotos del registro</div><div id="regFotos" class="muted">Buscando las fotos…</div>'

@@ -2986,6 +2986,20 @@
    · Los rótulos de las fichas van por la posición de la columna: pruebas/crm-movil.test.js
      pinta las seis tablas y compara sus <th> con la hoja.
    Entran a la precarga panel/crm-movil.js?v=158 y panel/crm-movil.css?v=158.
+   24-nov-2026, TERCERA PARTE (misma versión, sin publicar). Joan: «no quiero tener que
+   ingresar con correo… solo quiero que sea ingresar con mi numero de celular y la contraseña…
+   quiero que el CRM siempre este abierto en mi celular… que se vea la hora y fecha de registro».
+   · La puerta del celular pide CELULAR y contraseña. Es la cuenta de ese celular (la misma de
+     la app: CuentaSocio.correoDeTelefono); quién es dueño lo decide el servidor (panel_duenos).
+     Un celular que no esté anotado entra a Supabase, panel_traer lo rechaza, y la puerta lo
+     dice y cierra esa sesión. «Entrar con correo» queda como salida.
+   · SIEMPRE ABIERTO: la marca de la puerta ya no vence a la medianoche. Cierra «Salir», o que
+     el servidor diga que la sesión no vale. Si al abrir no hay señal, no pide la contraseña:
+     ofrece «Reintentar» y entra sola cuando vuelve.
+   · 📥 Registrados y «👁 Ver datos» dicen el día Y LA HORA del registro, en la hora del aparato
+     (antes solo el día, y cortado en UTC: después de las 7 p. m. salía el día siguiente).
+   PARA QUE JOAN ENTRE CON SU CELULAR falta un paso suyo, una vez, en Supabase: anotar la
+   cuenta de su celular en panel_duenos. No es base nueva: es una fila.
    NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
    número nunca baja. */
