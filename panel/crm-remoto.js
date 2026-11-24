@@ -671,8 +671,9 @@
       '.cr-franja b{font-weight:800;letter-spacing:.01em}' +
       '.cr-franja .cr-t{flex:1 1 200px;min-width:0;opacity:.86}' +
       '.cr-franja.mal{background:var(--rojo)}' +
-      '.cr-franja button{min-height:36px;padding:0 14px;border-radius:9px;border:1px solid rgba(255,255,255,.34);' +
+      '.cr-franja button,.cr-franja a.cr-ir{min-height:36px;padding:0 14px;border-radius:9px;border:1px solid rgba(255,255,255,.34);' +
         'background:transparent;color:inherit;font:inherit;font-weight:700}' +
+      '.cr-franja a.cr-ir{display:inline-flex;align-items:center;text-decoration:none}' +
       '.cr-aviso{position:fixed;left:12px;right:12px;bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:400;' +
         'padding:13px 15px;border-radius:12px;background:var(--laca);color:var(--papel);font-size:14px;line-height:1.4;' +
         'box-shadow:0 14px 40px -12px rgba(0,0,0,.55);opacity:0;transform:translateY(8px);pointer-events:none;' +
@@ -695,13 +696,14 @@
       'body.solo-mirar .cr-quieto:disabled{opacity:.55}' +
       /* En un telefono la franja es fija arriba y cada pixel de alto se paga en
          todas las pantallas: el aviso y la hora a la izquierda, en dos renglones,
-         y los dos botones a la derecha, a 44 px. Media 112 px; queda en 68. */
+         y los botones a la derecha, a 44 px. Media 112 px; quedó en 68, y en 81 desde
+         que entró «Cobrar» (24-nov): con tres controles el texto se parte en tres líneas. */
       '@media (max-width:880px){' +
-        '.cr-franja{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:2px 8px;align-items:center;' +
+        '.cr-franja{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:2px 6px;align-items:center;' +
           'margin:0 0 10px;padding:8px 8px 8px 12px;font-size:11.5px;line-height:1.35}' +
         '.cr-franja b{grid-column:1;grid-row:1;font-size:12.5px}' +
         '.cr-franja .cr-t{grid-column:1;grid-row:2;flex:none}' +
-        '.cr-franja button{grid-row:1/3;min-height:44px;padding:0 12px}' +
+        '.cr-franja button,.cr-franja a.cr-ir{grid-row:1/3;min-height:44px;padding:0 10px}' +
         '.cr-franja .cr-tx{display:none}' +
         '.cr-franja #crActualizar{min-width:44px;padding:0;font-size:19px;line-height:1}' +
       '}' +
@@ -729,7 +731,13 @@
       caja.id = 'crFranja';
       caja.className = 'cr-franja';
       caja.setAttribute('data-cr', '1');
+      /* 24-nov-2026 — «COBRAR» LLEVA AL PANEL EN EL BOLSILLO. Desde que «Soy Joan» trae
+         al celular hasta aquí (panel/index.html), este CRM es lo primero que abre, y es
+         solo para mirar: los botones de cobrar están escondidos. Sin este enlace, el
+         sitio donde SÍ se registra un cobro en la calle quedaba sin camino. Es un
+         enlace de verdad (href), no un onclick: alTocar lo deja pasar por data-cr. */
       caja.innerHTML = '<b>👁 Solo mirar</b><span class="cr-t" id="crFranjaT" aria-live="polite"></span>' +
+        '<a class="cr-ir" id="crCobrar" href="espejo.html" title="Abre el Panel en el bolsillo, donde se registra un cobro">Cobrar</a>' +
         '<button type="button" id="crActualizar" aria-label="Actualizar"><span aria-hidden="true">↻</span><span class="cr-tx"> Actualizar</span></button>' +
         '<button type="button" id="crSalir">Salir</button>';
       principal.insertBefore(caja, principal.firstChild);
@@ -879,7 +887,8 @@
       '<button type="button" class="cr-otra" id="crOtra">Entrar con correo</button>' +
       (E.veniaDeCopia ? '<button type="button" class="cr-otra" id="crVolverCopia">Volver a la copia de este celular</button>' : '') +
       '<p class="cr-nota">Queda abierto en este celular hasta que toques «Salir». ' +
-      'No guarda tu cartera: la trae de la nube y, por ahora, solo se mira.</p>';
+      'No guarda tu cartera: la trae de la nube y, por ahora, solo se mira.</p>' +
+      '<p class="cr-nota">¿Vas a registrar un cobro? <a id="crAlBolsillo" href="espejo.html">Abre el Panel en el bolsillo</a>.</p>';
     var equipo = tarjeta.querySelector('.gate-link');
     tarjeta.insertBefore(caja, equipo || null);
     caja.addEventListener('submit', function (ev) { ev.preventDefault(); entrarConCorreo(); });

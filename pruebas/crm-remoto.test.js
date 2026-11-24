@@ -958,3 +958,40 @@ describe('crm-remoto · el celular que guarda una copia', () => {
       'con «Ver lo de hoy» escogido, el PIN guardado abriría la copia por debajo de la puerta del correo');
   });
 });
+
+/* ==========================================================================
+ * 24-nov-2026 — DEL CRM DEL CELULAR AL PANEL EN EL BOLSILLO
+ * Desde que «Soy Joan» trae al celular hasta el CRM (panel/index.html), el CRM
+ * es lo primero que abre, y ahí solo se mira. El sitio donde SÍ se registra un
+ * cobro en la calle tiene que quedar a un toque: en la puerta y en la franja.
+ * ======================================================================== */
+describe('crm-remoto · el camino al Panel en el bolsillo', () => {
+  test('la puerta lo ofrece antes de entrar, con un enlace de verdad', () => {
+    const p = pantalla();
+    p.C.alAbrir(p.ganchos);
+    assert.match(p.porId.crPuerta.innerHTML, /¿Vas a registrar un cobro\? <a id="crAlBolsillo" href="espejo\.html">Abre el Panel en el bolsillo<\/a>/);
+  });
+  test('adentro, la franja lleva «Cobrar»: un enlace (href), no un onclick que el filtro de mirar frenaría', async () => {
+    const p = pantalla();
+    p.C.alAbrir(p.ganchos);
+    await p.entrarBien();
+    assert.equal(p.C.activo(), true);
+    const h = p.porId.crFranja.innerHTML;
+    assert.match(h, /<a class="cr-ir" id="crCobrar" href="espejo\.html"[^>]*>Cobrar<\/a>/);
+    assert.equal(/id="crCobrar"[^>]*onclick/.test(h), false);
+    assert.ok(h.indexOf('id="crCobrar"') < h.indexOf('id="crActualizar"') && h.indexOf('id="crActualizar"') < h.indexOf('id="crSalir"'), 'el orden de los tres controles cambió');
+    assert.equal(p.porId.crFranja.getAttribute('data-cr'), '1', 'sin data-cr, el filtro de toques trataría el enlace como del CRM');
+  });
+  test('la franja de la COPIA no lo lleva: ahí el CRM escribe y cobrar se hace ahí mismo', () => {
+    const p = pantalla({ almacen: { [R.GAVETA]: JSON.stringify({ socios: [{ id: 's1' }], prestamos: [] }) } });
+    p.C.alAbrir(p.ganchos);
+    p.porId.gate = { style: { display: 'none' } };
+    p.C.revisarFranjaDeCopia();
+    assert.equal(/crCobrar/.test(p.porId.crFranjaCopia.innerHTML), false);
+  });
+  test('en el teléfono, la rejilla de la franja tiene sitio para los tres, a 44 px', () => {
+    const js = LEER('panel/crm-remoto.js');
+    assert.match(js, /\.cr-franja\{display:grid;grid-template-columns:minmax\(0,1fr\) auto auto auto;/);
+    assert.match(js, /\.cr-franja button,\.cr-franja a\.cr-ir\{grid-row:1\/3;min-height:44px;/);
+  });
+});

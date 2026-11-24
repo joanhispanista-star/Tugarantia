@@ -3062,6 +3062,9 @@
      de hoy» pasa a celular y contraseña y trae la cartera de la nube para mirar; la copia no se
      toca, y la elección se recuerda en ese aparato hasta «Volver a la copia de este celular».
      Cambian panel/crm-remoto.js y UNA línea de panel/crm.html (pintarSalidaDeLaPuerta).
+   · «COBRAR», A UN TOQUE. Como ahora el CRM es lo primero que abre el celular, y ahí solo se
+     mira, la franja de arriba lleva «Cobrar» y la puerta un enlace: los dos abren el Panel en
+     el bolsillo (espejo.html), que es donde se registra un cobro en la calle.
    Nada de esto necesita base nueva. */
 const CACHE = 'tugarantia-v162';
 const BASE = new URL('./', self.location).pathname;
