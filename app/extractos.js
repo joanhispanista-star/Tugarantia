@@ -41,6 +41,16 @@
  * es verdad: al revisar la SOLICITUD. Los términos prometen que los extractos no
  * suben la garantía, y eso sigue siendo así.
  *
+ * 24-nov-2026 — QUÉ PLATAFORMAS USA. Joan, en el mismo pedido: «que el cliente
+ * pueda indicar que plataformas usa como nequi, daviplata, nubank, lulo bank u
+ * otros». Una fila de casillas (PLATAFORMAS: lista cerrada, sin texto libre)
+ * que solo aparece DESPUÉS de marcar la autorización aparte: es un dato más de
+ * sus cuentas y va con el mismo permiso; al retirarlo, se borra
+ * (base/20261124_plataformas_del_extracto.sql). En el registro espera en el
+ * teléfono con lo escogido y sube con la cola: después de la autorización y
+ * antes de los archivos. Si la base no tiene ese SQL (404), no se ofrecen: no
+ * se pregunta lo que no se puede guardar.
+ *
  * LO QUE SE PIDE, EN PALABRAS DE TODOS LOS DÍAS: los extractos de los últimos
  * 3 meses de la cuenta donde le pagan o le llega la plata (Nequi, Daviplata o
  * el banco), que se bajan desde la app de su banco. En PDF (el mejor: tres, uno
@@ -173,6 +183,41 @@
     return !!normal(ocupacion);
   }
 
+  /* ------------------------------------------------ qué plataformas usa */
+  /* LISTA CERRADA, la misma de base/20261124_plataformas_del_extracto.sql
+     (extracto_plataformas_limpia) y de panel/extractos-crm.js: una prueba
+     compara las tres. El `id` es lo que viaja y se guarda; el nombre, lo que
+     se lee. Sin texto libre a propósito: lo que la persona escribiera de su
+     banco no tiene por qué quedar en ninguna parte. Bancolombia no estaba en
+     las palabras de Joan («nequi, daviplata, nubank, lulo bank u otros»): es
+     donde más nóminas llegan, y esto se pidió para el empleado. */
+  var PLATAFORMAS = [
+    { id: 'nequi', nombre: 'Nequi' },
+    { id: 'daviplata', nombre: 'Daviplata' },
+    { id: 'nubank', nombre: 'Nubank' },
+    { id: 'lulo', nombre: 'Lulo Bank' },
+    { id: 'bancolombia', nombre: 'Bancolombia' },
+    { id: 'otra', nombre: 'Otro banco' }
+  ];
+  /** De lo que venga (una lista o un texto con comas) a los id de la lista, en su orden y sin repetir. */
+  function limpiarPlataformas(v) {
+    var l = Array.isArray(v) ? v : String(v == null ? '' : v).split(',');
+    var dichas = l.map(function (x) { return String(x == null ? '' : x).toLowerCase().replace(/[^a-z]/g, ''); });
+    return PLATAFORMAS.map(function (p) { return p.id; }).filter(function (id) { return dichas.indexOf(id) >= 0; });
+  }
+  /** «Nequi, Daviplata y Otro banco». */
+  function plataformasEnPalabras(v) {
+    var n = limpiarPlataformas(v).map(function (id) {
+      return PLATAFORMAS.filter(function (p) { return p.id === id; })[0].nombre;
+    });
+    return n.length > 1 ? n.slice(0, -1).join(', ') + ' y ' + n[n.length - 1] : (n[0] || '');
+  }
+  /** La lista con `id` puesto o quitado, según `marcada`. */
+  function alternarPlataforma(lista, id, marcada) {
+    var l = limpiarPlataformas(lista).filter(function (x) { return x !== id; });
+    return limpiarPlataformas(marcada ? l.concat([id]) : l);
+  }
+
   /* ---------------------------------------------------------------- textos */
   var TEXTOS = {
     /* Arriba de la casilla, en el registro y en la cuenta: «no cambian tu
@@ -208,7 +253,8 @@
        medir el riesgo y hasta cuánto proponerle, al evaluar sus solicitudes. Lo que se
        firma tiene que decir para qué, no una versión más corta de eso. */
     autorizacionDetalle: 'Para medir el riesgo de prestarme y saber hasta cuánto proponerme cuando evalúen mis solicitudes ' +
-      'de crédito: miran cuánto me entra y con qué regularidad. Es ' +
+      'de crédito: miran cuánto me entra y con qué regularidad. También guardan cuáles plataformas marco que uso (Nequi, ' +
+      'Daviplata, bancos), para lo mismo. Es ' +
       'opcional y aparte de la autorización general: sin ella todo sigue igual. Nunca me piden la clave de mi Nequi, de ' +
       'Daviplata ni de mi banco. Los mira una persona, quien dirige el negocio; ningún programa los lee ni los califica, y el ' +
       'resto del equipo no los ve. Se guardan mientras tenga cuenta en Tu Garantía; puedo quitarlos cuando quiera desde mi ' +
@@ -230,6 +276,10 @@
       'se cierra tendrás que escogerlos otra vez.',
     despuesQuitar: 'Si cambiaste de idea, toca «Volver» y desmarca la autorización.',
     dondeFalte: 'Lo que te falte lo subes cuando quieras desde tu cuenta: Perfil → «📄 Tus extractos» (en la app instalada, en Inicio).',
+    /* 24-nov-2026 — las plataformas: un título y una línea (al cliente, menos texto). */
+    plataformasTitulo: '¿Cuáles usas?',
+    plataformasAyuda: 'Marca dónde te llega o mueves tu plata. Opcional.',
+    plataformasNoGuardo: 'No pudimos guardar lo que marcaste. Vuelve a intentar.',
     subelos: 'Cuando los tengas, súbelos',
     ayudaFormas: 'El PDF es lo mejor: es el extracto tal como lo da tu banco. Si no, pantallazos de tus movimientos donde se ' +
       'lean tu nombre, las fechas y los valores. Hasta 3 PDF y 5 pantallazos.',
@@ -527,6 +577,7 @@
         var desde = MALOS_EN_CAMINO.length;
         var escrita = g.archivos(intento, celular).then(function (r) {
           var cola = { celular: cel, intento: enc.intento, t: ahora(), aut: aut, autorizada: false,
+                       plataformas: limpiarPlataformas(e.plataformas), plataformasDichas: false,
                        archivos: r.lista.map(function (a) { return { id: a.id, tipo: a.tipo, bytes: a.bytes, base64: a.base64, sha256: a.sha256 }; }) };
           return escribir(COLA + cel, cola);
         }).then(function () { return soltarElRegistro(); });
@@ -652,7 +703,24 @@
               if (j && j.ok === true) { c.autorizada = true; return g.guardarCola(cel, c); }
               throw { motivo: (j && j.motivo) || 'rechazo' };
             });
-        return autorizar.then(function () {
+        /* 24-nov-2026 — LAS PLATAFORMAS QUE MARCÓ: después de la autorización
+           (sin ella la base no las guarda) y antes de los archivos. Un 404 es
+           la base sin base/20261124_plataformas_del_extracto.sql: no hay dónde
+           guardarlas, y los archivos no esperan por eso. Cualquier otro fallo
+           NO se traga: cae donde cae el de un archivo (la cola se queda y se
+           reintenta), porque un error de servidor callado no existe para nadie. */
+        var decirPlataformas = function () {
+          var pl = limpiarPlataformas(c.plataformas);
+          if (!pl.length || c.plataformasDichas) return null;
+          return Promise.resolve(llamar('extracto_plataformas', { p_plataformas: pl.join(',') })).then(function (j) {
+            if (j && j.ok === true) { c.plataformasDichas = true; return g.guardarCola(cel, c); }
+            throw { motivo: (j && j.motivo) || 'rechazo' };
+          }, function (e) {
+            if (e && e.status === 404) { res.plataformas = 'apagado'; return null; }
+            throw e;
+          });
+        };
+        return autorizar.then(decirPlataformas).then(function () {
           return c.archivos.slice().reduce(function (p, a) {
             return p.then(function () {
               return Promise.resolve(llamar('extracto_subir', { p_archivo: a.base64 })).then(function (j) {
@@ -748,7 +816,27 @@
     '.ex-pegado{margin-top:var(--e3);padding:var(--e3);border:2px solid var(--azul-texto);border-radius:14px;background:var(--azul-tinte)}' +
     '.ex-vista{display:block;max-width:100%;max-height:320px;margin:var(--e2) auto 0;object-fit:contain;border:1px solid var(--linea);' +
       'border-radius:10px;background:var(--papel)}' +
-    '.ex-pdf{margin-top:var(--e2);font-size:14px;font-weight:600;overflow-wrap:anywhere}';
+    '.ex-pdf{margin-top:var(--e2);font-size:14px;font-weight:600;overflow-wrap:anywhere}' +
+    /* 24-nov-2026 — «¿Cuáles usas?»: casillas con cara de botón. 44 px de alto
+       (el dedo); la marcada lleva su ✓ además del color (no solo el color la
+       distingue); la casilla de verdad sigue ahí para el teclado y el lector. */
+    '.ex-plat{margin-top:var(--e3)}' +
+    /* Los títulos y las ayudas, EN LA APP: play/estilo.css define .grupo-tit y
+       .ayuda, pero app/socio.html no, y ahí «Cuando los tengas, súbelos» y su
+       ayuda salían como texto suelto, pegados a lo de arriba (se vio en la foto
+       del 24-nov). #exCuerpo solo existe en la tarjeta de la app: en el
+       registro manda su hoja, que dice lo mismo. */
+    '#exCuerpo .grupo-tit{font-size:12px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;color:var(--gris);margin:var(--e4) 0 0}' +
+    '#exCuerpo .ayuda{font-size:12.5px;color:var(--gris);margin-top:5px;line-height:1.45}' +
+    '.ex-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:var(--e2)}' +
+    '.ex-chip{position:relative;display:inline-flex;margin:0;cursor:pointer}' +
+    '.ex-chip input{position:absolute;left:0;top:0;width:1px;height:1px;opacity:0;overflow:hidden}' +
+    '.ex-chip span{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border:1px solid var(--linea);' +
+      'border-radius:999px;font-size:14px;font-weight:600;background:var(--papel)}' +
+    '.ex-chip input:checked+span{border-color:var(--azul-texto);background:var(--azul-tinte);color:var(--azul-texto)}' +
+    '.ex-chip input:checked+span::before{content:"✓";margin-right:6px}' +
+    '.ex-chip input:focus-visible+span{outline:2px solid var(--azul-texto);outline-offset:2px}' +
+    '.ex-chip input:disabled+span{opacity:.55}';
   function ponerEstilo(d) {
     try {
       if (!d || !d.getElementById || d.getElementById('exEstilo')) return;
@@ -782,6 +870,22 @@
     if (modo !== 'registro') return '';
     return '<div class="aviso ambar" id="exAntesDeIrte" role="note"><b>' + esc(conMinutos(TEXTOS.antesDeIrte)) + '</b> ' +
       esc(TEXTOS.antesDeIrteDetalle) + '</div>';
+  }
+  /* «¿CUÁLES USAS?» Solo con la autorización marcada (pantallaHTML): es un dato
+     más de sus cuentas y va con ese permiso. `vm.sinPlataformas`: la base
+     todavía no las guarda (404). `vm.plataformasSinLeer`: en la cuenta, no se
+     pudo leer cuáles tenía; con las casillas en blanco un toque mandaría la
+     lista entera y borraría las que no se ven, así que no se pintan. */
+  function plataformasHTML(vm) {
+    if (vm.sinPlataformas || vm.plataformasSinLeer) return '';
+    var marcadas = limpiarPlataformas(vm.plataformas), dis = vm.ocupado ? ' disabled' : '';
+    return '<div class="ex-plat" id="exPlataformas" role="group" aria-labelledby="exPlatTitulo">' +
+      '<div class="grupo-tit" id="exPlatTitulo">' + esc(TEXTOS.plataformasTitulo) + '</div>' +
+      '<div class="ayuda">' + esc(TEXTOS.plataformasAyuda) + '</div>' +
+      '<div class="ex-chips">' + PLATAFORMAS.map(function (p) {
+        return '<label class="ex-chip"><input type="checkbox" data-ex="plat" value="' + p.id + '"' +
+          (marcadas.indexOf(p.id) >= 0 ? ' checked' : '') + dis + '><span>' + esc(p.nombre) + '</span></label>';
+      }).join('') + '</div></div>';
   }
   function formasHTML(vm) {
     return '<div class="grupo-tit">' + esc(TEXTOS.subelos) + '</div>' +
@@ -863,7 +967,7 @@
       queSePideHTML() +
       autorizacionHTML(conAut);
     if (!conAut) return r + avisoHTML(vm);
-    return r + formasHTML(vm) + avisoHTML(vm) + listaHTML(vm);
+    return r + plataformasHTML(vm) + formasHTML(vm) + avisoHTML(vm) + listaHTML(vm);
   }
 
   /* ------------------------------------------------------ los toques, una vez */
@@ -995,6 +1099,27 @@
         }, function (e) { decir(motivoEnPalabras((e && e.motivo) || 'sin_red')); });
         return;
       }
+      if (que === 'plat') {
+        /* La lista vive en vm y cada toque la pone o la quita ahí (no se lee
+           de la pantalla: dos toques seguidos no se pisan). Si guardar falla,
+           la casilla vuelve a lo último que SÍ quedó guardado: la pantalla no
+           dice «marcado» de algo que no quedó. `turno`: solo la respuesta del
+           último toque repinta. */
+        if (!vm.aut || !h.plataformas) return;
+        var nueva = alternarPlataforma(vm.plataformas, t.value, !!t.checked);
+        var turno = (vm.platTurno = (vm.platTurno || 0) + 1);
+        vm.plataformas = nueva;
+        var deshacer = function (m) {
+          if (turno !== vm.platTurno) return;
+          vm.plataformas = limpiarPlataformas(vm.plataformasGuardadas);
+          decir(MOTIVOS[m] || TEXTOS.plataformasNoGuardo);
+        };
+        Promise.resolve(h.plataformas(nueva)).then(function (r) {
+          if (r && r.ok === false) return deshacer(r.motivo);
+          vm.plataformasGuardadas = nueva;
+        }, function (e) { deshacer((e && e.motivo) || 'sin_red'); });
+        return;
+      }
       if (que === 'archivo') {
         var fs = Array.prototype.slice.call(t.files || []);
         try { t.value = ''; } catch (e) {}
@@ -1036,10 +1161,15 @@
     var ahora = typeof o.ahora === 'function' ? o.ahora : function () { return Date.now(); };
     var e = g.estado(intento, cel);
     var vm = { modo: 'registro', aut: e.aut, archivos: [], aviso: '', avisoClase: '', pegando: false, pegado: null,
-               ocupado: false, soloMemoria: false, perdidos: !!o.perdidos };
+               ocupado: false, soloMemoria: false, perdidos: !!o.perdidos,
+               plataformas: e.aut ? limpiarPlataformas(e.plataformas) : [], sinPlataformas: !!o.sinPlataformas };
+    vm.plataformasGuardadas = vm.plataformas.slice();
+    /* Las plataformas se guardan con lo escogido, y SOLO con la autorización:
+       sin ella (o con la base sin dónde guardarlas) no queda ninguna. */
     var guardar = function () {
       var x = g.estado(intento, cel);
       x.aut = vm.aut; x.despues = !!e.despues;
+      x.plataformas = (vm.aut && !vm.sinPlataformas) ? limpiarPlataformas(vm.plataformas) : [];
       g.guardarEstado(x); e = x;
     };
     var h = {
@@ -1052,9 +1182,13 @@
       },
       autorizar: function (si) {
         vm.aut = si ? armarAutorizacion(new Date(ahora()).toISOString()) : null;
+        if (!si) { vm.plataformas = []; vm.plataformasGuardadas = []; }
         guardar();
         return si ? null : g.soltarArchivos();
       },
+      /* En el registro «guardar» es dejarlas en el teléfono con lo escogido:
+         suben con la cola cuando abra su cuenta (subirCola). */
+      plataformas: function (lista) { vm.plataformas = limpiarPlataformas(lista); guardar(); return null; },
       agregar: function (a) { return vm.aut ? g.agregar(intento, cel, a) : { ok: false, motivo: 'sin_autorizacion' }; },
       quitar: function (id) { return g.quitar(intento, cel, id); },
       despues: function () {
@@ -1087,6 +1221,13 @@
       } catch (x) {}
       return false;
     };
+    /* La página supo (404) que la base no guarda las plataformas: se quitan
+       las casillas y lo que estuviera marcado. El paso sigue. */
+    ctl.sinPlataformas = function () {
+      if (vm.sinPlataformas) return;
+      vm.sinPlataformas = true; vm.plataformas = []; vm.plataformasGuardadas = [];
+      guardar(); ctl.pintar();
+    };
     ctl.pintar();
     h.leer().then(ctl.pintar, ctl.pintar);
     return ctl;
@@ -1111,7 +1252,8 @@
     var ahora = typeof o.ahora === 'function' ? o.ahora : function () { return Date.now(); };
     var escritura = typeof o.escritura === 'function' ? o.escritura : function (p) { return p; };
     var vm = { modo: 'cuenta', aut: null, archivos: [], aviso: '', avisoClase: '', pegando: false, pegado: null, vistas: {},
-               ocupado: false, abierta: !!o.abierta, cargando: true, subiendo: null, ocupacion: '' };
+               ocupado: false, abierta: !!o.abierta, cargando: true, subiendo: null, ocupacion: '',
+               plataformas: [], plataformasGuardadas: [], sinPlataformas: false, plataformasSinLeer: true };
     var llamar = function (fn, cuerpo, escribe) {
       var p = Promise.resolve(o.credenciales ? o.credenciales() : null).then(function (cfg) {
         return llamarConToken(cfg, fn, cuerpo, o.fetch);
@@ -1181,8 +1323,29 @@
         if (esta < tomada) return;
         tomada = esta;
         vm.cargando = false; var m = deError(e).motivo; if (m === 'apagado') vm.apagado = true; throw { motivo: m };
-      });
+      }).then(function () { return leerPlataformas(esta); });
     };
+    /* 24-nov-2026 — LAS PLATAFORMAS, aparte (otra función, otro SQL), y UNA vez
+       por autorización: leer() corre después de cada archivo y no hace falta
+       volver a preguntarlas. Sin autorización no hay ninguna. Un 404 es la
+       base sin base/20261124_plataformas_del_extracto.sql: no se ofrecen.
+       Cualquier otro fallo no tumba la tarjeta (los archivos sí se leyeron),
+       pero las casillas no se pintan hasta poder leerlas (plataformasHTML
+       dice por qué), y la próxima lectura vuelve a preguntar. */
+    var leerPlataformas = function (esta) {
+      if (esta !== tomada) return null;
+      if (!vm.aut) { vm.plataformas = []; vm.plataformasGuardadas = []; vm.plataformasSinLeer = true; return null; }
+      if (vm.sinPlataformas || !vm.plataformasSinLeer) return null;
+      return llamar('extracto_plataformas_mias', {}).then(function (j) {
+        if (esta !== tomada || !(j && j.ok === true)) return;
+        vm.plataformas = limpiarPlataformas(j.plataformas);
+        vm.plataformasGuardadas = vm.plataformas.slice();
+        vm.plataformasSinLeer = false;
+      }, function (e) { if (e && e.status === 404) vm.sinPlataformas = true; });
+    };
+    /* En fila: cada llamada manda la lista ENTERA, así que la última que llega
+       es la que queda; sin la fila, dos toques seguidos podrían llegar al revés. */
+    var filaDePlataformas = Promise.resolve();
     /* La casilla: esto SÍ es firmar, con la versión del texto que se ve. */
     var autorizar = function () {
       return llamar('extracto_autorizar', { p_version: VERSION_AUTORIZACION, p_momento: new Date(ahora()).toISOString() }, true)
@@ -1228,6 +1391,14 @@
           }, deError);
       },
       quitar: function (id) { return llamar('extracto_quitar', { p_id: Number(id) }, true); },
+      plataformas: function (lista) {
+        var p = filaDePlataformas.then(function () {
+          return llamar('extracto_plataformas', { p_plataformas: limpiarPlataformas(lista).join(',') }, true)
+            .then(function (j) { return (j && j.ok === true) ? { ok: true } : { ok: false, motivo: (j && j.motivo) || 'sin_red' }; }, deError);
+        });
+        filaDePlataformas = p.then(null, function () {});
+        return p;
+      },
       alPintar: function () { pintarLinea(); }
     };
     var pintarLinea = function () {
@@ -1298,6 +1469,11 @@
     avisoDeLaCola: avisoDeLaCola,
     pistaDespues: pistaDespues,
     llamarConToken: llamarConToken,
+    PLATAFORMAS: PLATAFORMAS,
+    limpiarPlataformas: limpiarPlataformas,
+    plataformasEnPalabras: plataformasEnPalabras,
+    alternarPlataforma: alternarPlataforma,
+    plataformasHTML: plataformasHTML,
     autorizacionHTML: autorizacionHTML,
     pantallaHTML: pantallaHTML,
     pasoDelRegistro: pasoDelRegistro,

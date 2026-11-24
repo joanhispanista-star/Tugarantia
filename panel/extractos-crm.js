@@ -99,6 +99,27 @@
     for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
     return u8;
   }
+  /* 24-nov-2026 — QUÉ PLATAFORMAS DIJO QUE USA. La lista de app/extractos.js
+     (PLATAFORMAS) y de base/20261124_plataformas_del_extracto.sql: una prueba
+     compara las tres. Aquí solo se LEE: es lo que la persona marcó, no algo
+     que un banco confirme. */
+  var PLATAFORMAS = [
+    { id: 'nequi', nombre: 'Nequi' },
+    { id: 'daviplata', nombre: 'Daviplata' },
+    { id: 'nubank', nombre: 'Nubank' },
+    { id: 'lulo', nombre: 'Lulo Bank' },
+    { id: 'bancolombia', nombre: 'Bancolombia' },
+    { id: 'otra', nombre: 'Otro banco' }
+  ];
+  /** «Nequi, Daviplata y Otro banco», de lo que guarda la base ('nequi,daviplata,otra'). Lo que no es de la lista no sale. */
+  function plataformasEnPalabras(v) {
+    var dichas = (Array.isArray(v) ? v : String(v == null ? '' : v).split(','))
+      .map(function (x) { return String(x == null ? '' : x).toLowerCase().replace(/[^a-z]/g, ''); });
+    var n = PLATAFORMAS.filter(function (p) { return dichas.indexOf(p.id) >= 0; }).map(function (p) { return p.nombre; });
+    return n.length > 1 ? n.slice(0, -1).join(', ') + ' y ' + n[n.length - 1] : (n[0] || '');
+  }
+  /* «todavía no tiene»: así dice rpc (panel/crm.html) un 404, la base sin ese SQL. */
+  function faltaEnLaBase(e) { return /todavía no tiene/.test(String((e && e.motivo) || '')); }
   function cuantos(p) { return (Number(p && p.pdf) || 0) + (Number(p && p.imagenes) || 0); }
   function queSubio(p) {
     var que = [];
@@ -113,10 +134,34 @@
     return rpc('extracto_resumen', { p_clave: clave }).then(function (j) {
       var m = {}, e = j && j.espacio;
       ((j && j.personas) || []).forEach(function (p) { if (p && p.celular) m[diez(p.celular)] = p; });
-      return { porCelular: m, espacio: (e && Number(e.tope) > 0) ? { ocupado: Number(e.ocupado) || 0, tope: Number(e.tope) } : null };
+      var r = { porCelular: m, espacio: (e && Number(e.tope) > 0) ? { ocupado: Number(e.ocupado) || 0, tope: Number(e.tope) } : null };
+      /* Las plataformas de todos, de un solo viaje, y solo si hay alguien. Si
+         no se pueden traer, la lista sale igual sin ellas: el «📄 Ver» de cada
+         persona las pide otra vez y ahí sí se dice por qué no están. */
+      if (!Object.keys(m).length) return r;
+      return Promise.resolve(rpc('extracto_plataformas_de', { p_clave: clave })).then(function (x) {
+        ((x && x.personas) || []).forEach(function (p) {
+          var k = p && diez(p.celular);
+          if (k && m[k]) m[k].plataformas = String(p.plataformas || '');
+        });
+        return r;
+      }, function () { return r; });
     });
   }
-  function de(rpc, clave, celular) { return rpc('extracto_de', { p_clave: clave, p_celular: diez(celular) }); }
+  /* Lo de UNA persona, con las plataformas que marcó (d.plataformas). Si no se
+     pudieron preguntar, d.plataformasEstado dice por qué ('falta': la base sin
+     base/20261124_plataformas_del_extracto.sql; 'error'), y bloque() lo dice:
+     no poder preguntar no es «no marcó ninguna». */
+  function de(rpc, clave, celular) {
+    return rpc('extracto_de', { p_clave: clave, p_celular: diez(celular) }).then(function (d) {
+      var a = d && d.autorizacion;
+      if (!a || a.revocada_en) return d;
+      return Promise.resolve(rpc('extracto_plataformas_de', { p_clave: clave, p_celular: diez(celular) })).then(function (x) {
+        d.plataformas = String((x && x.plataformas) || ''); d.plataformasEstado = 'ok';
+        return d;
+      }, function (e) { d.plataformasEstado = faltaEnLaBase(e) ? 'falta' : 'error'; return d; });
+    });
+  }
   function borrar(rpc, clave, celular) { return rpc('extracto_borrar', { p_clave: clave, p_celular: diez(celular) }); }
   /**
    * UN archivo, listo para abrir: {ok, tipo, blob, bytes} o {ok:false, motivo}.
@@ -165,7 +210,7 @@
   function bloqueRegistros(porCelular, o) {
     o = o || {};
     var tit = '<div class="card" id="extractosRegistros"><div class="card-h"><h3>📄 Extractos que subieron</h3>' +
-      '<span class="tag">De quienes no son empleados: Nequi, Daviplata o el banco. Solo los ves tú; se guardan mientras tengan cuenta.</span></div>';
+      '<span class="tag">De quien quiso darlos, empleado o no: Nequi, Daviplata o el banco. Solo los ves tú; se guardan mientras tengan cuenta.</span></div>';
     if (o.estado === 'falta') return tit + '<div class="muted" style="padding:0 14px 12px">Tu base todavía no tiene esta parte: corre base/20261113c_los_extractos.sql en el SQL Editor. Mientras tanto el registro no ofrece el paso.</div></div>';
     if (o.estado === 'error') return tit + '<div class="alerta warn" style="margin:0 14px 12px">No pude preguntar por los extractos. Eso <b>no</b> quiere decir que nadie haya subido: toca «↻ Traer de la nube».</div></div>';
     var todos = Object.keys(porCelular || {}).map(function (k) { return porCelular[k]; }).filter(function (p) { return p && p.celular; });
@@ -176,14 +221,16 @@
     if (!con.length && !sin.length) return espacio ? tit + espacio + '</div>' : '';
     var nombreDe = typeof o.nombreDe === 'function' ? o.nombreDe : function () { return ''; };
     var quien = function (p) { var n = ''; try { n = nombreDe(diez(p.celular)) || ''; } catch (e) { n = ''; } return (n ? esc(n) + ' · ' : '') + esc(bonito(p.celular)); };
+    var usa = function (p, antes, despues) { var t = plataformasEnPalabras(p.plataformas); return t ? antes + esc(t) + despues : ''; };
     return tit + espacio + '<div style="padding:0 14px 12px">' +
       con.map(function (p) {
         return '<div class="info-row"><span class="k">' + quien(p) + '</span><span class="vv"><button class="btn btn-ghost btn-sm" ' +
           'data-extractos-ver="' + esc(diez(p.celular)) + '" onclick="verExtractosDe(this.getAttribute(\'data-extractos-ver\'))">📄 Ver</button> ' +
-          '<span class="muted" style="font-size:12px">' + esc(queSubio(p)) + (p.ultimo ? ' · subido el ' + esc(fecha(p.ultimo)) : '') + '</span></span></div>';
+          '<span class="muted" style="font-size:12px">' + esc(queSubio(p)) + (p.ultimo ? ' · subido el ' + esc(fecha(p.ultimo)) : '') +
+          usa(p, ' · dice que usa ', '') + '</span></span></div>';
       }).join('') +
       (sin.length ? '<div class="muted" style="margin-top:8px;font-size:12px">Autorizaron y todavía no suben nada: ' +
-        sin.map(quien).join(', ') + '. Lo pueden subir desde su cuenta.</div>' : '') +
+        sin.map(function (p) { return quien(p) + usa(p, ' (dice que usa ', ')'); }).join(', ') + '. Lo pueden subir desde su cuenta.</div>' : '') +
       '</div></div>';
   }
 
@@ -285,6 +332,14 @@
     return tit +
       (a ? fila('Autorizó', 'el ' + esc(fecha(a.autorizada_en, true)) + ' <span class="muted">· texto del ' + esc(a.version) + '</span>') : '') +
       (a && a.revocada_en ? fila('Retiró su autorización', 'el ' + esc(fecha(a.revocada_en, true))) : '') +
+      /* 24-nov-2026 — lo que marcó en «¿Cuáles usas?». Si no marcó nada, no
+         ocupa sitio; si no se pudo preguntar, se dice. */
+      (plataformasEnPalabras(d && d.plataformas) ? fila('Dice que usa', esc(plataformasEnPalabras(d.plataformas)) +
+          ' <span class="muted">· lo marcó la persona</span>') : '') +
+      (d && d.plataformasEstado === 'falta' ? '<div class="muted" style="font-size:12px;margin:4px 0">Qué plataformas usa: tu base todavía no ' +
+          'tiene esa parte. Corre base/20261124_plataformas_del_extracto.sql en el SQL Editor.</div>' : '') +
+      (d && d.plataformasEstado === 'error' ? '<div class="muted" style="font-size:12px;margin:4px 0">No pude preguntar qué plataformas ' +
+          'dijo que usa. Eso <b>no</b> quiere decir que no marcó ninguna.</div>' : '') +
       (archivos.length ? archivos.map(function (x) {
         return '<div class="info-row"><span class="k">' + (x.tipo === 'pdf' ? '📄 PDF' : '🖼️ Pantallazo') + ' · ' + esc(tamano(x.bytes)) +
           '<div class="muted" style="font-size:12px">subido el ' + esc(fecha(x.creado_en, true)) + '</div></span>' +
@@ -376,6 +431,8 @@
     VERSION: '2026-11-13',
     TIPO_MIME: TIPO_MIME,
     REGULAR: REGULAR,
+    PLATAFORMAS: PLATAFORMAS,
+    plataformasEnPalabras: plataformasEnPalabras,
     tipoPorBytes: tipoPorBytes,
     resumen: resumen,
     de: de,

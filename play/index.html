@@ -3821,7 +3821,7 @@ function montarPasoExtractos() {
   if (!g || !caja || !X) return;
   PASO_EXTRACTOS = X.pasoDelRegistro(caja, {
     guardadero: g, intento: asegurarIntento(), celular: String(REGISTRO.celular || ''), perdidos: EXTRACTOS_PERDIDOS,
-    despues: extractosDespues
+    despues: extractosDespues, sinPlataformas: EX_SIN_PLATAFORMAS
   });
   EXTRACTOS_PERDIDOS = false;   // se dijo una vez
 }
@@ -3901,6 +3901,21 @@ function probarExtractosEnLaBase() {
       headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon }, body: '{}' });
   } catch (e) { return; }
   Promise.resolve(p).then(function (r) { if (r && r.status === 404) apagarPasoExtractos(); }, function () {});
+  /* 24-nov-2026 — Y «¿CUÁLES USAS?», que vive en otro SQL
+     (base/20261124_plataformas_del_extracto.sql): la misma pregunta, a
+     extracto_plataformas_mias. Un 404 quita SOLO esas casillas; el paso sigue.
+     Sin red se dejan: esperan en el teléfono y suben con la cola. */
+  var q = null;
+  try {
+    q = fetch(String(CFG.url).replace(/\/+$/, '') + '/rest/v1/rpc/extracto_plataformas_mias', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon }, body: '{}' });
+  } catch (e) { return; }
+  Promise.resolve(q).then(function (r) { if (r && r.status === 404) apagarPlataformasDelExtracto(); }, function () {});
+}
+var EX_SIN_PLATAFORMAS = false;
+function apagarPlataformasDelExtracto() {
+  EX_SIN_PLATAFORMAS = true;
+  if (PASO_EXTRACTOS && PASO_EXTRACTOS.sinPlataformas) { try { PASO_EXTRACTOS.sinPlataformas(); } catch (e) {} }
 }
 /* Apagado, el paso SE QUITA del registro, lo escogido en él se olvida, y ni la
    pista de «Lo hago después» ni la tarjeta del Perfil aparecen: no se promete

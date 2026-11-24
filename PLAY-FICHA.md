@@ -135,6 +135,7 @@ del dispositivo.
 | Cuánto se te va fijo al mes | Sí | La otra mitad. Sin esto, el ingreso solo no dice nada. |
 | Qué día te pagan | Sí | Para que la fecha de tu cuota caiga después de que te paguen, y no antes. |
 | Los extractos de tus cuentas (Nequi, Daviplata o banco), en PDF | No | Medir el riesgo de prestarte y saber hasta cuánto proponerte cuando evaluamos tus solicitudes: miramos cuánto te entra y con qué regularidad. *Opcional y con su propia autorización, aparte de la general. Solo los archivos que la persona escoge con el selector del teléfono: la app no pide permiso de almacenamiento, no lee los mensajes del banco y nunca pide la clave de ninguna cuenta. Los ve solo quien dirige el negocio, se guardan mientras la persona tenga cuenta y los puede quitar desde la app.* |
+| Cuáles plataformas marcas que usas (Nequi, Daviplata, bancos) | No | Lo mismo que los extractos: medir el riesgo de prestarte y saber hasta cuánto proponerte. *Con la misma autorización aparte de los extractos. Son casillas de una lista: no se escribe nada, no se confirma con ningún banco, y se borra al retirar la autorización.* |
 
 ### Información personal · Credenciales de usuario
 
@@ -229,7 +230,7 @@ Plazo: máximo 15 días.
 - Tus referencias personales.
 - Las fotos de tu cédula y tu selfie, si las diste.
 - Tu historia laboral del fondo de pensiones y el fondo que nos dijiste, si nos los diste.
-- Los extractos de tus cuentas que nos subiste, si nos los diste.
+- Los extractos de tus cuentas que nos subiste y las plataformas que marcaste que usas, si nos los diste.
 
 **Se conserva, y por qué:**
 

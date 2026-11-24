@@ -189,6 +189,13 @@
       categoria: 'Fotos y videos · Fotos',
       obligatorio: false, proposito: 'Lo mismo que el extracto en PDF, si la persona prefiere pantallazos.',
       nota: 'Hasta cinco, o pegados: solo los que escoge. Si pesan mucho, el teléfono los achica antes de enviarlos, y salen sin los datos ocultos de la imagen.' },
+    /* 24-nov-2026 — QUÉ PLATAFORMAS USA (app/extractos.js, PLATAFORMAS): las
+       casillas que aparecen después de la autorización de los extractos. Es un
+       dato financiero más, aunque sean seis casillas: se declara aparte. */
+    { id: 'extractos_plataformas', etiqueta: 'Cuáles plataformas marcas que usas (Nequi, Daviplata, bancos)',
+      categoria: 'Información financiera · Otra información financiera',
+      obligatorio: false, proposito: 'Lo mismo que los extractos: medir el riesgo de prestarte y saber hasta cuánto proponerte.',
+      nota: 'Con la misma autorización aparte de los extractos. Son casillas de una lista: no se escribe nada, no se confirma con ningún banco, y se borra al retirar la autorización.' },
     { id: 'historial_credito', etiqueta: 'Tus créditos y tus pagos',
       categoria: 'Información financiera · Historial de compras',
       obligatorio: true, proposito: 'Es tu historial: lo que pediste, lo que pagaste y cuándo.',
@@ -599,8 +606,9 @@
          disparador de base/20261103_el_fondo_de_pensiones.sql). */
       'Tu historia laboral del fondo de pensiones y el fondo que nos dijiste, si nos los diste.',
       /* 13-nov-2026 — y los extractos: se borran con la cuenta (el disparador
-         de base/20261113c_los_extractos.sql). */
-      'Los extractos de tus cuentas que nos subiste, si nos los diste.'
+         de base/20261113c_los_extractos.sql). 24-nov-2026: y las plataformas
+         que marcó, que viven en la misma fila de su autorización. */
+      'Los extractos de tus cuentas que nos subiste y las plataformas que marcaste que usas, si nos los diste.'
     ],
     se_conserva: [
       { que: 'Los créditos que ya te desembolsamos y sus pagos',
