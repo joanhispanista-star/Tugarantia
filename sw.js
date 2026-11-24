@@ -2951,7 +2951,7 @@
    NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit (vuelven los .svg); CACHE y VERSION_SITIO suben al
    número siguiente. El número nunca baja. */
-/* v158 — 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (etapa U1 de
+/* v159 — 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (etapa U1 de
    RECETA-PLAN-UN-SOLO-CRM.md). Joan: «quiero poder abrir el crm desde mi celular… tener toda
    la informacion actualizada en mi telefono, no quiero subir nada a la nube de forma manual».
    Lo que abría su iPhone era el Panel en el bolsillo, otra pantalla con su propia copia.
@@ -2966,8 +2966,8 @@
    · No llegan prospectos, bases ni papeleras, ni el PIN del computador. Solicitudes, Chat,
      Registrados, Ventas, Bases y Ajustes abren y dicen que por ahora se miran en el computador.
    · En un computador no cambia nada: la decisión es por el tipo de aparato, nunca por el ancho.
-   Cambian panel/crm.html (ocho enganches) y entra panel/crm-remoto.js?v=158 a la precarga.
-   Pruebas nuevas: pruebas/crm-remoto.test.js. CACHE y VERSION_SITIO suben a v158.
+   Cambian panel/crm.html (ocho enganches) y entra panel/crm-remoto.js?v=159 a la precarga.
+   Pruebas nuevas: pruebas/crm-remoto.test.js. CACHE y VERSION_SITIO suben a v159.
    24-nov-2026, SEGUNDA PARTE (misma versión, todavía sin publicar): CÓMO SE VE EN EL TELÉFONO.
    Joan: «hay muchas pestañas que no me aparecen desde el celular… modificalo».
    · panel/crm-movil.css, NUEVA: la hoja del teléfono. Llega apagada (<link media="not all">)
@@ -2985,7 +2985,7 @@
      de crm.html que explicaban botones escondidos cambian en ese modo (soloMirar()).
    · Los rótulos de las fichas van por la posición de la columna: pruebas/crm-movil.test.js
      pinta las seis tablas y compara sus <th> con la hoja.
-   Entran a la precarga panel/crm-movil.js?v=158 y panel/crm-movil.css?v=158.
+   Entran a la precarga panel/crm-movil.js?v=159 y panel/crm-movil.css?v=159.
    24-nov-2026, TERCERA PARTE (misma versión, sin publicar). Joan: «no quiero tener que
    ingresar con correo… solo quiero que sea ingresar con mi numero de celular y la contraseña…
    quiero que el CRM siempre este abierto en mi celular… que se vea la hora y fecha de registro».
@@ -3002,8 +3002,10 @@
    cuenta de su celular en panel_duenos. No es base nueva: es una fila.
    NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
-   número nunca baja. */
-const CACHE = 'tugarantia-v158';
+   número nunca baja.
+   NACIÓ COMO v158: las fotos de la portada salieron primero con ese número (24-nov-2026),
+   así que esta entrega pasa a v159. */
+const CACHE = 'tugarantia-v159';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3070,9 +3072,9 @@ const ARCHIVOS = [
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
   'panel/nube-crm.js?v=143',   // 4-nov-2026 — ?v=143: una nota sobre la pestaña vieja; la regla mira el texto (ver la nota de v143)
   /* 23-nov-2026 — el CRM en un celular, solo para mirar. Ver la nota de v158. */
-  'panel/crm-remoto.js?v=158',
-  'panel/crm-movil.js?v=158',    // 24-nov-2026 — la barra de abajo y «Más» del CRM en un teléfono
-  'panel/crm-movil.css?v=158',   // la hoja del teléfono: llega apagada, la enciende crm-movil.js
+  'panel/crm-remoto.js?v=159',
+  'panel/crm-movil.js?v=159',    // 24-nov-2026 — la barra de abajo y «Más» del CRM en un teléfono
+  'panel/crm-movil.css?v=159',   // la hoja del teléfono: llega apagada, la enciende crm-movil.js
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
   'panel/historiales-auto.js?v=147',
   /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132.

@@ -670,7 +670,7 @@
      (media="not all"): la enciende panel/crm-movil.js, y solo en un celular o una
      tableta con el menú de Joan. En un computador no se enciende nunca, ni con la
      ventana angosta. Va después de la hoja de arriba porque la pisa. -->
-<link rel="stylesheet" href="crm-movil.css?v=158" media="not all" id="hojaMovil">
+<link rel="stylesheet" href="crm-movil.css?v=159" media="not all" id="hojaMovil">
 </head>
 <body>
 
@@ -1317,12 +1317,12 @@
 <!-- 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (crm-remoto.js, etapa U1 de
      RECETA-PLAN-UN-SOLO-CRM.md). En un computador no hace nada: decide por el tipo
      de aparato, nunca por el ancho. Va después de nube.js, que es quien trae. -->
-<script src="crm-remoto.js?v=158"></script>
+<script src="crm-remoto.js?v=159"></script>
 <!-- 24-nov-2026 — LA BARRA DE ABAJO Y «MÁS» (crm-movil.js): enciende la hoja del
      teléfono y mete en una caja las pestañas que no caben en la barra. Va después
      de crm-remoto.js, que es quien sabe si el aparato es un celular; y ANTES del
      guion de la página, que le cuelga irA a cada .navbtn dondequiera que esté. -->
-<script src="crm-movil.js?v=158"></script>
+<script src="crm-movil.js?v=159"></script>
 <script src="../app/puente.js?v=143"></script>
 <!-- El chat, compartido con app/socio.html por la misma razón que el puente:
      quien decide de qué lado va un mensaje y cómo se escapa el texto vive en un
@@ -27353,7 +27353,7 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
    cuando alguien sospechaba.
    VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
    él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v158';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v159';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }
