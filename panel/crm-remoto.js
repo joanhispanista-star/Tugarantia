@@ -152,7 +152,19 @@
   /** Arma (o pone al día) la cartera en memoria. `previa` es la que ya había, o
       null la primera vez. Devuelve una NUEVA: la previa no se toca. */
   function armar(previa, paquete) {
-    var r = N.aplicarPaquete(previa || null, paqueteParaMirar(paquete));
+    var paraMirar = paqueteParaMirar(paquete);
+    var r = N.aplicarPaquete(previa || null, paraMirar);
+    /* 24-nov-2026 — EN EL CELULAR QUE MIRA, EN LOS AJUSTES MANDA LA NUBE, ENTERA.
+       aplicarPaquete está hecho para un aparato que también escribe: al juntar
+       una lista con identidad (equipo, asignaciones…) gana lo que ya había acá,
+       campo por campo, y nunca quita a nadie. Aquí «lo que había» no es de este
+       aparato: es la foto anterior de la nube. Con esa regla, una persona que
+       el computador marcó como retirada seguía «activa» en el celular hasta la
+       próxima traída completa, y nadie desaparecía. Cada ajuste que trae el
+       paquete reemplaza al que había. */
+    lista(objeto(paraMirar).ajustes).forEach(function (a) {
+      if (a && a.clave != null && a.datos !== undefined && a.datos !== null) r.db[texto(a.clave)] = clonar(a.datos);
+    });
     /* aplicarPaquete conserva de `previa` lo que es de este aparato; aquí no
        hay nada de este aparato que conservar. */
     CONFIG_QUE_NO_VIAJA.forEach(function (k) { if (r.db.config) delete r.db.config[k]; });
@@ -184,19 +196,19 @@
     return mejor;
   }
 
-  /* 24-nov-2026 — LO QUE NO SUBE SOLO, CON SU FECHA. El computador sube solo las
-     fichas, los créditos y tres listas que solo suman (nube-crm.js,
-     CLAVES_QUE_SUBEN). Las plantillas y el equipo NO: llegan a la nube únicamente
-     cuando Joan toca ☁ Subir en su computador, así que en el celular pueden ser
-     de hace meses, y nada lo decía. Hasta que suban solas, cada una de esas dos
-     pestañas dice de qué día es lo que muestra. La fecha sale del paquete
+  /* 24-nov-2026 — LAS PLANTILLAS Y EL EQUIPO, CON SU FECHA. Son del computador:
+     el celular las ve como él las subió la última vez. Nacieron diciendo «no sube
+     solo todavía: toca ☁ Subir», porque así era; desde ese mismo día el
+     computador las sube solas (nube-crm.js, CLAVES_DEL_PC), con el CRM abierto
+     allá. La fecha se queda: si el computador lleva días sin abrirse, o todavía
+     corre una versión de antes, aquí se ve de cuándo son. Sale del paquete
      (actualizado_en de su ajuste): no es una frase fija. */
   var VISTAS_CON_FECHA = { plantillas: 'plantillas', equipo: 'equipo' };   // vista → clave del ajuste
   var FRASE_DE_VISTA = {
-    plantillas: ['Estas plantillas son las que subiste a la nube el {d}.',
-                 'Estas plantillas son las de la última vez que tocaste ☁ Subir en tu computador.'],
-    equipo: ['Este equipo es el que subiste a la nube el {d}.',
-             'Este equipo es el de la última vez que tocaste ☁ Subir en tu computador.']
+    plantillas: ['Estas plantillas son las que tu computador subió a la nube el {d}.',
+                 'Estas plantillas son las de la última vez que tu computador las subió a la nube.'],
+    equipo: ['Este equipo es el que tu computador subió a la nube el {d}.',
+             'Este equipo es el de la última vez que tu computador lo subió a la nube.']
   };
   /** { clave: actualizado_en } de los ajustes con fecha. Una traída parcial sin
       esa fila deja la que había. */
@@ -221,7 +233,7 @@
     var iso = objeto(fechas)[clave], cuando = iso ? fechaConAnio(Date.parse(iso)) : '';
     var f = FRASE_DE_VISTA[texto(vista)];
     return (cuando ? f[0].replace('{d}', cuando) : f[1]) +
-      ' Lo que cambies allá no sube solo todavía: toca ☁ Subir en tu computador para verlo aquí.';
+      ' Lo que cambies allá sube solo, con el CRM abierto en tu computador.';
   }
   function dosCifras(n) { return String(n).padStart(2, '0'); }
   /** «9:21 a. m.», a la hora de Colombia de quien mira (la del aparato). */

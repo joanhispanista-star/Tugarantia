@@ -1012,20 +1012,53 @@ describe('crm-remoto · Plantillas y Equipo dicen de qué día son', () => {
     assert.deepEqual(R.fechasDeAjustes({}, f), f);
     assert.deepEqual(R.fechasDeAjustes(null, null), {});
   });
-  test('la frase dice el día con su año, y que allá hay que tocar ☁ Subir; sin fecha, lo dice igual sin inventarla', () => {
+  test('la frase dice el día con su año, y que lo de allá sube solo; sin fecha, lo dice igual sin inventarla', () => {
     assert.equal(R.notaDeFecha('plantillas', { plantillas: AGO }),
-      'Estas plantillas son las que subiste a la nube el 18 de ago de 2026. Lo que cambies allá no sube solo todavía: toca ☁ Subir en tu computador para verlo aquí.');
-    assert.match(R.notaDeFecha('equipo', { equipo: '2026-11-20T17:00:00Z' }), /^Este equipo es el que subiste a la nube el 20 de nov de 2026\./);
-    assert.match(R.notaDeFecha('equipo', {}), /^Este equipo es el de la última vez que tocaste ☁ Subir en tu computador\./);
+      'Estas plantillas son las que tu computador subió a la nube el 18 de ago de 2026. Lo que cambies allá sube solo, con el CRM abierto en tu computador.');
+    assert.match(R.notaDeFecha('equipo', { equipo: '2026-11-20T17:00:00Z' }), /^Este equipo es el que tu computador subió a la nube el 20 de nov de 2026\./);
+    assert.match(R.notaDeFecha('equipo', {}), /^Este equipo es el de la última vez que tu computador lo subió a la nube\./);
     assert.equal(/undefined|NaN|Invalid/.test(R.notaDeFecha('plantillas', { plantillas: 'no es una fecha' })), false);
     ['dash', 'cred', 'clientes', 'cobranzas', 'socios', ''].forEach(v => assert.equal(R.notaDeFecha(v, { plantillas: AGO }), '', v + ' sube sola: no lleva nota'));
   });
-  test('las dos listas que llevan nota son justo las que el computador NO sube solo', () => {
-    const subenSolas = /var CLAVES_QUE_SUBEN = \[([^\]]+)\]/.exec(LEER('panel/nube-crm.js'))[1];
+  /* 24-nov-2026 — esta prueba nació exigiendo lo contrario («no suben solas: la nota de ☁ Subir
+     es verdad»). Ese mismo día el computador empezó a subirlas solas, y la nota cambió con él. */
+  test('las dos listas que llevan nota SÍ suben solas desde el computador, y la nota ya no manda a tocar ☁ Subir', () => {
+    const motor = LEER('panel/nube-crm.js');
+    const delPc = /var CLAVES_DEL_PC = \[([^\]]+)\]/.exec(motor);
+    assert.ok(delPc, 'nube-crm.js ya no tiene CLAVES_DEL_PC');
+    assert.match(motor, /var CLAVES_QUE_SUBEN = \[[^\]]+\]\.concat\(CLAVES_DEL_PC\)/, 'las del computador ya no están entre las que suben');
     ['plantillas', 'equipo'].forEach(k => {
-      assert.equal(subenSolas.indexOf("'" + k + "'"), -1, k + ' ya sube sola: su nota de «toca ☁ Subir» miente y hay que quitarla');
+      assert.ok(delPc[1].indexOf("'" + k + "'") >= 0, k + ' dejó de subir sola: la nota de «sube solo» miente');
       assert.ok(R.CLAVES_QUE_PASAN.indexOf(k) >= 0, k + ' ya no llega al celular');
+      const nota = R.notaDeFecha(k, { [k]: AGO });
+      assert.equal(/no sube solo|toca ☁ Subir/.test(nota), false, 'la nota de ' + k + ' sigue mandando a subir a mano');
+      assert.match(nota, /sube solo, con el CRM abierto en tu computador/);
     });
+  });
+  test('en el celular que mira, en los ajustes manda la nube ENTERA: quien el computador retiró deja de salir activo', () => {
+    const fila = (id, datos) => ({ id, datos, revision: 1, borrado: false, actualizado_en: '2026-11-23T14:00:00Z', actualizado_por: 'computador' });
+    const base = { servidor_ahora: '2026-11-23T15:00:00Z', completo: true, socios: [fila('C1', { id: 'C1', nombre: 'Cliente De Mentira' })], creditos: [], respaldados: [],
+      contadores: {}, ajustes: [
+        { clave: 'equipo', datos: [{ id: 'E1', nombre: 'Asesora De Mentira', estado: 'activo' }, { id: 'E2', nombre: 'Asesor De Mentira', estado: 'activo' }], revision: 1, actualizado_en: AGO },
+        { clave: 'plantillas', datos: { cobro: 'vieja', mora: 'se va a quitar' }, revision: 1, actualizado_en: AGO }] };
+    const primera = R.armar(null, base).db;
+    assert.deepEqual(primera.equipo.map(p => p.id + ':' + p.estado), ['E1:activo', 'E2:activo']);
+    /* El computador retira a E2, cambia a E1 y borra una plantilla; el celular trae solo lo que cambió. */
+    const cambio = { servidor_ahora: '2026-11-24T15:00:00Z', completo: false, socios: [], creditos: [], respaldados: [], contadores: {}, ajustes: [
+      { clave: 'equipo', datos: [{ id: 'E1', nombre: 'Asesora De Mentira', estado: 'retirado' }], revision: 2, actualizado_en: '2026-11-24T14:00:00Z' },
+      { clave: 'plantillas', datos: { cobro: 'nueva' }, revision: 2, actualizado_en: '2026-11-24T14:00:00Z' }] };
+    const despues = R.armar(primera, cambio).db;
+    assert.deepEqual(JSON.parse(JSON.stringify(despues.equipo)), [{ id: 'E1', nombre: 'Asesora De Mentira', estado: 'retirado' }],
+      'el celular siguió mostrando el equipo de antes (gana lo viejo campo a campo, y nadie desaparece)');
+    assert.deepEqual(JSON.parse(JSON.stringify(despues.plantillas)), { cobro: 'nueva' });
+    assert.equal(despues.socios.length, 1, 'la traída parcial se llevó las fichas');
+    /* Un paquete sin ese ajuste lo deja como estaba; y el PIN sigue sin llegar. */
+    const sinNada = R.armar(despues, { servidor_ahora: '2026-11-24T16:00:00Z', completo: false, socios: [], creditos: [], respaldados: [], contadores: {},
+      ajustes: [{ clave: 'config', datos: { negocio: 'Tu Garantía', pin: '4821', ultimoRespaldo: 'x' }, revision: 3, actualizado_en: '2026-11-24T15:30:00Z' }] }).db;
+    assert.equal(sinNada.equipo.length, 1);
+    assert.equal(sinNada.config.pin, undefined, 'el PIN del computador llegó al celular');
+    assert.equal(sinNada.config.ultimoRespaldo, undefined);
+    assert.equal(sinNada.config.negocio, 'Tu Garantía');
   });
   test('al entrar, cada pestaña la lleva debajo de su título; y se pone al día si llega una subida nueva', async () => {
     let vez = 0;
@@ -1046,13 +1079,13 @@ describe('crm-remoto · Plantillas y Equipo dicen de qué día son', () => {
     const n = p.porId['crFecha-plantillas'];
     assert.ok(n, 'Plantillas no lleva su nota');
     assert.equal(p.porId['v-plantillas'].hijos[1], n, 'la nota no va justo debajo del título');
-    assert.match(n.textContent, /subiste a la nube el 18 de ago de 2026/);
+    assert.match(n.textContent, /tu computador subió a la nube el 18 de ago de 2026/);
     assert.equal(n.getAttribute('data-cr'), '1');
     assert.ok(p.porId['crFecha-equipo'], 'Equipo no lleva su nota');
     /* Joan toca ☁ Subir en el computador; el celular vuelve a mirar. */
     p.porId.crActualizar.dispatch('click');
     await quieta(); await quieta();
-    assert.match(p.porId['crFecha-plantillas'].textContent, /subiste a la nube el 24 de nov de 2026/, 'la nota se quedó con la fecha vieja');
+    assert.match(p.porId['crFecha-plantillas'].textContent, /tu computador subió a la nube el 24 de nov de 2026/, 'la nota se quedó con la fecha vieja');
     assert.equal(p.porId['v-plantillas'].hijos.filter(x => x.id === 'crFecha-plantillas').length, 1, 'la nota se duplicó');
   });
 });

@@ -3103,7 +3103,33 @@
    En el computador no cambia nada: la hoja sigue apagada ahí (comprobado píxel a píxel).
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
    número nunca baja. */
-const CACHE = 'tugarantia-v164';
+/* v165 — 24-nov-2026 — EL COMPUTADOR SUBE SOLAS SU CONFIGURACIÓN, SUS PLANTILLAS Y SU EQUIPO.
+   Hasta hoy esas tres solo llegaban a la nube cuando Joan tocaba ☁ Subir a mano, y el CRM del
+   celular mostraba las de la última vez: plantillas, equipo y tasa podían ser de hace meses.
+   · panel/nube-crm.js: `config`, `plantillas` y `equipo` entran a lo que sube solo, con una regla
+     distinta a la de todo lo demás: EL COMPUTADOR MANDA (CLAVES_DEL_PC). No se congelan nunca,
+     porque un ajuste congelado no es de ningún cliente y deja esperando la publicación del
+     equipo y los historiales de TODOS. Al emparejar se toma la revisión de la nube y se sube lo
+     de acá encima; si al subir chocan (otro navegador hizo ☁ Subir primero), se anota la revisión
+     del servidor y se reintenta a los 1,5 s, a lo más tres veces seguidas. Su único autor es este
+     CRM: el Panel en el bolsillo no escribe ajustes y lo del gerente llega por otra puerta.
+     El PIN no viaja (armarLote ya le pasaba configQueViaja a `config`); al emparejar, `config` se
+     compara también así, sin el PIN. La primera subida le quita a la copia de la nube el PIN
+     viejo, si todavía lo tenía de antes de v143.
+   · panel/crm-remoto.js: en el celular que mira, en los ajustes manda la nube ENTERA. Al juntar
+     ganaba lo que ya había, campo por campo, y nadie desaparecía: alguien que el computador
+     retiró seguía «activo» en el celular. Y la nota de fecha de Plantillas y Equipo ya no manda
+     a tocar ☁ Subir: dice de cuándo son y que suben solas con el CRM abierto en el computador.
+   · panel/espejo.html y la cinta del CRM: tres frases decían que las plantillas no suben solas.
+   Cambian panel/nube-crm.js y panel/crm-remoto.js (?v=165 en crm.html y en la precarga).
+   Sin base nueva: panel_empujar ya aceptaba cualquier ajuste con su control de revisiones.
+   Pruebas: pruebas/el-pc-sube-sus-ajustes.test.js («la prueba del PC» del plan: publicar no se
+   frena), con diez roturas a propósito cazadas una por una.
+   OJO AL PUBLICAR: el CRM del computador no se recarga solo. Hasta que Joan lo recargue, su
+   computador sigue con el motor de antes y las tres no suben.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. Lo que
+   ya subió a la nube se queda (es lo del computador); el número nunca baja. */
+const CACHE = 'tugarantia-v165';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3168,9 +3194,9 @@ const ARCHIVOS = [
   'panel/espejo.webmanifest',
   'panel/nube.js?v=162',   // 24-nov-2026 — ?v=162: la sesión del dueño no se borra por un fallo de señal al renovarla (ver la nota de v162)
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
-  'panel/nube-crm.js?v=143',   // 4-nov-2026 — ?v=143: una nota sobre la pestaña vieja; la regla mira el texto (ver la nota de v143)
+  'panel/nube-crm.js?v=165',   // 24-nov-2026 — ?v=165: config, plantillas y equipo suben solos (ver la nota de v165)
   /* 23-nov-2026 — el CRM en un celular, solo para mirar. Ver la nota de v158. */
-  'panel/crm-remoto.js?v=163',
+  'panel/crm-remoto.js?v=165',
   'panel/crm-movil.js?v=164',    // 24-nov-2026 — la barra de abajo y «Más» del CRM en un teléfono
   'panel/crm-movil.css?v=164',   // la hoja del teléfono: llega apagada, la enciende crm-movil.js
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */

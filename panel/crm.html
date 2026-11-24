@@ -1317,7 +1317,7 @@
 <!-- 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (crm-remoto.js, etapa U1 de
      RECETA-PLAN-UN-SOLO-CRM.md). En un computador no hace nada: decide por el tipo
      de aparato, nunca por el ancho. Va después de nube.js, que es quien trae. -->
-<script src="crm-remoto.js?v=163"></script>
+<script src="crm-remoto.js?v=165"></script>
 <!-- 24-nov-2026 — LA BARRA DE ABAJO Y «MÁS» (crm-movil.js): enciende la hoja del
      teléfono y mete en una caja las pestañas que no caben en la barra. Va después
      de crm-remoto.js, que es quien sabe si el aparato es un celular; y ANTES del
@@ -27373,7 +27373,7 @@ if (/^#equipo(?:$|&)/.test(location.hash || '')) { try { pintarPuertaEquipo(); }
      DESPUÉS del bloque grande y no arriba con los demás: arranca desde entrar(),
      que vive en ese bloque, y usa funciones que ese bloque declara. nube.js no se
      repite: ya está arriba desde el 15-sep, antes de puente.js. -->
-<script src="nube-crm.js?v=143"></script>
+<script src="nube-crm.js?v=165"></script>
 <script>
 /* 1-oct-2026 — RECETA E. Si nube-crm.js no llegó (un service worker viejo, sin
    señal), la barra de Ajustes quedaría vacía, y un div vacío no se distingue de
@@ -27443,7 +27443,7 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
    cuando alguien sospechaba.
    VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
    él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v164';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v165';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }

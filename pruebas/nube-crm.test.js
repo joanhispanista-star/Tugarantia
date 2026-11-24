@@ -55,8 +55,11 @@ describe('la subida y la invariante del espejo', () => {
     assert.equal(Object.keys(m.srv.socios).length, 6);
     assert.equal(Object.keys(m.srv.creditos).length, 12);
     assert.ok(m.srv.ajustes.asignaciones, 'las asignaciones (ajuste que solo suma) no subieron');
-    assert.equal(m.srv.ajustes.config, undefined, 'config NO viaja en esta etapa');
-    assert.equal(m.srv.ajustes.plantillas, undefined, 'plantillas NO viajan en esta etapa');
+    /* 24-nov-2026 — decía «config NO viaja en esta etapa». Desde hoy config, plantillas y
+       equipo suben solos (el computador manda: pruebas/el-pc-sube-sus-ajustes.test.js). El PIN no. */
+    assert.ok(m.srv.ajustes.config, 'config no subió');
+    assert.equal(m.srv.ajustes.config.datos.pin, undefined, 'el PIN subió a la nube');
+    assert.ok(m.srv.ajustes.plantillas, 'las plantillas no subieron');
     invariante(m.alm, 'primera subida');
     /* Las fotos no viajan: ni las cuatro del socio ni la del comprobante.
        4-nov-2026: en su campo va la marca, para que el cupo salga igual en el otro

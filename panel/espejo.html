@@ -2016,10 +2016,10 @@ function abonarYProrrogar(id, fecha, monto) {
          plantillas NO: viajan con ☁ Subir, que desde hoy está en Ajustes →
          Avanzado. Se dice dónde, o Joan buscaría un botón que ya no ve. */
       ? '<div class="aviso ambar"><b>El recibo del abono todavía no llegó a este teléfono</b> '
-        + '(nace en el computador y viaja cuando subes las plantillas: en el computador, Ajustes → Avanzado → ☁ Subir; no suben solas). Te dejo el de la prórroga, que '
+        + '(nace en el computador y sube solo con las plantillas cuando abres el CRM allá; si no llega, abre el CRM en el computador y espera un par de minutos). Te dejo el de la prórroga, que '
         + '<b>no dice el abono</b>: agrégale a mano «abonaste ' + esc(COP(x)) + '» antes de enviar.</div>'
       : '<div class="aviso ambar"><b>Las plantillas todavía no llegaron a este teléfono</b> '
-        + '(nacen en el computador y viajan cuando subes las plantillas: en el computador, Ajustes → Avanzado → ☁ Subir; no suben solas). Escríbele tú: abonó '
+        + '(nacen en el computador y suben solas cuando abres el CRM allá; si no llegan, abre el CRM en el computador y espera un par de minutos). Escríbele tú: abonó '
         + esc(COP(x)) + ', queda debiendo ' + esc(COP(r.capital_despues)) + ' de capital y su próximo pago es de '
         + esc(COP(r.total_siguiente)) + ' el ' + esc(fmtFecha(r.corte_nuevo)) + '.</div>');
 }
@@ -6056,9 +6056,11 @@ function abrirGestion(prestId, clave, tituloExtra, avisoExtra) {
         + 'El chat se abre en blanco y escribes a mano. Si la quieres lista para la próxima, '
         + 'se escribe en el computador, en Plantillas.</div>'
       /* 22-oct-2026 — «se guardan junto con la cartera» se leía como «suben
-         solas con ella», y no: la cartera sube sola, las plantillas no. */
-      : '<div class="aviso info"><b>Todavía no han llegado tus plantillas.</b> Se guardan en la nube '
-        + 'cuando las subes desde el computador (Ajustes → Avanzado → ☁ Subir: la cartera sube sola, las plantillas no) y este teléfono aún no las ha traído, así que el chat se abre en '
+         solas con ella», y entonces no era verdad.
+         24-nov-2026 — ya lo es: el computador las sube solas, como la cartera
+         (panel/nube-crm.js, CLAVES_DEL_PC). Se dice así, y qué hacer si no llegan. */
+      : '<div class="aviso info"><b>Todavía no han llegado tus plantillas.</b> Nacen en el computador y '
+        + 'suben solas cuando abres el CRM allá, y este teléfono aún no las ha traído (si no llegan, abre el CRM en el computador y espera un par de minutos), así que el chat se abre en '
         + 'blanco. No invento un texto: el mensaje que le queda al cliente tiene que ser el tuyo.</div>';
   }
   h += '<div class="dos">';
@@ -6793,7 +6795,7 @@ if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
    quien lo usa. VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' →
    'v138') y sube con él: pruebas/se-actualiza-sola.test.js no deja pasar uno
    sin el otro. */
-var VERSION_SITIO = 'v164';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v165';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }
