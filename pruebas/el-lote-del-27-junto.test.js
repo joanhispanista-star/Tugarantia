@@ -281,13 +281,13 @@ describe('3 · La política del 27-oct: una fecha y un «Lo que cambió» para l
        «la anterior» y la del 27-oct, la de debajo, una sola vez. */
     const P = POLITICA();
     const fechas = [...P.matchAll(/Última actualización: ([^<\n]+)/g)].map(m => m[1].trim());
-    assert.deepEqual(fechas, ['19 de noviembre de 2026'], 'la política no tiene UNA fecha, la de la versión más nueva');
+    assert.deepEqual(fechas, ['24 de noviembre de 2026'], 'la política no tiene UNA fecha, la de la versión más nueva');
     const listas = [...sinEtiquetas(P).matchAll(/Lo que cambió el (\d{1,2} de \w+ de \d{4}):/g)].map(m => m[1]);
-    assert.equal(listas[0], '19 de noviembre de 2026', 'lo más nuevo va primero');
+    assert.equal(listas[0], '24 de noviembre de 2026', 'lo más nuevo va primero');
     assert.equal(listas[1], '29 de octubre de 2026', 'la del 29-oct no quedó justo debajo');
     assert.equal(listas[2], '27 de octubre de 2026', 'la del 27-oct no quedó debajo de la del 29-oct');
     assert.equal(listas.filter(l => l === '27 de octubre de 2026').length, 1, 'hay más de una lista del 27-oct');
-    assert.match(sinEtiquetas(P), /Esta versión rige desde el 19 de noviembre de 2026; la anterior rigió desde el 29 de octubre de 2026, otra desde el 27 de octubre de 2026, otra desde el 19 de octubre de 2026/);
+    assert.match(sinEtiquetas(P), /Esta versión rige desde el 24 de noviembre de 2026; la anterior rigió desde el 29 de octubre de 2026, otra desde el 27 de octubre de 2026, otra desde el 19 de octubre de 2026/);
   });
 
   test('la lista nombra los dos cambios en palabras simples, y cada uno con su punto', () => {

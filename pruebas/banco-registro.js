@@ -49,8 +49,17 @@ const RESTO = { ciudad: 'Bogotá', barrio: 'Centro', tipo_vivienda: 'Arriendo', 
 
 /* El banco, con la cámara que nunca contesta, el GPS que contesta a pedido y
    los relojes anotados para dispararlos a mano. */
+/* 24-nov-2026 — «Tus extractos» ya no es solo para quien no es empleado, y María (la
+   del banco) es empleada: desde hoy el paso le sale entre el fondo de pensiones y
+   «¿Dónde te enviamos la plata?». Los archivos que recorren el registro para probar
+   OTRA cosa llaman a sinExtractos() una vez, arriba: el banco abre entonces como
+   cuando app/extractos.js no llegó (el paso no aparece, que es un estado de verdad).
+   Lo del paso se prueba en pruebas/los-extractos.test.js, que no lo apaga. Cada
+   archivo de pruebas corre en su propio proceso: el interruptor no pasa de uno a otro. */
+let SIN_EXTRACTOS = false;
+function sinExtractos() { SIN_EXTRACTOS = true; }
 function abrir(opc) {
-  const o = Object.assign({ hash: '#registro' }, opc || {});
+  const o = Object.assign({ hash: '#registro' }, SIN_EXTRACTOS ? { sinExtractos: true } : {}, opc || {});
   const P = abrirPlay(o);
   assert.deepEqual(P.fallos, [], 'la página reventó al cargar');
   P.ev('navigator.mediaDevices = { getUserMedia: function () { return new Promise(function () {}); } };');
@@ -199,7 +208,7 @@ async function entrarComo(P, cel, clave) {
   await asentar(20);
 }
 
-module.exports = {
+module.exports = { sinExtractos,
   RAIZ, SESION_JS, MARIA, CEL_MARIA, CEL_PEDRO, CLAVE_MARIA, CLAVE_PEDRO, CORREO_MARIA, CORREO_PEDRO,
   DATOS_MARIA, CONTACTO_MARIA, RESTO, abrir, pasa, pasoActual, cuerpo, caja, texto, boton, tocar,
   escanear, casillas, toque, selfie, mariaHastaElPermiso, nube, colgadas, soltar, cuentaDe, entrarComo, asentar

@@ -183,7 +183,7 @@
        pide claves) lo dice la nota. Opcional, con su propia autorización. */
     { id: 'extractos', etiqueta: 'Los extractos de tus cuentas (Nequi, Daviplata o banco), en PDF',
       categoria: 'Información financiera · Otra información financiera',
-      obligatorio: false, proposito: 'Mirar cuánto te entra y con qué regularidad cuando evaluamos tus solicitudes, si no eres empleado.',
+      obligatorio: false, proposito: 'Medir el riesgo de prestarte y saber hasta cuánto proponerte cuando evaluamos tus solicitudes: miramos cuánto te entra y con qué regularidad.',
       nota: 'Opcional y con su propia autorización, aparte de la general. Solo los archivos que la persona escoge con el selector del teléfono: la app no pide permiso de almacenamiento, no lee los mensajes del banco y nunca pide la clave de ninguna cuenta. Los ve solo quien dirige el negocio, se guardan mientras la persona tenga cuenta y los puede quitar desde la app.' },
     { id: 'extractos_pantallazos', etiqueta: 'Pantallazos de los movimientos de tus cuentas',
       categoria: 'Fotos y videos · Fotos',

@@ -23,6 +23,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const B = require('./banco-registro.js');
+/* 24-nov-2026 — este archivo no trata de los extractos: recorre el registro sin ese paso
+   (ver sinExtractos en banco-registro.js). */
+B.sinExtractos();
 
 const PLAY = fs.readFileSync(path.join(B.RAIZ, 'play', 'index.html'), 'utf8');
 const LLAVES = ['nequi', 'daviplata', 'llave_breb', 'banco', 'banco_codigo', 'banco_tipo', 'banco_numero', 'cuentas_mias'];

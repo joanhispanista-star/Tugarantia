@@ -59,7 +59,9 @@ const SESION_JS = fs.readFileSync(path.join(RAIZ, 'platachat', 'sesion.js'), 'ut
    le pidió), un GPS que cuenta las veces que se le pregunta, y un reloj que
    guarda los temporizadores para correrlos a mano: el banco no tiene reloj. */
 function abrir(opc) {
-  const P = abrirPlay(Object.assign({ hash: '#registro' }, opc || {}));
+  /* 24-nov-2026 — sin el paso de los extractos (desde hoy también le sale al empleado): este
+     archivo prueba la cédula, y el paso se prueba en los-extractos.test.js. */
+  const P = abrirPlay(Object.assign({ hash: '#registro', sinExtractos: true }, opc || {}));
   assert.deepEqual(P.fallos, [], 'la página reventó al cargar');
   P.ev('window.__camaras = []; navigator.mediaDevices = { getUserMedia: function (c) { window.__camaras.push(c); return new Promise(function () {}); } };');
   P.ev('window.__gps = 0; navigator.geolocation = { getCurrentPosition: function () { window.__gps++; } };');

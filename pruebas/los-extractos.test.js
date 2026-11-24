@@ -48,8 +48,8 @@ const { asentar } = require('./esperar.js');
    publicación). Si lote-v145 sale otro día, se cambia AQUÍ y esta prueba dice
    qué más mover: app/extractos.js (VERSION_AUTORIZACION y FECHA_EN_PALABRAS),
    la política y los términos. */
-const PUBLICACION = '2026-11-19';
-const PUBLICACION_EN_PALABRAS = '19 de noviembre de 2026';
+const PUBLICACION = '2026-11-24';
+const PUBLICACION_EN_PALABRAS = '24 de noviembre de 2026';
 
 const plano = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ');
 const PDF64 = Buffer.from('%PDF-1.4\n% extracto de mentira\n%%EOF\n', 'binary').toString('base64');
@@ -87,33 +87,38 @@ function mariaIndependienteHastaElPermiso(P) {
 }
 
 /* ======================================================================== */
-describe('1 · a quién se le ofrece: a quien NO es empleado', () => {
-  test('seOfrece: todo lo que no es «Empleado», con tildes, mayúsculas o una opción nueva', () => {
-    ['Empleado', 'empleado', ' EMPLEADO ', 'Empleada', 'Empleado con nómina'].forEach(o => assert.equal(EX.seOfrece(o), false, o));
-    ['Independiente', 'Pensionado', 'Otra', 'Desempleado', 'Estudiante', 'Independiente o informal', 'Desempleada']
+/* 24-nov-2026 — YA NO ES «A QUIEN NO ES EMPLEADO». Joan: «si indica que es empleado
+   entonses seria bueno pedir los estractos bancarios». Se le ofrece a todo el que dijo
+   de qué vive; lo que estas pruebas cuidaban de «Empleado» ahora cuida que NO se le niegue. */
+describe('1 · a quién se le ofrece: a todo el que dijo de qué vive, empleado o no', () => {
+  test('seOfrece: cualquier ocupación, con tildes, mayúsculas o una opción nueva; sin ocupación, no', () => {
+    ['Empleado', 'empleado', ' EMPLEADO ', 'Empleada', 'Empleado con nómina',
+     'Independiente', 'Pensionado', 'Otra', 'Desempleado', 'Estudiante', 'Independiente o informal', 'Desempleada']
       .forEach(o => assert.equal(EX.seOfrece(o), true, o));
     [undefined, null, '', '   '].forEach(o => assert.equal(EX.seOfrece(o), false, 'sin ocupación se ofreció: ' + o));
   });
-  test('las opciones del registro (app/cuenta.js): todas menos «Empleado», sin una lista escrita a mano', () => {
+  test('las opciones del registro (app/cuenta.js): a todas, «Empleado» incluida, sin una lista escrita a mano', () => {
     const c = U.CAMPOS.find(x => x.id === 'ocupacion');
     assert.ok(c && c.opciones.includes('Empleado'), 'la prueba no prueba nada: «Empleado» ya no es una opción');
-    c.opciones.forEach(o => assert.equal(EX.seOfrece(o), o !== 'Empleado', o));
+    c.opciones.forEach(o => assert.equal(EX.seOfrece(o), true, o));
   });
-  test('en play/: con «Empleado» no aparece y el registro sigue en 11 pasos; con «Independiente», después del fondo y antes de la plata', () => {
-    const E = independiente({}, 'Empleado');
+  test('en play/: sin ocupación no aparece y el registro sigue en 11 pasos; con «Empleado» y con «Independiente», después del fondo y antes de la plata', () => {
+    const E = independiente({}, '');
     E.ev("pintarRegistro(indiceDe('ingresos'))");
     assert.equal(ids(E).indexOf('extractos'), -1);
     assert.match(B.texto(B.cuerpo(E)), /Paso 7 de 11/);
-    const P = independiente();
-    P.ev("pintarRegistro(indiceDe('ingresos'))");
-    const l = ids(P);
-    assert.equal(l.indexOf('pension'), l.indexOf('ingresos') + 1, 'el fondo de pensiones dejó de ir justo después de «De qué vives»');
-    assert.equal(l.indexOf('extractos'), l.indexOf('pension') + 1);
-    assert.equal(l.indexOf('cobro'), l.indexOf('extractos') + 1);
-    assert.equal(P.ev("PASOS[indiceDe('extractos')].titulo"), 'Tus extractos');
-    assert.match(B.texto(B.cuerpo(P)), /Paso 7 de 12/);
+    ['Empleado', 'Independiente'].forEach(ocupacion => {
+      const P = independiente({}, ocupacion);
+      P.ev("pintarRegistro(indiceDe('ingresos'))");
+      const l = ids(P);
+      assert.equal(l.indexOf('pension'), l.indexOf('ingresos') + 1, ocupacion + ': el fondo de pensiones dejó de ir justo después de «De qué vives»');
+      assert.equal(l.indexOf('extractos'), l.indexOf('pension') + 1, ocupacion + ': no le salió el paso de los extractos');
+      assert.equal(l.indexOf('cobro'), l.indexOf('extractos') + 1);
+      assert.equal(P.ev("PASOS[indiceDe('extractos')].titulo"), 'Tus extractos');
+      assert.match(B.texto(B.cuerpo(P)), /Paso 7 de 12/);
+    });
   });
-  test('el paso se pone y se quita cuando la persona escoge o cambia su ocupación en «De qué vives»', () => {
+  test('el paso aparece cuando la persona escoge su ocupación en «De qué vives», y se queda si la cambia a «Empleado»', () => {
     const P = independiente({}, '');
     P.ev("pintarRegistro(indiceDe('ingresos'))");
     assert.equal(ids(P).indexOf('extractos'), -1, 'sin ocupación ya estaba');
@@ -127,14 +132,15 @@ describe('1 · a quién se le ofrece: a quien NO es empleado', () => {
     /* «Volver» desde la plata vuelve a los extractos, y de ahí al fondo. */
     P.ev('pintarRegistro(PASO - 1)');
     assert.equal(B.pasoActual(P), 'extractos');
-    /* Cambia a «Empleado»: el paso se va, y «Continuar» desde el fondo va a la plata. */
+    /* Cambia a «Empleado»: el paso SE QUEDA (desde el 24-nov también es para él), y
+       «Continuar» desde el fondo sigue llevando a los extractos. */
     P.ev("pintarRegistro(indiceDe('ingresos'))");
     B.casillas(P, 'ingresos', { ocupacion: 'Empleado' });
     P.ev('siguientePaso()');
     assert.equal(B.pasoActual(P), 'pension');
-    assert.equal(ids(P).indexOf('extractos'), -1);
+    assert.ok(ids(P).indexOf('extractos') >= 0, 'al empleado se le quitó el paso');
     P.ev('siguientePaso()');
-    assert.equal(B.pasoActual(P), 'cobro');
+    assert.equal(B.pasoActual(P), 'extractos');
   });
   test('ni en PlataChat ni sin su archivo', () => {
     const Q = independiente({ search: '?marca=platachat' });
@@ -188,7 +194,7 @@ describe('2 · el paso: lo que se pide, en palabras llanas, y la casilla sin mar
   });
   test('la casilla dice lo que la ley pide: para qué, opcional y aparte, quién los ve, cuánto se guardan, cómo se quitan, y los terceros', () => {
     const t = EX.TEXTOS.autorizacion + ' ' + EX.TEXTOS.autorizacionDetalle;
-    ['NEXECO S.A.S.', 'extractos de mis cuentas', 'Para mirar cuánto me entra y con qué regularidad', 'Es opcional',
+    ['NEXECO S.A.S.', 'extractos de mis cuentas', 'Para medir el riesgo de prestarme y saber hasta cuánto proponerme', 'miran cuánto me entra y con qué regularidad', 'Es opcional',
      'aparte de la autorización general', 'Nunca me piden la clave', 'Los mira una persona', 'ningún programa los lee ni los califica',
      'el resto del equipo no los ve', 'Se guardan mientras tenga cuenta', 'desde mi cuenta en la app', 'pedir por el chat que los borren',
      'nombres de otras personas', 'mi salud, mi religión o mi política no se usa para nada']
@@ -245,7 +251,7 @@ describe('3 · sin permiso no sube nada; con él, con la sesión de ESA cuenta',
     const signup = l.find(x => /auth\/v1\/signup/.test(x.url));
     assert.equal(JSON.stringify(signup.cuerpo).indexOf(PDF64), -1, 'el extracto viajó en el signup');
   });
-  test('quien al final dijo «Empleado» (cambió de idea) no sube nada aunque hubiera autorizado', async () => {
+  test('quien al final dijo «Empleado» (cambió de idea) también sube lo que autorizó: ya no se le suelta', async () => {
     const P = B.abrir();
     const llamadas = B.nube(P);
     mariaIndependienteHastaElPermiso(P);
@@ -256,7 +262,9 @@ describe('3 · sin permiso no sube nada; con él, con la sesión de ESA cuenta',
     B.tocar(P, 'Abrir mi cuenta');
     await asentar(30);
     assert.equal(P.ev('VISTA'), 'listo');
-    assert.deepEqual(llamadas().filter(x => /rpc\/extracto_/.test(x.url) && !/extracto_mia/.test(x.url)), []);
+    const subio = llamadas().filter(x => /rpc\/extracto_/.test(x.url) && !/extracto_mia/.test(x.url)).map(x => x.url.replace(/^.*rpc\//, ''));
+    assert.ok(subio.includes('extracto_autorizar'), 'al empleado no se le guardó la autorización: ' + JSON.stringify(subio));
+    assert.ok(subio.includes('extracto_subir'), 'al empleado no se le subió su extracto: ' + JSON.stringify(subio));
   });
 });
 
@@ -466,10 +474,10 @@ describe('6 · la tarjeta de la app: el «Lo hago después» de verdad', () => {
     assert.equal(ex(A)[0].url.replace(/^.*rpc\//, ''), 'extracto_mia');
     assert.equal(ex(A)[0].cab.Authorization, 'Bearer token-de-ana');
   });
-  test('a quien es empleado y no ha dado nada, no; a quien es empleado y ya dio algo, sí (lo suyo lo ve y lo quita siempre)', async () => {
+  test('a quien es empleado también se le ofrece (desde el 24-nov); y si ya dio algo, lo ve y lo quita', async () => {
     const A = abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, red: nube({ ocupacion: 'Empleado' }) });
     await asentar(30);
-    assert.equal(A.elem('exCuenta').innerHTML, '', 'a un empleado se le ofreció');
+    assert.match(plano(A.elem('exCuenta').innerHTML), /📄 Sube tus extractos · opcional/, 'al empleado no se le ofreció');
     const B2 = abrirSocio({ local: { socio_cuenta: SESION }, ahora: AHORA, red: nube({ ocupacion: 'Empleado',
       autorizacion: { version: PUBLICACION, recibida_en: '2026-11-19T15:00:00Z', revocada_en: null },
       archivos: [{ id: 7, tipo: 'pdf', bytes: 2048, creado_en: '2026-11-19T15:01:00Z' }] }) });
@@ -821,7 +829,7 @@ describe('9 · la política, los términos y la versión de la autorización cua
   });
   test('la sección «extractos» dice qué se guarda, para qué, quién lo ve, cuánto tiempo y cómo se quita', () => {
     const s = visible(leer('legal/privacidad.html').split('<h3 id="extractos">')[1].split('</section>')[0]);
-    ['Darlos es opcional', 'últimos 3 meses', 'Nequi', 'Daviplata', 'si no eres empleado', 'PlataChat no te los pide',
+    ['Darlos es opcional', 'últimos 3 meses', 'Nequi', 'Daviplata', 'Seas empleado, trabajes por tu cuenta', 'medir el riesgo de prestarte y saber hasta cuánto proponerte', 'PlataChat no te los pide',
      'Los mira una persona: ningún programa los lee ni los califica', 'no cambian tu garantía', 'nunca viene marcada',
      'Nunca te pedimos la clave de tu Nequi, de Daviplata ni de tu banco', 'ni entramos a tu cuenta', 'nombres de otras personas',
      'tu salud, tu religión o tu política', 'Lo que anotamos de ellos', 'cuánto te entra al mes', 'ningún nombre de nadie',
@@ -867,7 +875,8 @@ describe('9 · la política, los términos y la versión de la autorización cua
   });
   test('los términos: los extractos tampoco suben la garantía prestada, y la app lo dice antes de que los dé', () => {
     assert.match(T, /Los extractos de tus cuentas, si nos los das, tampoco la cambian/);
-    assert.match(T, /Lo que cambió el 19 de noviembre de 2026: Los extractos de tus cuentas \(Nequi, Daviplata o banco\), que en Tu Garantía \(PlataChat no los pide\) puedes darnos si no eres empleado, tampoco suben la garantía que te prestamos/);
+    assert.match(T, new RegExp('Lo que cambió el ' + PUBLICACION_EN_PALABRAS + ': Los extractos de tus cuentas \\(Nequi, Daviplata o banco\\), que en Tu Garantía \\(PlataChat no los pide\\) puedes darnos seas o no empleado, tampoco suben la garantía que te prestamos'));
+    assert.equal(/si no eres empleado/.test(T + P), false, 'la política o los términos siguen diciendo que es solo para quien no es empleado');
     const datosKyc = leer('app/puente.js');
     assert.equal(/extracto/i.test(datosKyc.slice(datosKyc.indexOf('function datosKycDe'), datosKyc.indexOf('function datosKycDe') + 3000)), false,
       'los extractos entraron en la garantía prestada y los textos dicen que no');

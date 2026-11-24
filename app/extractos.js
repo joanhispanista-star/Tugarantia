@@ -31,6 +31,16 @@
  * Las reglas de la base están en base/20261113c_los_extractos.sql: el teléfono
  * se puede saltar todo lo de aquí, y la base lo vuelve a mirar.
  *
+ * 24-nov-2026 — TAMBIÉN PARA EL EMPLEADO. Joan: «si indica que es empleado entonses
+ * seria bueno pedir los estractos bancarios… para poder dar con un analisis de
+ * riesgo mucho mas acertado y que el cliente sepa que es para medir el nivel de
+ * riego y poder vaidar hasta cuanto se le puede prestar, todo esto opcional».
+ * La decisión 1 de arriba cambia: se le ofrece a TODO el que dijo de qué vive
+ * (seOfrece). Lo demás no se mueve: opcional, autorización aparte, solo Joan los
+ * ve, no cambian la garantía. Y el propósito se dice con sus palabras, pero donde
+ * es verdad: al revisar la SOLICITUD. Los términos prometen que los extractos no
+ * suben la garantía, y eso sigue siendo así.
+ *
  * LO QUE SE PIDE, EN PALABRAS DE TODOS LOS DÍAS: los extractos de los últimos
  * 3 meses de la cuenta donde le pagan o le llega la plata (Nequi, Daviplata o
  * el banco), que se bajan desde la app de su banco. En PDF (el mejor: tres, uno
@@ -85,8 +95,8 @@
      casilla, en la política y en los términos: pruebas/los-extractos.test.js
      dice qué más. NO es VERSION_AUTORIZACION de app/cuenta.js: esa es la
      general, y no sube (a nadie se le vuelve a pedir nada por esto). */
-  var VERSION_AUTORIZACION = '2026-11-19';
-  var FECHA_EN_PALABRAS = '19 de noviembre de 2026';
+  var VERSION_AUTORIZACION = '2026-11-24';
+  var FECHA_EN_PALABRAS = '24 de noviembre de 2026';
 
   /* Los topes son los de la base (extracto_subir): aquí se miran antes para
      decirlo sin gastar la subida, y allá otra vez. 3 PDF: los tres meses, que
@@ -155,9 +165,12 @@
   function normal(t) {
     return String(t == null ? '' : t).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
   }
+  /* 24-nov-2026 — YA NO SE MIRA SI ES EMPLEADO (Joan lo pidió también para el
+     empleado). Se le ofrece a todo el que dijo de qué vive. Sin ocupación sigue
+     sin ofrecerse: es quien no ha llegado a esa pregunta, o un cliente viejo
+     sin registro, del que la página no sabe nada. */
   function seOfrece(ocupacion) {
-    var o = normal(ocupacion);
-    return !!o && !/^emplead[oa](\b|$)/.test(o);
+    return !!normal(ocupacion);
   }
 
   /* ---------------------------------------------------------------- textos */
@@ -165,10 +178,13 @@
     /* Arriba de la casilla, en el registro y en la cuenta: «no cambian tu
        garantía» se lee ANTES de dar nada (los términos cambian con esto: el
        punto 6 dice que cada dato sube la garantía prestada, salvo estos). */
-    intro: 'Opcional. Tus extractos muestran lo que de verdad te entra cada mes, aunque no tengas un empleo con nómina. ' +
-      'Si nos los das, los miramos al revisar tu solicitud, y no cambian tu garantía. Si no, tu registro sigue igual.',
+    /* 24-nov-2026 — para qué, con las palabras de Joan («medir el nivel de riesgo y
+       validar hasta cuánto se le puede prestar») y donde es cierto: al revisar la
+       solicitud. «No cambian tu garantía» se queda. */
+    intro: 'Opcional. Tus extractos muestran lo que de verdad te entra cada mes. Si nos los das, los miramos al revisar ' +
+      'tu solicitud, para medir el riesgo y saber hasta cuánto proponerte; no cambian tu garantía. Si no, tu registro sigue igual.',
     introCuenta: 'Opcional. Los extractos de los últimos 3 meses de la cuenta donde te llega la plata. Si nos los das, ' +
-      'los miramos al revisar tus solicitudes. No cambian tu garantía.',
+      'los miramos al revisar tus solicitudes, para medir el riesgo y saber hasta cuánto proponerte. No cambian tu garantía.',
     queSePide: 'Qué te pedimos: los extractos de los últimos 3 meses de la cuenta donde te pagan o te llega la plata: ' +
       'Nequi, Daviplata o tu banco.',
     comoSeBajan: 'Se bajan desde la app de tu Nequi o de tu banco, en la parte de extractos (a veces se llama ' +
@@ -188,7 +204,11 @@
        manda plata, a quien le paga) que no autorizaron nada (Decreto 1377, art.
        11), y gastos que pueden decir algo sensible (salud, religión, política):
        se dice, y se dice que no se usan. */
-    autorizacionDetalle: 'Para mirar cuánto me entra y con qué regularidad cuando evalúen mis solicitudes de crédito. Es ' +
+    /* 24-nov-2026 — el propósito, igual que en la política y con las palabras de Joan:
+       medir el riesgo y hasta cuánto proponerle, al evaluar sus solicitudes. Lo que se
+       firma tiene que decir para qué, no una versión más corta de eso. */
+    autorizacionDetalle: 'Para medir el riesgo de prestarme y saber hasta cuánto proponerme cuando evalúen mis solicitudes ' +
+      'de crédito: miran cuánto me entra y con qué regularidad. Es ' +
       'opcional y aparte de la autorización general: sin ella todo sigue igual. Nunca me piden la clave de mi Nequi, de ' +
       'Daviplata ni de mi banco. Los mira una persona, quien dirige el negocio; ningún programa los lee ni los califica, y el ' +
       'resto del equipo no los ve. Se guardan mientras tenga cuenta en Tu Garantía; puedo quitarlos cuando quiera desde mi ' +

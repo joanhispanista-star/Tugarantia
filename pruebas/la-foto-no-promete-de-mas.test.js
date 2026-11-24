@@ -167,7 +167,7 @@ describe('y el tratamiento de datos está declarado (Ley 1581)', () => {
     /* 13-nov-2026 — y otra vez, para el 19-nov (el día que sale lote-v145): los
        extractos de las cuentas, opcionales y con su propia autorización
        (pruebas/los-extractos.test.js amarra esa fecha). */
-    assert.match(PRIV, /Última actualización: 19 de noviembre de 2026/,
+    assert.match(PRIV, /Última actualización: 24 de noviembre de 2026/,
       'se cambió la política y no se movió la fecha');
   });
 });

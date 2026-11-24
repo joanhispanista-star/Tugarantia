@@ -15,6 +15,9 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const B = require('./banco-registro.js');
+/* 24-nov-2026 — este archivo no trata de los extractos: recorre el registro sin ese paso
+   (ver sinExtractos en banco-registro.js). */
+B.sinExtractos();
 
 const PDF64 = Buffer.from('%PDF-1.4\n% historia de mentira\n%%EOF\n', 'binary').toString('base64');
 const hl = P => B.texto(P.ev("(document.getElementById('hlPaso') || {}).innerHTML || ''"));
