@@ -124,6 +124,13 @@ function abrirPlay(opciones) {
     delete require.cache[require.resolve(path.join(RAIZ, 'app', 'historia-laboral.js'))];
     ctx.HistoriaLaboral = require(path.join(RAIZ, 'app', 'historia-laboral.js'));
   }
+  /* 13-nov-2026 — «Tus extractos»: el paso para quien no es empleado
+     (app/extractos.js). `sinExtractos: true` simula que ese <script src> no
+     llegó (el paso no aparece). Copia propia por banco, como la historia laboral. */
+  if (!o.sinExtractos) {
+    delete require.cache[require.resolve(path.join(RAIZ, 'app', 'extractos.js'))];
+    ctx.Extractos = require(path.join(RAIZ, 'app', 'extractos.js'));
+  }
   /* 19-oct-2026 — el teléfono de verdad (modelo, versión, nuestra app).
      `sinAparato: true` simula que ese <script src> no llegó. */
   if (!o.sinAparato) ctx.Aparato = require(path.join(RAIZ, 'app', 'aparato.js'));

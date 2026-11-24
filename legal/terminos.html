@@ -100,7 +100,7 @@ section li{margin-bottom:var(--e2)}
 
 <div class="cab"><div class="wrap">
   <h1>Las reglas, sin letra chica</h1>
-  <p>Términos y condiciones del servicio · Última actualización: 29 de octubre de 2026</p>
+  <p>Términos y condiciones del servicio · Última actualización: 19 de noviembre de 2026</p>
 </div></div>
 
 <main><div class="wrap">
@@ -355,7 +355,8 @@ section li{margin-bottom:var(--e2)}
     <p>Al abrir tu cuenta te prestamos hasta <b>$100.000</b> de garantía, según los datos que nos
       des, para que puedas arrancar sin historial. Cada dato que entregas te sube esa cifra (salvo
       la historia laboral de tu fondo de pensiones, que es opcional y no la cambia); con todos
-      completos llegas a los $100.000 exactos.</p>
+      completos llegas a los $100.000 exactos. Los extractos de tus cuentas, si nos los das,
+      tampoco la cambian: también son opcionales.</p>
     <p>Y si traes gente, te sumamos <b>$5.000</b> por cada persona que invites, desde el momento
       en que esa persona pague un crédito. Antes de eso no suma nada, y no hay límite de cuántas
       puedes traer.</p>
@@ -466,6 +467,24 @@ section li{margin-bottom:var(--e2)}
          28-oct-2026 (arreglador final, L5 de la ronda 3) — «(PlataChat no la pide)», como
          en la política: estos términos también los lee quien llega por PlataChat (platachat/index.html los
          enlaza), y esa app no tiene el paso ni la tarjeta (play/index.html: MARCA !== 'platachat'). -->
+    <!-- 13-nov-2026 — LA DEL 19-NOV: los extractos de las cuentas (opcionales, para quien no
+         es empleado, app/extractos.js) tampoco suben la garantía prestada: no entran en
+         datosKycDe (app/puente.js). Es la fecha de PUBLICACIÓN del lote, la misma de
+         legal/privacidad.html y de la versión de su autorización: si sale otro día, se mueven
+         juntas (pruebas/los-extractos.test.js). EL AVISO DEL PUNTO 11, como con la historia
+         laboral: este cambio solo le toca a quien da sus extractos, y para darlos tiene que
+         pasar por el paso del registro o por la tarjeta de su cuenta, que lo dicen arriba de la
+         casilla —«no cambian tu garantía»— ANTES de que los dé (TEXTOS.intro e introCuenta).
+         «(PlataChat no los pide)»: estos términos también los lee quien llega por PlataChat. -->
+    <div class="nota azul">
+      <b>Lo que cambió el 19 de noviembre de 2026:</b>
+      <ul>
+        <li>Los extractos de tus cuentas (Nequi, Daviplata o banco), que en Tu Garantía (PlataChat no
+          los pide) puedes darnos si no eres empleado, tampoco suben la garantía que te prestamos
+          (punto 6): son opcionales y aparte, y la app te lo dice antes de que nos los des. Lo demás
+          no cambió.</li>
+      </ul>
+    </div>
     <div class="nota azul">
       <b>Lo que cambió el 29 de octubre de 2026:</b>
       <ul>

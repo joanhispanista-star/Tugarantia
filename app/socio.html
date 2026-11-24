@@ -1069,14 +1069,24 @@ details.plegado>summary{padding:0 var(--e4)}
    Pista trae «Tu recorrido» (los pagos por mundo), la estela azul, su nombre en el marcador
    y el carrito que repasa la historia al entrar. La fecha es la misma de v156, así que aquí
    distingue el número del sello: si un cliente dice que sigue viendo seis pestañas abajo, o
-   que no ve el carrito, el pie dice si tiene v157. */
-var VERSION_APP = '2026-11-23';
+   que no ve el carrito, el pie dice si tiene v157.
+   13-nov-2026 (el mismo día, sale con v145): «Sube tus extractos», en Inicio y en
+   la espera de quien todavía no está junto a su historial, para quien no es
+   empleado (app/extractos.js, nuevo, ?v=145). La fecha es la del cambio, que
+   sigue siendo hoy: lo que distingue esta copia de la de v144 es el número de la
+   caché que va al lado (VERSION_SITIO, que sube al juntar el lote). Si un cliente
+   dice que no le sale dónde subir sus extractos, el sello dice si tiene la
+   versión que lo trae.
+   24-nov-2026 (v161): lo de arriba sale hoy, y «Sube tus extractos» ya no es solo
+   para quien no es empleado: también el empleado, con las plataformas que usa. Si un
+   cliente dice que no le sale dónde subirlos, el sello dice si tiene v161. */
+var VERSION_APP = '2026-11-24';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
    tiene lo último (las fechas son tres y van a mano). Sube con CACHE, siempre:
    pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v160';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v161';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1173,6 +1183,12 @@ setTimeout(function () {
      versión en la dirección. Si no llegan, no hay tarjeta y la app sigue igual. -->
 <script src="fondos-pension.js"></script>
 <script src="historia-laboral.js"></script>
+<!-- 13-nov-2026 — «Sube tus extractos»: la tarjeta para quien no es empleado y
+     dejó los extractos para después en el registro (o quiere verlos o
+     quitarlos). La pantalla es la misma del registro (play/), y toma lo puro de
+     historia-laboral.js: va después de él. Nuevo, con ?v=145: firma al llegar.
+     Si no llega, no hay tarjeta y la app sigue igual. -->
+<script src="extractos.js?v=161"></script>
 <!-- 23-oct-2026 — la calculadora del pedido, primera tarjeta de Entrar (ver
      calculadoraDeEntrar): la misma de play/ y de la portada del sitio, con la
      misma dirección versionada que la precarga de sw.js. creditos.js es la
@@ -1732,6 +1748,8 @@ function pintarSinJuntar(estado) {
     /* 28-oct-2026 — mientras espera la respuesta: es justo cuando sirve subir
        la historia laboral que dejó para después (ver TU HISTORIA LABORAL). */
     '<div id="hlCuenta"></div>' +
+    /* 13-nov-2026 — y sus extractos, si no es empleado (ver SUBE TUS EXTRACTOS). */
+    '<div id="exCuenta"></div>' +
     (arriba ? '' : instalar) +
     (conChat ? vistaChat() : '') +
     '<div class="pie">Entraste con el ' + esc(U && U.telefonoBonito ? U.telefonoBonito(SESION && SESION.celular) : '') + '.<br>' +
@@ -1742,6 +1760,7 @@ function pintarSinJuntar(estado) {
   if (conChat) arrancarChat();
   if (conChat) cargarCedulaSinJuntar();   // 13-nov-2026 — ver FALTA TU CÉDULA
   montarHistoriaLaboral();   // 28-oct-2026
+  montarExtractos();   // 13-nov-2026
   avisarQueEsMomento();   // 21-oct-2026 — la cuenta sin juntar es el inicio de quien se registró
 }
 
@@ -1963,6 +1982,68 @@ function montarHistoriaLaboral() {
     alApagado: function () { HL_APAGADO = true; },
     /* Retirar borra también lo de ESTA cuenta que esperaba en el teléfono. */
     guardadero: guardaderoHL(),
+    celular: function () { return (ses && ses.celular) || ''; }
+  });
+}
+
+/* ===========================================================================
+ * SUBE TUS EXTRACTOS — 13 de noviembre de 2026
+ *
+ * «Lo hago después» de los extractos tiene que existir de verdad (la decisión
+ * de Joan del 13-nov): es esta tarjeta, en Inicio y en la espera de quien
+ * todavía no está junto a su historial, como «Tu historia laboral». Aquí ya
+ * hay sesión: cada archivo sube en el momento (extracto_subir), la
+ * autorización se guarda al marcarla (extracto_autorizar), y desde aquí se
+ * quita un archivo o se RETIRA todo (extracto_retirar): la casilla del
+ * registro promete «puedo quitarlos cuando quiera desde mi cuenta en la app».
+ * La pantalla y sus reglas son las del registro (app/extractos.js).
+ * A QUIÉN: la tarjeta se muestra a quien no es empleado (la ocupación del
+ * registro de ESTA cuenta, que dice la base: extracto_mia) y a quien ya dio
+ * algo. Si la base todavía no tiene las funciones (404), no aparece: no se
+ * ofrece lo que no va a funcionar. Sin sesión (el «👁 Ver la app como la ve
+ * él» de Joan, un enlace) tampoco.
+ * 13-nov-2026 (remate) — LO QUE NO SE SABE: decía «o la de su ficha», y la
+ * leía de una «ocupacion» de S.perfil que nunca existe: S.perfil son los datos de la
+ * garantía (datosKycDe, app/puente.js) y la ficha del CRM no guarda la
+ * ocupación. Así que al cliente viejo, hecho a mano y sin registro en play/,
+ * no se le ofrece la tarjeta aunque sea independiente: su ocupación no está
+ * en ninguna parte. Se dejó de fingir que se miraba; ofrecérsela a quien no
+ * sabemos qué hace es una decisión de Joan (anotada para él).
+ * ======================================================================== */
+var EX = (window.Extractos && typeof window.Extractos.disponible === 'function' && window.Extractos.disponible()) ? window.Extractos : null;
+var EX_APAGADO = false;   // la base contestó 404: no se vuelve a ofrecer en esta visita
+/* Lo que los extractos dejan en ESTE teléfono (la cola de una cuenta cuyo
+   registro no alcanzó a subirlos): el mismo guardadero de play/, que es del
+   mismo sitio. Aquí no se sube nada de eso; se barre lo vencido al abrir y se
+   borra lo de la cuenta que retira su autorización. */
+var EX_GUARDADERO = null;
+function guardaderoEX() {
+  if (!EX || typeof EX.guardadero !== 'function') return null;
+  if (!EX_GUARDADERO) {
+    var ls = null, idb = null;
+    try { ls = window.localStorage; } catch (e) { ls = null; }
+    try { idb = window.indexedDB || null; } catch (e) { idb = null; }
+    EX_GUARDADERO = EX.guardadero({ ls: ls, idb: idb });
+  }
+  return EX_GUARDADERO;
+}
+function barrerExtractos() {
+  var g = guardaderoEX();
+  if (!g) return;
+  try { g.barrer().then(null, function () {}); } catch (e) {}
+}
+function montarExtractos() {
+  var caja = $('exCuenta');
+  if (!caja) return;
+  if (!EX || EX_APAGADO || !SESION || !SESION.access_token) { caja.innerHTML = ''; return; }
+  var ses = SESION;
+  EX.tarjetaDeCuenta(caja, {
+    credenciales: cfgChat,          // {url, anon, token} con la sesión renovada si hace falta
+    escritura: escrituraEnCamino,   // «se actualiza sola» no recarga encima de una subida
+    /* Sin `ocupacion`: la página no la sabe (ver LO QUE NO SE SABE, arriba);
+       la del registro la dice la base. */
+    alApagado: function () { EX_APAGADO = true; },
+    guardadero: guardaderoEX(),
     celular: function () { return (ses && ses.celular) || ''; }
   });
 }
@@ -2526,6 +2607,7 @@ function irA(tab) {
   /* 16-nov-2026 — con la Pista ya pintada: las misiones anotan lo suyo en el
      teléfono y, si llegó a un mundo nuevo, sale la llegada (una sola vez). */
   if (tab === 'pista' && window.PistaNiveles && window.PistaNiveles.montar) window.PistaNiveles.montar({ entrando: entrando });
+  if (tab === 'inicio') montarExtractos();   // 13-nov-2026
   window.scrollTo(0, 0);
   avisarQueEsMomento();   // 21-oct-2026 — Inicio, Historial y Garantía son de la lista
 }
@@ -2767,6 +2849,8 @@ function vistaInicio() {
      debajo de lo que vino a mirar, y solo con su sesión. La llena
      montarHistoriaLaboral cuando ya está en la pantalla. */
   if (S.origen === 'nube' && SESION && SESION.access_token) h += '<div id="hlCuenta"></div>';
+  /* 13-nov-2026 — y sus extractos, igual (montarExtractos): la tarjeta decide si es para él. */
+  if (S.origen === 'nube' && SESION && SESION.access_token) h += '<div id="exCuenta"></div>';
   h += tarjetaComunidad();
   /* 21-oct-2026 — instalarla, AL FINAL y nunca encima de la cuota: en cada
      pantalla manda UNA cifra (ver arriba), y una tarjeta de instalar no puede
@@ -6147,6 +6231,7 @@ function avisarQueEsMomento() {
   /* 28-oct-2026 (arreglo de los leves, P7) — lo vencido de la historia
      laboral se barre al abrir, entre quien entre (ver barrerHistoriaLaboral). */
   barrerHistoriaLaboral();
+  barrerExtractos();   // 13-nov-2026 — y lo vencido de los extractos, igual
 
   var delEnlace = desdeEnlace();
   if (delEnlace) return abrir(delEnlace);

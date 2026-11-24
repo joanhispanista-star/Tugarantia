@@ -550,6 +550,15 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
      dirección (no hay copia vieja con la que mezclarse). -->
 <script src="../app/fondos-pension.js"></script>
 <script src="../app/historia-laboral.js"></script>
+<!-- 13-nov-2026 — «Tus extractos», el paso opcional para quien NO es empleado,
+     después de «De qué vives» y del fondo de pensiones: su autorización aparte,
+     lo escogido en el teléfono y la cola que sube al abrir la cuenta. Toma de
+     historia-laboral.js lo puro (el tipo por los bytes, las imágenes sin sus
+     metadatos, el portapapeles): va DESPUÉS de él. NO entra al guardián de
+     abajo: si no llega, el paso no aparece y el registro sigue como antes. Es
+     nuevo, pero con ?v=145 en la dirección: firma al llegar (¿LLEGÓ LO QUE
+     PEDÍ?). -->
+<script src="../app/extractos.js?v=161"></script>
 <!-- 19-oct-2026 — el teléfono de verdad: lo que el navegador sabe del aparato
      (modelo, versión) y si la página va dentro de nuestra app. Se manda al
      registrarse, al pedir y al aceptar, sin esperar respuesta (anotarAparato).
@@ -575,7 +584,9 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
      calculadora se callaría el precio sin que nadie entendiera por qué. -->
 <script src="../app/motor.js?v=141"></script>
 <script src="../app/ficha.js"></script>
-<script src="../app/cumplimiento.js?v=141"></script>
+<!-- 13-nov-2026 — ?v=145: cambió lo que la app recoge y lo que se borra con la
+     cuenta (los extractos). Ver la nota de los extractos en sw.js. -->
+<script src="../app/cumplimiento.js?v=161"></script>
 <!-- 13-nov-2026 — «Falta tu cédula» en la cuenta: la misma tarjeta de la app
      instalada (app/socio.html), que avisa sin frenar nada y sube por
      registro_archivos_guardar con la compresión de esta página. Va con versión:
@@ -730,13 +741,23 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
 /* 20-nov-2026 — la Navidad se prende desde el 20-nov y no desde el 1-dic (Joan: «sube
    lo de navidad desde ya»). Si alguien dice que en noviembre no ve la guirnalda, esta
    fecha dice si tenía la versión que la trae. */
+/* 13-nov-2026 (el mismo día, sale con v145) — «Tus extractos»: el paso opcional
+   para quien no es empleado, después del fondo de pensiones, y la tarjeta del
+   Perfil (app/extractos.js, nuevo). La fecha no se mueve —es la del cambio, y
+   sigue siendo hoy—; lo que distingue esta copia de la de v144 es el número de
+   la caché que va al lado en el pie (VERSION_SITIO, que sube al juntar el lote).
+   Si alguien dice que no le salió el paso de los extractos, el pie dice si
+   tenía la versión que lo trae. */
+/* 24-nov-2026 — lo de arriba («Tus extractos») se construyó el 13-nov y sale hoy, con
+   v161, y ya no es solo para quien no es empleado: Joan lo pidió también para el
+   empleado, con las plataformas que usa. */
 var VERSION_PLAY = '2026-11-24';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
    Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no deja pasar
    uno sin el otro. Sale también en el sello del pie. */
-var VERSION_SITIO = 'v160';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v161';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -1308,6 +1329,7 @@ function primerPasoQueFalta() {
     if (id === 'entrada') { if (!REGISTRO.celular) return i; continue; }
     if (id === 'rostro' || id === 'permiso') continue;
     if (id === 'pension') continue;   // 28-oct-2026 — opcional: nunca es lo que falta
+    if (id === 'extractos') continue;   // 13-nov-2026 — opcional también
     /* 22-oct-2026 — la cuenta no es un grupo de CAMPOS: la mira su regla. */
     if (id === 'cobro') { if (faltaLaCuenta()) return i; continue; }
     var ids = U.camposDelGrupo(id).map(function (c) { return c.id; });
@@ -2156,6 +2178,20 @@ var PASOS = [
 if (window.HistoriaLaboral && window.FondosPension && MARCA !== 'platachat') {
   PASOS.splice(indiceDe('cobro'), 0, { id: 'pension', titulo: 'Tu fondo de pensiones' });
 }
+/* 13-nov-2026 — TUS EXTRACTOS, OPCIONAL, SOLO PARA QUIEN NO ES EMPLEADO.
+   Joan: «quiero validar si el cliente no es empleado que pueda subir los
+   estractos bancarios», dentro del registro como el fondo de pensiones. Va
+   después de él y antes de «¿Dónde te enviamos la plata?»: así «Tu fondo de
+   pensiones» sigue justo después de «De qué vives» (lo vigila su prueba) y a
+   quien es empleado no le cambia ni un número de paso. Aquí se pone según lo
+   que el borrador ya dice; cuando la persona escoge o cambia su ocupación,
+   acomodarPasoExtractos lo pone o lo quita (ver TUS EXTRACTOS, junto al fondo
+   de pensiones). No en PlataChat: Joan no lo decidió para esa marca, y su
+   registro termina en otra página, donde la cola no sube. */
+if (window.Extractos && window.Extractos.disponible && window.Extractos.disponible() && MARCA !== 'platachat' &&
+    window.Extractos.seOfrece(REGISTRO.ocupacion)) {
+  PASOS.splice(indiceDe('cobro'), 0, { id: 'extractos', titulo: 'Tus extractos' });
+}
 /* El orden de antes del 19-oct, SOLO para leer un checkpoint guardado por la
    versión anterior (que guardaba el número y no el nombre). No se usa para
    nada más: quien esté a mitad de registro el día que esto se publique vuelve
@@ -2354,6 +2390,9 @@ function pintarRegistro(paso) {
      esto) no lleva a ninguna parte; ver UNA RESPUESTA DE LA RED SOLO VALE
      PARA QUIEN LA PIDIÓ. */
   if (viajando()) return;
+  /* 13-nov-2026 — «Tus extractos» se pone o se quita según la ocupación de
+     ahora, ANTES de decidir a qué paso va (ver acomodarPasoExtractos). */
+  paso = acomodarPasoExtractos(paso);
   VISTA = 'registro';
   PASO = Math.max(0, Math.min(paso, PASOS.length - 1));
   /* 9-nov-2026 — tras relanzarse la pestaña en el paso de la cédula, «Volver» vuelve a
@@ -2403,6 +2442,7 @@ function pintarRegistro(paso) {
   else if (p.id === 'permiso') cuerpo = pasoPermiso();
   else if (p.id === 'cobro')   cuerpo = pasoCobro();
   else if (p.id === 'pension') cuerpo = pasoPension();   // 28-oct-2026 — se llena abajo (montarPasoPension)
+  else if (p.id === 'extractos') cuerpo = pasoExtractos();   // 13-nov-2026 — se llena abajo (montarPasoExtractos)
   else                         cuerpo = (p.id === 'identidad' ? notaCedulaLeida() + notaDeLaFoto() : '') + pasoCampos(p.id);
 
   /* 19-oct-2026 — «Revisa tus datos» solo si hay algo que revisar: quien tocó
@@ -2426,6 +2466,12 @@ function pintarRegistro(paso) {
      archivos y retoma DESPUÉS del paso del fondo, se lo dice aquí, una vez
      (ver perdidosPensionHTML). */
   var perdidos = perdidosPensionHTML();
+  /* 13-nov-2026 — lo mismo para «Tus extractos»: su línea de «Lo hago
+     después» una vez, en el paso al que lleva, y los archivos que el arranque
+     se llevó, si retoma después de su paso. */
+  var pistaEx = (PISTA_EXTRACTOS && p.id !== 'extractos') ? pistaExtractosHTML(PISTA_EXTRACTOS) : '';
+  PISTA_EXTRACTOS = null;
+  var perdidosEx = perdidosExtractosHTML();
 
   $('cuerpo').innerHTML =
     '<div class="card">' +
@@ -2434,6 +2480,8 @@ function pintarRegistro(paso) {
       '<h3 class="tit" style="margin-top:var(--e3)">' + esc(titulo) + '</h3>' +
       pista +
       perdidos +
+      pistaEx +
+      perdidosEx +
       cuerpo +
       /* 8-oct-2026 — aquí iba la tarjeta «¿quieres que un asesor te
          acompañe?», en CADA paso. Joan la quitó: el acompañamiento ya no se
@@ -2463,6 +2511,8 @@ function pintarRegistro(paso) {
      sus propios toques (app/historia-laboral.js). */
   if (p.id === 'pension') montarPasoPension();
   probarPensionEnLaBase();   // 28-oct-2026 (arreglo de los leves, P13): una vez por visita
+  if (p.id === 'extractos') montarPasoExtractos();   // 13-nov-2026
+  probarExtractosEnLaBase();   // 13-nov-2026 — una vez por visita, como el fondo
   if (p.id === 'rostro' && autorizoEsteIntento() && !hayFotoLista('selfie')) setTimeout(iniciarEscaner, 50);
   /* 19-oct-2026 — LA UBICACIÓN, EN EL PASO DEL ROSTRO Y NO EN EL PRIMERO. Con
      la cédula primero, lo primero que habría visto el cliente eran dos
@@ -2651,6 +2701,7 @@ function borrarTodoElRegistro() {
   try { localStorage.removeItem('tg_acompana'); } catch (e) {}
   olvidarCelularDelRegistro();   // 20-oct-2026, otro celular: el celular de ESTE registro se va con él
   olvidarPension();   // 28-oct-2026 — lo del fondo de pensiones también: es de la persona anterior
+  olvidarExtractos();   // 13-nov-2026 — y lo de los extractos
   REGISTRO = {}; FOTOS = {}; CLAVE_EN_MEMORIA = ''; CLAVE_DEL_CELULAR = ''; CLAVE_DEL_INTENTO = '';
 }
 
@@ -2903,6 +2954,7 @@ function soltarLoSensibleDelRegistro() {
   /* 28-oct-2026 — y los archivos de la historia laboral, con la misma regla;
      lo escogido (la autorización, el fondo) se queda, como el borrador. */
   soltarArchivosDePension();
+  soltarArchivosDeExtractos();   // 13-nov-2026 — y los de los extractos, igual
 }
 
 /* Anota un campo del registro en cuanto se escribe. El id del elemento lleva el
@@ -3677,6 +3729,318 @@ function montarHistoriaLaboralEnPerfil() {
   });
 }
 
+/* ===========================================================================
+ * TUS EXTRACTOS — 13 de noviembre de 2026
+ *
+ * Joan: «quiero validar si el cliente no es empleado que pueda subir los
+ * estractos bancarios». Sus decisiones del 13-nov: a quien NO es empleado,
+ * dentro del registro como el fondo de pensiones, opcional, con «Lo hago
+ * después», guardados mientras tenga cuenta y vistos solo por él.
+ *
+ * La pantalla y sus reglas viven en app/extractos.js (las comparte con la app
+ * del cliente). Aquí solo se engancha al registro, y cada enganche es el del
+ * fondo de pensiones de arriba, con su mismo porqué:
+ *   · el paso existe solo si la ocupación NO es «Empleado» (Extractos.seOfrece):
+ *     acomodarPasoExtractos lo pone o lo quita cada vez que se pinta un paso, y
+ *     a quien es empleado no le cambia ni un número;
+ *   · lo escogido (la autorización) es como el borrador, y se va con «Empezar
+ *     de cero» y con otro celular (olvidarExtractos);
+ *   · los archivos son como las fotos: se sueltan al salir del registro
+ *     (soltarArchivosDeExtractos) y al volver pasado el rato de la cámara (el
+ *     arranque): es justo el paso que manda a la persona a la app de su banco,
+ *     y por eso el aviso va arriba de todo (ver la cabecera de app/extractos.js);
+ *   · en «Abrir mi cuenta» pasan a la cola de ESA cuenta y suben con su sesión
+ *     (encolarLosExtractos, subirLosExtractosYDecirlo). La cola sobrevive a
+ *     salir a Nequi: se reintenta al entrar a la cuenta en este teléfono, hasta
+ *     el día siguiente. Lo que pasó se dice en #avisoExtractos;
+ *   · si la base todavía no tiene base/20261113c_los_extractos.sql (404), el
+ *     paso se quita y se dice, y el registro sigue igual.
+ * Nada de esto viaja en REGISTRO: ni a la bandeja (que corta a 40 pares) ni al
+ * signup.
+ * ======================================================================== */
+function moduloExtractos() {
+  var X = window.Extractos;
+  return (X && typeof X.disponible === 'function' && X.disponible()) ? X : null;
+}
+var EX = moduloExtractos();
+var EX_GUARDADERO = null;
+var EX_APAGADO_PLAY = false;      // la base contestó 404: no se ofrece en esta visita
+var EXTRACTOS_PERDIDOS = false;   // el arranque soltó archivos de este registro: el paso lo dice una vez
+var EXTRACTOS_ENCOLADA = null;    // la promesa del «Abrir mi cuenta» que pasó lo del paso a la cola
+function guardaderoExtractos() {
+  var X = moduloExtractos();
+  if (!X) return null;
+  if (!EX_GUARDADERO) {
+    var ls = null, idb = null;
+    try { ls = window.localStorage; } catch (e) { ls = null; }
+    try { idb = window.indexedDB || null; } catch (e) { idb = null; }
+    EX_GUARDADERO = X.guardadero({ ls: ls, idb: idb });
+  }
+  return EX_GUARDADERO;
+}
+/* ¿Se le ofrece a ESTA persona, con lo que escribió hasta ahora? */
+function seOfrecenLosExtractos() {
+  var X = moduloExtractos();
+  return !!(X && MARCA !== 'platachat' && !EX_APAGADO_PLAY && X.seOfrece((REGISTRO || {}).ocupacion));
+}
+/* EL PASO QUE APARECE Y DESAPARECE. La ocupación se escoge en «De qué vives»,
+   que va antes de este paso; al pintar cualquier paso, PASOS se pone al día
+   con lo que dice ahora, y `paso` (el número que pidió quien llama, contado
+   con el PASOS de antes) se corrige para que lleve al paso que esa persona
+   iba a ver:
+     · al ponerlo, quien venía de «De qué vives» con «Continuar» cae en él
+       (es el que sigue), y todo lo que estaba de él en adelante corre un
+       puesto; quien vuelve con «Volver» desde «¿Dónde te enviamos la plata?»,
+       o repinta ese paso, se queda donde iba;
+     · al quitarlo, quien iba hacia él con «Continuar» cae en el que seguía, y
+       quien iba con «Volver», en el de antes.
+   PASO (donde está) se corre igual. Devuelve el `paso` corregido. */
+function acomodarPasoExtractos(paso) {
+  var i = indiceDe('extractos'), debe = seOfrecenLosExtractos();
+  var antes = PASO;
+  if (debe && i < 0) {
+    var j = indiceDe('cobro');
+    if (j < 0) j = indiceDe('referencias');
+    if (j < 0) return paso;
+    PASOS.splice(j, 0, { id: 'extractos', titulo: 'Tus extractos' });
+    if (PASO >= j) PASO++;
+    if (paso > j || (paso === j && paso <= antes)) paso++;
+  } else if (!debe && i >= 0) {
+    PASOS.splice(i, 1);
+    if (PASO > i) PASO--;
+    if (paso > i || (paso === i && paso < antes)) paso--;
+  }
+  return paso;
+}
+function pasoExtractos() { return '<div id="exPaso"></div>'; }
+/* El paso montado (su controlador): siguientePaso le pregunta si se puede seguir. */
+var PASO_EXTRACTOS = null;
+function montarPasoExtractos() {
+  var g = guardaderoExtractos(), caja = $('exPaso'), X = moduloExtractos();
+  PASO_EXTRACTOS = null;
+  if (!g || !caja || !X) return;
+  PASO_EXTRACTOS = X.pasoDelRegistro(caja, {
+    guardadero: g, intento: asegurarIntento(), celular: String(REGISTRO.celular || ''), perdidos: EXTRACTOS_PERDIDOS,
+    despues: extractosDespues
+  });
+  EXTRACTOS_PERDIDOS = false;   // se dijo una vez
+}
+/* «LO HAGO DESPUÉS» DICE DÓNDE QUEDA EL DESPUÉS, y lo que de verdad pasa con
+   lo que ya escogió (como pensionDespues): la línea cuenta lo que «Abrir mi
+   cuenta» va a subir, leído de donde encolar lo lee. */
+var PISTA_EXTRACTOS = null;
+function extractosDespues() {
+  if (viajando()) return;
+  var g = guardaderoExtractos(), i = PASO;
+  var seguir = function (n) {
+    /* 13-nov-2026 (remate) — y que el paso i SIGA siendo el de los extractos:
+       si el 404 de probarExtractosEnLaBase llegaba mientras se esperaba al
+       guardadero, apagarPasoExtractos quitaba el paso y ya pintaba el
+       siguiente en el mismo índice («¿Dónde te enviamos la plata?»), y este
+       i + 1 se lo saltaba. */
+    if (VISTA !== 'registro' || PASO !== i || !PASOS[i] || PASOS[i].id !== 'extractos') return;
+    PISTA_EXTRACTOS = loEscogidoEnExtractos(n);
+    pintarRegistro(i + 1);
+  };
+  if (!g) return seguir(0);
+  g.archivos(String(REGISTRO.intento || ''), String(REGISTRO.celular || ''))
+    .then(function (r) { seguir(r && r.lista ? r.lista.length : 0); }, function () { seguir(0); });
+}
+function loEscogidoEnExtractos(n) {
+  var g = guardaderoExtractos(), intento = String(REGISTRO.intento || ''), cel = String(REGISTRO.celular || '');
+  var lo = { aut: null, n: 0, memoria: false };
+  if (!g) return lo;
+  try {
+    var e = g.estado(intento, cel);
+    lo.aut = (e && e.aut) || null;
+    lo.n = Math.max(0, Math.floor(Number(n) || 0));
+    lo.memoria = !!(g.enMemoria && g.enMemoria());
+  } catch (x) { /* sin guardadero: como sin nada escogido */ }
+  return lo;
+}
+/* `lo.apagado`: la base dijo 404 mientras la persona estaba en el paso (ver
+   apagarPasoExtractos): se dice una vez, en el paso al que pasó, y se sigue. */
+function pistaExtractosHTML(lo) {
+  var X = moduloExtractos();
+  if (lo && lo.apagado) return '<div class="aviso info" id="pistaExtractos" role="status"><b>Los extractos todavía no se pueden subir:</b> ' +
+    'esta parte no está encendida en nuestro sistema. Es opcional: sigue con tu registro.</div>';
+  if (!X || EX_APAGADO_PLAY) return '';
+  return '<div class="aviso info" id="pistaExtractos" role="status">' + X.pistaDespues(lo) + '</div>';
+}
+/* Los archivos que el arranque se llevó, dichos donde retoma si es DESPUÉS de
+   su paso (como perdidosPensionHTML); si retoma antes, lo dice el paso. */
+function perdidosExtractosHTML() {
+  var i = indiceDe('extractos'), X = moduloExtractos();
+  if (!EXTRACTOS_PERDIDOS || !X || EX_APAGADO_PLAY || i < 0 || PASO <= i) return '';
+  EXTRACTOS_PERDIDOS = false;   // se dice una vez
+  return '<div class="aviso ambar" id="perdidosExtractos" role="status"><b>' + esc(X.TEXTOS.perdidosOtroPaso || '') + '</b> ' +
+    esc(X.TEXTOS.perdidosQueHacer || '') +
+    '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="irAlPasoExtractos()">Volver a «Tus extractos»</button></div>';
+}
+function irAlPasoExtractos() {
+  var i = indiceDe('extractos');
+  if (i >= 0) pintarRegistro(i);
+}
+function soltarArchivosDeExtractos() {
+  var g = guardaderoExtractos();
+  if (g) { try { g.soltarArchivos(); } catch (e) {} }
+}
+/* ¿LA BASE TIENE LOS EXTRACTOS? Como probarPensionEnLaBase: UNA vez por
+   visita, y solo cuando el paso está en el registro (es decir, cuando ya se
+   sabe que no es empleado). extracto_mia con la llave pública, sin sesión: si
+   la función existe, la base contesta que no le deja (401); si no existe,
+   404. Solo un 404 apaga el paso; sin red se sigue como antes (el paso
+   funciona sin red y espera en el teléfono). */
+var EXTRACTOS_PROBADA = false;
+function probarExtractosEnLaBase() {
+  if (EXTRACTOS_PROBADA || indiceDe('extractos') < 0 || !CFG || !CFG.url || !CFG.anon) return;
+  EXTRACTOS_PROBADA = true;
+  var p = null;
+  try {
+    p = fetch(String(CFG.url).replace(/\/+$/, '') + '/rest/v1/rpc/extracto_mia', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon }, body: '{}' });
+  } catch (e) { return; }
+  Promise.resolve(p).then(function (r) { if (r && r.status === 404) apagarPasoExtractos(); }, function () {});
+}
+/* Apagado, el paso SE QUITA del registro, lo escogido en él se olvida, y ni la
+   pista de «Lo hago después» ni la tarjeta del Perfil aparecen: no se promete
+   lo que no existe. Si la persona estaba en él, pasa al que seguía y se le
+   dice por qué (pistaExtractosHTML con `apagado`): «se dice y se sigue». */
+function apagarPasoExtractos() {
+  EX_APAGADO_PLAY = true;
+  var i = indiceDe('extractos');
+  if (i < 0) return;
+  olvidarExtractos();
+  PASOS.splice(i, 1);
+  if (VISTA !== 'registro') return;
+  if (PASO > i) PASO--;
+  else if (PASO === i) { PISTA_EXTRACTOS = { apagado: true }; pintarRegistro(PASO); }
+}
+function olvidarExtractos() {
+  EXTRACTOS_PERDIDOS = false;
+  var g = guardaderoExtractos();
+  if (g) { try { g.olvidar(); } catch (e) {} }
+}
+/* «Abrir mi cuenta» salió bien: lo de ESTE registro pasa a la cola de esa
+   cuenta. Se llama ANTES de cerrar el registro en memoria: el intento y la
+   ocupación salen de ahí. A quien al final dijo «Empleado» (cambió de idea
+   después de escoger algo aquí) no se le encola nada: se olvida. */
+function encolarLosExtractos(cel) {
+  var g = guardaderoExtractos();
+  EXTRACTOS_SALTADOS = false;
+  if (!g || MARCA === 'platachat') return;
+  if (EX_APAGADO_PLAY || !seOfrecenLosExtractos()) { try { g.olvidar(); } catch (e) {} return; }
+  try {
+    var lo = g.estado(String(REGISTRO.intento || ''), String(cel || ''));
+    EXTRACTOS_SALTADOS = !(lo && lo.aut && lo.aut.version) && indiceDe('extractos') >= 0;
+    EXTRACTOS_ENCOLADA = g.encolar(String(REGISTRO.intento || ''), String(cel || '')).then(null, function () { return false; });
+  } catch (e) { EXTRACTOS_ENCOLADA = null; }
+}
+/* QUIEN SALTÓ EL PASO SABE DÓNDE QUEDA (como pintarPistaDeLaCuentaNueva). */
+var EXTRACTOS_SALTADOS = false;
+function pintarPistaDeExtractosEnLaCuentaNueva() {
+  var X = moduloExtractos();
+  if (!EXTRACTOS_SALTADOS || !X || EX_APAGADO_PLAY || MARCA === 'platachat') return;
+  pintarAvisoExtractos('<b>Tus extractos son opcionales.</b> ' + esc(X.TEXTOS.dondeDespues), 'info', true);
+}
+/* La sube con la sesión de la cuenta abierta y dice en #avisoExtractos qué
+   pasó. UNA SOLA SUBIDA A LA VEZ, como la de la historia laboral: «Abrir mi
+   cuenta» e «Ir a mi cuenta» la llaman las dos, y la segunda se suma a la que
+   va. Con la base sin las funciones, la subida contesta 404 ('apagado'): se
+   dice, lo escogido espera en el teléfono hasta mañana, y la cuenta sigue. */
+var EXTRACTOS_SUBIDA = null;
+function subirLosExtractosYDecirlo() {
+  var g = guardaderoExtractos(), X = moduloExtractos();
+  if (!g || !X || MARCA === 'platachat') return Promise.resolve();
+  var ses = SESION, cel = String(celularDeSesion() || (REGISTRADO && REGISTRADO.celular) || '');
+  if (!ses || !ses.access_token || !cel) return Promise.resolve();
+  var decirLoQuePaso = function (r) {
+    if (!r || SESION !== ses) return;
+    var a = X.avisoDeLaCola(r);
+    pintarAvisoExtractos(a.html, a.clase, r.estado !== 'apagado');
+  };
+  var va = EXTRACTOS_SUBIDA;
+  if (va && va.cel === cel) {
+    if (va.dice && SESION === ses) pintarAvisoExtractos(va.dice, '');
+    return va.p.then(decirLoQuePaso, function () {});
+  }
+  var s = { cel: cel, dice: '', p: null, cola: false };
+  var decir = function (html) { s.dice = html; if (SESION === ses) pintarAvisoExtractos(html, ''); };
+  s.p = (EXTRACTOS_ENCOLADA || Promise.resolve()).then(function () { return g.cola(cel); }).then(function (c) {
+    if (!c) return null;
+    s.cola = true;
+    laTarjetaDeExtractosEspera(s);
+    decir('<b>' + esc(g.colaEnEspera && g.colaEnEspera(cel) ? X.TEXTOS.terminandoCola : 'Subiendo tus extractos…') + '</b>');
+    return X.subirCola(g, cel, function (fn, cuerpo) { return rpcSesion(fn, cuerpo, ses, true); },
+      { alSubir: function () { decir('<b>Subiendo tus extractos…</b>'); } });
+  });
+  EXTRACTOS_SUBIDA = s;
+  var fin = function () { if (EXTRACTOS_SUBIDA === s) EXTRACTOS_SUBIDA = null; };
+  return s.p.then(function (r) { fin(); decirLoQuePaso(r); }, fin);
+}
+function subidaDeLosExtractos(cel) {
+  var s = EXTRACTOS_SUBIDA;
+  return (s && s.cola && cel && s.cel === String(cel)) ? s.p : null;
+}
+function laTarjetaDeExtractosEspera(s) {
+  var t = EX_TARJETA_PLAY;
+  if (s && t && t.tarjeta && t.cel === s.cel && typeof t.tarjeta.esperar === 'function') t.tarjeta.esperar(s.p);
+}
+/* Cuando el texto la manda a su cuenta, el camino va al lado (el Perfil de
+   ESTA cuenta), y NUNCA un enlace a app/socio.html: play/ no enlaza al
+   quincenal (la frontera de Play). Con la base sin las funciones no hay camino. */
+function pintarAvisoExtractos(html, clase, conCamino) {
+  var a = $('avisoExtractos');
+  var ir = conCamino && !EX_APAGADO_PLAY && /desde tu cuenta/.test(String(html || '')) && MARCA !== 'platachat'
+    ? ' <a href="#" onclick="abrirExtractosEnPerfil();return false">Subirlos desde tu Perfil</a>' : '';
+  if (a) a.innerHTML = html ? '<div class="card"><div class="aviso' + (clase ? ' ' + clase : '') + '" role="status">' + html + ir + '</div></div>' : '';
+}
+/* «Tus extractos» en el Perfil de la cuenta de play/: la MISMA tarjeta de
+   app/socio.html (app/extractos.js), con la sesión de esta cuenta. Quien se
+   registra aquí y se queda aquí también tiene su «después». La tarjeta decide
+   si se muestra (no es empleado, o ya dio algo); la ocupación que se le da es
+   la que la cuenta guardó al registrarse (user_metadata.vinculacion), por si
+   la base no tiene registro de ella. */
+var EX_TARJETA_PLAY = null;
+function abrirExtractosEnPerfil() {
+  if (!SESION || !SESION.access_token) return;
+  if (VISTA !== 'cuenta') pintarCuenta();
+  irA('perfil');
+  var c = $('exCuenta');
+  if (c && c.scrollIntoView) c.scrollIntoView({ block: 'center' });
+}
+function montarExtractosEnPerfil() {
+  var caja = $('exCuenta'), X = moduloExtractos();
+  if (!caja) return;
+  if (!X || MARCA === 'platachat' || EX_APAGADO_PLAY || !SESION || !SESION.access_token) { caja.innerHTML = ''; EX_TARJETA_PLAY = null; return; }
+  var ses = SESION, ya = EX_TARJETA_PLAY;
+  if (ya && ya.ses === ses && ya.nodo !== caja && caja.parentNode) {
+    caja.parentNode.replaceChild(ya.nodo, caja);
+    var vm = ya.tarjeta && ya.tarjeta.vm;
+    if (vm && !vm.abierta && !vm.cargando && !vm.apagado) ya.tarjeta.recargar().then(null, function () { /* se queda lo que decía */ });
+    return;
+  }
+  var cel = (function () { var e = (ses.user && ses.user.email) || '', m = String(e).toLowerCase().match(/^57([0-9]{10})@tugarantia\.net$/); return m ? m[1] : ''; })();
+  EX_TARJETA_PLAY = { ses: ses, cel: cel, nodo: caja, tarjeta: null };
+  EX_TARJETA_PLAY.tarjeta = X.tarjetaDeCuenta(caja, {
+    credenciales: function () {
+      return Promise.resolve(SESION === ses && ses.access_token ? { url: CFG.url, anon: CFG.anon, token: ses.access_token } : null);
+    },
+    /* Por el fetch de ESTA página (ver montarHistoriaLaboralEnPerfil). */
+    fetch: function (u, op) { return fetch(u, op); },
+    escritura: escrituraEnCamino,
+    ocupacion: function () {
+      var v = (ses.user && ses.user.user_metadata && ses.user.user_metadata.vinculacion) || {};
+      return v.ocupacion || '';
+    },
+    alApagado: function () { EX_APAGADO_PLAY = true; },
+    guardadero: guardaderoExtractos(),
+    celular: function () { return cel; },
+    subida: function () { return subidaDeLosExtractos(cel); },
+    alRetirar: function () { if (SESION === ses) pintarAvisoExtractos(''); }
+  });
+}
+
 function pasoPermiso() {
   return (MARCA === 'platachat'
       /* 8-oct-2026 (segunda vuelta) — decía «quien recibe y cuida tus datos es
@@ -3713,7 +4077,9 @@ function pasoPermiso() {
       'Solo la cámara en el momento de tomar la foto, tu ubicación una sola vez si la autorizas, ' +
       /* 28-oct-2026 — y la historia laboral: el selector del teléfono le
          entrega UN archivo que la persona escoge, sin abrirle la galería. */
-      'y los archivos que tú mismo escojas si subes tu historia laboral.</div>' +
+      'y los archivos que tú mismo escojas si subes tu historia laboral.' +
+      /* 13-nov-2026 — y los extractos, con el mismo selector; nunca una clave. */
+      ' Con tus extractos, igual: solo los que tú escojas, y nunca la clave de tu cuenta.</div>' +
     '<div class="ayuda" style="margin-top:var(--e3)">' +
       '<a href="../legal/privacidad.html" target="_blank" rel="noopener">Leer la política completa</a> · ' +
       '<a href="../legal/terminos.html" target="_blank" rel="noopener">Términos</a></div>' +
@@ -3766,6 +4132,7 @@ function recogerPaso() {
   /* 28-oct-2026 — el fondo de pensiones no tiene casillas que leer: lo
      escogido se guarda en el teléfono en el momento de escogerlo. */
   if (p.id === 'pension') return {};
+  if (p.id === 'extractos') return {};   // 13-nov-2026 — igual: se guarda al escogerlo
   /* 22-oct-2026 — la cuenta: lo que muestran las casillas, como en los demás
      pasos (anotarCuenta ya lo fue guardando; esto es por si el teclado no
      disparó el último evento). */
@@ -3980,6 +4347,12 @@ function siguientePaso() {
      decir nada. Se le pregunta (el paso lo dice debajo de la pregunta). */
   if (p.id === 'pension') {
     if (PASO_PENSION && PASO_PENSION.puedeSeguir && !PASO_PENSION.puedeSeguir()) return;
+    return pintarRegistro(PASO + 1);
+  }
+  /* 13-nov-2026 — TUS EXTRACTOS, lo mismo: opcional, y solo frena lo pegado
+     que espera su «¿Es tu extracto?». */
+  if (p.id === 'extractos') {
+    if (PASO_EXTRACTOS && PASO_EXTRACTOS.puedeSeguir && !PASO_EXTRACTOS.puedeSeguir()) return;
     return pintarRegistro(PASO + 1);
   }
   /* 22-oct-2026 — ¿DÓNDE TE ENVIAMOS LA PLATA? Al menos una, bien escrita y
@@ -4276,6 +4649,7 @@ function empezarDeCeroConEsteCelular(cel) {
   try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
   olvidarClaveEnCurso();
   olvidarPension();   // 28-oct-2026 — la autorización y el fondo eran de la persona anterior
+  olvidarExtractos();   // 13-nov-2026 — y la de los extractos
   /* El permiso de publicar el avance lo dio la otra persona: este lo da
      tocando «Continuar» con el aviso a la vista (siguientePaso lo anota). */
   olvidarAvisoVivo();
@@ -5260,12 +5634,14 @@ function enviarRegistro(sensibles) {
          YA CREADA. */
       encolarLasFotosDelRegistro(foto.celular);
       encolarLaHistoriaLaboral(foto.celular);   // 28-oct-2026 — como las fotos: a la cola de ESTA cuenta
+      encolarLosExtractos(foto.celular);   // 13-nov-2026 — lo mismo
       /* 19-oct-2026 — ANTES de pintar: en PlataChat pintarRegistrado se lleva
          a la persona a otra página, y la llamada se iría con ella. */
       anotarAparato('registro');
       pintarRegistrado();
       subidaEnSegundoPlano();   // si falla, queda en la cola y se reintenta al abrir la cuenta
       subirLaHistoriaLaboralYDecirlo();   // 28-oct-2026 — lo mismo, con su propia caja
+      subirLosExtractosYDecirlo();   // 13-nov-2026 — y los extractos, con la suya
       /* 20-oct-2026, revisión (F7) — y lo del registro sale de la memoria
          DESPUÉS de lo de arriba: la subida ya tomó su lote, y PlataChat ya
          tomó el nombre (si reintenta, lo lee de REGISTRADO). */
@@ -5510,10 +5886,12 @@ function entrarConLaClaveDelRegistro(err, autorizacion, foto, opc) {
         anotarCuentaCreada(foto.celular);
         encolarLasFotosDelRegistro(foto.celular);   // 20-oct-2026, rediseño (A): como en la cuenta nueva
         encolarLaHistoriaLaboral(foto.celular);   // 28-oct-2026 — como las fotos
+        encolarLosExtractos(foto.celular);   // 13-nov-2026 — y los extractos
         anotarAparato('registro');   // 19-oct-2026: ya tenía cuenta, pero este es su registro
         pintarRegistrado();
         subidaEnSegundoPlano();   // sus fotos, que era lo que se perdía
         subirLaHistoriaLaboralYDecirlo();
+        subirLosExtractosYDecirlo();
         cerrarElRegistroEnMemoria();   // 20-oct-2026, revisión (F7): como en la cuenta nueva
       });
     }, function () {
@@ -5650,6 +6028,8 @@ function pintarRegistrado() {
       '<div id="avisoFotos"></div>' +
       /* 28-oct-2026 — y lo que pasó con su historia laboral, si la dio. */
       '<div id="avisoPension"></div>' +
+      /* 13-nov-2026 — y con sus extractos. */
+      '<div id="avisoExtractos"></div>' +
       /* 21-sep-2026 — sin nombres propios. Joan: «no quiero que le digas al
          cliente que joan decide». Se dice lo que de verdad pasa: se revisa y
          se contesta con una propuesta. */
@@ -5668,6 +6048,7 @@ function pintarRegistrado() {
     '<div class="card"><button class="btn sec" onclick="pintarCuenta()">Ir a mi cuenta</button></div>' +
     pie();
   pintarPistaDeLaCuentaNueva();   // 28-oct-2026 (arreglo de los leves, P1)
+  pintarPistaDeExtractosEnLaCuentaNueva();   // 13-nov-2026 — lo mismo, para quien saltó los extractos
   window.scrollTo(0, 0);
 }
 
@@ -13027,6 +13408,7 @@ function pintarCuenta(sesion) {
        Crédito, que es donde pide (ver FALTA TU CÉDULA). */
     '<div id="faltaCedula"></div>' +
     '<div id="avisoPension"></div>' +
+    '<div id="avisoExtractos"></div>' +   // 13-nov-2026
     '<div id="lamina"></div>' + pie();
   /* La ficha se pide UNA vez al abrir y se reparte a las cuatro láminas. Pedirla
      en cada pestaña sería la misma pregunta cuatro veces por visita. */
@@ -13037,6 +13419,9 @@ function pintarCuenta(sesion) {
   /* 28-oct-2026 — la historia laboral que quedó en la cola de ESTA cuenta
      (la señal se cayó al abrirla): se vuelve a intentar con su sesión. */
   subirLaHistoriaLaboralYDecirlo();
+  /* 13-nov-2026 — y los extractos que quedaron en la cola de ESTA cuenta: los
+     que esperaron mientras la persona salía a la app de su banco, también. */
+  subirLosExtractosYDecirlo();
   /* 19-oct-2026 — cuánto le falta por leer, ya, y cada 20 s mientras mire. */
   contarSinLeer();
   arrancarLatidoChat();
@@ -13166,6 +13551,7 @@ function pintarLamina() {
   } else {
     l.innerHTML = laminaPerfil();
     montarHistoriaLaboralEnPerfil();   // 28-oct-2026
+    montarExtractosEnPerfil();   // 13-nov-2026
   }
 }
 
@@ -13867,6 +14253,8 @@ function laminaPerfil() {
     tarjetaTuHistorial() +
     /* 28-oct-2026 — su historia laboral, opcional (montarHistoriaLaboralEnPerfil). */
     (HL ? '<div id="hlCuenta"></div>' : '') +
+    /* 13-nov-2026 — sus extractos, opcional, si no es empleado (montarExtractosEnPerfil). */
+    (EX ? '<div id="exCuenta"></div>' : '') +
     '<div class="card">' +
       '<button class="btn sec" onclick="salirDeCuenta()">Salir</button>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarBorrar()">' +
@@ -14741,6 +15129,24 @@ function avisarQueEsMomento() {
       if (!r || !r.perdidos) return;
       PENSION_PERDIDOS = true;
       if (VISTA === 'registro' && PASOS[PASO] && PASOS[PASO].id === 'pension') pintarRegistro(PASO);
+    }, function () {});
+  } catch (e) {}
+  /* 13-nov-2026 — LOS EXTRACTOS, CON LA MISMA REGLA. Es justo el paso que
+     manda a la persona a la app de su banco: si vuelve sola al paso guardado
+     dentro del rato de la cámara, sus archivos siguen; si no, se sueltan y el
+     paso lo dice (EXTRACTOS_PERDIDOS). La cola de una cuenta ya abierta no se
+     toca aquí: esa sobrevive a salir a Nequi y sube al volver a entrar. */
+  try {
+    var gx = guardaderoExtractos();
+    if (gx && REGISTRO.intento && REGISTRO.celular && gx.hayArchivosGuardados(REGISTRO.intento, REGISTRO.celular) &&
+        !(veniaDelRegistro && volvioDentroDelRatoDeLaCamara())) {
+      EXTRACTOS_PERDIDOS = true;
+      gx.soltarArchivos();
+    }
+    if (gx) gx.barrer(REGISTRO.intento, REGISTRO.celular).then(function (r) {
+      if (!r || !r.perdidos) return;
+      EXTRACTOS_PERDIDOS = true;
+      if (VISTA === 'registro' && PASOS[PASO] && PASOS[PASO].id === 'extractos') pintarRegistro(PASO);
     }, function () {});
   } catch (e) {}
   /* 20-oct-2026, rediseño (A) — LO SENSIBLE SOLO SOBREVIVE A LA VUELTA DE LA

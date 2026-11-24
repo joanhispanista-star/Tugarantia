@@ -863,6 +863,10 @@
            ruleta: el apartado llamaba a ruleta_giros_panel, que solo vive en una
            migracion que nunca se corrio, y con la rueda fuera de la app del
            cliente ya no puede haber giros que listar. -->
+      <!-- 13-nov-2026 — 📄 los extractos que subieron quienes no son empleados (Nequi,
+           Daviplata o el banco), solo en el modo de Joan: ver 📄 LOS EXTRACTOS, al
+           final de la página (panel/extractos-crm.js). Vacío si no hay ninguno. -->
+      <div id="regExtractos"></div>
     </section>
 
     <!-- ===================================================================
@@ -20304,7 +20308,8 @@ function suprimirDesdeBases() {
     <p class="sub">La Ley 1581 da 15 días hábiles. Se borra como prospecto, con su información adicional, sus gestiones (las del
       equipo y las tuyas), contactos y citas: de la nube (lo que subió tu equipo, lo que publicaste tú, la copia de tu Panel y las
       copias viejas que dejaron los choques entre tus aparatos) y de este computador. Queda anotado, sin el número, para que nadie
-      lo vuelva a agregar. Si se registró y subió su historia laboral del fondo de pensiones, esa también se borra.</p>
+      lo vuelva a agregar. Si se registró y subió su historia laboral del fondo de pensiones, esa también se borra. Y sus
+      extractos, si los subió, también, con tu resumen de ellos en cualquier ficha con ese celular.</p>
     <div class="field"><label>Celular</label><input id="supCel" inputmode="numeric" placeholder="3001234567"></div>
     <div class="field"><label>¿Cómo lo pidió?</label><input id="supComo" placeholder="Ej: por el chat de la app el 3-nov">
       <div class="help">Queda guardado: es la prueba de que se borró porque lo pidió.</div></div>
@@ -20354,11 +20359,14 @@ function confirmarSuprimir() {
     }
     return primera;
   };
-  const listo = (r, hp) => {
-    const pension = !hp || hp.falta ? '' : hp.error
+  const listo = (r, hp, hx) => {
+    const pension = (!hp || hp.falta ? '' : hp.error
       ? '\n\nSu historia laboral del fondo de pensiones NO se borró (' + hp.error + '): bórrala desde 📥 Registrados → 📄 Fondo de pensiones.'
       : (Number(hp.archivos) || Number(hp.autorizaciones))
-        ? '\n\nTambién borré su historia laboral del fondo de pensiones: ' + Number(hp.archivos || 0) + ' archivo(s) y su autorización.' : '';
+        ? '\n\nTambién borré su historia laboral del fondo de pensiones: ' + Number(hp.archivos || 0) + ' archivo(s) y su autorización.' : '')
+      /* 13-nov-2026 (remate) — y lo de sus extractos, dicho igual: borrados, o
+         que NO y por qué (suprimirExtractosDe, en 📄 LOS EXTRACTOS). */
+      + (hx || '');
     TIENE_EQUIPO[cel] = { no_contactar: true, desde: new Date().toISOString() };
     const faltan = quedan > 0 ? '\n\nQuedan ' + quedan.toLocaleString('es-CO') + ' copias viejas de tu Panel en la nube con su número ' +
       '(de cuando chocaron dos de tus aparatos). Vuelve a tocar «🚫 Borrar a alguien que lo pidió» con el mismo celular para terminarlas.' : '';
@@ -20385,14 +20393,19 @@ function confirmarSuprimir() {
   /* 28-oct-2026 — y su historia laboral del fondo de pensiones: ningún
      deber de guardarla (no es un soporte del crédito), así que se va también
      si es cliente. Lo que pasó se dice en el «Listo». */
-  let hp = null;
+  let hp = null, hx = null;
   return llamar().then(r => seguir(r, 1))
     .then(r => borrarPensionAntes(cel).then(x => { hp = x; return r; }))
-    .then(r => listo(r, hp))
+    /* 13-nov-2026 (remate) — y sus extractos, por la misma razón (no son
+       soporte del crédito), con lo que anotaste de ellos en cualquier ficha
+       con ese celular. Nunca rechaza: devuelve la línea del «Listo». */
+    .then(r => (typeof suprimirExtractosDe === 'function' ? suprimirExtractosDe(cel)
+      : Promise.resolve('\n\nSus extractos, si los subió, NO se borraron: falta la parte de los extractos de este CRM.')).then(x => { hx = x; return r; }))
+    .then(r => listo(r, hp, hx))
     .then(() => traerSubidoPorElEquipo())
     .catch(e => {
       /* Si la primera ya entró, lo demás está borrado: se dice qué falta. */
-      if (primera) return listo(primera);
+      if (primera) return listo(primera, hp, hx);
       alert('No lo borré: ' + (e && e.sinNube ? e.message : errNube(e)));
     });
 }
@@ -27294,6 +27307,242 @@ document.getElementById('pinInput').focus();
    blanco. Y solo con #equipo exacto. */
 if (/^#equipo(?:$|&)/.test(location.hash || '')) { try { pintarPuertaEquipo(); } catch (e) {} }
 </script>
+<!-- 13-nov-2026 — 📄 LOS EXTRACTOS: lo que subieron en «Tus extractos» quienes no
+     son empleados, solo para Joan (su clave). Va DESPUÉS del bloque grande: usa
+     rpc, sbCfg, openModal y la cartera que ese bloque declara, y se engancha a
+     tres funciones suyas sin tocarlas (ver el porqué abajo). Nuevo, con ?v=145:
+     firma al llegar. Si no llega, no se pinta nada de esto y el CRM sigue. -->
+<script src="extractos-crm.js?v=161"></script>
+<script>
+/* ==========================================================================
+ * 📄 LOS EXTRACTOS — 13 de noviembre de 2026
+ *
+ * Joan (13-nov): que quien no es empleado pueda subir sus extractos de
+ * Nequi, Daviplata o el banco, y que los vea solo él. Aquí se ven en tres
+ * sitios: un bloque propio en 📥 Registrados («📄 Extractos que subieron»), el
+ * chip «📄 Subió extractos» en la fila de 📨 Solicitudes, y la ficha que viene
+ * de un registro, con el campo de su RESUMEN (cuánto le entra al mes y si es
+ * regular, en pesos), que se guarda en la ficha (s.extractoResumen). Todo con
+ * la clave de Joan (extracto_resumen, extracto_de, extracto_archivo,
+ * extracto_borrar): el modo equipo no pinta nada, y la base tampoco se lo
+ * daría a una sesión del equipo. Las reglas de abrir un archivo que escribió
+ * un desconocido viven en panel/extractos-crm.js.
+ *
+ * Y SE BORRAN CUANDO LO PIDEN (remate del mismo día): «🗑 Borrar sus
+ * extractos» y «🚫 Borrar a alguien que lo pidió» (confirmarSuprimir llama a
+ * suprimirExtractosDe, aquí abajo) se llevan los archivos, la autorización y
+ * el resumen de TODA ficha con ese celular, y el «Listo» lo dice; la ficha
+ * tiene además «🗑 Quitar el resumen».
+ *
+ * POR QUÉ SE ENVUELVE Y NO SE TOCA. renderRegistros (📥 Registrados),
+ * filaDeSolicitud (la fila de 📨 Solicitudes) y verCliente (la ficha) los están
+ * cambiando al mismo tiempo otras ramas (la del buscador de la historia laboral
+ * y la del chat desde 📨 Solicitudes, del mismo lote v145). Meter una línea en
+ * cada uno haría chocar las tres al juntarlas. Así, cada una se llama igual que
+ * siempre y DESPUÉS se pinta lo de los extractos: el bloque de Registrados, el
+ * chip antes del primer </td> de la fila (la celda del nombre), y la caja de la
+ * ficha, debajo de la del fondo de pensiones. Si lo de los extractos falla, lo
+ * de siempre ya quedó pintado.
+ * ======================================================================== */
+let _extractos=null, _extractosEspacio=null, _extractosEstado='sin_preguntar', _extractosPedidoEn=0;
+function extractosCRM(){ try{ return (!CARTERA_EQUIPO&&window.ExtractosCRM)?window.ExtractosCRM:null; }catch(e){ return null; } }
+/* Sola, una vez cada 5 minutos como mucho: 📥 Registrados y 📨 Solicitudes se
+   repintan con cada respuesta de la nube (cada 45 s con la pestaña a la vista), y
+   cada pregunta pasa por clave_ok. «↻ Traer de la nube» sí pregunta en el acto
+   (traerRegistros, envuelta abajo). */
+function extractosViejos(){ return _extractosEstado!=='cargando'&&Date.now()-_extractosPedidoEn>300000; }
+function traerExtractos(){
+  const X=extractosCRM(); if(!X||!sbListo()) return Promise.resolve();
+  _extractosPedidoEn=Date.now(); _extractosEstado='cargando';
+  return X.resumen(rpc,sbCfg().clave).then(r=>{
+    _extractos=r.porCelular; _extractosEspacio=r.espacio; _extractosEstado='ok';
+  },e=>{
+    _extractos=null; _extractosEspacio=null;
+    /* Decir qué pasó, y sobre todo qué NO: no poder preguntar no es «nadie subió». */
+    _extractosEstado=/todavía no tiene/.test(errNube(e))?'falta':'error';
+  }).then(()=>{
+    try{ pintarExtractosRegistros(); }catch(e){}
+    try{ if(_solicitudes.length) renderBandeja(); }catch(e){}
+  });
+}
+function pintarExtractosRegistros(){
+  const c=document.getElementById('regExtractos'); if(!c) return;
+  const X=extractosCRM();
+  if(!X||!sbListo()){ c.innerHTML=''; return; }
+  c.innerHTML=X.bloqueRegistros(_extractos,{estado:_extractosEstado,espacio:_extractosEspacio,nombreDe:t=>nombreDeRegistroPorTel(t)});
+}
+/* El chip de 📨 Solicitudes, en la celda del nombre (la primera). Sin la lista
+   todavía, se pide y la bandeja se repinta sola al llegar. */
+function conChipDeExtractos(html,s){
+  const X=extractosCRM(); if(!X||typeof html!=='string') return html;
+  if(_extractos===null){ if(sbListo()&&extractosViejos()) traerExtractos(); return html; }
+  const chip=X.chipSolicitud(_extractos[telDiez(telDeSolicitud(s))]);
+  if(!chip) return html;
+  const i=html.indexOf('</td>');
+  return i<0?html:html.slice(0,i)+chip+html.slice(i);
+}
+function verExtractosDe(tel){
+  const X=extractosCRM(); if(!X) return;
+  const nombre=nombreDeRegistroPorTel(tel);
+  openModal('📄 Extractos · '+(nombre||tel),'<div id="extractosModal" class="muted">Buscando sus extractos…</div>');
+  const poner=h=>{ const c=document.getElementById('extractosModal'); if(c) c.innerHTML=h; };
+  if(!sbListo()) return poner('Viven en la nube. Conéctala en Ajustes para verlos.');
+  X.de(rpc,sbCfg().clave,tel).then(d=>poner(X.bloque(d,{})))
+    .catch(e=>poner(/todavía no tiene/.test(errNube(e))
+      ?'<div class="muted">Tu base todavía no tiene esta parte: corre base/20261113c_los_extractos.sql en el SQL Editor.</div>'
+      :'<div class="alerta warn">No pude preguntar por sus extractos: '+escHTML(errNube(e))+'<div class="muted" style="margin-top:4px">Eso <b>no</b> quiere decir que no los haya subido.</div></div>'));
+}
+function verArchivoExtracto(id){
+  const X=extractosCRM(); if(!X||!sbListo()) return;
+  const caja=document.getElementById('extractoAbrir');
+  if(caja) caja.innerHTML='<span class="muted">Trayendo el archivo…</span>';
+  X.traer(rpc,sbCfg().clave,id).then(r=>{
+    if(!r.ok){ if(caja) caja.innerHTML='<div class="alerta warn">'+escHTML(X.motivoEnPalabras(r.motivo))+'</div>'; return; }
+    if(!X.abrir(r,caja,window)){ if(caja) caja.innerHTML='<div class="alerta warn">Este navegador no pudo abrirlo.</div>'; return; }
+    if(r.tipo!=='pdf'&&caja) caja.innerHTML='';
+  }).catch(e=>{ if(caja) caja.innerHTML='<div class="alerta warn">No pude traerlo: '+escHTML(errNube(e))+'</div>'; });
+}
+/* 13-nov-2026 (remate) — LAS FICHAS DE ESE CELULAR, todas y no solo la que se
+   está mirando: el resumen vive en la ficha (s.extractoResumen) y la persona
+   que pide que borren sus extractos no sabe ni le importa qué ficha tiene
+   Joan abierta. Antes solo se borraba el de la ficha abierta, y el aviso
+   decía «bórralo desde la ficha», donde no había cómo. Cuenta el celular de
+   la ficha, su WhatsApp y el de su registro (celularDeFotosDe). */
+function fichasConCelular(tel){
+  const t=telDiez(tel); if(t.length!==10) return [];
+  return (DB.socios||[]).filter(s=>{
+    if(!s) return false;
+    let c=''; try{ c=celularDeFotosDe(s); }catch(e){}
+    return telDiez(s.telefono)===t||telDiez(s.whatsappNumero)===t||telDiez(c)===t;
+  });
+}
+/* Quita lo que Joan anotó de sus extractos en todas esas fichas. Devuelve cuántas. */
+function quitarResumenesDe(tel){
+  let n=0;
+  try{
+    fichasConCelular(tel).forEach(s=>{ if(s.extractoResumen){ delete s.extractoResumen; n++; } });
+    if(n) guardar();
+  }catch(e){}
+  return n;
+}
+/* Lo que pide quien los retira por el chat: sus archivos, su autorización y
+   lo que Joan anotó de ellos (la política: «pedirnos por el chat que los
+   borremos, y entonces borramos también lo que anotamos de ellos»). */
+function borrarExtractosDe(tel){
+  const X=extractosCRM(); if(!X||!sbListo()) return;
+  const quien=nombreDeRegistroPorTel(tel)||tel;
+  const conResumen=fichasConCelular(tel).filter(s=>s.extractoResumen).length;
+  if(!confirm('BORRAR los extractos de '+quien+': sus archivos y su autorización'+(conResumen?', y tu resumen de ellos en su ficha':'')+
+    '. Es lo que pide quien los retira por el chat. No se puede deshacer. ¿Los borro?')) return;
+  X.borrar(rpc,sbCfg().clave,tel).then(j=>{
+    if(!j||j.ok!==true) return alert('No se borró: '+((j&&j.motivo)||'la nube dijo que no.'));
+    const n=quitarResumenesDe(tel);
+    alert('Listo: borré '+Number(j.archivos||0)+' archivo(s) de sus extractos y su autorización'+(n?', y tu resumen de ellos en su ficha':'')+'.');
+    cerrarModal(); traerExtractos();
+  }).catch(e=>alert('No pude borrar: '+errNube(e)));
+}
+/* 13-nov-2026 (remate) — PARA «🚫 BORRAR A ALGUIEN QUE LO PIDIÓ»
+   (confirmarSuprimir, que la llama después de la historia laboral). Antes no
+   tocaba los extractos: quien pidió que lo borraran seguía con sus archivos y
+   su autorización en extracto_archivos mientras existiera su cuenta, y el
+   «Listo» no los nombraba. Nunca rechaza: devuelve la línea que va en el
+   «Listo» (ExtractosCRM.lineaSuprimir), que dice lo que se borró o que NO y
+   por qué. El resumen de las fichas se quita aunque la nube falle: es de este
+   computador, y la persona pidió que se fuera. */
+function suprimirExtractosDe(cel){
+  const X=extractosCRM();
+  if(!X){
+    const n=quitarResumenesDe(cel);
+    return Promise.resolve('\n\nSus extractos, si los subió, NO se borraron: no cargó la parte de los extractos de este CRM. Recarga y vuelve a '+
+      'tocar «🚫 Borrar a alguien que lo pidió» con el mismo celular.'+(n?' Sí quité tu resumen de ellos en su ficha.':''));
+  }
+  if(!sbListo()) return Promise.resolve(X.lineaSuprimir(null,quitarResumenesDe(cel)));
+  return X.borrar(rpc,sbCfg().clave,cel)
+    .then(j=>(j&&j.ok===true)?j:{error:(j&&j.motivo)||'la nube dijo que no'},
+          e=>/todavía no tiene/.test(errNube(e))?{falta:true}:{error:errNube(e)})
+    .then(r=>{
+      const n=quitarResumenesDe(cel);
+      /* El chip de 📨 Solicitudes y el bloque de 📥 Registrados se vuelven a
+         pedir en la próxima pintada. */
+      if(!r.error){ try{ if(_extractos) delete _extractos[telDiez(cel)]; }catch(e){} }
+      _extractosPedidoEn=0;
+      return X.lineaSuprimir(r,n);
+    });
+}
+/* «🗑 Quitar el resumen» de la ficha: lo que Joan anotó, y nada más (los
+   archivos, si quedan, se borran con «🗑 Borrar sus extractos»). */
+function quitarResumenExtractos(socioId){
+  const s=(DB.socios||[]).find(c=>c&&String(c.id)===String(socioId)); if(!s||!s.extractoResumen) return;
+  if(!confirm('Quitar de esta ficha tu resumen de sus extractos (cuánto le entra y si es regular). No se puede deshacer. ¿Lo quito?')) return;
+  delete s.extractoResumen;
+  guardar();
+  pintarExtractosEnLaFicha(s.id);
+}
+/* La caja de la ficha, debajo de la del fondo de pensiones (o de las fotos de
+   la nube). Se crea aquí y no en la plantilla de la ficha: ver «POR QUÉ SE
+   ENVUELVE Y NO SE TOCA». */
+function cajaDeExtractosEnLaFicha(){
+  let c=document.getElementById('fichaExtractos'); if(c) return c;
+  const ancla=document.getElementById('fichaPension')||document.getElementById('fichaFotosNube');
+  if(!ancla||!ancla.parentNode) return null;
+  c=document.createElement('div'); c.id='fichaExtractos';
+  ancla.parentNode.insertBefore(c,ancla.nextSibling);
+  return c;
+}
+/* SOLO SI LA FICHA VIENE DE UN REGISTRO (vieneDeRegistro, la reja de la
+   historia laboral y de las fotos): los extractos se buscan por celular, y un
+   celular no es una persona. Quien no dio nada y no tiene resumen no ocupa
+   sitio en la ficha. */
+function pintarExtractosEnLaFicha(id){
+  const X=extractosCRM(); if(!X) return;
+  const s=(DB.socios||[]).find(c=>c&&String(c.id)===String(id));
+  if(!s||!vieneDeRegistro(s)) return;
+  const cel=celularDeFotosDe(s); if(!cel) return;
+  const caja=cajaDeExtractosEnLaFicha(); if(!caja) return;
+  const ficha={id:s.id,resumen:s.extractoResumen||null};
+  const poner=h=>{ const c=document.getElementById('fichaExtractos'); if(c&&String(_fichaVista)===String(s.id)) c.innerHTML=h; };
+  if(!sbListo()){ poner(ficha.resumen?X.bloque(null,{siVacio:false,ficha}):''); return; }
+  X.de(rpc,sbCfg().clave,cel).then(d=>poner(X.bloque(d,{siVacio:false,ficha})))
+    .catch(e=>poner(/todavía no tiene/.test(errNube(e))
+      ?(ficha.resumen?X.bloque(null,{siVacio:false,ficha}):'')
+      :'<div class="sub-h">📄 Extractos</div><div class="alerta warn">No pude preguntar por sus extractos: '+escHTML(errNube(e))+'<div class="muted" style="margin-top:4px">Eso <b>no</b> quiere decir que no los haya subido.</div></div>'));
+}
+/* EL RESUMEN, EN LA FICHA: la plata (en pesos, con o sin puntos) y si es
+   regular; nada más (ExtractosCRM.normalizarResumen). Viaja con la cartera
+   como la «Nota de riesgo», y la app del equipo no lo trae (mi_cartera solo
+   lleva los campos que nombra). */
+function guardarResumenExtractos(socioId){
+  const X=extractosCRM(); if(!X) return;
+  const s=(DB.socios||[]).find(c=>c&&String(c.id)===String(socioId)); if(!s) return;
+  const r=X.normalizarResumen({mensual:gv('exMensual'),regular:gv('exRegular')});
+  if(r.mensual==null&&!r.regular) return alert('Escribe cuánto le entra al mes, o escoge si es regular.');
+  s.extractoResumen={mensual:r.mensual,regular:r.regular,anotado_en:new Date().toISOString()};
+  guardar();
+  pintarExtractosEnLaFicha(s.id);
+}
+(function(){
+  try{
+    if(typeof renderRegistros==='function'){
+      const antes=renderRegistros;
+      renderRegistros=function(){ const r=antes.apply(this,arguments); try{ pintarExtractosRegistros(); if(sbListo()&&extractosViejos()) traerExtractos(); }catch(e){} return r; };
+    }
+    if(typeof filaDeSolicitud==='function'){
+      const antes=filaDeSolicitud;
+      filaDeSolicitud=function(s){ const h=antes.apply(this,arguments); try{ return conChipDeExtractos(h,s); }catch(e){ return h; } };
+    }
+    if(typeof verCliente==='function'){
+      const antes=verCliente;
+      verCliente=function(id){ const r=antes.apply(this,arguments); try{ pintarExtractosEnLaFicha(id); }catch(e){} return r; };
+    }
+    /* «↻ Traer de la nube» de 📥 Registrados: la lista de quién subió también se
+       vuelve a pedir (la próxima pintada de la bandeja ya la encuentra vieja). */
+    if(typeof traerRegistros==='function'){
+      const antes=traerRegistros;
+      traerRegistros=function(){ if(_extractosEstado!=='cargando') _extractosPedidoEn=0; return antes.apply(this,arguments); };
+    }
+  }catch(e){}
+})();
+</script>
 <!-- 1-oct-2026 — LA SUBIDA AUTOMÁTICA (RECETA-NUBE-CRM.md, Etapa 1, paso 13). Va
      DESPUÉS del bloque grande y no arriba con los demás: arranca desde entrar(),
      que vive en ese bloque, y usa funciones que ese bloque declara. nube.js no se
@@ -27363,7 +27612,7 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
    cuando alguien sospechaba.
    VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
    él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v160';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v161';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }

@@ -2987,7 +2987,57 @@
    CACHE y VERSION_SITIO suben a v160. NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
    número nunca baja. */
-const CACHE = 'tugarantia-v160';
+/* v161 — 24-nov-2026 — TUS EXTRACTOS, TAMBIÉN PARA EL EMPLEADO, Y QUÉ PLATAFORMAS USA.
+   Joan, el 24-nov: «si indica que es empleado entonses seria bueno pedir los estractos
+   bancarios y que el cliente pueda indicar que plataformas usa como nequi, daviplata,
+   nubank, lulo bank u otros… para poder dar con un analisis de riesgo mucho mas acertado y
+   que el cliente sepa que es para medir el nivel de riego… todo esto opcional».
+   Los extractos se construyeron el 13-nov en la rama v145-extractos, para quien NO era
+   empleado, y nunca se publicaron. Salen hoy, traídos enteros sobre la v160, con dos cambios:
+   ya no dependen de la ocupación, y el cliente marca qué plataformas usa. Lo demás es lo
+   del 13-nov, y su nota de entonces va debajo tal cual (donde dice v145, hoy es v161;
+   donde dice «solo si la ocupación no es Empleado», hoy es para todos):
+   ---------------------------------------------------------------------------------
+   13-nov-2026 — TUS EXTRACTOS (rama v145-extractos; sale con lote-v145, que es quien
+   sube CACHE y VERSION_SITIO: esta nota no trae número propio). Joan: «quiero validar
+   si el cliente no es empleado que pueda subir los estractos bancarios». Lo que trae:
+   · EL PASO «Tus extractos» en play/ (después de «De qué vives» y del fondo de
+     pensiones), solo si la ocupación no es «Empleado», opcional y con «Lo hago
+     después»: la autorización aparte y sin marcar, los extractos de los últimos 3
+     meses de Nequi, Daviplata o el banco en PDF (hasta 3), pantallazos (hasta 5) o
+     «📋 Pegar», y nunca la clave. Lo escogido espera en el teléfono y sube con la
+     sesión al abrir la cuenta; la cola sobrevive a salir a la app del banco.
+   · LA TARJETA «Sube tus extractos» en el Perfil de play/ y en Inicio de
+     app/socio.html: el «después» de verdad, para ver lo que subió y quitarlo.
+   · EN EL CRM: un bloque en 📥 Registrados, el chip «📄 Subió extractos» en 📨
+     Solicitudes y, en la ficha que viene de un registro, los archivos y el resumen
+     de Joan (cuánto le entra al mes y si es regular, guardado en la ficha). Solo
+     Joan, con su clave. «🗑 Borrar sus extractos» y «🚫 Borrar a alguien que lo
+     pidió» se los llevan, con el resumen de toda ficha con ese celular.
+   · LA POLÍTICA (sección «extractos», y «no hacemos perfiles» dicho como es) y los
+     términos (los extractos tampoco suben la garantía prestada), con la fecha de
+     publicación 19-nov-2026, que es también la versión de la autorización
+     (app/extractos.js, VERSION_AUTORIZACION). Si el lote sale otro día, se mueven las
+     tres juntas: pruebas/los-extractos.test.js lo dice.
+   Entran dos .js NUEVOS con ?v=145 (firman al llegar), en la precarga de abajo:
+   app/extractos.js (lo piden play/ y app/socio.html, después de historia-laboral.js,
+   del que toma lo puro) y panel/extractos-crm.js (lo pide crm.html, después del
+   bloque grande). Cambia un .js ya publicado, app/cumplimiento.js (las filas de los
+   extractos en lo que se le declararía a Google Play): pasa de ?v=141 a ?v=145 en
+   play/ y en la precarga. VERSION_PLAY y VERSION_APP siguen en 2026-11-13 (la fecha
+   del cambio). HAY BASE NUEVA, SIN APLICAR: base/20261113c_los_extractos.sql, que va
+   después de todo lo de base/; termina en una tabla de 12 filas en true; después,
+   Settings → API → Reload schema; para mirarla otro día,
+   base/comprobar_20261113c_los_extractos.sql. Sin ella el paso no aparece (play/ le
+   pregunta a la base y con un 404 lo quita, y lo dice), la tarjeta tampoco, y el CRM
+   dice que falta el archivo: nada se rompe.
+   ---------------------------------------------------------------------------------
+   CACHE y VERSION_SITIO suben a v161. HAY BASE NUEVA, SIN APLICAR (la corre Joan):
+   base/20261113c_los_extractos.sql y, después, base/20261124_plataformas_del_extracto.sql.
+   Sin ellas el paso no aparece y nada se rompe. TG_PUBLICADO=main.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+const CACHE = 'tugarantia-v161';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3126,8 +3176,9 @@ const ARCHIVOS = [
   'app/escaner-captura.js',
   'app/creditos.js',
   /* 28-oct-2026 — ?v=141: cambió lo que la app recoge y lo que se borra con
-     la cuenta (la historia laboral). */
-  'app/cumplimiento.js?v=141',
+     la cuenta (la historia laboral).
+     13-nov-2026 — ?v=145: y otra vez, con los extractos (ver su nota). */
+  'app/cumplimiento.js?v=161',
   /* 14-sep-2026 — lo que play/ carga desde que es la puerta unica. ficha.js lee
      el paquete del socio y motor.js cotiza el credito con garantia; los dos ya
      estaban arriba o entran aqui, y ninguno se duplica en la lista porque el
@@ -3232,6 +3283,13 @@ const ARCHIVOS = [
      ese día (v155, el 20-nov). misiones.js y misiones.css son NUEVOS: sin versión. */
   'app/misiones.js',
   'app/misiones.css',
+  /* 13-nov-2026 — «Tus extractos»: el paso del registro y la tarjeta de la cuenta
+     (app/extractos.js, que piden play/ y app/socio.html) y lo del CRM
+     (panel/extractos-crm.js). NUEVOS, con ?v=161 en la dirección, como los piden
+     las páginas: firman al llegar. Salen con el CACHE de lote-v145 (ver la nota
+     de los extractos). */
+  'app/extractos.js?v=161',
+  'panel/extractos-crm.js?v=161',
   /* 10-nov-2026 — la pestaña «🗺️ Mapa»: sus dos guiones y su hoja los pide crm.html, así que
      llegan JUNTO con él (sin señal, la pestaña dice que el mapa no cargó en vez de romper).
      El mapa en sí (el JSON de panel/mapa/, ~600 KB desde v145) NO va aquí: se pide al abrir
