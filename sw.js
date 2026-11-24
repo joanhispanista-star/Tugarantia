@@ -2951,7 +2951,19 @@
    NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit (vuelven los .svg); CACHE y VERSION_SITIO suben al
    número siguiente. El número nunca baja. */
-const CACHE = 'tugarantia-v158';
+/* v159 — 24-nov-2026 — CRUZAR UN REGISTRO CON UNA FICHA QUE JOAN ESCOGE. Joan: «no puedo cruzar
+   al cliente… no me da la opcion de cruzar ya que se acaba de registrar».
+   El puente solo propone una ficha por cédula, por celular o por dos palabras del nombre. Con
+   una ficha vieja de otro número, sin cédula y de nombre corto, 📥 Registrados ofrecía un solo
+   botón: abrirle una ficha NUEVA (dos clientes donde hay una persona, y la app sin historial).
+   · En esa fila sale además «🔗 Ya es cliente: buscar su ficha»: Joan la busca por nombre,
+     celular, cédula o código, y pasa a la mesa de cruce de siempre, que es la que cruza.
+   · La lista de parecidos gana «Es otro cliente mío · buscar su ficha».
+   Solo cambia panel/crm.html. Pruebas: pruebas/cruce-a-mano.test.js.
+   CACHE y VERSION_SITIO suben a v159. NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+const CACHE = 'tugarantia-v159';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
