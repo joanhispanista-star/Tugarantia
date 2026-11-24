@@ -184,6 +184,45 @@
     return mejor;
   }
 
+  /* 24-nov-2026 — LO QUE NO SUBE SOLO, CON SU FECHA. El computador sube solo las
+     fichas, los créditos y tres listas que solo suman (nube-crm.js,
+     CLAVES_QUE_SUBEN). Las plantillas y el equipo NO: llegan a la nube únicamente
+     cuando Joan toca ☁ Subir en su computador, así que en el celular pueden ser
+     de hace meses, y nada lo decía. Hasta que suban solas, cada una de esas dos
+     pestañas dice de qué día es lo que muestra. La fecha sale del paquete
+     (actualizado_en de su ajuste): no es una frase fija. */
+  var VISTAS_CON_FECHA = { plantillas: 'plantillas', equipo: 'equipo' };   // vista → clave del ajuste
+  var FRASE_DE_VISTA = {
+    plantillas: ['Estas plantillas son las que subiste a la nube el {d}.',
+                 'Estas plantillas son las de la última vez que tocaste ☁ Subir en tu computador.'],
+    equipo: ['Este equipo es el que subiste a la nube el {d}.',
+             'Este equipo es el de la última vez que tocaste ☁ Subir en tu computador.']
+  };
+  /** { clave: actualizado_en } de los ajustes con fecha. Una traída parcial sin
+      esa fila deja la que había. */
+  function fechasDeAjustes(paquete, previas) {
+    var f = {}, p = objeto(previas);
+    Object.keys(p).forEach(function (k) { f[k] = p[k]; });
+    lista(objeto(paquete).ajustes).forEach(function (a) {
+      if (a && a.clave != null && a.actualizado_en) f[texto(a.clave)] = texto(a.actualizado_en);
+    });
+    return f;
+  }
+  /** «18 de ago de 2026». */
+  function fechaConAnio(ms) {
+    var d = new Date(ms);
+    if (isNaN(d)) return '';
+    return d.getDate() + ' de ' + MESES[d.getMonth()] + ' de ' + d.getFullYear();
+  }
+  /** Lo que dice la pestaña. Sin fecha conocida, también se dice. */
+  function notaDeFecha(vista, fechas) {
+    var clave = VISTAS_CON_FECHA[texto(vista)];
+    if (!clave) return '';
+    var iso = objeto(fechas)[clave], cuando = iso ? fechaConAnio(Date.parse(iso)) : '';
+    var f = FRASE_DE_VISTA[texto(vista)];
+    return (cuando ? f[0].replace('{d}', cuando) : f[1]) +
+      ' Lo que cambies allá no sube solo todavía: toca ☁ Subir en tu computador para verlo aquí.';
+  }
   function dosCifras(n) { return String(n).padStart(2, '0'); }
   /** «9:21 a. m.», a la hora de Colombia de quien mira (la del aparato). */
   function horaCorta(ms) {
@@ -314,7 +353,6 @@
   var TAPAS = {
     solicitudes: 'Las solicitudes llegan con la clave del computador, que este celular no tiene. ' + POR_AHORA_EN_EL_PC,
     mensajes: 'El chat llega con la clave del computador, que este celular no tiene. ' + POR_AHORA_EN_EL_PC,
-    registrados: 'Los registrados y sus fotos llegan con la clave del computador, que este celular no tiene. ' + POR_AHORA_EN_EL_PC,
     ventas: 'Ventas vive de los prospectos, que no suben solos a la nube. ' + POR_AHORA_EN_EL_PC,
     bases: 'Las bases de prospectos viven en tu computador y no suben solas a la nube. ' + POR_AHORA_EN_EL_PC,
     cfg: 'Los ajustes son de cada aparato: el PIN, el respaldo y la conexión de tu computador no están en este celular.'
@@ -366,6 +404,9 @@
   }
 
   var puro = {
+    fechasDeAjustes: fechasDeAjustes, fechaConAnio: fechaConAnio, notaDeFecha: notaDeFecha,
+    celularBonito: celularBonito, chipsDeRegistro: chipsDeRegistro, tarjetaDeRegistro: tarjetaDeRegistro,
+    listaDeRegistrados: listaDeRegistrados,
     GAVETA: GAVETA, LLAVE_HASTA: LLAVE_HASTA, CONEXION: CONEXION,
     CLAVES_QUE_PASAN: CLAVES_QUE_PASAN, CONFIG_QUE_NO_VIAJA: CONFIG_QUE_NO_VIAJA,
     CADA_MS: CADA_MS, AL_VOLVER_MS: AL_VOLVER_MS, MIRAR: MIRAR, TAPAS: TAPAS,
@@ -399,7 +440,9 @@
     ganchos: null, reloj: null, relojFranja: null, aviso: null,
     vigia: null,          // el que avisa cuando crm.html pinta algo (el barrido)
     esperando: false,     // hay sesión guardada pero la primera traída falló: se reintenta
-    veniaDeCopia: false   // este celular guarda una copia y Joan escogió ver lo de hoy
+    veniaDeCopia: false,  // este celular guarda una copia y Joan escogió ver lo de hoy
+    /* 📥 Registrados, mirando (ver más abajo). Solo en memoria. */
+    reg: { estado: 'nada', filas: [], nuevos: 0, pedidosLeidos: true, leidoEn: 0, pedidoEn: 0, error: '', sinRed: false, enCurso: null }
   };
 
   function almacen() { try { return W.localStorage; } catch (e) { return null; } }
@@ -472,6 +515,7 @@
     if (!E.activo) return;
     var el = ev.target;
     if (cercano(el, '[data-cr]')) return;                       // lo nuestro: la franja y su «Salir»
+    if (cercano(el, '.navbtn[data-v="registrados"]')) traerRegistrados(false);   // al abrir su pestaña, se vuelve a mirar
     var a = cercano(el, 'a[href]');
     if (a && enlaceQueEscribe(a.getAttribute('href'))) return frenar(ev, NO_WHATSAPP);
     var f = cercano(el, 'input[type="file"]');
@@ -626,6 +670,7 @@
       E.db = r.db;
       E.desde = (paq && paq.servidor_ahora) || E.desde;
       E.ultimo = ultimoCambio(paq, desde ? E.ultimo : null);
+      E.fechas = fechasDeAjustes(paq, desde ? E.fechas : null);
       E.miradoEn = ahora(); E.fallo = ''; E.sinRed = false;
       return JSON.stringify(E.db) !== antes;
     }).then(function (cambio) { E.trayendo = false; return cambio; }, function (e) {
@@ -642,6 +687,8 @@
       if (cambio) E.pendiente = true;
       pintarSiSePuede();
       pintarFranja();
+      ponerFechas();
+      traerRegistrados(false);
     }, function (e) {
       /* La sesión que ya no vale no se arregla sola: a la puerta, y se dice. */
       if (e && (e.estado === 401 || e.estado === 403 || /venció la sesión/i.test(motivo(e)))) return salir(true);
@@ -682,6 +729,29 @@
       '.cr-tapa{margin:0 0 14px;padding:16px;border-radius:14px;background:var(--papel);border:1px solid var(--linea);' +
         'font-size:14.5px;line-height:1.5;color:var(--tinta)}' +
       '.cr-tapa b{display:block;margin-bottom:4px}' +
+      '.cr-tapa.cr-lista{padding:0;border:0;background:none}' +
+      /* «🔎 Revisar a todos» abre revision.html, que pregunta con la clave del computador:
+         en el celular no tiene cómo. Es un enlace sin onclick, así que el barrido no lo ve. */
+      'body.solo-mirar a[href="revision.html"]{display:none !important}' +
+      '.cr-reg-cab{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:0 0 10px}' +
+      '.cr-reg-cab b{font-size:16px}.cr-reg-cab span{flex:1 1 140px;font-size:12px;color:var(--gris)}' +
+      '.cr-reg-mirar{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--linea);background:var(--papel);' +
+        'color:var(--tinta);font:inherit;font-weight:700;font-size:13.5px}' +
+      '.cr-reg{margin:0 0 10px;padding:14px;border-radius:14px;background:var(--papel);border:1px solid var(--linea)}' +
+      '.cr-reg-nombre{display:block;font-size:15.5px;overflow-wrap:anywhere}' +
+      '.cr-reg-cuando{margin-top:2px;font-size:12.5px;color:var(--gris)}' +
+      '.cr-reg-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}' +
+      '.cr-reg-chips span{padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700;background:var(--ambar-tinte,#fbeedb);color:var(--ambar,#9a5b12)}' +
+      '.cr-reg-fila{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;font-size:14px}' +
+      '.cr-reg-fila span{color:var(--gris)}.cr-reg-fila i{font-style:normal;font-weight:400;color:var(--gris)}' +
+      '.cr-reg-tel{display:inline-flex;align-items:center;min-height:44px;font-weight:700;color:var(--tinta)}' +
+      '.cr-reg-mini{margin-top:6px;font-size:12.5px;color:var(--gris)}' +
+      '.cr-reg-aviso{margin:0 0 10px;padding:12px 14px;border-radius:12px;font-size:13.5px;line-height:1.45;' +
+        'background:var(--ambar-tinte,#fbeedb);color:var(--ambar,#9a5b12)}' +
+      '.cr-reg-aviso.suave{background:var(--papel);color:var(--gris);border:1px solid var(--linea)}' +
+      '.cr-reg-pie{margin:12px 0 0;font-size:12px;line-height:1.5;color:var(--gris)}.cr-reg-pie a{color:inherit;font-weight:700}' +
+      '.cr-fecha{margin:0 0 12px;padding:10px 12px;border-radius:12px;border:1px dashed var(--linea);' +
+        'font-size:12.5px;line-height:1.45;color:var(--gris)}' +
       /* Lo que la barra dice del computador (la subida sola, la sesión del PIN, «pregunto
          cada 45 segundos») no es cierto en un celular que mira: lo dice la franja. */
       'body.solo-mirar #nubeTodoCinta,body.solo-mirar #sesionCinta,body.solo-mirar .avisos-pie{display:none !important}' +
@@ -752,7 +822,24 @@
   }
   /* Las tapas: al entrar y cada vez que crm.html repinta (las vistas no se
      rehacen, así que con ponerlas una vez basta; se revisa por si acaso). */
+  function ponerFechas() {
+    Object.keys(VISTAS_CON_FECHA).forEach(function (v) {
+      var vista = $('v-' + v);
+      if (!vista) return;
+      var n = $('crFecha-' + v);
+      if (!n) {
+        n = D.createElement('div');
+        n.id = 'crFecha-' + v;
+        n.className = 'cr-fecha';
+        n.setAttribute('data-cr', '1');
+        var cabeza = vista.querySelector('.ph');
+        if (cabeza && cabeza.nextSibling) vista.insertBefore(n, cabeza.nextSibling); else vista.insertBefore(n, vista.firstChild);
+      }
+      n.textContent = notaDeFecha(v, E.fechas);
+    });
+  }
   function ponerTapas() {
+    ponerFechas();
     Object.keys(TAPAS).forEach(function (v) {
       /* 24-nov-2026 — y su botón del menú lo dice ANTES de tocarlo: una marca «PC».
          Seis pestañas que abren para decir «todavía no» sin avisar eran seis
@@ -768,6 +855,147 @@
       if (cabeza && cabeza.nextSibling) vista.insertBefore(t, cabeza.nextSibling); else vista.insertBefore(t, vista.firstChild);
       vista.classList.add('cr-tapada');
     });
+  }
+
+
+  /* ------------------------------------------- 📥 Registrados, en el celular
+     24-nov-2026 — Joan: «tanto para crm de pc como de celular… quiero que se vea
+     la hora y fecha de registro». La pestaña estaba tapada: todo lo que pinta
+     crm.html ahí (renderRegistros y sus vecinos) se pregunta con la CLAVE del
+     computador, que el celular no tiene. Pero la base ya tiene una puerta para
+     la SESIÓN del dueño, panel_registros (base/20261002_panel_registros.sql),
+     la misma que usa el Panel en el bolsillo: trae quién se registró, cuándo,
+     de dónde, si su cédula no cuadra y qué pidió. A PROPÓSITO no trae las fotos
+     ni sus datos completos: eso se mira en el computador, y la pantalla lo dice.
+     Se pinta AQUÍ, en una lista propia, y la vista sigue «tapada» para lo que
+     pinta crm.html (que sin clave diría «Conéctala en Ajustes», y Ajustes no
+     está en el celular). Nada de esto se guarda en el teléfono: vive en E.reg.
+     Nunca se llama a una función de clave desde aquí: clave_ok cuenta los
+     intentos de TODOS los aparatos y dejaría afuera al computador. */
+  var LIMITE_REGISTRADOS = 100;
+  function celularBonito(v) {
+    var d = texto(v).replace(/\D/g, '').slice(-10);
+    return d.length === 10 ? d.slice(0, 3) + ' ' + d.slice(3, 6) + ' ' + d.slice(6) : '';
+  }
+  function enPesos(n) { return '$' + Math.round(Number(n) || 0).toLocaleString('es-CO'); }
+  /* Las mismas píldoras, con las mismas palabras, del Panel en el bolsillo
+     (tarjetaRegistro, panel/espejo.html): salen SOLO cuando dicen algo, y nunca
+     en verde — un visto bueno junto a un nombre se lee como «la casa comprobó
+     quién es», y eso no se comprueba. */
+  function chipsDeRegistro(r) {
+    var x = objeto(r), c = objeto(x.cotejo), out = [];
+    if (c.menor) out.push('Su cédula dice que es menor de edad');
+    if (c.documento_imposible) out.push('Marcó otro documento');
+    if (c.estado === 'no_cuadra' && !c.menor && !c.documento_imposible) out.push('No cuadra con el código de su cédula');
+    if (c.cedula_repetida) out.push('Cédula repetida');
+    if (x.app === 'platachat') out.push('PlataChat');
+    return out;
+  }
+  /** Una persona. `o`: {ahora, pedidosLeidos, cruce(r) → texto o ''}. */
+  function tarjetaDeRegistro(r, o) {
+    var x = objeto(r), op = objeto(o);
+    var ms = Date.parse(texto(x.creado_en));
+    var cuando = isNaN(ms) ? '' : cuandoFue(ms, op.ahora);
+    var lugar = [x.ciudad, x.barrio].filter(Boolean).map(texto).join(' · ');
+    var chips = chipsDeRegistro(x);
+    var cruce = '';
+    try { cruce = typeof op.cruce === 'function' ? texto(op.cruce(x)) : ''; } catch (e) { cruce = ''; }
+    if (cruce) chips.push(cruce);
+    var ped = x.pedido, pidio = '';
+    if (ped && typeof ped === 'object') {
+      /* «Pidió» es SOLO lo que la persona pidió: sin cifra suya, no se le pone una. */
+      pidio = '<div class="cr-reg-fila"><span>Pidió</span><b>' + (Number(ped.monto) > 0 ? esc(enPesos(ped.monto)) : 'un crédito') +
+        ' <i>· ' + (ped.producto === 'respaldado' ? 'con garantía' : 'quincenal') + '</i></b></div>' +
+        (ped.nota ? '<div class="cr-reg-mini">«' + esc(ped.nota) + '»</div>' : '');
+    } else if (op.pedidosLeidos !== false) {
+      pidio = '<div class="cr-reg-mini">No le veo ninguna solicitud de crédito.</div>';
+    }
+    var cel = celularBonito(x.telefono), diez = cel.replace(/ /g, '');
+    return '<div class="cr-reg">' +
+      '<b class="cr-reg-nombre">' + esc(x.nombre || 'Sin nombre') + '</b>' +
+      '<div class="cr-reg-cuando">' + (cuando ? 'Se registró ' + esc(cuando) : 'No sé cuándo se registró') + (lugar ? ' · ' + esc(lugar) : '') + '</div>' +
+      (chips.length ? '<div class="cr-reg-chips">' + chips.map(function (c) { return '<span>' + esc(c) + '</span>'; }).join('') + '</div>' : '') +
+      pidio +
+      (cel ? '<div class="cr-reg-fila"><span>Celular</span><a class="cr-reg-tel" href="tel:+57' + esc(diez) + '">' + esc(cel) + ' · Llamar</a></div>'
+           : '<div class="cr-reg-mini">No dejó un celular de 10 dígitos.</div>') +
+      '</div>';
+  }
+  /** Toda la lista, con su estado dicho. `reg` es E.reg; `o`: {ahora, cruce}. */
+  function listaDeRegistrados(reg, o) {
+    var g = objeto(reg), op = objeto(o), filas = lista(g.filas), n = filas.length;
+    var mirar = '<button type="button" class="cr-reg-mirar" id="crRegMirar"' + (g.estado === 'cargando' ? ' disabled' : '') + '>↻ Volver a mirar</button>';
+    var pie = '<p class="cr-reg-pie">Sus fotos, todos sus datos y la revisión se miran en tu computador (📥 Registrados). ' +
+      'Para juntar su cuenta desde el celular, <a href="espejo.html">abre el Panel en el bolsillo</a>.</p>';
+    if (g.estado === 'falta') {
+      return '<div class="cr-reg-aviso"><b>Tu base todavía no tiene esta parte.</b> Corre base/20261002_panel_registros.sql en el ' +
+        'SQL Editor de Supabase y vuelve a mirar.</div>' + mirar;
+    }
+    var aviso = '';
+    if (g.estado === 'error') {
+      aviso = '<div class="cr-reg-aviso"><b>' + (g.sinRed ? 'Sin señal: no pude mirar quién se registró.' : 'No pude mirar quién se registró.') + '</b> ' +
+        (g.sinRed ? '' : esc(g.error || '') + ' ') + 'Eso <b>no</b> quiere decir que no haya nadie.' +
+        (n ? ' Abajo va la lista de la última vez que contestó la nube.' : '') + '</div>';
+    }
+    if (!n && (g.estado === 'nada' || g.estado === 'cargando')) return '<div class="cr-reg-aviso suave">Mirando quién se registró…</div>';
+    var total = Math.max(Number(g.nuevos) || 0, n);
+    var cab = '<div class="cr-reg-cab"><b>' + (g.estado === 'error' && !n ? 'Registrados' : total === 1 ? '1 persona esperando' : total + ' personas esperando') + '</b>' +
+      '<span>' + (g.leidoEn ? 'La nube contestó ' + esc(cuandoFue(g.leidoEn, op.ahora)) : '') + '</span>' + mirar + '</div>';
+    if (!n) return cab + aviso + (g.estado === 'ok' ? '<div class="cr-reg-aviso suave">Nadie esperando: no hay registros nuevos.</div>' : '') + pie;
+    return cab + aviso +
+      (total > n ? '<div class="cr-reg-mini">Se ven los ' + n + ' más recientes de ' + total + '. Los demás, en el computador.</div>' : '') +
+      filas.map(function (r) { return tarjetaDeRegistro(r, { ahora: op.ahora, pedidosLeidos: g.pedidosLeidos, cruce: op.cruce }); }).join('') + pie;
+  }
+  /* ¿Ya es cliente? La misma pregunta de la bandeja del computador
+     (candidatosDeCruce, en el puente), contra la cartera que está en memoria. */
+  function cruceConLaCartera(r) {
+    var P = W.PuenteTuGarantia;
+    if (!P || typeof P.candidatosDeCruce !== 'function' || !E.db) return '';
+    var c = P.candidatosDeCruce(E.db, { cedula: r.cedula, telefono: r.telefono, nombre: r.nombre })[0];
+    if (!c || !c.socio) return '';
+    var cod = typeof P.codCliente === 'function' ? P.codCliente(c.socio) : texto(c.socio.nombre);
+    if (c.fuerza >= 2) return 'Ya es tu cliente: ' + cod;
+    if (c.fuerza === 1) return 'Mismo celular que ' + cod + ', otra cédula';
+    return '';
+  }
+  function pintarRegistrados() {
+    var vista = $('v-registrados');
+    if (!vista) return;
+    var c = $('crRegistrados');
+    if (!c) {
+      c = D.createElement('div');
+      c.id = 'crRegistrados';
+      c.className = 'cr-tapa cr-lista';      // cr-tapa: es lo único de la vista que se ve en el celular
+      c.setAttribute('data-cr', '1');
+      var cabeza = vista.querySelector('.ph');
+      if (cabeza && cabeza.nextSibling) vista.insertBefore(c, cabeza.nextSibling); else vista.insertBefore(c, vista.firstChild);
+      vista.classList.add('cr-tapada');
+    }
+    c.innerHTML = listaDeRegistrados(E.reg, { ahora: ahora(), cruce: cruceConLaCartera });
+    var b = $('crRegMirar');
+    if (b) b.addEventListener('click', function () { traerRegistrados(true); });
+  }
+  /* Pregunta con la SESIÓN del dueño. Un 404 es la base sin ese SQL; lo demás se
+     dice tal cual y deja la lista que hubiera («no pude preguntar» no es «nadie»). */
+  function traerRegistrados(forzar) {
+    var reg = E.reg;
+    if (!E.activo || !N || typeof N.rpc !== 'function') return Promise.resolve(false);
+    if (reg.enCurso) return reg.enCurso;
+    if (!forzar && reg.estado === 'ok' && ahora() - reg.pedidoEn < 60000) return Promise.resolve(false);
+    if (reg.estado !== 'ok' || !reg.filas.length) reg.estado = 'cargando';
+    pintarRegistrados();
+    reg.enCurso = N.rpc('panel_registros', { p_estado: 'nuevo', p_limite: LIMITE_REGISTRADOS }).then(function (r) {
+      var x = objeto(r);
+      reg.filas = lista(x.registros);
+      reg.nuevos = Number(x.nuevos) || reg.filas.length;
+      reg.pedidosLeidos = x.pedidos_leidos !== false;
+      var srv = Date.parse(texto(x.servidor_ahora));
+      reg.leidoEn = isNaN(srv) ? ahora() : srv;
+      reg.estado = 'ok'; reg.error = ''; reg.sinRed = false; reg.pedidoEn = ahora();
+    }, function (e) {
+      if (e && e.estado === 404) { reg.estado = 'falta'; reg.filas = []; return; }
+      reg.estado = 'error'; reg.error = motivo(e); reg.sinRed = !!(e && e.sin_red);
+    }).then(function () { reg.enCurso = null; pintarRegistrados(); return true; });
+    return reg.enCurso;
   }
 
   /* ------------------------------------------------------------ la puerta */
@@ -947,6 +1175,7 @@
       ponerTapas();
       pintarFranja();
       arrancarRelojes();
+      traerRegistrados(true);
     }, function (e) {
       E.db = null;
       if (noEsDueno(e)) {
@@ -1052,7 +1281,7 @@
     alAbrir: alAbrir, activo: activo, paraCargar: paraCargar, alGuardar: alGuardar,
     puertaDeCorreo: puertaDeCorreo, pintarPuerta: pintarPuerta, salir: salir,
     alRepintar: function () { if (E.activo) { ponerTapas(); pintarFranja(); barrer(D); } },
-    barrer: barrer,
+    barrer: barrer, ponerFechas: ponerFechas, traerRegistrados: traerRegistrados,
     verLoDeHoy: verLoDeHoy, volverALaCopia: volverALaCopia, revisarFranjaDeCopia: revisarFranjaDeCopia,
     _estado: E
   };

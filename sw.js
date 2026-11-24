@@ -3066,7 +3066,31 @@
      mira, la franja de arriba lleva «Cobrar» y la puerta un enlace: los dos abren el Panel en
      el bolsillo (espejo.html), que es donde se registra un cobro en la calle.
    Nada de esto necesita base nueva. */
-const CACHE = 'tugarantia-v162';
+/* v163 — 24-nov-2026 — EL CRM EN EL CELULAR, SEGUNDA TANDA: REGISTRADOS, FECHAS Y TRAER.HTML.
+   Joan: «tanto para crm de pc como de celular… quiero que se vea la hora y fecha de registro».
+   · 📥 REGISTRADOS ABRE EN EL CELULAR. Estaba tapada: todo lo que pinta crm.html ahí se pregunta
+     con la clave del computador, que el celular no tiene. panel/crm-remoto.js pinta su propia
+     lista con la SESIÓN del dueño (panel_registros, base/20261002_panel_registros.sql, la que ya
+     usa el Panel en el bolsillo): quién se registró, el día y la HORA, de dónde, si su cédula no
+     cuadra, si ya es cliente y qué pidió. A propósito no trae fotos ni datos completos: la
+     pantalla dice que eso se mira en el computador. Nada queda en el disco del teléfono, y
+     nunca se pregunta con la clave (clave_ok cuenta los intentos de todos los aparatos).
+     «🔎 Revisar a todos» (revision.html, que pide la clave) se esconde en el celular.
+   · PLANTILLAS Y EQUIPO DICEN DE QUÉ DÍA SON. Esas dos listas no suben solas desde el
+     computador (solo con ☁ Subir): en el celular podían ser de hace meses sin que nada lo
+     dijera. Ahora cada pestaña lo dice, con la fecha que trae el paquete. El arreglo de fondo
+     (que suban solas) toca el motor de sincronización y va aparte.
+   · PANEL/TRAER.HTML YA NO ESCRIBE LA CARTERA EN UN CELULAR. Era el punto de la etapa U1 que
+     tenía que salir con el CRM del celular: desde v143 la nube no trae el PIN, así que traer
+     la cartera a un teléfono la dejaba guardada ahí, abriendo con el PIN de fábrica. En un
+     celular la página lo dice arriba, con dos botones (al CRM y al Panel en el bolsillo), y
+     «Traer» queda apagado; mirar y bajar el respaldo siguen sirviendo al que ya tenía una copia.
+     En un computador no cambia nada.
+   Cambia panel/crm-remoto.js (?v=163 en crm.html y en la precarga). Sin base nueva.
+   Pruebas: pruebas/crm-remoto.test.js (tres grupos nuevos) y pruebas/traer-en-un-celular.test.js.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+const CACHE = 'tugarantia-v163';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3133,7 +3157,7 @@ const ARCHIVOS = [
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
   'panel/nube-crm.js?v=143',   // 4-nov-2026 — ?v=143: una nota sobre la pestaña vieja; la regla mira el texto (ver la nota de v143)
   /* 23-nov-2026 — el CRM en un celular, solo para mirar. Ver la nota de v158. */
-  'panel/crm-remoto.js?v=162',
+  'panel/crm-remoto.js?v=163',
   'panel/crm-movil.js?v=162',    // 24-nov-2026 — la barra de abajo y «Más» del CRM en un teléfono
   'panel/crm-movil.css?v=162',   // la hoja del teléfono: llega apagada, la enciende crm-movil.js
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */

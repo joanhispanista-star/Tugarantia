@@ -265,6 +265,8 @@ details>summary::-webkit-details-marker{display:none}
 
   <!-- Si falta un archivo se dice y no se deja empezar. Nunca una pantalla en blanco. -->
   <div id="faltaAlgo"></div>
+  <!-- 24-nov-2026 — en un celular, lo primero que se lee: aquí ya no se trae (ver razonParaNoEscribir). -->
+  <div id="enCelular"></div>
 
   <!-- LO QUE DECIDE SI ESTO AYUDA O HACE DAÑO. Va arriba del todo, antes de
        cualquier botón, porque es lo que Joan tiene que saber ANTES de usarlo.
@@ -1248,7 +1250,39 @@ function quePinQuedaraAqui(m){
 /* Las dos razones por las que esta pantalla se NIEGA a escribir. Devuelve el
    texto del motivo, o null si se puede. Se decide con lo MEDIDO, no con lo
    supuesto. */
+/* 24-nov-2026 — EN UN CELULAR ESTA PÁGINA YA NO ESCRIBE LA CARTERA. Es el punto de la
+   etapa U1 que tenía que salir con el CRM del celular (RECETA-PLAN-UN-SOLO-CRM.md):
+   desde v143 la nube no trae el PIN, así que traer aquí dejaba en el teléfono una
+   cartera real que abre con el PIN de fábrica; y desde v162 no hace falta, porque
+   crm.html se abre en el celular con celular y contraseña y muestra la cartera al día
+   SIN guardarla. La regla del plan: el celular nunca guarda la cartera en la gaveta.
+   Lo demás de la página sigue sirviendo en un celular que ya tenía una copia: mirar
+   qué hay y bajar el respaldo (lo único que rescata lo que se haya trabajado ahí).
+   «¿Es un celular?» se contesta como en panel/crm-remoto.js y en panel/index.html
+   (una prueba compara las tres). */
+function esCelular(){
+  var n = (typeof navigator === 'object' && navigator) ? navigator : {}, ua = String(n.userAgent || '');
+  if (/iPhone|iPod|iPad|Android|Windows Phone/i.test(ua)) return true;
+  return /Macintosh/i.test(ua) && Number(n.maxTouchPoints) > 1;
+}
+var MOTIVO_CELULAR = 'En un celular esta página ya no trae la cartera: quedaría guardada en el teléfono, abriendo '+
+  'con el PIN de fábrica. No hace falta: tu CRM se abre aquí con tu celular y tu contraseña y muestra tu cartera '+
+  'al día, sin guardarla. <a href="crm.html">Abrir el CRM</a>. Para registrar un cobro, '+
+  '<a href="espejo.html">abre el Panel en el bolsillo</a>.';
+function pintarAvisoDeCelular(){
+  var c = $('enCelular');
+  if(!c || !esCelular()) return false;
+  /* Arriba van dos BOTONES, no los enlaces del texto: a 390 px un enlace dentro de un
+     párrafo mide 19 px de alto y no se le atina con el dedo (medido el 24-nov). */
+  c.innerHTML = '<div class="aviso ambar"><b class="tit">En un celular ya no se trae la cartera</b>'+
+    'Quedaría guardada en el teléfono, abriendo con el PIN de fábrica. No hace falta: tu CRM se abre aquí con tu '+
+    'celular y tu contraseña y muestra tu cartera al día, sin guardarla.</div>'+
+    '<a class="btn negro" id="irAlCrm" href="crm.html">Abrir el CRM</a>'+
+    '<a class="btn sec sm" id="irAlBolsillo" href="espejo.html">Registrar un cobro: Panel en el bolsillo</a>';
+  return true;
+}
 function razonParaNoEscribir(){
+  if(esCelular()) return MOTIVO_CELULAR;
   var m = E.lectura;
   if(!m) return null;
   if(!m.completo){
@@ -1648,7 +1682,8 @@ function refrescarBotones(){
   /* El motivo va ESCRITO debajo del botón. En un teléfono no hay `title` que
      valga: un botón apagado sin explicación se lee como una app rota. */
   var texto='';
-  if(E.escrito)                    texto='Ya está traído. Si quieres traerlo otra vez, recarga la página.';
+  if(esCelular())                  texto='En un celular no se trae: abre el CRM (el aviso de arriba dice cómo).';
+  else if(E.escrito)               texto='Ya está traído. Si quieres traerlo otra vez, recarga la página.';
   else if(!conectado)              texto='Falta entrar a la nube (paso 2).';
   else if(!m)                      texto='Falta mirar qué hay en la nube (paso 3).';
   else if(no)                      texto='No se puede traer: mira el aviso rojo del paso 3.';
@@ -1675,6 +1710,7 @@ document.addEventListener('DOMContentLoaded', function(){
   $('btnRespaldo').addEventListener('click', bajarRespaldo);
   $('btnConfirmoRespaldo').addEventListener('click', confirmarRespaldo);
   $('btnTraer').addEventListener('click', traerYEscribir);
+  pintarAvisoDeCelular();
   arrancar();
 });
 </script>

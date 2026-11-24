@@ -995,3 +995,195 @@ describe('crm-remoto · el camino al Panel en el bolsillo', () => {
     assert.match(js, /\.cr-franja button,\.cr-franja a\.cr-ir\{grid-row:1\/3;min-height:44px;/);
   });
 });
+
+/* ==========================================================================
+ * 24-nov-2026 — LO QUE NO SUBE SOLO DICE SU FECHA
+ * Las plantillas y el equipo llegan a la nube solo cuando Joan toca ☁ Subir en
+ * su computador (nube-crm.js sube solas las fichas, los créditos y tres listas).
+ * En el celular podían ser de hace meses sin que nada lo dijera.
+ * ======================================================================== */
+describe('crm-remoto · Plantillas y Equipo dicen de qué día son', () => {
+  const AGO = '2026-08-18T15:00:00Z';
+  test('la fecha sale del paquete; una traída parcial sin esa fila deja la que había', () => {
+    const f = R.fechasDeAjustes({ ajustes: [{ clave: 'plantillas', actualizado_en: AGO }, { clave: 'equipo', actualizado_en: '2026-11-20T12:00:00Z' }] }, null);
+    assert.deepEqual(f, { plantillas: AGO, equipo: '2026-11-20T12:00:00Z' });
+    const g = R.fechasDeAjustes({ ajustes: [{ clave: 'equipo', actualizado_en: '2026-11-24T12:00:00Z' }] }, f);
+    assert.deepEqual(g, { plantillas: AGO, equipo: '2026-11-24T12:00:00Z' });
+    assert.deepEqual(R.fechasDeAjustes({}, f), f);
+    assert.deepEqual(R.fechasDeAjustes(null, null), {});
+  });
+  test('la frase dice el día con su año, y que allá hay que tocar ☁ Subir; sin fecha, lo dice igual sin inventarla', () => {
+    assert.equal(R.notaDeFecha('plantillas', { plantillas: AGO }),
+      'Estas plantillas son las que subiste a la nube el 18 de ago de 2026. Lo que cambies allá no sube solo todavía: toca ☁ Subir en tu computador para verlo aquí.');
+    assert.match(R.notaDeFecha('equipo', { equipo: '2026-11-20T17:00:00Z' }), /^Este equipo es el que subiste a la nube el 20 de nov de 2026\./);
+    assert.match(R.notaDeFecha('equipo', {}), /^Este equipo es el de la última vez que tocaste ☁ Subir en tu computador\./);
+    assert.equal(/undefined|NaN|Invalid/.test(R.notaDeFecha('plantillas', { plantillas: 'no es una fecha' })), false);
+    ['dash', 'cred', 'clientes', 'cobranzas', 'socios', ''].forEach(v => assert.equal(R.notaDeFecha(v, { plantillas: AGO }), '', v + ' sube sola: no lleva nota'));
+  });
+  test('las dos listas que llevan nota son justo las que el computador NO sube solo', () => {
+    const subenSolas = /var CLAVES_QUE_SUBEN = \[([^\]]+)\]/.exec(LEER('panel/nube-crm.js'))[1];
+    ['plantillas', 'equipo'].forEach(k => {
+      assert.equal(subenSolas.indexOf("'" + k + "'"), -1, k + ' ya sube sola: su nota de «toca ☁ Subir» miente y hay que quitarla');
+      assert.ok(R.CLAVES_QUE_PASAN.indexOf(k) >= 0, k + ' ya no llega al celular');
+    });
+  });
+  test('al entrar, cada pestaña la lleva debajo de su título; y se pone al día si llega una subida nueva', async () => {
+    let vez = 0;
+    const p = pantalla({ traer: () => {
+      vez++;
+      const paq = paquete();
+      paq.ajustes = (paq.ajustes || []).filter(a => a.clave !== 'plantillas')
+        .concat([{ clave: 'plantillas', datos: {}, revision: vez, actualizado_en: vez === 1 ? AGO : '2026-11-24T15:00:00Z', actualizado_por: 'computador' }]);
+      return Promise.resolve(paq);
+    } });
+    ['plantillas', 'equipo'].forEach(v => {
+      const vista = p.W.document.createElement('section'); vista.id = 'v-' + v;
+      const cabeza = p.W.document.createElement('div'); cabeza.className = 'ph'; vista.appendChild(cabeza);
+      vista.appendChild(p.W.document.createElement('div'));
+    });
+    p.C.alAbrir(p.ganchos);
+    await p.entrarBien();
+    const n = p.porId['crFecha-plantillas'];
+    assert.ok(n, 'Plantillas no lleva su nota');
+    assert.equal(p.porId['v-plantillas'].hijos[1], n, 'la nota no va justo debajo del título');
+    assert.match(n.textContent, /subiste a la nube el 18 de ago de 2026/);
+    assert.equal(n.getAttribute('data-cr'), '1');
+    assert.ok(p.porId['crFecha-equipo'], 'Equipo no lleva su nota');
+    /* Joan toca ☁ Subir en el computador; el celular vuelve a mirar. */
+    p.porId.crActualizar.dispatch('click');
+    await quieta(); await quieta();
+    assert.match(p.porId['crFecha-plantillas'].textContent, /subiste a la nube el 24 de nov de 2026/, 'la nota se quedó con la fecha vieja');
+    assert.equal(p.porId['v-plantillas'].hijos.filter(x => x.id === 'crFecha-plantillas').length, 1, 'la nota se duplicó');
+  });
+});
+
+/* ==========================================================================
+ * 24-nov-2026 — 📥 REGISTRADOS EN EL CELULAR, MIRANDO
+ * Joan: «tanto para crm de pc como de celular… quiero que se vea la hora y
+ * fecha de registro». Se pregunta con la SESIÓN del dueño (panel_registros, la
+ * del Panel en el bolsillo), nunca con la clave del computador, y se pinta en
+ * una lista propia. Las fotos y los datos completos no llegan: se dice.
+ * ======================================================================== */
+describe('crm-remoto · 📥 Registrados en el celular', () => {
+  const AHORA = new Date(2026, 10, 24, 10, 30, 0).getTime();
+  const plano = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ');
+  const ANA = { id: 1, nombre: 'Ana De Mentira', cedula: '52000001', telefono: '+57 300 111 2233', creado_en: new Date(2026, 10, 24, 9, 21).toISOString(),
+    ciudad: 'Bogotá', barrio: 'Kennedy', cotejo: { estado: 'no_cuadra' }, pedido: { monto: 300000, producto: 'quincenal', nota: 'para el arriendo' } };
+  const BETO = { id: 2, nombre: '<b>Beto</b>', cedula: '52000002', telefono: '123', creado_en: new Date(2026, 10, 23, 18, 40).toISOString(), app: 'platachat', cotejo: {} };
+  const RESPUESTA = { servidor_ahora: new Date(AHORA - 60000).toISOString(), estado: 'nuevo', nuevos: 2, pedidos_leidos: true, registros: [ANA, BETO] };
+
+  test('cada persona dice el DÍA Y LA HORA en que se registró, de dónde, y lo que pidió', () => {
+    const t = plano(R.tarjetaDeRegistro(ANA, { ahora: AHORA, pedidosLeidos: true }));
+    assert.match(t, /Ana De Mentira Se registró hoy, 9:21 a\. m\. · Bogotá · Kennedy/);
+    assert.match(t, /No cuadra con el código de su cédula/);
+    assert.match(t, /Pidió \$300\.000 · quincenal «para el arriendo»/);
+    assert.match(t, /Celular 300 111 2233 · Llamar/);
+    assert.match(plano(R.tarjetaDeRegistro(BETO, { ahora: AHORA, pedidosLeidos: true })), /Se registró ayer, 6:40 p\. m\./);
+    assert.match(R.tarjetaDeRegistro(ANA, { ahora: AHORA }), /href="tel:\+573001112233"/);
+  });
+  test('no enseña la cédula, no escribe por WhatsApp, y lo que llega de la base sale escapado', () => {
+    const h = R.tarjetaDeRegistro(ANA, { ahora: AHORA }) + R.tarjetaDeRegistro(BETO, { ahora: AHORA });
+    assert.equal(/52000001|52000002/.test(h), false, 'la cédula quedó a la vista en la lista del celular');
+    assert.equal(/wa\.me|whatsapp/i.test(h), false);
+    assert.equal(/<b>Beto<\/b>/.test(h), false, 'un nombre con etiquetas se pintó como HTML');
+    assert.match(h, /&lt;b&gt;Beto&lt;\/b&gt;/);
+    assert.equal(/onclick=/.test(h), false);
+  });
+  test('«Pidió» es solo lo que la persona pidió; sin solicitud a la vista se dice, y si no se pudieron leer, se calla', () => {
+    assert.match(plano(R.tarjetaDeRegistro(Object.assign({}, ANA, { pedido: { producto: 'respaldado' } }), { ahora: AHORA })), /Pidió un crédito · con garantía/);
+    assert.match(plano(R.tarjetaDeRegistro(BETO, { ahora: AHORA, pedidosLeidos: true })), /No le veo ninguna solicitud de crédito\./);
+    assert.equal(/solicitud/.test(plano(R.tarjetaDeRegistro(BETO, { ahora: AHORA, pedidosLeidos: false }))), false, 'dijo «no pidió» sin haber podido mirar');
+  });
+  test('las píldoras salen solo cuando dicen algo, con las palabras del Panel en el bolsillo; y «ya es tu cliente» si la cartera lo dice', () => {
+    assert.deepEqual(R.chipsDeRegistro({ cotejo: {} }), []);
+    assert.deepEqual(R.chipsDeRegistro({ cotejo: { estado: 'no_cuadra', menor: true, cedula_repetida: true }, app: 'platachat' }),
+      ['Su cédula dice que es menor de edad', 'Cédula repetida', 'PlataChat']);
+    assert.deepEqual(R.chipsDeRegistro({ cotejo: { documento_imposible: true, estado: 'no_cuadra' } }), ['Marcó otro documento']);
+    const ESPEJO = LEER('panel/espejo.html');
+    ['Su cédula dice que es menor de edad', 'Marcó otro documento', 'No cuadra con el código de su cédula', 'Cédula repetida'].forEach(p =>
+      assert.ok(ESPEJO.indexOf(p) >= 0, 'el Panel en el bolsillo ya no dice «' + p + '»: las dos pantallas tienen que decir lo mismo'));
+    assert.match(plano(R.tarjetaDeRegistro(ANA, { ahora: AHORA, cruce: () => 'Ya es tu cliente: CL-0021' })), /Ya es tu cliente: CL-0021/);
+    assert.equal(/undefined/.test(R.tarjetaDeRegistro(ANA, { ahora: AHORA, cruce: () => { throw new Error('x'); } })), false);
+  });
+  test('la lista dice su estado: mirando, nadie, cuántos, y que las fotos y los datos se miran en el computador', () => {
+    assert.match(plano(R.listaDeRegistrados({ estado: 'cargando', filas: [] }, { ahora: AHORA })), /Mirando quién se registró…/);
+    const ok = plano(R.listaDeRegistrados({ estado: 'ok', filas: [ANA, BETO], nuevos: 2, pedidosLeidos: true, leidoEn: AHORA - 60000 }, { ahora: AHORA }));
+    assert.match(ok, /2 personas esperando La nube contestó hoy, 10:29 a\. m\. ↻ Volver a mirar/);
+    assert.match(ok, /Sus fotos, todos sus datos y la revisión se miran en tu computador \(📥 Registrados\)\. Para juntar su cuenta desde el celular, abre el Panel en el bolsillo/);
+    assert.match(plano(R.listaDeRegistrados({ estado: 'ok', filas: [], nuevos: 0, leidoEn: AHORA }, { ahora: AHORA })), /Nadie esperando: no hay registros nuevos\./);
+    assert.match(plano(R.listaDeRegistrados({ estado: 'ok', filas: [ANA], nuevos: 140, leidoEn: AHORA }, { ahora: AHORA })),
+      /140 personas esperando .*Se ven los 1 más recientes de 140\. Los demás, en el computador\./);
+    assert.match(plano(R.listaDeRegistrados({ estado: 'ok', filas: [ANA], nuevos: 1, leidoEn: AHORA }, { ahora: AHORA })), /^ ?1 persona esperando/);
+  });
+  test('no poder preguntar NO es «nadie»: sin señal o con error se dice, y la lista que había se queda; sin el SQL dice cuál correr', () => {
+    const sin = plano(R.listaDeRegistrados({ estado: 'error', sinRed: true, filas: [ANA], nuevos: 1, leidoEn: AHORA - 3600000 }, { ahora: AHORA }));
+    assert.match(sin, /Sin señal: no pude mirar quién se registró\. Eso no quiere decir que no haya nadie\. Abajo va la lista de la última vez que contestó la nube\./);
+    assert.match(sin, /Ana De Mentira/);
+    const err = plano(R.listaDeRegistrados({ estado: 'error', error: 'Supabase respondió 500: x', filas: [] }, { ahora: AHORA }));
+    assert.match(err, /No pude mirar quién se registró\. Supabase respondió 500: x Eso no quiere decir que no haya nadie\./);
+    assert.equal(/Nadie esperando|0 personas/.test(err), false, 'un fallo se pintó como «no hay nadie»');
+    const falta = plano(R.listaDeRegistrados({ estado: 'falta', filas: [] }, { ahora: AHORA }));
+    assert.match(falta, /Tu base todavía no tiene esta parte\. Corre base\/20261002_panel_registros\.sql/);
+    assert.ok(fs.existsSync(path.join(RAIZ, 'base', '20261002_panel_registros.sql')), 'el archivo que se nombra no existe');
+  });
+
+  /* La pieza con su pantalla de mentira y una nube que anota cada pregunta. */
+  function conRegistrados(respuesta) {
+    const preguntas = [];
+    const p = pantalla({ nube: { rpc(fn, c) { preguntas.push({ fn, c }); return typeof respuesta === 'function' ? respuesta(preguntas.length) : Promise.resolve(respuesta); } } });
+    const vista = p.W.document.createElement('section'); vista.id = 'v-registrados';
+    const cabeza = p.W.document.createElement('div'); cabeza.className = 'ph'; vista.appendChild(cabeza);
+    const deCrm = p.W.document.createElement('div'); deCrm.id = 'tblRegistros'; vista.appendChild(deCrm);
+    return { p, preguntas, vista };
+  }
+  test('al entrar pregunta con la sesión del dueño (panel_registros), pinta bajo el título y deja tapado lo que pinta crm.html', async () => {
+    const { p, preguntas, vista } = conRegistrados(RESPUESTA);
+    const antes = Object.keys(p.almacen).filter(k => k !== 'joan_crm_remoto').sort().join();
+    p.C.alAbrir(p.ganchos);
+    await p.entrarBien(); await quieta(); await quieta();
+    /* Por JSON: lo que arma la pieza nace en otro contexto (vm) y deepEqual estricto mira el prototipo. */
+    assert.equal(JSON.stringify(preguntas), JSON.stringify([{ fn: 'panel_registros', c: { p_estado: 'nuevo', p_limite: 100 } }]));
+    const c = p.porId.crRegistrados;
+    assert.ok(c && vista.hijos[1] === c, 'la lista no va justo debajo del título');
+    assert.match(plano(c.innerHTML), /2 personas esperando .*Ana De Mentira Se registró /);
+    assert.ok(vista._clases.has('cr-tapada'), 'lo de crm.html («Conéctala en Ajustes») quedaría a la vista');
+    assert.ok(c.className.split(' ').includes('cr-tapa'), 'la regla que tapa la vista escondería también la lista');
+    assert.equal(c.getAttribute('data-cr'), '1', 'sin data-cr el filtro de toques frenaría «↻ Volver a mirar»');
+    /* Nada de los registrados queda en el disco del teléfono. */
+    assert.equal(Object.keys(p.almacen).filter(k => /Ana De Mentira|3001112233/.test(String(p.almacen[k]))).length, 0, 'un registrado quedó guardado en el celular');
+    assert.equal(Object.keys(p.almacen).filter(k => k !== 'joan_crm_remoto').sort().join(), antes, 'apareció una llave nueva en el disco');
+  });
+  test('«↻ Volver a mirar» pregunta otra vez; y la tapa vieja de Registrados ya no existe', async () => {
+    const { p, preguntas } = conRegistrados(n => Promise.resolve(n === 1 ? RESPUESTA : Object.assign({}, RESPUESTA, { nuevos: 1, registros: [BETO] })));
+    p.C.alAbrir(p.ganchos);
+    await p.entrarBien(); await quieta(); await quieta();
+    p.porId.crRegMirar.dispatch('click');
+    await quieta(); await quieta();
+    assert.equal(preguntas.length, 2);
+    assert.match(plano(p.porId.crRegistrados.innerHTML), /1 persona esperando/);
+    assert.equal(R.TAPAS.registrados, undefined);
+    assert.deepEqual(Object.keys(R.TAPAS).sort(), ['bases', 'cfg', 'mensajes', 'solicitudes', 'ventas']);
+    /* Y «🔎 Revisar a todos» (revision.html pregunta con la clave del computador) no queda a la vista. */
+    assert.ok(LEER('panel/crm-remoto.js').indexOf("body.solo-mirar a[href=\"revision.html\"]{display:none !important}") > 0);
+    assert.ok(CRM.indexOf('href="revision.html"') > 0, 'el enlace ya no existe en crm.html: la regla sobra');
+  });
+  test('si la nube falla, lo dice y no borra lo que ya se veía', async () => {
+    const { p } = conRegistrados(n => n === 1 ? Promise.resolve(RESPUESTA) : Promise.reject({ motivo: 'Sin internet.', sin_red: true }));
+    p.C.alAbrir(p.ganchos);
+    await p.entrarBien(); await quieta(); await quieta();
+    p.porId.crRegMirar.dispatch('click');
+    await quieta(); await quieta();
+    const t = plano(p.porId.crRegistrados.innerHTML);
+    assert.match(t, /Sin señal: no pude mirar quién se registró\./);
+    assert.match(t, /Ana De Mentira/);
+  });
+  test('NUNCA pregunta con la clave del computador: clave_ok cuenta los intentos de todos los aparatos', () => {
+    const codigo = LEER('panel/crm-remoto.js').replace(/\/\*[\s\S]*?\*\//g, ' ').split('\n').map(l => l.replace(/(^|\s)\/\/.*$/, '$1')).join('\n');
+    assert.equal(/p_clave|listar_registros|archivos_de_registro|registros_quien_ve|registro_vivo_joan/.test(codigo), false);
+    assert.match(codigo, /N\.rpc\('panel_registros', \{ p_estado: 'nuevo', p_limite: LIMITE_REGISTRADOS \}\)/);
+    /* Y la función existe con la sesión del dueño, no con anon. */
+    const sql = LEER('base/20261002_panel_registros.sql');
+    assert.match(sql, /create or replace function public\.panel_registros\(p_estado text default 'nuevo', p_limite integer default 100\)/);
+    assert.match(sql, /panel_es_dueno\(\)/);
+  });
+});

@@ -103,7 +103,8 @@ function abrirTraer(opciones) {
   const ctx = {
     console, document: doc, localStorage: local,
     location: { protocol: 'https:', hostname: 'tugarantia.net', href: 'https://tugarantia.net/panel/traer.html' },
-    navigator: { userAgent: 'node', onLine: true },
+    /* 24-nov-2026 — `navegador`: traer.html ya mira si es un celular (ahí no escribe la cartera). */
+    navigator: o.navegador || { userAgent: 'node', onLine: true },
     confirm: m => { confirmaciones.push(String(m)); return o.confirmar !== false; },
     addEventListener(t, f) { (oyentesVentana[t] = oyentesVentana[t] || []).push(f); },
     fetch: (url, cfg) => {
