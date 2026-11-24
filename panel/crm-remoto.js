@@ -289,6 +289,39 @@
   };
   function tapaDe(vista) { return TAPAS[texto(vista)] || ''; }
 
+  /* --------------------------------------------- lo que no se puede, no se ve
+     24-nov-2026 — El filtro de toques frena lo que escribe, pero el botón seguía
+     a la vista: «＋ Nuevo crédito» en rojo y a todo el ancho, «Pago» en cada
+     crédito, «✎ Editar ficha». Un botón que se ve y contesta «aquí no» en cada
+     toque es la pantalla prometiendo lo que el código no hace. La MISMA regla
+     del filtro decide qué se esconde (codigoDeMirar): no hay una segunda lista
+     que se pueda quedar vieja.
+     Recibe lo que se sabe de un control y dice qué hacer con él:
+       'esconder'  botones y enlaces que escriben, WhatsApp, subir archivos,
+                   casillas que marcan algo
+       'aquietar'  campos y listas cuyo cambio no se va a oír: se apagan, para
+                   que no parezca que se escogió algo
+       ''          se queda como está (lo que mira, lo que no tiene acción, y lo
+                   que NO es un control: una fila o una tarjeta con onclick sigue
+                   mostrando su dato, solo que el toque no hace nada). */
+  function queHacerConElControl(c) {
+    var x = objeto(c), etiqueta = texto(x.etiqueta).toUpperCase(), tipo = texto(x.tipo).toLowerCase();
+    if (etiqueta === 'INPUT' && tipo === 'file') return 'esconder';
+    if (x.conArchivo === true) return 'esconder';                       // la caja <label> de subir una foto
+    if (x.href && enlaceQueEscribe(x.href)) return 'esconder';
+    var boton = etiqueta === 'BUTTON' || etiqueta === 'A' || x.esBoton === true;
+    if (boton && texto(x.onclick)) return codigoDeMirar(x.onclick) ? '' : 'esconder';
+    if (etiqueta === 'INPUT' && (tipo === 'checkbox' || tipo === 'radio')) {
+      var marca = texto(x.onchange) || texto(x.onclick);
+      return marca && !codigoDeMirar(marca) ? 'esconder' : '';
+    }
+    if (etiqueta === 'INPUT' || etiqueta === 'SELECT' || etiqueta === 'TEXTAREA') {
+      var cambia = [x.oninput, x.onchange].map(texto).filter(Boolean);
+      return cambia.length && !cambia.every(codigoDeMirar) ? 'aquietar' : '';
+    }
+    return '';
+  }
+
   var NO_DESDE_AQUI = 'Desde el celular, por ahora, solo se mira. Esto se hace en tu computador.';
   var NO_WHATSAPP = 'Desde aquí no se escribe por WhatsApp: no quedaría anotado. Se hace en tu computador.';
 
@@ -310,7 +343,8 @@
     horaCorta: horaCorta, cuandoFue: cuandoFue, haceCuanto: haceCuanto,
     medianocheQueViene: medianocheQueViene, textoFranja: textoFranja,
     accionDe: accionDe, esDeMirar: esDeMirar, codigoDeMirar: codigoDeMirar,
-    enlaceQueEscribe: enlaceQueEscribe, tapaDe: tapaDe, motivoDeNoAbrir: motivoDeNoAbrir
+    enlaceQueEscribe: enlaceQueEscribe, tapaDe: tapaDe, motivoDeNoAbrir: motivoDeNoAbrir,
+    queHacerConElControl: queHacerConElControl
   };
   if (!W) return puro;                 // en Node, hasta aquí
 
@@ -330,7 +364,8 @@
     pendiente: false,     // llegó algo y Joan tenía un cuadro abierto: se pinta al soltar
     foto: null,           // DB como texto, justo antes del último toque
     devolviendo: false,   // true mientras se repone la pantalla: sus guardar() no hablan
-    ganchos: null, reloj: null, relojFranja: null, aviso: null
+    ganchos: null, reloj: null, relojFranja: null, aviso: null,
+    vigia: null           // el que avisa cuando crm.html pinta algo (el barrido)
   };
 
   function almacen() { try { return W.localStorage; } catch (e) { return null; } }
@@ -430,6 +465,61 @@
   function alBajarElDedo() {
     if (!E.activo || E.devolviendo || !E.ganchos) return;
     try { E.foto = JSON.stringify(E.ganchos.db()); } catch (e) { E.foto = null; }
+  }
+
+  /* --------------------------------------------- el barrido: esconder y aquietar
+     Cada vez que crm.html pinta algo (una tabla, un cuadro), se mira lo recién
+     pintado y se esconde lo que no se puede usar. Un vigía (MutationObserver)
+     avisa ANTES de que el navegador lo dibuje, así que el botón no alcanza a
+     verse. Lo que se esconde sigue frenado por el filtro de toques: esto es lo
+     que se ve, la reja es aquello. */
+  var QUE_SE_MIRA = '[onclick],[onchange],[oninput],a[href],input[type="file"]';
+  function atributo(el, k) { try { return el.getAttribute(k); } catch (e) { return null; } }
+  function barrerUno(el) {
+    if (!el || !el.getAttribute || cercano(el, '[data-cr]')) return;
+    var que = queHacerConElControl({
+      etiqueta: el.tagName, tipo: atributo(el, 'type'),
+      esBoton: !!(el.classList && el.classList.contains('btn')),
+      onclick: atributo(el, 'onclick'), onchange: atributo(el, 'onchange'), oninput: atributo(el, 'oninput'),
+      href: el.tagName === 'A' ? atributo(el, 'href') : ''
+    });
+    if (que === 'esconder') {
+      el.classList.add('cr-no');
+      /* La caja de subir una foto es el <label> que envuelve al campo. */
+      if (el.tagName === 'INPUT' && atributo(el, 'type') === 'file') { var caja = cercano(el, 'label'); if (caja) caja.classList.add('cr-no'); }
+    } else if (que === 'aquietar') {
+      /* Un texto se deja LEER (readonly): apagado saldría gris, y las plantillas
+         son justo para leerlas. Una lista o una fecha sí se apagan. */
+      try {
+        var deTexto = el.tagName === 'TEXTAREA' ||
+          (el.tagName === 'INPUT' && !/^(checkbox|radio|range|color|date|time|month|week|datetime-local|file)$/i.test(atributo(el, 'type') || ''));
+        if (deTexto) el.readOnly = true; else el.disabled = true;
+        el.classList.add('cr-quieto');
+      } catch (e) {}
+    }
+  }
+  function barrer(raizDelBarrido) {
+    if (!E.activo) return 0;
+    var r = raizDelBarrido || D, n = 0;
+    try {
+      if (r.matches && r.matches(QUE_SE_MIRA)) { barrerUno(r); n++; }
+      var todos = r.querySelectorAll ? r.querySelectorAll(QUE_SE_MIRA) : [];
+      for (var i = 0; i < todos.length; i++) { barrerUno(todos[i]); n++; }
+    } catch (e) { /* un navegador que no deja: el filtro de toques sigue ahí */ }
+    return n;
+  }
+  function ponerVigiaDelBarrido() {
+    if (E.vigia || typeof W.MutationObserver !== 'function') return;
+    try {
+      E.vigia = new W.MutationObserver(function (cambios) {
+        if (!E.activo) return;
+        for (var i = 0; i < cambios.length; i++) {
+          var nuevos = cambios[i].addedNodes || [];
+          for (var j = 0; j < nuevos.length; j++) if (nuevos[j] && nuevos[j].nodeType === 1) barrer(nuevos[j]);
+        }
+      });
+      E.vigia.observe(D.body, { childList: true, subtree: true });
+    } catch (e) { E.vigia = null; }
   }
 
   /* ---------------------------------------------- lo que le pregunta crm.html */
@@ -552,6 +642,25 @@
       'body.solo-mirar #nubeTodoCinta,body.solo-mirar #sesionCinta,body.solo-mirar .avisos-pie{display:none !important}' +
       /* La pestaña que no puede decir la verdad muestra su tapa y nada más. */
       'body.solo-mirar .view.cr-tapada > :not(.cr-tapa):not(.ph){display:none !important}' +
+      /* …y su botón del menú lleva la marca «PC» (ponerTapas). */
+      'body.solo-mirar .navbtn.cr-en-pc{opacity:.62}' +
+      'body.solo-mirar .navbtn.cr-en-pc::after{content:"PC";margin-left:auto;padding:1px 6px;border-radius:999px;' +
+        'border:1px solid currentColor;font-size:9.5px;font-weight:800;letter-spacing:.05em;line-height:1.3}' +
+      /* Lo que no se puede, no se ve (el barrido). */
+      'body.solo-mirar .cr-no{display:none !important}' +
+      'body.solo-mirar .cr-quieto:disabled{opacity:.55}' +
+      /* En un telefono la franja es fija arriba y cada pixel de alto se paga en
+         todas las pantallas: el aviso y la hora a la izquierda, en dos renglones,
+         y los dos botones a la derecha, a 44 px. Media 112 px; queda en 68. */
+      '@media (max-width:880px){' +
+        '.cr-franja{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:2px 8px;align-items:center;' +
+          'margin:0 0 10px;padding:8px 8px 8px 12px;font-size:11.5px;line-height:1.35}' +
+        '.cr-franja b{grid-column:1;grid-row:1;font-size:12.5px}' +
+        '.cr-franja .cr-t{grid-column:1;grid-row:2;flex:none}' +
+        '.cr-franja button{grid-row:1/3;min-height:44px;padding:0 12px}' +
+        '.cr-franja .cr-tx{display:none}' +
+        '.cr-franja #crActualizar{min-width:44px;padding:0;font-size:19px;line-height:1}' +
+      '}' +
       '.cr-puerta{text-align:left}' +
       '.cr-puerta p{margin:0 0 12px;font-size:13.5px;line-height:1.5;color:var(--tinta)}' +
       '.cr-puerta label{display:block;margin:10px 0 4px;font-size:12px;font-weight:700;color:var(--gris)}' +
@@ -571,7 +680,8 @@
       caja.className = 'cr-franja';
       caja.setAttribute('data-cr', '1');
       caja.innerHTML = '<b>👁 Solo mirar</b><span class="cr-t" id="crFranjaT" aria-live="polite"></span>' +
-        '<button type="button" id="crActualizar">Actualizar</button><button type="button" id="crSalir">Salir</button>';
+        '<button type="button" id="crActualizar" aria-label="Actualizar"><span aria-hidden="true">↻</span><span class="cr-tx"> Actualizar</span></button>' +
+        '<button type="button" id="crSalir">Salir</button>';
       principal.insertBefore(caja, principal.firstChild);
       $('crActualizar').addEventListener('click', function () {
         $('crFranjaT').textContent = 'Mirando la nube…';
@@ -586,6 +696,10 @@
      rehacen, así que con ponerlas una vez basta; se revisa por si acaso). */
   function ponerTapas() {
     Object.keys(TAPAS).forEach(function (v) {
+      /* 24-nov-2026 — y su botón del menú lo dice ANTES de tocarlo: una marca «PC».
+         Seis pestañas que abren para decir «todavía no» sin avisar eran seis
+         toques perdidos (y en la hoja de «Más» del teléfono van al final). */
+      try { var boton = D.querySelector('.navbtn[data-v="' + v + '"]'); if (boton) boton.classList.add('cr-en-pc'); } catch (e) {}
       var vista = $('v-' + v);
       if (!vista || vista.querySelector('.cr-tapa')) return;
       var t = D.createElement('div');
@@ -663,7 +777,13 @@
       ponerEstilos();
       E.activo = true;
       try { D.body.classList.add('solo-mirar'); } catch (e) {}
+      /* La hoja del teléfono (crm-movil.js) se enciende también al empezar a mirar. */
+      try { if (W.CrmMovil && typeof W.CrmMovil.revisar === 'function') W.CrmMovil.revisar(); } catch (e) {}
+      ponerVigiaDelBarrido();
       E.ganchos.abrir();
+      /* Lo que crm.html trae escrito desde el HTML (el «＋ Nuevo crédito» de cada
+         encabezado) no se vuelve a pintar nunca: se barre una vez, aquí. */
+      barrer(D);
       ponerTapas();
       pintarFranja();
       arrancarRelojes();
@@ -732,7 +852,8 @@
   var api = {
     alAbrir: alAbrir, activo: activo, paraCargar: paraCargar, alGuardar: alGuardar,
     puertaDeCorreo: puertaDeCorreo, pintarPuerta: pintarPuerta, salir: salir,
-    alRepintar: function () { if (E.activo) { ponerTapas(); pintarFranja(); } },
+    alRepintar: function () { if (E.activo) { ponerTapas(); pintarFranja(); barrer(D); } },
+    barrer: barrer,
     _estado: E
   };
   Object.keys(puro).forEach(function (k) { api[k] = puro[k]; });

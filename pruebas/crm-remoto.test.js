@@ -688,3 +688,81 @@ describe('crm.html · con la pieza activa no se escribe la gaveta', () => {
     assert.ok(Number(v) <= cache, 'la versión de la pieza no va por delante de la del sitio');
   });
 });
+
+/* ------------------------------------------------------------------ 4 ----
+   24-nov-2026 — lo que no se puede, no se ve. */
+describe('crm-remoto · lo que no se puede, no se ve', () => {
+  const q = R.queHacerConElControl;
+
+  test('se esconde el botón que escribe; el que mira se queda', () => {
+    assert.equal(q({ etiqueta: 'BUTTON', onclick: 'nuevoCredito()' }), 'esconder');
+    assert.equal(q({ etiqueta: 'button', onclick: "abrirPago('p1')" }), 'esconder');
+    assert.equal(q({ etiqueta: 'A', onclick: "abrirPago('p1')" }), 'esconder');
+    assert.equal(q({ etiqueta: 'SPAN', esBoton: true, onclick: 'exportar()' }), 'esconder');
+    assert.equal(q({ etiqueta: 'BUTTON', onclick: "verCliente('x')" }), '');
+    assert.equal(q({ etiqueta: 'A', onclick: "event.stopPropagation();verCredito('p1')" }), '');
+    assert.equal(q({ etiqueta: 'BUTTON' }), '', 'un botón sin onclick (el menú, la puerta, la franja) no se toca');
+    assert.equal(q(null), '');
+    assert.equal(q({}), '');
+  });
+
+  test('lo que NO es un control sigue mostrando su dato aunque su toque no corra', () => {
+    assert.equal(q({ etiqueta: 'TR', onclick: "abrirPago('p1')" }), '');
+    assert.equal(q({ etiqueta: 'DIV', onclick: 'accionNubeTodo()' }), '');
+    assert.equal(q({ etiqueta: 'TD', onclick: 'borrarCredito(1)' }), '');
+  });
+
+  test('WhatsApp y subir archivos se esconden; llamar no', () => {
+    assert.equal(q({ etiqueta: 'A', href: 'https://wa.me/573001112233?text=hola' }), 'esconder');
+    assert.equal(q({ etiqueta: 'A', href: 'sms:3001112233' }), 'esconder');
+    assert.equal(q({ etiqueta: 'A', href: 'tel:3001112233' }), '');
+    assert.equal(q({ etiqueta: 'A', href: 'traer.html' }), '');
+    assert.equal(q({ etiqueta: 'INPUT', tipo: 'file' }), 'esconder');
+    assert.equal(q({ etiqueta: 'LABEL', conArchivo: true }), 'esconder');
+  });
+
+  test('una casilla que marca algo se esconde; un campo cuyo cambio no se oye se apaga', () => {
+    assert.equal(q({ etiqueta: 'INPUT', tipo: 'checkbox', onchange: 'marcarCob(this)' }), 'esconder');
+    assert.equal(q({ etiqueta: 'INPUT', tipo: 'checkbox', onclick: 'marcarCob(this)' }), 'esconder');
+    assert.equal(q({ etiqueta: 'INPUT', tipo: 'checkbox', onchange: 'renderCobranzas()' }), '', 'una casilla que solo filtra se queda');
+    assert.equal(q({ etiqueta: 'INPUT', tipo: 'checkbox' }), '');
+    assert.equal(q({ etiqueta: 'SELECT', onchange: "asignarUno('s1')" }), 'aquietar');
+    assert.equal(q({ etiqueta: 'TEXTAREA', oninput: "previewPlt('mora')" }), 'aquietar');
+    assert.equal(q({ etiqueta: 'INPUT', tipo: 'text', oninput: 'renderClientes()', onchange: 'guardarAlgo()' }), 'aquietar', 'con uno solo que escriba, se apaga');
+    assert.equal(q({ etiqueta: 'INPUT', tipo: 'search', oninput: 'renderClientes()' }), '', 'el buscador de una lista sigue sirviendo');
+    assert.equal(q({ etiqueta: 'INPUT', tipo: 'search' }), '');
+  });
+
+  test('la regla del barrido es la MISMA del filtro de toques: no hay una segunda lista', () => {
+    R.MIRAR.forEach(n => assert.equal(q({ etiqueta: 'BUTTON', onclick: n + '()' }), '', n + ' es de mirar: su botón se ve'));
+    ['nuevoCredito', 'abrirPago', 'borrarCredito', 'editarCliente', 'exportar', 'unaFuncionQueNadieHaLeido'].forEach(n => {
+      assert.equal(R.codigoDeMirar(n + '()'), false);
+      assert.equal(q({ etiqueta: 'BUTTON', onclick: n + '()' }), 'esconder', n + ' no corre: su botón no se ve');
+    });
+  });
+
+  test('los botones de escribir que crm.html trae fijos en sus encabezados son de los que se esconden', () => {
+    /* «＋ Nuevo crédito» del Tablero y de Créditos no se vuelve a pintar nunca: lo tapa el
+       barrido del arranque. Si un día dejara de ser un <button onclick>, seguiría a la vista. */
+    const fijos = Array.from(CRM.matchAll(/<button class="btn btn-rojo" onclick="(nuevoCredito\(\))">/g));
+    assert.ok(fijos.length >= 2, 'hay al menos dos «＋ Nuevo crédito» fijos');
+    fijos.forEach(m => assert.equal(q({ etiqueta: 'BUTTON', esBoton: true, onclick: m[1] }), 'esconder'));
+  });
+
+  test('el botón del menú de una pestaña tapada lleva su marca, y los estilos la pintan', () => {
+    const fuente = LEER('panel/crm-remoto.js');
+    assert.match(fuente, /classList\.add\('cr-en-pc'\)/);
+    assert.match(fuente, /body\.solo-mirar \.navbtn\.cr-en-pc::after\{content:"PC"/);
+    assert.match(fuente, /body\.solo-mirar \.cr-no\{display:none !important\}/);
+  });
+
+  test('con el CRM mirando, lo recién pintado se barre antes de que se vea (el vigía)', () => {
+    const fuente = LEER('panel/crm-remoto.js');
+    assert.match(fuente, /new W\.MutationObserver/);
+    assert.match(fuente, /observe\(D\.body, \{ childList: true, subtree: true \}\)/);
+    /* Y lo que la página trae escrito desde el HTML se barre una vez, al abrir. */
+    const abrir = fuente.slice(fuente.indexOf('function abrirDesdeLaNube'), fuente.indexOf('function arrancarRelojes'));
+    assert.ok(abrir.indexOf('ponerVigiaDelBarrido()') < abrir.indexOf('E.ganchos.abrir()'), 'el vigía se pone antes de pintar');
+    assert.ok(abrir.indexOf('barrer(D)') > abrir.indexOf('E.ganchos.abrir()'), 'y el barrido entero va después');
+  });
+});

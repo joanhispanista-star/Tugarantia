@@ -2968,6 +2968,24 @@
    · En un computador no cambia nada: la decisión es por el tipo de aparato, nunca por el ancho.
    Cambian panel/crm.html (ocho enganches) y entra panel/crm-remoto.js?v=158 a la precarga.
    Pruebas nuevas: pruebas/crm-remoto.test.js. CACHE y VERSION_SITIO suben a v158.
+   24-nov-2026, SEGUNDA PARTE (misma versión, todavía sin publicar): CÓMO SE VE EN EL TELÉFONO.
+   Joan: «hay muchas pestañas que no me aparecen desde el celular… modificalo».
+   · panel/crm-movil.css, NUEVA: la hoja del teléfono. Llega apagada (<link media="not all">)
+     y solo se enciende en un celular o una tableta con el menú de Joan; en un computador,
+     nunca, ni con la ventana angosta; en el celular de un gerente o un asesor, tampoco.
+     Créditos, Clientes, la cola del Tablero y Cobranzas pasan de tabla ancha a una ficha por
+     fila; los cuadros van a pantalla completa; los botones, a 44 px.
+   · panel/crm-movil.js, NUEVO: abajo quedan fijas Tablero, Créditos, Clientes y Cobranzas, y
+     el quinto puesto es «Más», que abre las otras trece pestañas encima de lo que se está
+     viendo. Son los mismos botones de crm.html, movidos: ninguno se copia.
+   · Lo que no se puede, no se ve: en un celular que solo mira, crm-remoto.js ESCONDE los
+     botones que escriben («＋ Nuevo crédito», «Pago», borrar, WhatsApp, subir fotos) con la
+     MISMA regla que ya los frenaba, y deja de solo lectura los campos cuyo cambio no se oye.
+     Las seis pestañas que todavía no se miran llevan la marca «PC» en el menú. Cinco frases
+     de crm.html que explicaban botones escondidos cambian en ese modo (soloMirar()).
+   · Los rótulos de las fichas van por la posición de la columna: pruebas/crm-movil.test.js
+     pinta las seis tablas y compara sus <th> con la hoja.
+   Entran a la precarga panel/crm-movil.js?v=158 y panel/crm-movil.css?v=158.
    NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
    número nunca baja. */
@@ -3039,6 +3057,8 @@ const ARCHIVOS = [
   'panel/nube-crm.js?v=143',   // 4-nov-2026 — ?v=143: una nota sobre la pestaña vieja; la regla mira el texto (ver la nota de v143)
   /* 23-nov-2026 — el CRM en un celular, solo para mirar. Ver la nota de v158. */
   'panel/crm-remoto.js?v=158',
+  'panel/crm-movil.js?v=158',    // 24-nov-2026 — la barra de abajo y «Más» del CRM en un teléfono
+  'panel/crm-movil.css?v=158',   // la hoja del teléfono: llega apagada, la enciende crm-movil.js
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
   'panel/historiales-auto.js?v=147',
   /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132.

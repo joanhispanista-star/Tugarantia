@@ -666,6 +666,11 @@
     .cal-more{font-size:9px}
   }
 </style>
+<!-- 24-nov-2026 — LA HOJA DEL TELÉFONO (panel/crm-movil.css). Llega APAGADA
+     (media="not all"): la enciende panel/crm-movil.js, y solo en un celular o una
+     tableta con el menú de Joan. En un computador no se enciende nunca, ni con la
+     ventana angosta. Va después de la hoja de arriba porque la pisa. -->
+<link rel="stylesheet" href="crm-movil.css?v=158" media="not all" id="hojaMovil">
 </head>
 <body>
 
@@ -1313,6 +1318,11 @@
      RECETA-PLAN-UN-SOLO-CRM.md). En un computador no hace nada: decide por el tipo
      de aparato, nunca por el ancho. Va después de nube.js, que es quien trae. -->
 <script src="crm-remoto.js?v=158"></script>
+<!-- 24-nov-2026 — LA BARRA DE ABAJO Y «MÁS» (crm-movil.js): enciende la hoja del
+     teléfono y mete en una caja las pestañas que no caben en la barra. Va después
+     de crm-remoto.js, que es quien sabe si el aparato es un celular; y ANTES del
+     guion de la página, que le cuelga irA a cada .navbtn dondequiera que esté. -->
+<script src="crm-movil.js?v=158"></script>
 <script src="../app/puente.js?v=143"></script>
 <!-- El chat, compartido con app/socio.html por la misma razón que el puente:
      quien decide de qué lado va un mensaje y cómo se escapa el texto vive en un
@@ -4336,8 +4346,13 @@ function renderCobranzas() {
       '<span class="muted">Mira abajo por qué.</span></p></div>';
   } else {
     caja.innerHTML = aviso + avisoCaros + barra +
-      '<div class="muted" style="padding:0 14px 8px;font-size:12px">Destilda a quien no quieras. ' +
-      'Lo que no se puede es <b>agregar</b> a alguien de la tabla de abajo: esos topes no tienen casilla.</div>' +
+      /* 24-nov-2026 — en un celular que solo mira no hay casillas ni envío (crm-remoto.js
+         los esconde): la frase que los explica hablaba de algo que no está. */
+      (soloMirar()
+        ? '<div class="muted" style="padding:0 14px 8px;font-size:12px">A estas personas se les puede escribir hoy. ' +
+          'Los mensajes se mandan desde tu computador.</div>'
+        : '<div class="muted" style="padding:0 14px 8px;font-size:12px">Destilda a quien no quieras. ' +
+      'Lo que no se puede es <b>agregar</b> a alguien de la tabla de abajo: esos topes no tienen casilla.</div>') +
       '<table><thead><tr><th style="width:34px"></th><th>Cliente</th><th>Debe</th><th>Créditos</th>' +
         '<th>Vence</th><th>Mensaje</th><th style="width:1%">Gestión</th></tr></thead><tbody>' +
       /* 16-sep-2026 — LA COLUMNA DEL MENSAJE SE RECORTA A UN CHIP. El texto
@@ -4394,9 +4409,12 @@ function renderCobranzas() {
   if (cajaF) {
     cajaF.innerHTML = !fuera.length
       ? '<div class="empty"><div class="ic">👍</div><p>Nadie quedó fuera.</p></div>'
-      : '<div class="muted" style="padding:0 14px 8px;font-size:12px">A esta gente <b>no se le ' +
+      : (soloMirar()
+        ? '<div class="muted" style="padding:0 14px 8px;font-size:12px">A esta gente <b>no se le ' +
+          'puede escribir hoy</b>: al lado de cada una está el motivo. Puedes mirar su historia.</div>'
+        : '<div class="muted" style="padding:0 14px 8px;font-size:12px">A esta gente <b>no se le ' +
         'puede escribir hoy</b>, y por eso no tienen casilla. Pero sí puedes <b>mirar su historia ' +
-        'y registrarle un pago</b>: eso no es contactar, y acá está buena parte de tu cartera.</div>' +
+        'y registrarle un pago</b>: eso no es contactar, y acá está buena parte de tu cartera.</div>') +
         '<table><thead><tr><th>Cliente</th><th>Debe</th><th>Por qué no</th>' +
         '<th style="width:1%">Gestión</th></tr></thead><tbody>' +
         fuera.map(function (f) {
@@ -4475,9 +4493,12 @@ function pintarNoLesToca(fuera, filas) {
     return;
   }
   caja.innerHTML =
-    '<div class="muted" style="padding:0 14px 8px;font-size:12px">Créditos abiertos que <b>todavía no ' +
+    (soloMirar()
+      ? '<div class="muted" style="padding:0 14px 8px;font-size:12px">Créditos abiertos que <b>todavía no ' +
+        'vencen</b>. No se les manda cobro.</div>'
+      : '<div class="muted" style="padding:0 14px 8px;font-size:12px">Créditos abiertos que <b>todavía no ' +
     'vencen</b>. No se les manda cobro, pero si alguien te paga antes de tiempo, aquí le registras el ' +
-    'pago con <b>💵 Pago</b>.</div>' +
+    'pago con <b>💵 Pago</b>.</div>') +
     '<table><thead><tr><th>Cliente</th><th>Debe</th><th>Créditos</th><th>Vence</th>' +
     '<th style="width:1%">Gestión</th></tr></thead><tbody>' +
     lista.map(function (g) {
@@ -6813,7 +6834,13 @@ function verCliente(id){
      en qué va y tiene su botón. */
   const cj=s.cuentaJunta, cpj=s.cuentaPorJuntar;
   const esperaClave=cpj&&cpj.noAntesDe&&Date.now()<Date.parse(cpj.noAntesDe);
-  const bloqueCuenta=`<div class="info-row con-botones"><span class="k">Su cuenta en la app
+  /* 24-nov-2026 — en un celular que solo mira, de este renglón queda lo que la ficha
+     SABE: si la cuenta está junta, con qué número y desde cuándo. «Este computador no
+     la ha juntado» y los cuatro botones (que crm-remoto.js esconde) no son de aquí; y
+     si la ficha no dice que esté junta, el celular no sabe más: no dice nada. */
+  const bloqueCuenta=soloMirar()
+    ? (cj?`<div class="info-row"><span class="k">Su cuenta en la app</span><span class="vv">Junta con el ${escHTML(UP?UP.bonito(cj.celular):cj.celular)} desde el ${fmtFecha(cj.fecha)}</span></div>`:'')
+    : `<div class="info-row con-botones"><span class="k">Su cuenta en la app
        <div class="muted">${cj?'Junta desde este computador con el '+escHTML(UP?UP.bonito(cj.celular):cj.celular)+' el '+fmtFecha(cj.fecha)
          :cpj?(cpj.motivo?'La nube no juntó su cuenta sola: falta tu toque (lo que dice abajo)'
                :esperaClave?'Le diste una clave nueva al número de su ficha: '+escHTML(horaDeJuntarse(s,cpj.noAntesDe))
@@ -8002,7 +8029,7 @@ function verCredito(id){
     <div class="two" style="margin-top:18px">${p.pagado?'<span></span>':`<button class="btn btn-rojo" onclick="abrirPago('${p.id}')" title="Pagó todo, abonó y pasa a la otra quincena, o prórroga">Registrar cobro / abono / prórroga</button>`}<button class="btn btn-ghost" onclick="verCliente('${s.id}')">Ver cliente</button></div>
     ${btnAjustarV}
     <button class="btn btn-ghost btn-sm" style="margin-top:12px;width:100%" onclick="borrarCredito('${p.id}')">🗑 Borrar este crédito · quedó mal guardado</button>
-    <div class="muted" style="text-align:center;margin-top:6px;font-size:12px">Va a la papelera, no se pierde.</div>`);
+    ${soloMirar()?'':'<div class="muted" style="text-align:center;margin-top:6px;font-size:12px">Va a la papelera, no se pierde.</div>'}`);
 }
 
 /* ===== PAGO / PRÓRROGA / COMPROBANTE ===== */
