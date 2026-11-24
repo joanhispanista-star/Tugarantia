@@ -531,6 +531,19 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
   margin-top:4px}
 .gente-nota{font-size:12px;line-height:1.5;margin:var(--e3) 0 0}
 
+/* 24-nov-2026 — LOS DÍAS DEL MES (registro, «qué día te pagan» → «Otro»). Siete por
+   fila, como un calendario, y cada día de 44 px: se tocan con el pulgar en un teléfono
+   de 360. El marcado va con la laca y texto claro, no solo con un borde: en la calle,
+   con sol, un borde fino no se ve. Todo sobre sus propias clases. */
+.dias-mes{margin-top:10px}
+.dias-mes[hidden]{display:none}
+.dias-mes-t{font-size:13px;color:var(--gris);line-height:1.45;margin:0 0 8px}
+.dias-mes-g{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.dia-mes{min-height:44px;padding:0;border:1.5px solid var(--linea);border-radius:10px;background:var(--papel);
+  color:var(--tinta);font:inherit;font-size:15px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.dia-mes.on{background:var(--laca);border-color:var(--laca);color:var(--blanco-laca)}
+.dia-mes:focus-visible{outline:2px solid var(--azul);outline-offset:2px}
+
 /* 19-oct-2026 — 112 px y no 88. Estos dibujos tienen cara de verdad —cejas,
    pupilas, dedos— y a 88 se perdía justo eso. En un teléfono de 360 px le
    quedan 162 al texto, que sigue alcanzando para la frase y su apoyo.

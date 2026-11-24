@@ -670,7 +670,7 @@
      (media="not all"): la enciende panel/crm-movil.js, y solo en un celular o una
      tableta con el menú de Joan. En un computador no se enciende nunca, ni con la
      ventana angosta. Va después de la hoja de arriba porque la pisa. -->
-<link rel="stylesheet" href="crm-movil.css?v=159" media="not all" id="hojaMovil">
+<link rel="stylesheet" href="crm-movil.css?v=162" media="not all" id="hojaMovil">
 </head>
 <body>
 
@@ -1317,12 +1317,12 @@
 <!-- 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (crm-remoto.js, etapa U1 de
      RECETA-PLAN-UN-SOLO-CRM.md). En un computador no hace nada: decide por el tipo
      de aparato, nunca por el ancho. Va después de nube.js, que es quien trae. -->
-<script src="crm-remoto.js?v=159"></script>
+<script src="crm-remoto.js?v=162"></script>
 <!-- 24-nov-2026 — LA BARRA DE ABAJO Y «MÁS» (crm-movil.js): enciende la hoja del
      teléfono y mete en una caja las pestañas que no caben en la barra. Va después
      de crm-remoto.js, que es quien sabe si el aparato es un celular; y ANTES del
      guion de la página, que le cuelga irA a cada .navbtn dondequiera que esté. -->
-<script src="crm-movil.js?v=159"></script>
+<script src="crm-movil.js?v=162"></script>
 <script src="../app/puente.js?v=143"></script>
 <!-- El chat, compartido con app/socio.html por la misma razón que el puente:
      quien decide de qué lado va un mensaje y cómo se escapa el texto vive en un
@@ -1337,7 +1337,7 @@
 <!-- 8-sep-2026: dispositivoDe (la huella del registro, en palabras).
      19-oct-2026: ya NO se muestra el user-agent crudo si no llega: decía
      «Mozilla/5.0 (Linux; Android 10; K)…» y se leía como el teléfono. -->
-<script src="../app/cuenta.js?v=141"></script>
+<script src="../app/cuenta.js?v=160"></script>
 <!-- 19-oct-2026 — el teléfono de verdad: lo que informó el navegador del
      cliente (modelo, versión, nuestra app) y sus palabras para la ficha. Va
      después de cuenta.js, de donde toma el lector del user-agent. -->
@@ -2849,6 +2849,7 @@ function abrirJuntarCuenta(idReg,idSocio,soloJuntar,op){
   _juntarRev=null;
   openModal('¿Es la misma persona?',`
     ${op&&op.arriba?op.arriba:''}
+    <div id="juntarPasos"></div>
     <div class="help" style="margin-bottom:10px">Si la juntas, la cuenta que se registró con el <b>${escHTML(UP.bonito(r.telefono))}</b>
       ve desde ya el historial de esta ficha: lo que debe, sus créditos y su chat. Un desconocido con el número o la cédula de tu
       cliente lo vería todo. Por eso esto se decide mirando, nunca solo.</div>
@@ -2879,6 +2880,24 @@ function abrirJuntarCuenta(idReg,idSocio,soloJuntar,op){
    abrió antes que el registro o hay un recado de contraseña abierto, la nube
    no junta con un toque (vincular_interna): pide una clave nueva al número de
    la ficha y una hora. El botón que se ofrece es ese. */
+/* Lo que dice el aviso de arriba cuando un toque no basta (ver pintarCuentaDelToque).
+   Las dos razones son las mismas dos que mira la nube en vincular_interna: la cuenta
+   se abrió más de una hora antes del registro, o hay un recado de «Olvidé mi
+   contraseña» abierto. La hora de espera es la del token de quien estuviera adentro. */
+function avisoDosPasosJuntar(c,k){
+  const x=c||{}, kk=k||{};
+  const antes=Number(x.minutos_antes_del_registro)>60;
+  const razon=antes&&x.recado_abierto?'se abrió antes de este registro y además tiene un recado de «Olvidé mi contraseña» abierto'
+    :x.recado_abierto?'tiene un recado de «Olvidé mi contraseña» abierto'
+    :'se abrió antes de este registro';
+  const hora=kk.dada&&kk.desde?fmtFechaHora(kk.desde).slice(-5):'';
+  return '<div class="alerta warn" style="margin-bottom:10px"><b>Esta cuenta no se junta con un solo toque.</b> La cuenta de ese celular '
+    +razon+': mirando no se sabe quién ha tenido su contraseña. '
+    +(kk.dada
+      ?'Ya le diste la clave nueva: <b>se puede juntar desde las '+escHTML(hora)+'</b>. No hay que hacer nada más ahora.'
+      :'Son dos pasos: <b>1.</b> «🔑 Clave nueva al número de su ficha» (el botón está al final de esta ventana). <b>2.</b> Esperar una hora: después se junta.')
+    +'</div>';
+}
 function pintarCuentaDelToque(r,s,conBoton,soloJuntar,yaComparo){
   const soltarMesa=()=>{ const bm=document.getElementById('btnCruceJuntar'); if(bm) bm.disabled=false; };
   /* (v146) El toque se pinta solo en SU modal: si mientras la nube contestaba
@@ -2897,6 +2916,13 @@ function pintarCuentaDelToque(r,s,conBoton,soloJuntar,yaComparo){
       if(!c){ caja.innerHTML='<div class="alerta warn">La nube no encontró ese registro. Trae de nuevo los registrados.</div>'; quitarEsperaDelBoton(conBoton,b); return; }
       const llave=PUENTE.llaveEnLaNube(s), k=UP.claveNuevaPara(c,llave,Date.now());
       const pideClave=UP.requiereClaveNueva(c)&&!k.lista;
+      /* 24-nov-2026 — Y SE DICE ARRIBA. Joan, con su propia cuenta de prueba (abierta
+         un mes antes de registrarse): «sigue sin permitir juntar las cuentas». Sí se
+         podía: el botón «🔑 Clave nueva…» y su porqué estaban al final de la ventana,
+         debajo de la ficha, el historial y la revisión, y arriba solo se leía «Antes
+         de juntar: llama…». Una regla que frena y no se ve parece un daño. */
+      const cajaPasos=conBoton?document.getElementById('juntarPasos'):null;
+      if(cajaPasos) cajaPasos.innerHTML=pideClave?avisoDosPasosJuntar(c,k):'';
       /* 13-nov-2026 (revisión) — una clave nueva ya dada (desde aquí, desde un
          recado o desde el celular): desde cuándo solo entra quien recibió el
          WhatsApp. juntarCuentaEnLaNube lo anota en cuentaJunta.seguraDesde. */
@@ -12857,7 +12883,14 @@ function renderRegistros(){
            cruce sigue al lado para completar datos campo por campo. */
         ? (c0.fuerza>=2?`<button class="btn btn-rojo btn-sm" onclick="abrirJuntarCuenta('${escHTML(String(r.id))}','${escHTML(c0.socio.id)}')" title="Mira la ficha, la cuenta y la revisión, y júntala con un toque">🔗 ¿Es la misma persona?</button> `:'')
           +`<button class="btn ${c0.fuerza>=2?'btn-ghost':'btn-rojo'} btn-sm" onclick="mesaDeCruce('${escHTML(String(r.id))}','')">🔗 Cruzar con ${escHTML(codCliente(c0.socio))}</button>`
-        : `<button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button>`}
+        /* 24-nov-2026 — Y SI YA ES CLIENTE Y EL PUENTE NO LO RECONOCE. Joan: «no puedo
+           cruzar al cliente… no me da la opcion de cruzar». El puente solo propone una
+           ficha por cédula, por celular o por dos palabras del nombre; una ficha vieja
+           con otro número, sin cédula y con un nombre corto no sale, y aquí quedaba un
+           solo botón: abrirle una ficha NUEVA, o sea dos clientes donde hay una persona.
+           La mesa de cruce ya sabía cruzar a mano («Lo estás cruzando a mano»): le
+           faltaba la puerta. */
+        : `<button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button> <button class="btn btn-ghost btn-sm" onclick="buscarFichaParaCruzar('${escHTML(String(r.id))}')" title="Si ya es cliente tuyo y no salió marcado: busca su ficha y crúzalo con ella, en vez de abrirle una nueva">🔗 Ya es cliente: buscar su ficha</button>`}
         ${digitosDeBoton(r.telefono)?`<button class="btn btn-ghost btn-sm" onclick="asignarRegistro('${digitosDeBoton(r.telefono)}')" title="Que lo vea y le venda alguien de tu equipo">👤</button>`:''}
         <button class="btn btn-ghost btn-sm" onclick="descartarRegistro('${escHTML(String(r.id))}')" title="No abrirle cuenta">✕</button>
         ${digitosDeBoton(r.telefono)?`<button class="btn btn-ghost btn-sm" onclick="borrarParaProbar('${digitosDeBoton(r.telefono)}')" title="Borra su cuenta y todo lo suyo para que el MISMO numero se pueda volver a registrar. No se puede deshacer.">🧪 Borrar y repetir</button>`:''}</td></tr>`;}).join('')}</tbody></table>`;
@@ -23158,7 +23191,59 @@ function listaDeCandidatos(idReg){
         <div class="muted">${escHTML(c.porque)}</div></span>
       <span class="vv"><button class="btn btn-ghost btn-sm" onclick="mesaDeCruce('${escHTML(String(idReg))}','${escHTML(c.socio.id)}')">Compararlos</button></span></div>`).join('')}
     <div class="sub-h">Si no es ninguno</div>
+    <button class="btn btn-ghost" onclick="buscarFichaParaCruzar('${escHTML(String(idReg))}')" style="margin-bottom:8px">Es otro cliente mío · buscar su ficha</button>
     <button class="btn btn-negro" onclick="otraPersona('${escHTML(String(idReg))}')">Es alguien nuevo · abrirle su ficha</button>`);
+}
+
+/* 24-nov-2026 — CRUZAR CON UNA FICHA QUE JOAN ESCOGE.
+   El puente (PUENTE.candidatosDeCruce) reconoce a un cliente antiguo por su cédula, por
+   su celular, o porque dos palabras del nombre coinciden. Cuando nada de eso se da —la
+   ficha vieja tiene otro número, no tiene cédula y se llama con una sola palabra— el
+   registro no trae a quién parecerse, y antes la única salida era abrirle una ficha
+   nueva: el historial se quedaba en la vieja y la app del cliente salía vacía.
+   Aquí Joan busca la ficha por lo que recuerde y la manda a la MISMA mesa de cruce de
+   siempre, que es la que cuida lo delicado: pide confirmar que llamó al número de la
+   ficha, muestra el historial y deja decidir campo por campo. Esta pantalla no cruza
+   nada: solo escoge con quién comparar.
+   Sin texto no lista a nadie: una lista de toda la cartera invita a escoger por
+   parecido, que es justo como se mezclan dos personas. */
+function fichasParaCruzar(texto){
+  const plano=v=>String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const q=plano(texto).trim(); if(q.length<2) return [];
+  const numeros=q.replace(/\D/g,''), palabras=q.split(/\s+/).filter(Boolean);
+  return DB.socios.filter(s=>{
+    const nombre=plano(s.nombre), codigo=plano(codCliente(s));
+    const cifras=[s.telefono,s.telefono2,s.whatsappNumero,s.cedula].map(x=>String(x==null?'':x).replace(/\D/g,'')).filter(Boolean);
+    if(numeros.length>=3&&cifras.some(c=>c.indexOf(numeros)>=0)) return true;
+    if(codigo.indexOf(q)>=0) return true;
+    return palabras.every(p=>nombre.indexOf(p)>=0);
+  }).sort((a,b)=>String(a.nombre||'').localeCompare(String(b.nombre||''))).slice(0,20);
+}
+function buscarFichaParaCruzar(idReg){
+  const r=registroPorId(idReg); if(!r) return;
+  openModal('¿'+(r.nombre||'Este registro')+' ya es cliente tuyo?',`
+    <p class="sub">No lo reconocí solo: ni su cédula, ni su celular, ni su nombre coinciden con una ficha tuya. Si sabes quién es, búscalo y compáralos. Cruzar a dos personas distintas mezcla sus créditos, y eso no se puede deshacer.</p>
+    <div class="info-row"><span class="k">Se registró como</span><span class="vv"><b>${escHTML(r.nombre||'—')}</b> · ${escHTML(r.telefono||'sin celular')}${r.cedula?' · CC '+escHTML(r.cedula):''}</span></div>
+    <div class="field" style="margin-top:12px"><label for="cruceBusca">Busca su ficha</label><input id="cruceBusca" type="search" placeholder="Nombre, celular, cédula o CL-…" autocomplete="off" oninput="pintarFichasParaCruzar('${escHTML(String(idReg))}')"></div>
+    <div id="cruceFichas" style="margin-top:10px"></div>
+    <div class="sub-h">Si no es cliente tuyo</div>
+    <button class="btn btn-negro" onclick="otraPersona('${escHTML(String(idReg))}')">Es alguien nuevo · abrirle su ficha</button>`);
+  pintarFichasParaCruzar(idReg);
+}
+function pintarFichasParaCruzar(idReg){
+  const caja=document.getElementById('cruceFichas'), campo=document.getElementById('cruceBusca');
+  if(!caja) return;
+  const texto=campo?String(campo.value||''):'';
+  if(texto.trim().length<2){ caja.innerHTML='<div class="muted">Escribe al menos dos letras o tres números para buscar entre tus '+DB.socios.length+' clientes.</div>'; return; }
+  const halladas=fichasParaCruzar(texto);
+  if(!halladas.length){ caja.innerHTML='<div class="muted">Ninguna ficha tuya coincide con «'+escHTML(texto.trim())+'».</div>'; return; }
+  caja.innerHTML=halladas.map(s=>{
+    const abiertos=DB.prestamos.filter(p=>p.socioId===s.id&&!p.pagado).length, todos=DB.prestamos.filter(p=>p.socioId===s.id).length;
+    const cuenta=s.cuentaJunta?' · <b>ya tiene una cuenta junta</b> (con el '+escHTML(UP?UP.bonito(s.cuentaJunta.celular):String(s.cuentaJunta.celular||''))+')':'';
+    return `<div class="info-row"><span class="k"><b>${escHTML(codCliente(s))} ${escHTML(s.nombre||'')}</b>
+        <div class="muted">${escHTML(s.telefono||'sin celular')}${s.cedula?' · CC '+escHTML(s.cedula):' · sin cédula'} · ${todos} ${todos===1?'crédito':'créditos'}${abiertos?' ('+abiertos+' abierto'+(abiertos===1?'':'s')+')':''}${cuenta}</div></span>
+      <span class="vv"><button class="btn btn-ghost btn-sm" onclick="mesaDeCruce('${escHTML(String(idReg))}','${escHTML(s.id)}')">Compararlos</button></span></div>`;
+  }).join('')+(halladas.length===20?'<div class="muted" style="margin-top:6px">Salen las primeras 20: escribe más para afinar.</div>':'');
 }
 
 /* Lo que el cruce le cambia al CUPO, en pesos y antes de guardar. Es la única
@@ -27353,7 +27438,7 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
    cuando alguien sospechaba.
    VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
    él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v159';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v162';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }

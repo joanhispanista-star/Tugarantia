@@ -2951,7 +2951,43 @@
    NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit (vuelven los .svg); CACHE y VERSION_SITIO suben al
    número siguiente. El número nunca baja. */
-/* v159 — 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (etapa U1 de
+/* v159 — 24-nov-2026 — CRUZAR UN REGISTRO CON UNA FICHA QUE JOAN ESCOGE. Joan: «no puedo cruzar
+   al cliente… no me da la opcion de cruzar ya que se acaba de registrar».
+   El puente solo propone una ficha por cédula, por celular o por dos palabras del nombre. Con
+   una ficha vieja de otro número, sin cédula y de nombre corto, 📥 Registrados ofrecía un solo
+   botón: abrirle una ficha NUEVA (dos clientes donde hay una persona, y la app sin historial).
+   · En esa fila sale además «🔗 Ya es cliente: buscar su ficha»: Joan la busca por nombre,
+     celular, cédula o código, y pasa a la mesa de cruce de siempre, que es la que cruza.
+   · La lista de parecidos gana «Es otro cliente mío · buscar su ficha».
+   Solo cambia panel/crm.html. Pruebas: pruebas/cruce-a-mano.test.js.
+   CACHE y VERSION_SITIO suben a v159. NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+/* v160 — 24-nov-2026 — LA SESIÓN DEL CLIENTE NO SE CAE, Y «DIARIO» / «OTRO» EN EL DÍA DE PAGO.
+   Joan: «quiero que el cliente siempre este conectado a la app… que la cuenta siempre permanesca
+   abierta» y «si el cliente selecciona otro… que seleccione la fecha o las fechas en un
+   calendario, tambien deja la opcion semanal o la opcion diaria».
+   · app/sesion-socio.js: al renovar la sesión, un 429 («muchos intentos») o un 408 ya no se
+     toman por sesión muerta: la app muestra lo último que tenía y reintenta. Y si OTRA pestaña
+     ya renovó (el token de renovar se usa una sola vez), se sigue con la sesión que esa pestaña
+     dejó guardada en el teléfono en vez de pedir la contraseña. Una clave nueva o «Salir»
+     siguen cerrándola. app/socio.html le presta lo guardado (CFG.releer).
+   · app/cuenta.js: «Qué día te pagan» gana «Diario» y «Otro» («Semanal» ya estaba). «Otro»
+     abre los días del mes en play/ y el valor viaja en el MISMO campo («Otro: 5 y 20»): el
+     registro manda 39 de los 40 pares que guarda registrar_abierto, y un campo nuevo sería el
+     que se bota callado. «Otro» sin días no pasa.
+   · panel/crm.html: «¿Es la misma persona?» dice ARRIBA cuando la cuenta no se junta con un
+     toque (se abrió antes del registro, o tiene un recado de contraseña abierto): los dos pasos
+     —clave nueva al número de la ficha, y una hora— estaban al final de la ventana y Joan no
+     los vio («sigue sin permitir juntar las cuentas»). La regla de la nube no cambia.
+   Cambian app/sesion-socio.js (?v=160), app/cuenta.js (?v=160, en las seis páginas que lo
+   piden), app/socio.html, play/index.html, play/estilo.css y panel/crm.html. Pruebas nuevas:
+   pruebas/sesion-que-no-se-cae.test.js, pruebas/dia-de-pago.test.js y
+   pruebas/juntar-dice-los-dos-pasos.test.js.
+   CACHE y VERSION_SITIO suben a v160. NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+/* v162 — 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (etapa U1 de
    RECETA-PLAN-UN-SOLO-CRM.md). Joan: «quiero poder abrir el crm desde mi celular… tener toda
    la informacion actualizada en mi telefono, no quiero subir nada a la nube de forma manual».
    Lo que abría su iPhone era el Panel en el bolsillo, otra pantalla con su propia copia.
@@ -2966,8 +3002,8 @@
    · No llegan prospectos, bases ni papeleras, ni el PIN del computador. Solicitudes, Chat,
      Registrados, Ventas, Bases y Ajustes abren y dicen que por ahora se miran en el computador.
    · En un computador no cambia nada: la decisión es por el tipo de aparato, nunca por el ancho.
-   Cambian panel/crm.html (ocho enganches) y entra panel/crm-remoto.js?v=159 a la precarga.
-   Pruebas nuevas: pruebas/crm-remoto.test.js. CACHE y VERSION_SITIO suben a v159.
+   Cambian panel/crm.html (ocho enganches) y entra panel/crm-remoto.js?v=162 a la precarga.
+   Pruebas nuevas: pruebas/crm-remoto.test.js. CACHE y VERSION_SITIO suben a v162.
    24-nov-2026, SEGUNDA PARTE (misma versión, todavía sin publicar): CÓMO SE VE EN EL TELÉFONO.
    Joan: «hay muchas pestañas que no me aparecen desde el celular… modificalo».
    · panel/crm-movil.css, NUEVA: la hoja del teléfono. Llega apagada (<link media="not all">)
@@ -2985,7 +3021,7 @@
      de crm.html que explicaban botones escondidos cambian en ese modo (soloMirar()).
    · Los rótulos de las fichas van por la posición de la columna: pruebas/crm-movil.test.js
      pinta las seis tablas y compara sus <th> con la hoja.
-   Entran a la precarga panel/crm-movil.js?v=159 y panel/crm-movil.css?v=159.
+   Entran a la precarga panel/crm-movil.js?v=162 y panel/crm-movil.css?v=162.
    24-nov-2026, TERCERA PARTE (misma versión, sin publicar). Joan: «no quiero tener que
    ingresar con correo… solo quiero que sea ingresar con mi numero de celular y la contraseña…
    quiero que el CRM siempre este abierto en mi celular… que se vea la hora y fecha de registro».
@@ -3004,8 +3040,11 @@
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
    número nunca baja.
    NACIÓ COMO v158: las fotos de la portada salieron primero con ese número (24-nov-2026),
-   así que esta entrega pasa a v159. */
-const CACHE = 'tugarantia-v159';
+   así que esta entrega pasa a v159.
+   Y DE v159 A v162 (24-nov-2026): antes salieron el cruce a mano (v159) y la sesión del cliente
+   con el día de pago (v160), y v161 quedó apartado para los extractos. Las tres piezas del
+   celular (crm-remoto.js, crm-movil.js y crm-movil.css) van con ?v=162. */
+const CACHE = 'tugarantia-v162';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3033,7 +3072,7 @@ const ARCHIVOS = [
   /* 7-oct-2026 — la puerta unica de la app del socio. Ver la nota de v132.
      9-nov-2026 — ?v=143: textoSinJuntar dice primero lo de su solicitud de
      crédito (ver la nota de v143, «la propuesta en la app»). */
-  'app/sesion-socio.js?v=143',
+  'app/sesion-socio.js?v=160',
   /* 9-nov-2026 — la propuesta en la app instalada (app/socio.html): ver y
      aceptar la propuesta de Joan con las mismas funciones de la base que
      play/. NUEVO, pero con ?v=143 en la dirección, como lo pide la página:
@@ -3072,9 +3111,9 @@ const ARCHIVOS = [
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
   'panel/nube-crm.js?v=143',   // 4-nov-2026 — ?v=143: una nota sobre la pestaña vieja; la regla mira el texto (ver la nota de v143)
   /* 23-nov-2026 — el CRM en un celular, solo para mirar. Ver la nota de v158. */
-  'panel/crm-remoto.js?v=159',
-  'panel/crm-movil.js?v=159',    // 24-nov-2026 — la barra de abajo y «Más» del CRM en un teléfono
-  'panel/crm-movil.css?v=159',   // la hoja del teléfono: llega apagada, la enciende crm-movil.js
+  'panel/crm-remoto.js?v=162',
+  'panel/crm-movil.js?v=162',    // 24-nov-2026 — la barra de abajo y «Más» del CRM en un teléfono
+  'panel/crm-movil.css?v=162',   // la hoja del teléfono: llega apagada, la enciende crm-movil.js
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
   'panel/historiales-auto.js?v=147',
   /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132.
@@ -3117,7 +3156,7 @@ const ARCHIVOS = [
   'play/index.html',
   'play/estilo.css',
   'play/app.webmanifest',
-  'app/cuenta.js?v=141',   // 28-oct-2026 — ?v=141: para qué son las referencias, como la política (ver la nota de v141)
+  'app/cuenta.js?v=160',   // 28-oct-2026 — ?v=141: para qué son las referencias, como la política (ver la nota de v141)
   /* 19-oct-2026 — el telefono de verdad: play/, app/socio.html y el CRM lo
      cargan con un <script src>. Sin el, la app instalada no anota el aparato
      (la pagina se protege sola) y el CRM no lo pone en palabras. Ver v138. */

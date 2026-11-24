@@ -409,8 +409,21 @@
     { id: 'gastos_mes',   etiqueta: 'Cuánto se te va fijo al mes', grupo: 'ingresos', tipo: 'pesos', obligatorio: true,
       ejemplo: '600.000', ceroVale: true,
       porque: 'La otra mitad. Sin esto, el ingreso solo no dice nada.' },
+    /* 24-nov-2026 — «DIARIO» Y «OTRO», Y «OTRO» ABRE LOS DÍAS DEL MES. Joan: «si
+       el cliente selecciona otro entonses que automaticamente el cliente
+       seleccione la fecha o las fechas en un calendario, tambien deja la opcion
+       semanal o la opcion diaria ya que hay clientes que trabajan en la
+       informalidad al diario». «Semanal» ya estaba.
+       · Las cuatro de antes NO cambian de nombre: hay registros guardados y
+         doce pruebas con «Quincenal (15 y 30)».
+       · Los días van DENTRO del mismo valor («Otro: 5 y 20»), no en un campo
+         nuevo: registrar_abierto guarda como mucho 40 pares y ya viajan 39; el
+         par 41 se bota callado y se llevaría la versión de la autorización.
+       · Pregunta cuándo le llega la plata a la persona. NO promete un crédito
+         semanal ni diario: el plazo lo dice la propuesta, no este campo. */
     { id: 'dia_pago',     etiqueta: 'Qué día te pagan',       grupo: 'ingresos',  tipo: 'opcion', obligatorio: true,
-      opciones: ['Quincenal (15 y 30)', 'Mensual, fin de mes', 'Semanal', 'No es fijo'],
+      opciones: ['Quincenal (15 y 30)', 'Mensual, fin de mes', 'Semanal', 'Diario', 'Otro', 'No es fijo'],
+      conDias: 'Otro',
       porque: 'Para que la fecha de tu cuota caiga después de que te paguen, y no antes.' },
 
     /* --- quién lo conoce ---
@@ -517,6 +530,35 @@
    * Qué falta para poder mandar el registro.
    * @returns {object} {ok, faltan:[{id, etiqueta}], errores:[{id, motivo}]}
    */
+  /* ------------------------------------------------- los días del mes («Otro»)
+     «Otro: 5, 12 y 20» ⇄ [5, 12, 20]. Un solo formato, hecho aquí: lo arma el
+     calendario del registro, lo valida revisarVinculacion y lo lee el CRM tal
+     cual, como texto. Días del 1 al 31, sin repetir y en orden. */
+  function diasDePago(valor) {
+    var m = /^Otro:\s*(.+)$/.exec(String(valor == null ? '' : valor).trim());
+    if (!m) return [];
+    var vistos = {}, dias = [];
+    m[1].split(/\s*(?:,|\sy\s)\s*/).forEach(function (t) {
+      if (!/^\d{1,2}$/.test(t)) return;
+      var n = Number(t);
+      if (n >= 1 && n <= 31 && !vistos[n]) { vistos[n] = true; dias.push(n); }
+    });
+    return dias.sort(function (a, b) { return a - b; });
+  }
+  function textoDeDias(dias) {
+    var d = diasDePago('Otro: ' + (Array.isArray(dias) ? dias.join(', ') : ''));
+    if (!d.length) return 'Otro';
+    if (d.length === 1) return 'Otro: ' + d[0];
+    return 'Otro: ' + d.slice(0, -1).join(', ') + ' y ' + d[d.length - 1];
+  }
+  /** Quita o pone un día y devuelve el valor nuevo del campo. */
+  function alternarDiaDePago(valor, dia) {
+    var d = diasDePago(valor), n = Number(dia), i = d.indexOf(n);
+    if (!(n >= 1 && n <= 31)) return textoDeDias(d);
+    if (i >= 0) d.splice(i, 1); else d.push(n);
+    return textoDeDias(d);
+  }
+
   function revisarVinculacion(datos) {
     var d = datos || {};
     var faltan = [], errores = [];
@@ -539,7 +581,14 @@
       if (c.tipo === 'correo' && !correoValido(v)) {
         errores.push({ id: c.id, motivo: 'Ese correo no parece completo: revisa que tenga @ y un punto después, como nombre@gmail.com.' });
       }
-      if (c.tipo === 'opcion' && c.opciones && c.opciones.indexOf(String(v)) === -1) {
+      /* «Otro» pide sus días: solo, o con algo que no sea el formato de
+         textoDeDias, no pasa. Así no llega al CRM un «Otro» que no dice nada. */
+      if (c.tipo === 'opcion' && c.conDias && String(v).indexOf(c.conDias) === 0) {
+        var dias = diasDePago(v);
+        if (!dias.length || textoDeDias(dias) !== String(v)) {
+          errores.push({ id: c.id, motivo: 'Marca el día o los días del mes en que te pagan.' });
+        }
+      } else if (c.tipo === 'opcion' && c.opciones && c.opciones.indexOf(String(v)) === -1) {
         errores.push({ id: c.id, motivo: 'Escoge una de las opciones.' });
       }
     });
@@ -1073,6 +1122,7 @@
     CAMPOS: CAMPOS,
     GRUPOS: GRUPOS,
     camposDelGrupo: camposDelGrupo,
+    diasDePago: diasDePago, textoDeDias: textoDeDias, alternarDiaDePago: alternarDiaDePago,
     camposObligatorios: camposObligatorios,
     revisarVinculacion: revisarVinculacion,
 

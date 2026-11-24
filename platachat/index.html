@@ -185,7 +185,7 @@ var VERSION_APP = '2026-11-13';
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja. Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no
    deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v159';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v162';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 (function () {
   var v = document.getElementById('holaVersion');
   if (v) v.textContent = 'Versión ' + VERSION_APP + ' · ' + VERSION_SITIO;
@@ -331,7 +331,7 @@ setTimeout(function () {
      justo después del motor porque lo toma de window.MotorReglas al cargar. -->
 <script src="../app/ficha.js"></script>
 <script src="../app/puente.js?v=143"></script>
-<script src="../app/cuenta.js?v=141"></script>
+<script src="../app/cuenta.js?v=160"></script>
 <!-- 22-oct-2026 — «¿A dónde te consignamos?» al aceptar: la lista de bancos y
      las reglas de la cuenta, las mismas de play/. Sin ellas se acepta como
      antes y la cuenta se pregunta por el chat de Créditos. -->

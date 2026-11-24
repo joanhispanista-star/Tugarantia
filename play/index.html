@@ -534,7 +534,7 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
 <div class="wrap"><div id="cuerpo"></div></div>
 
 <script src="../app/creditos.js"></script>
-<script src="../app/cuenta.js?v=141"></script>
+<script src="../app/cuenta.js?v=160"></script>
 <!-- 22-oct-2026 — dónde recibe la plata el cliente: la lista de bancos (con su
      fuente y su fecha) y las reglas del paso «¿Dónde te enviamos la plata?» y
      de «¿A dónde te consignamos?» al aceptar. NO entran al guardián de abajo:
@@ -736,7 +736,7 @@ var VERSION_PLAY = '2026-11-24';
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
    Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no deja pasar
    uno sin el otro. Sale también en el sello del pie. */
-var VERSION_SITIO = 'v159';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v162';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -2912,9 +2912,47 @@ function soltarLoSensibleDelRegistro() {
    «lo escribió la persona» y «lo leyó la máquina» se pueden confundir. */
 var CAMPOS_DE_LA_CEDULA = ['nombres', 'apellidos', 'documento'];
 
+/* 24-nov-2026 — LOS DÍAS DEL MES DE «OTRO» (qué día te pagan). Joan: «si el
+   cliente selecciona otro entonses que automaticamente el cliente seleccione la
+   fecha o las fechas en un calendario». Es una cuadrícula del 1 al 31 y no un
+   <input type="date">: un campo de fecha escoge UN día de UN mes, y lo que se
+   pregunta es qué días se repiten todos los meses. Sale solo con «Otro».
+   El valor sigue viviendo en REGISTRO.dia_pago («Otro: 5 y 20»): lo arma y lo
+   lee U (app/cuenta.js), que es quien después lo valida. */
+function calendarioDeDias(c, v) {
+  var abierto = String(v).indexOf(c.conDias) === 0, puestos = U.diasDePago(v), h = '';
+  for (var d = 1; d <= 31; d++) {
+    var on = puestos.indexOf(d) >= 0;
+    h += '<button type="button" class="dia-mes' + (on ? ' on' : '') + '" aria-pressed="' + (on ? 'true' : 'false') +
+      '" onclick="marcarDiaDePago(\'' + esc(c.id) + '\',' + d + ',this)">' + d + '</button>';
+  }
+  return '<div class="dias-mes" id="dias_' + esc(c.id) + '"' + (abierto ? '' : ' hidden') + '>' +
+    '<p class="dias-mes-t">Marca el día o los días del mes en que te pagan.</p>' +
+    '<div class="dias-mes-g" role="group" aria-label="Días del mes">' + h + '</div></div>';
+}
+function marcarDiaDePago(campo, dia, boton) {
+  REGISTRO[campo] = U.alternarDiaDePago(REGISTRO[campo], dia);
+  guardarBorrador(REGISTRO);
+  var on = U.diasDePago(REGISTRO[campo]).indexOf(Number(dia)) >= 0;
+  if (boton) { boton.className = 'dia-mes' + (on ? ' on' : ''); boton.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+}
 function anotarCampo(el) {
   if (!el || !el.id || el.id.indexOf('f_') !== 0) return;
   var campo = el.id.slice(2);
+  /* 24-nov-2026 — la lista de «qué día te pagan»: con «Otro» se abre el
+     calendario y el valor conserva los días que ya estuvieran marcados; con
+     cualquier otra, el calendario se cierra y el valor es el de la lista. */
+  var cajaDias = $('dias_' + campo);
+  if (cajaDias && el.tagName === 'SELECT') {
+    var conDias = (U.camposDelGrupo('ingresos').filter(function (x) { return x.id === campo; })[0] || {}).conDias;
+    var esOtro = !!conDias && el.value === conDias;
+    cajaDias.hidden = !esOtro;
+    if (esOtro) {
+      REGISTRO[campo] = U.textoDeDias(U.diasDePago(REGISTRO[campo]));
+      guardarBorrador(REGISTRO);
+      return;
+    }
+  }
   /* 22-sep-2026 — SE ANOTA QUIÉN ESCRIBIÓ CADA COSA, y hace falta por un
      camino concreto: «Volver» deja regresar al paso de la cédula después de
      haber corregido la identidad, y un reescaneo pisaba lo corregido en
@@ -3046,8 +3084,11 @@ function pasoCampos(grupo) {
            exigiendo que la persona elija. */
         '<option value="" disabled hidden' + (String(v) ? '' : ' selected') + '>Toca para elegir</option>' +
         c.opciones.map(function (o) {
-          return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>';
-        }).join('') + '</select>';
+          /* 24-nov-2026 — «Otro: 5 y 20» se ve en la lista como «Otro»: los
+             días están en el calendario de abajo. */
+          var esta = c.conDias && String(v).indexOf(c.conDias) === 0 ? o === c.conDias : String(v) === o;
+          return '<option value="' + esc(o) + '"' + (esta ? ' selected' : '') + '>' + esc(o) + '</option>';
+        }).join('') + '</select>' + (c.conDias ? calendarioDeDias(c, v) : '');
     } else {
       var tipo = c.tipo === 'celular' ? 'tel'
                : c.tipo === 'correo'  ? 'email'
@@ -3747,6 +3788,10 @@ function recogerPaso() {
     /* 8-oct-2026 — el celular de este paso es de solo lectura (es el del paso
        1, pintado bonito): no se vuelve a leer de la casilla. */
     if (c.id === 'celular') return;
+    /* 24-nov-2026 — con «Otro», la lista dice «Otro» y los días están en el
+       calendario: el valor es el que se fue armando («Otro: 5 y 20»), no el de
+       la lista. Leerlo de la casilla borraría los días al tocar «Continuar». */
+    if (c.conDias && el && el.value === c.conDias) { REGISTRO[c.id] = U.textoDeDias(U.diasDePago(REGISTRO[c.id])); return; }
     /* Los pesos se guardan en dígitos (ver anotarPesos): en pantalla dicen
        1,500.000, en el borrador y en el CRM 1500000. */
     if (el) REGISTRO[c.id] = c.tipo === 'pesos' ? String(el.value || '').replace(/\D/g, '') : el.value;
