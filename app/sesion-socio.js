@@ -192,6 +192,15 @@
           if (n) { if (!n.celular) n.celular = s.celular; return n; }
         }
         if (r.estado >= 500) return Promise.reject({ causa: 'red' });
+        /* 24-nov-2026 — «MUCHOS INTENTOS» NO ES «SESIÓN MUERTA». Joan: «quiero que
+           el cliente siempre este conectado… que la cuenta siempre permanesca
+           abierta». Aquí todo lo que no fuera un 5xx se tomaba por sesión que ya
+           no sirve, y la app borraba la cuenta del teléfono y pedía la contraseña.
+           Un 429 es Supabase frenando por unos segundos (la app abierta en dos
+           pestañas, la red que reintenta) y un 408 es un corte: en los dos casos
+           el token de renovar sigue siendo bueno. Se contesta «red»: la app
+           muestra lo último que tenía y vuelve a intentar después. */
+        if (r.estado === 429 || r.estado === 408) return Promise.reject({ causa: 'red', estado: r.estado });
         return Promise.reject({ causa: 'sesion' });
       });
   }
@@ -225,12 +234,28 @@
     var actual = s, renovada = false;
     /* Una sola renovación por llamada: si el token de renovar ya no sirve,
        insistir no lo arregla y gasta el tope de intentos de Supabase. */
+    var guardarla = function (n) {
+      actual = n;
+      if (typeof alRenovar === 'function') { try { alRenovar(n); } catch (e) { /* nada */ } }
+      return n;
+    };
     var renovar = function () {
       renovada = true;
-      return refrescar(cfg, actual).then(function (n) {
-        actual = n;
-        if (typeof alRenovar === 'function') { try { alRenovar(n); } catch (e) { /* nada */ } }
-        return n;
+      return refrescar(cfg, actual).then(guardarla, function (e) {
+        /* 24-nov-2026 — OTRA PESTAÑA YA LA RENOVÓ. El token de renovar se usa una
+           sola vez: con la app abierta en dos pestañas (o la instalada y el
+           navegador), la que llega segunda recibe «ya no sirve» aunque la cuenta
+           esté perfectamente abierta: la otra guardó la sesión nueva en el
+           teléfono un instante antes. Antes de dar la sesión por muerta se mira
+           lo guardado (`cfg.releer`, que pone la página; este archivo no decide
+           dónde se guarda). Si es OTRA sesión, se sigue con esa. Si es la misma,
+           de verdad murió. */
+        if (!e || e.causa !== 'sesion' || typeof cfg.releer !== 'function') throw e;
+        var otra = null;
+        try { otra = cfg.releer(); } catch (e2) { otra = null; }
+        if (!otra || !otra.access_token || !otra.refresh_token || otra.refresh_token === actual.refresh_token) throw e;
+        if (vigente(otra, ahora(cfg))) return guardarla(otra);
+        return refrescar(cfg, otra).then(guardarla);
       });
     };
     var primero = vigente(actual, ahora(cfg)) ? Promise.resolve(actual) : renovar();

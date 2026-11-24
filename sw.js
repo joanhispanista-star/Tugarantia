@@ -2963,7 +2963,31 @@
    CACHE y VERSION_SITIO suben a v159. NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
    número nunca baja. */
-const CACHE = 'tugarantia-v159';
+/* v160 — 24-nov-2026 — LA SESIÓN DEL CLIENTE NO SE CAE, Y «DIARIO» / «OTRO» EN EL DÍA DE PAGO.
+   Joan: «quiero que el cliente siempre este conectado a la app… que la cuenta siempre permanesca
+   abierta» y «si el cliente selecciona otro… que seleccione la fecha o las fechas en un
+   calendario, tambien deja la opcion semanal o la opcion diaria».
+   · app/sesion-socio.js: al renovar la sesión, un 429 («muchos intentos») o un 408 ya no se
+     toman por sesión muerta: la app muestra lo último que tenía y reintenta. Y si OTRA pestaña
+     ya renovó (el token de renovar se usa una sola vez), se sigue con la sesión que esa pestaña
+     dejó guardada en el teléfono en vez de pedir la contraseña. Una clave nueva o «Salir»
+     siguen cerrándola. app/socio.html le presta lo guardado (CFG.releer).
+   · app/cuenta.js: «Qué día te pagan» gana «Diario» y «Otro» («Semanal» ya estaba). «Otro»
+     abre los días del mes en play/ y el valor viaja en el MISMO campo («Otro: 5 y 20»): el
+     registro manda 39 de los 40 pares que guarda registrar_abierto, y un campo nuevo sería el
+     que se bota callado. «Otro» sin días no pasa.
+   · panel/crm.html: «¿Es la misma persona?» dice ARRIBA cuando la cuenta no se junta con un
+     toque (se abrió antes del registro, o tiene un recado de contraseña abierto): los dos pasos
+     —clave nueva al número de la ficha, y una hora— estaban al final de la ventana y Joan no
+     los vio («sigue sin permitir juntar las cuentas»). La regla de la nube no cambia.
+   Cambian app/sesion-socio.js (?v=160), app/cuenta.js (?v=160, en las seis páginas que lo
+   piden), app/socio.html, play/index.html, play/estilo.css y panel/crm.html. Pruebas nuevas:
+   pruebas/sesion-que-no-se-cae.test.js, pruebas/dia-de-pago.test.js y
+   pruebas/juntar-dice-los-dos-pasos.test.js.
+   CACHE y VERSION_SITIO suben a v160. NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+const CACHE = 'tugarantia-v160';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -2991,7 +3015,7 @@ const ARCHIVOS = [
   /* 7-oct-2026 — la puerta unica de la app del socio. Ver la nota de v132.
      9-nov-2026 — ?v=143: textoSinJuntar dice primero lo de su solicitud de
      crédito (ver la nota de v143, «la propuesta en la app»). */
-  'app/sesion-socio.js?v=143',
+  'app/sesion-socio.js?v=160',
   /* 9-nov-2026 — la propuesta en la app instalada (app/socio.html): ver y
      aceptar la propuesta de Joan con las mismas funciones de la base que
      play/. NUEVO, pero con ?v=143 en la dirección, como lo pide la página:
@@ -3071,7 +3095,7 @@ const ARCHIVOS = [
   'play/index.html',
   'play/estilo.css',
   'play/app.webmanifest',
-  'app/cuenta.js?v=141',   // 28-oct-2026 — ?v=141: para qué son las referencias, como la política (ver la nota de v141)
+  'app/cuenta.js?v=160',   // 28-oct-2026 — ?v=141: para qué son las referencias, como la política (ver la nota de v141)
   /* 19-oct-2026 — el telefono de verdad: play/, app/socio.html y el CRM lo
      cargan con un <script src>. Sin el, la app instalada no anota el aparato
      (la pagina se protege sola) y el CRM no lo pone en palabras. Ver v138. */

@@ -1323,7 +1323,7 @@
 <!-- 8-sep-2026: dispositivoDe (la huella del registro, en palabras).
      19-oct-2026: ya NO se muestra el user-agent crudo si no llega: decía
      «Mozilla/5.0 (Linux; Android 10; K)…» y se leía como el teléfono. -->
-<script src="../app/cuenta.js?v=141"></script>
+<script src="../app/cuenta.js?v=160"></script>
 <!-- 19-oct-2026 — el teléfono de verdad: lo que informó el navegador del
      cliente (modelo, versión, nuestra app) y sus palabras para la ficha. Va
      después de cuenta.js, de donde toma el lector del user-agent. -->
@@ -2824,6 +2824,7 @@ function abrirJuntarCuenta(idReg,idSocio,soloJuntar,op){
   _juntarRev=null;
   openModal('¿Es la misma persona?',`
     ${op&&op.arriba?op.arriba:''}
+    <div id="juntarPasos"></div>
     <div class="help" style="margin-bottom:10px">Si la juntas, la cuenta que se registró con el <b>${escHTML(UP.bonito(r.telefono))}</b>
       ve desde ya el historial de esta ficha: lo que debe, sus créditos y su chat. Un desconocido con el número o la cédula de tu
       cliente lo vería todo. Por eso esto se decide mirando, nunca solo.</div>
@@ -2854,6 +2855,24 @@ function abrirJuntarCuenta(idReg,idSocio,soloJuntar,op){
    abrió antes que el registro o hay un recado de contraseña abierto, la nube
    no junta con un toque (vincular_interna): pide una clave nueva al número de
    la ficha y una hora. El botón que se ofrece es ese. */
+/* Lo que dice el aviso de arriba cuando un toque no basta (ver pintarCuentaDelToque).
+   Las dos razones son las mismas dos que mira la nube en vincular_interna: la cuenta
+   se abrió más de una hora antes del registro, o hay un recado de «Olvidé mi
+   contraseña» abierto. La hora de espera es la del token de quien estuviera adentro. */
+function avisoDosPasosJuntar(c,k){
+  const x=c||{}, kk=k||{};
+  const antes=Number(x.minutos_antes_del_registro)>60;
+  const razon=antes&&x.recado_abierto?'se abrió antes de este registro y además tiene un recado de «Olvidé mi contraseña» abierto'
+    :x.recado_abierto?'tiene un recado de «Olvidé mi contraseña» abierto'
+    :'se abrió antes de este registro';
+  const hora=kk.dada&&kk.desde?fmtFechaHora(kk.desde).slice(-5):'';
+  return '<div class="alerta warn" style="margin-bottom:10px"><b>Esta cuenta no se junta con un solo toque.</b> La cuenta de ese celular '
+    +razon+': mirando no se sabe quién ha tenido su contraseña. '
+    +(kk.dada
+      ?'Ya le diste la clave nueva: <b>se puede juntar desde las '+escHTML(hora)+'</b>. No hay que hacer nada más ahora.'
+      :'Son dos pasos: <b>1.</b> «🔑 Clave nueva al número de su ficha» (el botón está al final de esta ventana). <b>2.</b> Esperar una hora: después se junta.')
+    +'</div>';
+}
 function pintarCuentaDelToque(r,s,conBoton,soloJuntar,yaComparo){
   const soltarMesa=()=>{ const bm=document.getElementById('btnCruceJuntar'); if(bm) bm.disabled=false; };
   /* (v146) El toque se pinta solo en SU modal: si mientras la nube contestaba
@@ -2872,6 +2891,13 @@ function pintarCuentaDelToque(r,s,conBoton,soloJuntar,yaComparo){
       if(!c){ caja.innerHTML='<div class="alerta warn">La nube no encontró ese registro. Trae de nuevo los registrados.</div>'; quitarEsperaDelBoton(conBoton,b); return; }
       const llave=PUENTE.llaveEnLaNube(s), k=UP.claveNuevaPara(c,llave,Date.now());
       const pideClave=UP.requiereClaveNueva(c)&&!k.lista;
+      /* 24-nov-2026 — Y SE DICE ARRIBA. Joan, con su propia cuenta de prueba (abierta
+         un mes antes de registrarse): «sigue sin permitir juntar las cuentas». Sí se
+         podía: el botón «🔑 Clave nueva…» y su porqué estaban al final de la ventana,
+         debajo de la ficha, el historial y la revisión, y arriba solo se leía «Antes
+         de juntar: llama…». Una regla que frena y no se ve parece un daño. */
+      const cajaPasos=conBoton?document.getElementById('juntarPasos'):null;
+      if(cajaPasos) cajaPasos.innerHTML=pideClave?avisoDosPasosJuntar(c,k):'';
       /* 13-nov-2026 (revisión) — una clave nueva ya dada (desde aquí, desde un
          recado o desde el celular): desde cuándo solo entra quien recibió el
          WhatsApp. juntarCuentaEnLaNube lo anota en cuentaJunta.seguraDesde. */
@@ -27337,7 +27363,7 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
    cuando alguien sospechaba.
    VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
    él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v159';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v160';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }

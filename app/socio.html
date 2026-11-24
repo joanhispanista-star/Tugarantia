@@ -1076,7 +1076,7 @@ var VERSION_APP = '2026-11-23';
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
    tiene lo último (las fechas son tres y van a mano). Sube con CACHE, siempre:
    pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v159';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v160';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1155,7 +1155,7 @@ setTimeout(function () {
      celular (la misma regla de play/); sesion-socio.js habla con Supabase Auth y
      con mi_cuenta; ver-como.js es el pase de un uso del «👁 Ver la app como la
      ve él» del CRM. Si alguno no llega, la pantalla de entrar lo dice. -->
-<script src="cuenta.js?v=141"></script>
+<script src="cuenta.js?v=160"></script>
 <!-- 19-oct-2026 — desde qué teléfono pide (modelo, versión, nuestra app), para
      el CRM de Joan. Si no llega, no se manda nada y la app sigue igual. -->
 <script src="aparato.js"></script>
@@ -1210,7 +1210,7 @@ setTimeout(function () {
      misiones.js es NUEVO: sin versión; si no llega, la Pista se ve como antes. -->
 <script src="pista-niveles.js?v=157"></script>
 <script src="misiones.js"></script>
-<script src="sesion-socio.js?v=143"></script>
+<script src="sesion-socio.js?v=160"></script>
 <script src="ver-como.js"></script>
 <!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
      momento seguro (momentoSeguroSocio). Si no llega, la app sigue igual. -->
@@ -1291,6 +1291,17 @@ var CFG = (function () {
         if (g && g.url && g.anon) return g; } catch (e) {}
   return CFG_POR_DEFECTO;
 })();
+/* 24-nov-2026 — para que la sesión no se cierre porque OTRA pestaña la renovó primero:
+   sesion-socio.js pregunta aquí qué hay guardado antes de darla por muerta (ver
+   conSesion). Se copia el objeto: CFG_POR_DEFECTO no se toca. */
+CFG = (function (c) {
+  var k, n = {};
+  for (k in c) if (Object.prototype.hasOwnProperty.call(c, k)) n[k] = c[k];
+  n.releer = function () {
+    try { return window.SesionSocio ? window.SesionSocio.leer(localStorage) : null; } catch (e) { return null; }
+  };
+  return n;
+})(CFG);
 
 var M = window.MotorReglas;
 var $ = function (id) { return document.getElementById(id); };
