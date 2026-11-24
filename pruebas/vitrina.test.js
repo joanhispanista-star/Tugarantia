@@ -2368,7 +2368,7 @@ describe('lo que se dibujó para vender no puede prometer (16-sep-2026)', () => 
     assert.ok(h.indexOf(P.ev('TEXTOS.gente_pie')) >= 0,
       'se fue el descargo de que no se promete una hora');
     assert.ok(h.indexOf(P.ev('TEXTOS.gente_nota')) >= 0,
-      'se fue la nota de que las personas son ilustraciones y no clientes');
+      'se fue la nota de que las personas son fotos creadas con IA y no clientes');
   });
 
   test('NINGUNA de las razones promete un plazo de respuesta', () => {
@@ -2453,7 +2453,8 @@ describe('lo que se dibujó para vender no puede prometer (16-sep-2026)', () => 
 
        19-oct-2026 — esto vale para los <svg> EN LÍNEA de index.html. Los de
        play/gente/ son archivos que entran por un <img>, y ahí es al revés: sin
-       xmlns el navegador no los pinta. Los vigila pruebas/gente-ilustrada.test.js. */
+       xmlns el navegador no los pinta. Los vigilaba pruebas/gente-ilustrada.test.js;
+       desde el 24-nov-2026 la gente son fotos y las vigila pruebas/gente-en-foto.test.js. */
     const svgs = VIVO.match(/<svg[^>]*>/g) || [];
     assert.ok(svgs.length > 0, 'se fueron todos los dibujos de la puerta pública');
     svgs.forEach(s => assert.equal(/xmlns/.test(s), false,
@@ -2585,11 +2586,24 @@ describe('lo que la revisión del 17-sep encontró y no puede volver', () => {
     assert.ok(enLinea.length === 1 && pedidos.length === 3,
       'cambió el número de dibujos: revisa esta prueba');
     const carpeta = path.join(__dirname, '..', 'play', 'gente');
-    const enDisco = fs.readdirSync(carpeta).filter(f => /\.svg$/.test(f))
+    /* 24-nov-2026 — la gente pasó de .svg a fotos .webp creadas con IA. En la
+       carpeta puede haber de los dos; los .svg se siguen barriendo como texto, y
+       de un .webp se comprueba lo que se puede medir: que sea WebP de verdad y
+       que no traiga metadatos (ahí viajaría el texto con que se pidió la foto).
+       Lo que una foto MUESTRA no se puede barrer: se mira a ojo antes de que
+       entre (ver el bloque «LA GENTE» de play/index.html). */
+    const enDisco = fs.readdirSync(carpeta).filter(f => /\.(svg|webp)$/.test(f))
       .map(f => path.join(carpeta, f));
     pedidos.forEach(src => assert.ok(enDisco.includes(path.join(__dirname, '..', 'play', src)),
       'la tarjeta pide ' + src + ' y no está en play/gente/: imagen rota en la puerta pública'));
-    const archivos = enDisco.map(f => fs.readFileSync(f, 'utf8'));
+    const archivos = enDisco.filter(f => /\.svg$/.test(f)).map(f => fs.readFileSync(f, 'utf8'));
+    enDisco.filter(f => /\.webp$/.test(f)).forEach(f => {
+      const b = fs.readFileSync(f);
+      assert.ok(b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP',
+        path.basename(f) + ' no es un WebP de verdad');
+      assert.equal(/EXIF|XMP |<x:xmpmeta|tEXt|prompt/i.test(b.toString('latin1')), false,
+        path.basename(f) + ' trae metadatos: el texto con que se pidió la foto no puede viajar con ella');
+    });
     archivos.forEach(s => assert.equal(/aprobad|desembolsad|nequi|daviplata|bancolombia|davivienda|movii/i.test(s), false,
       'un dibujo de play/gente/ dice «aprobado» o se viste de una marca ajena'));
     enLinea.concat(archivos).forEach(s => {

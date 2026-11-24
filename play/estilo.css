@@ -505,7 +505,13 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
 
 
 /* ===========================================================================
-   LA GENTE — 16-sep-2026, y rehecha el 19-oct-2026
+   LA GENTE — 16-sep-2026, rehecha el 19-oct-2026, y en foto desde el 24-nov-2026
+
+   24-nov-2026 — las personas son FOTOS creadas con IA (play/gente/*.webp, de
+   336 px para pintarse a 112). El porqué y cómo se hicieron está en
+   play/index.html, encima de escenaVaras(). Lo de abajo, que habla de los
+   dibujos de Open Peeps, es la historia: se deja porque explica por qué la
+   placa es clara y fija, que sigue importando mientras la foto llega.
 
    Desde el 19-oct las personas son ilustraciones de Open Peeps (Pablo Stanley,
    CC0) en archivos aparte, play/gente/*.svg, y entran como <img>. Joan dijo que
@@ -528,6 +534,10 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
 /* 19-oct-2026 — 112 px y no 88. Estos dibujos tienen cara de verdad —cejas,
    pupilas, dedos— y a 88 se perdía justo eso. En un teléfono de 360 px le
    quedan 162 al texto, que sigue alcanzando para la frase y su apoyo.
+
+   24-nov-2026 — CON FOTOS, LA PLACA SOLO SE VE MIENTRAS LLEGA LA FOTO (y si no
+   llega): la foto es opaca y la tapa entera. object-fit:cover está por si un día
+   entra una foto que no sea cuadrada: la recorta en vez de aplastar una cara.
 
    LA PLACA ES CLARA Y FIJA, y es lo que más importa de esta regla. Los dibujos
    de antes se pintaban con --tinta y se invertían solos en modo oscuro; un
@@ -560,7 +570,7 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
    otra tarjeta que algún día ponga una imagen (el noveno patrón de la casa). */
 .gente-esc{flex:0 0 auto;width:112px;height:112px;display:block;
   border-radius:25%;background:color-mix(in srgb, var(--laca) 3%, var(--blanco-laca));
-  color-scheme:only light}
+  object-fit:cover;color-scheme:only light}
 
 
 /* ---------------------------------------------------------------------------

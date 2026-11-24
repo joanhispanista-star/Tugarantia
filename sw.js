@@ -2936,7 +2936,22 @@
    CACHE y VERSION_SITIO suben a v157. NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit; CACHE, VERSION_SITIO y el ?v= de pista-niveles.js, que el
    revert deja en v156 y en 155, suben al número siguiente. El número nunca baja. */
-const CACHE = 'tugarantia-v157';
+/* v158 — 24-nov-2026 — LA GENTE DE LA PORTADA, EN FOTO. Joan, el 18-nov: «estas animaciones
+   mejoralas, que parezcan personas reales»; escogió fotos hechas con IA y, el 24-nov, la
+   opción a color entre doce candidatas puestas al lado de los dibujos.
+   · play/gente/varas.webp, eliges.webp y ayuda.webp (NUEVOS, 336 px, sin EXIF ni XMP)
+     reemplazan a los tres .svg de Open Peeps, que quedan en la historia de git.
+   · Son personas que no existen, hechas en Higgsfield con Nano Banana 2.1. La nota de la
+     tarjeta pasa a «Fotos creadas con IA: no son clientes ni testimonios.».
+   · La regla del 16-sep («el cliente es cualquiera») se cumple ahora con variedad: tres
+     personas distintas en edad, género y tono de piel.
+   · .gente-esc gana object-fit:cover. pruebas/gente-en-foto.test.js reemplaza a
+     pruebas/gente-ilustrada.test.js.
+   Cambian play/index.html, play/estilo.css y la precarga. CACHE y VERSION_SITIO suben a v158.
+   NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   PARA DESHACER: se revierte el commit (vuelven los .svg); CACHE y VERSION_SITIO suben al
+   número siguiente. El número nunca baja. */
+const CACHE = 'tugarantia-v158';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3056,9 +3071,11 @@ const ARCHIVOS = [
   'app/instalar.js',
   /* 19-oct-2026 — la gente de «Para que te sirve», de Open Peeps (CC0). Los
      .svg van cache-primero: precargados, se ven sin senal. Ver v138. */
-  'play/gente/varas.svg',
-  'play/gente/eliges.svg',
-  'play/gente/ayuda.svg',
+  /* 24-nov-2026 — fotos creadas con IA en vez de los .svg de Open Peeps. Nombre nuevo,
+     URL nueva: las imágenes van caché-primero y ningún teléfono se queda con el dibujo. */
+  'play/gente/varas.webp',
+  'play/gente/eliges.webp',
+  'play/gente/ayuda.webp',
   /* 21-sep-2026 — el escaner de la cedula: play/ lo carga con un <script src>.
      Sin el, el paso de la cedula cae a las cajas de foto de siempre (la pagina
      se protege con `if (!EC)`), pero el cliente perderia el escaner que es

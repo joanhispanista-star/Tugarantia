@@ -660,6 +660,7 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
    que no ve cifra debajo de su pedido, esta fecha dice si tiene la versión.
    También sube por la gente de «Para qué te sirve»: ahora son
    ilustraciones de Open Peeps en play/gente/, no los dibujos hechos a mano.
+   (24-nov-2026: y desde v158, fotos creadas con IA, play/gente/*.webp.)
    20-oct-2026, revisión — sube por las fotos que son de la persona y no del
    intento: «En este teléfono quedó un registro a medias. ¿Es tuyo?» antes de
    pintar nada de otro, la cédula que no es del documento escrito no sube, y
@@ -729,13 +730,13 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
 /* 20-nov-2026 — la Navidad se prende desde el 20-nov y no desde el 1-dic (Joan: «sube
    lo de navidad desde ya»). Si alguien dice que en noviembre no ve la guirnalda, esta
    fecha dice si tenía la versión que la trae. */
-var VERSION_PLAY = '2026-11-20';
+var VERSION_PLAY = '2026-11-24';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
    Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no deja pasar
    uno sin el otro. Sale también en el sello del pie. */
-var VERSION_SITIO = 'v157';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v158';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -11281,10 +11282,11 @@ var TEXTOS = {
      contrapartida del «rápido» del título. Un descargo que da la razón se cree;
      uno que solo se disculpa, no. */
   gente_pie: 'Quien revisa tu solicitud y te responde es una persona, y por eso no te prometemos una hora.',
-  /* Y el de los dibujos: una persona sonriendo al lado de «una gran ayuda» se
-     lee como un testimonio, y un testimonio hay que poder probarlo. Estas
-     personas no existen. */
-  gente_nota: 'Las personas de los dibujos son ilustraciones, no clientes ni testimonios.'
+  /* Y el de las fotos: una persona al lado de «una gran ayuda» se lee como un
+     testimonio, y un testimonio hay que poder probarlo. Estas personas no
+     existen: desde el 24-nov-2026 son fotos creadas con IA, y la nota lo dice
+     con esas palabras (antes decía que eran ilustraciones). */
+  gente_nota: 'Fotos creadas con IA: no son clientes ni testimonios.'
 };
 
 /* -------------------------------------------------------------------------
@@ -12074,7 +12076,35 @@ function lluviaDeCalc() {
 }
 
 /* =========================================================================
- * LA GENTE — 16-sep-2026, y rehecha el 19-oct-2026
+ * LA GENTE — 16-sep-2026, rehecha el 19-oct-2026, y en FOTO desde el 24-nov-2026
+ *
+ * 24-nov-2026 — LAS PERSONAS AHORA SON FOTOS CREADAS CON IA. Joan, el 18-nov,
+ * mirando las ilustraciones de Open Peeps: «estas animaciones mejoralas, que
+ * parezcan personas reales». Entre tres caminos (personas reales con autorización
+ * firmada, ilustración realista, fotos hechas con IA) escogió las fotos con IA, y
+ * el 24-nov, de doce candidatas puestas al lado de los dibujos, la opción a color.
+ *  - CÓMO SE HICIERON: en Higgsfield (higgsfield.ai), con el modelo Nano Banana
+ *    2.1, desde la cuenta de Joan. Sus términos (leídos el 24-nov-2026, versión
+ *    del 23-oct-2026, §4.4) no reclaman las imágenes ni restringen su uso
+ *    comercial; piden avisar que son generadas con IA donde la ley lo exija
+ *    (§5.5), y la nota de la tarjeta lo dice siempre.
+ *  - SON PERSONAS QUE NO EXISTEN. Por eso la nota de la tarjeta cambió: una
+ *    persona junto a «una gran ayuda» se lee como un testimonio, y un testimonio
+ *    hay que poder probarlo.
+ *  - LA REGLA DEL 16-SEP SIGUE, CUMPLIDA DE OTRA MANERA. «El cliente de Tu
+ *    Garantía es cualquiera»: con dibujos se cumplía no poniendo color de piel;
+ *    con fotos se cumple con variedad. Las tres son personas distintas en edad,
+ *    género y tono de piel: un tendero de unos sesenta, una joven
+ *    afrocolombiana y una pareja de treinta y tantos.
+ *  - EL TEXTO DENTRO DE UNA FOTO SE REVISA A OJO. Un .svg se puede barrer
+ *    buscando <text> o un «$»; un mapa de bits no. Cada foto se miró a tamaño
+ *    completo antes de entrar: ni letras, ni cifras, ni billetes, y el celular
+ *    siempre con la pantalla hacia el otro lado. Quien cambie una foto la mira
+ *    igual; pruebas/gente-en-foto.test.js vigila lo que sí se puede medir.
+ *  - Los archivos son WebP de 336 px (112 × 3), sin EXIF ni XMP: ni el texto con
+ *    que se pidieron ni ningún otro dato viaja con la foto.
+ * Lo de abajo es la historia de cómo se llegó aquí; donde habla de «dibujos»,
+ * vale para las fotos salvo lo que este párrafo cambió.
  *
  * 19-oct-2026 — LAS PERSONAS AHORA LAS DIBUJÓ UN ILUSTRADOR. Joan, al verlas:
  * «la calidad es muy baja… quiero que se vean más cercanas a lo que es una
@@ -12096,8 +12126,8 @@ function lluviaDeCalc() {
  * Tu Garantía es cualquiera. Open Peeps es tinta negra sobre relleno blanco, así
  * que la respeta sin tocar un trazo.
  *
- * POR QUÉ VAN EN ARCHIVO APARTE (play/gente/*.svg) Y NO EN LÍNEA COMO ANTES.
- * Pesan 13-21 KB cada uno (5-8 KB comprimidos), contra 1-2 KB de los de antes.
+ * POR QUÉ VAN EN ARCHIVO APARTE (play/gente/*.webp desde el 24-nov; antes
+ * *.svg) Y NO EN LÍNEA. Pesan 17-23 KB cada uno, contra 1-2 KB de los de antes.
  * Metidos aquí los pagaría el cliente en CADA visita, porque esta página se
  * pide a la red cada vez; en archivo aparte se bajan una vez y el service
  * worker los sirve de su caché. Por eso tienen que estar en su precarga: si
@@ -12117,7 +12147,7 @@ function lluviaDeCalc() {
  *    de la calculadora, y pruebas/vitrina.test.js barre los tres archivos.
  *  - alt="" porque son decoración: el texto de al lado dice lo que importa, y
  *    nadie con lector de pantalla necesita oír cómo es una persona que no
- *    existe. La nota de la tarjeta ya dice que son ilustraciones.
+ *    existe. La nota de la tarjeta ya dice que son fotos creadas con IA.
  *  - width y height van escritos para que el navegador guarde el hueco antes de
  *    que llegue el archivo: sin eso, el texto salta de lado cuando aparece.
  *
@@ -12126,26 +12156,26 @@ function lluviaDeCalc() {
  * delante lo que tenga pegado —ya pasó con `fila`, y la página quedó en blanco—.
  * ======================================================================= */
 
-/* Escena 1 — alguien mira una hoja con los ojos muy abiertos: el día en que uno
-   se vara. Es la pose «Paper» de Open Peeps; entre las figuras sueltas no había
-   una con el celular en la mano, y la hoja va en blanco, que es lo que importa. */
+/* Escena 1 — un tendero de unos sesenta años, detrás del mostrador de su tienda
+   de barrio, mira el celular con cara seria: el día en que uno se vara. Los
+   estantes de atrás están fuera de foco a propósito: no se lee ni una etiqueta. */
 function escenaVaras() {
-  return '<img class="gente-esc" src="gente/varas.svg" alt="" width="112" height="112" loading="lazy" decoding="async">';
+  return '<img class="gente-esc" src="gente/varas.webp" alt="" width="112" height="112" loading="lazy" decoding="async">';
 }
 
-/* Escena 2 — alguien explicando, con la mano abierta: «tú dices cuánto y para
-   cuándo» lo dice la persona, no la plataforma. Pose «Explaining». */
+/* Escena 2 — una joven en la banca de un parque, con el celular en las manos y
+   media sonrisa, como quien está decidiendo: «tú dices cuánto y para cuándo» lo
+   dice la persona, no la plataforma. */
 function escenaEliges() {
-  return '<img class="gente-esc" src="gente/eliges.svg" alt="" width="112" height="112" loading="lazy" decoding="async">';
+  return '<img class="gente-esc" src="gente/eliges.webp" alt="" width="112" height="112" loading="lazy" decoding="async">';
 }
 
-/* Escena 3 — dos personas juntas, sonriendo. La «ayuda» del texto se dibuja como
-   lo que es entre dos personas, y no como plata cayendo: plata cayendo acá sería
-   prometer el desembolso. Las dos figuras traían gafas de sol y un parche en el
-   ojo; en Open Peeps el accesorio es una capa aparte y se quitó entera, porque
-   unos ojos tapados no dan confianza en la puerta de una fintech. */
+/* Escena 3 — una pareja en el sofá de su casa, mirando juntos un celular, tranquilos.
+   La «ayuda» del texto se muestra como lo que es entre dos personas, y no como
+   plata: plata a la vista acá sería prometer el desembolso, y celebrar sería
+   tratar un crédito como un premio. */
 function escenaAyuda() {
-  return '<img class="gente-esc" src="gente/ayuda.svg" alt="" width="112" height="112" loading="lazy" decoding="async">';
+  return '<img class="gente-esc" src="gente/ayuda.webp" alt="" width="112" height="112" loading="lazy" decoding="async">';
 }
 
 function tarjetaGente() {
