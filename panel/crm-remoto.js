@@ -70,6 +70,11 @@
   var GAVETA = 'joan_socios_v1';
   /* Hasta cuándo vale la entrada en este celular: un instante, nada más. */
   var LLAVE_HASTA = 'joan_crm_remoto';
+  /* 24-nov-2026 — en un celular que guarda una COPIA de la cartera (la trajo con
+     traer.html): Joan ya tocó «Ver lo de hoy». Desde ahí ese celular abre siempre
+     lo de la nube, hasta que toque «Volver a la copia de este celular». Es una
+     preferencia de este aparato; no es la gaveta ni la toca. */
+  var LLAVE_HOY = 'joan_crm_ver_hoy';
 
   /* La conexión de fábrica: la misma decisión del 18-ago en traer.html y
      espejo.html. La llave es pública por diseño; lo secreto es la contraseña.
@@ -393,7 +398,8 @@
     devolviendo: false,   // true mientras se repone la pantalla: sus guardar() no hablan
     ganchos: null, reloj: null, relojFranja: null, aviso: null,
     vigia: null,          // el que avisa cuando crm.html pinta algo (el barrido)
-    esperando: false      // hay sesión guardada pero la primera traída falló: se reintenta
+    esperando: false,     // hay sesión guardada pero la primera traída falló: se reintenta
+    veniaDeCopia: false   // este celular guarda una copia y Joan escogió ver lo de hoy
   };
 
   function almacen() { try { return W.localStorage; } catch (e) { return null; } }
@@ -602,6 +608,11 @@
   }
   function ponerMarca() { var a = almacen(); try { if (a) a.setItem(LLAVE_HASTA, JSON.stringify({ desde: ahora(), siempre: true })); } catch (e) {} }
   function quitarHasta() { var a = almacen(); try { if (a) a.removeItem(LLAVE_HASTA); } catch (e) {} }
+  function quiereVerHoy() { var a = almacen(); try { return !!(a && a.getItem(LLAVE_HOY)); } catch (e) { return false; } }
+  function ponerQuiereVerHoy(si) {
+    var a = almacen();
+    try { if (!a) return; if (si) a.setItem(LLAVE_HOY, String(ahora())); else a.removeItem(LLAVE_HOY); } catch (e) {}
+  }
   function motivo(e) { return (e && e.motivo) || (e && e.message) || 'No pude hablar con la nube.'; }
 
   /** Trae y arma. `todo` = desde cero (la primera vez, y «Actualizar»). */
@@ -699,6 +710,10 @@
       '.cr-puerta label{display:block;margin:10px 0 4px;font-size:12px;font-weight:700;color:var(--gris)}' +
       '.gate-card .cr-puerta input{font-family:inherit;font-size:16px;letter-spacing:0;text-align:left;padding:12px}' +
       '.cr-puerta .cr-nota{margin:12px 0 0;font-size:12px;color:var(--gris)}' +
+      '.gate-card .cr-copia{margin:14px 0 0;padding:14px;border:1px solid var(--linea);border-radius:12px}' +
+      '#crFranjaCopia{grid-column:1/-1;margin:0;border-radius:0;z-index:60;padding-top:calc(9px + env(safe-area-inset-top,0px))}' +
+      '.gate-card .cr-copia .cr-hoy{display:block;width:100%;min-height:48px;margin:0;padding:0 14px;border-radius:12px;' +
+        'border:1.5px solid var(--tinta);background:transparent;color:var(--tinta);font:inherit;font-weight:700;font-size:15px}' +
       '.gate-card .cr-puerta .cr-otra{display:block;width:100%;min-height:44px;margin:8px 0 0;padding:0;border:0;background:none;' +
         'color:var(--gris);font:inherit;font-size:13px;font-weight:600;text-decoration:underline}' +
       '@media (prefers-reduced-motion:reduce){.cr-aviso{transition:none}}';
@@ -757,7 +772,88 @@
   }
   /* La tarjeta del PIN sigue ahí debajo, escondida: «← Soy Joan» la repone con
      innerHTML y crm.html vuelve a llamar aquí (pintarSalidaDeLaPuerta). */
+  /* ------------------------------------------------- la puerta 'copia' */
+  /* 24-nov-2026 — UN CELULAR QUE GUARDA UNA COPIA. Si alguna vez se trajo la
+     cartera a este teléfono (traer.html), su PIN abre ESA copia: la de aquel día.
+     No se actualiza sola, y nada en la pantalla lo decía. Ahora lo dice en la
+     puerta y, si el CRM ya está abierto (el PIN se retoma solo 24 horas), en una
+     franja arriba; y ofrece «Ver lo de hoy»: la cartera traída de la nube, para
+     mirar, como en un celular sin copia. La copia no se toca ni se borra: las
+     rejas de mirar ya le prohíben a todo el CRM escribir en la gaveta. */
+  function pintarAvisoDeCopia() {
+    if (E.puerta !== 'copia' || E.activo) return false;
+    var tarjeta = D.querySelector('#gate .gate-card');
+    if (!tarjeta || $('crCopia')) return false;
+    ponerEstilos();
+    var caja = D.createElement('div');
+    caja.id = 'crCopia';
+    caja.className = 'cr-puerta cr-copia';
+    caja.setAttribute('data-cr', '1');
+    caja.innerHTML =
+      '<p><b>Este celular guarda una copia de tu cartera</b>, de cuando la trajiste. No se actualiza sola: ' +
+      'con tu PIN ves esa copia.</p>' +
+      '<button type="button" class="cr-hoy" id="crHoy">Ver lo de hoy</button>' +
+      '<p class="cr-nota">Lo de hoy se trae de la nube con tu celular y tu contraseña, y es solo para mirar. ' +
+      'La copia de este celular no se toca.</p>';
+    var equipo = tarjeta.querySelector('.gate-link');
+    tarjeta.insertBefore(caja, equipo || null);
+    $('crHoy').addEventListener('click', verLoDeHoy);
+    return false;        // la puerta sigue siendo la del PIN: crm.html pinta lo suyo
+  }
+  /* En la puerta: se cambia de puerta ahí mismo. Con el CRM ya abierto sobre la
+     copia: se recarga, y al abrir la preferencia decide (alAbrir). */
+  function verLoDeHoy() {
+    ponerQuiereVerHoy(true);
+    var adentro = false;
+    try { var g = $('gate'); adentro = !!(g && g.style && g.style.display === 'none'); } catch (e) {}
+    if (adentro) { try { W.location.reload(); } catch (e) {} return; }
+    var c = $('crCopia');
+    if (c && c.parentNode && c.parentNode.removeChild) c.parentNode.removeChild(c);
+    E.puerta = 'correo'; E.veniaDeCopia = true;
+    armarPuertaDeCorreo();
+  }
+  function volverALaCopia() {
+    ponerQuiereVerHoy(false);
+    try { W.location.reload(); } catch (e) {}
+  }
+  /* La franja de adentro: solo con el CRM abierto sobre la copia (la puerta
+     escondida). Se revisa cuando la puerta se abre o se cierra. */
+  function revisarFranjaDeCopia() {
+    if (E.puerta !== 'copia' || E.activo) return false;
+    var g = $('gate'), abierto = !!(g && g.style && g.style.display === 'none');
+    var f = $('crFranjaCopia');
+    if (!abierto) { if (f && f.parentNode && f.parentNode.removeChild) f.parentNode.removeChild(f); return false; }
+    if (f) return true;
+    /* ARRIBA DE TODO, no dentro de .main: la pantalla de siempre, en un teléfono,
+       pone primero el menú entero (17 botones) y .main queda una pantalla más
+       abajo. Ahí la franja existía y nadie la veía (foto del 24-nov). #app es la
+       rejilla del CRM; la franja ocupa todas sus columnas. */
+    var principal = $('app') || D.querySelector('.main');
+    if (!principal) return false;
+    ponerEstilos();
+    f = D.createElement('div');
+    f.id = 'crFranjaCopia';
+    f.className = 'cr-franja';
+    f.setAttribute('data-cr', '1');
+    f.innerHTML = '<b>📱 Copia de este celular</b><span class="cr-t">Es de cuando la trajiste: no se actualiza sola.</span>' +
+      '<button type="button" id="crHoyAdentro">Ver lo de hoy</button>';
+    principal.insertBefore(f, principal.firstChild);
+    $('crHoyAdentro').addEventListener('click', verLoDeHoy);
+    return true;
+  }
+  function vigilarLaPuertaDeCopia() {
+    var g = $('gate');
+    try {
+      if (g && typeof W.MutationObserver === 'function') {
+        new W.MutationObserver(function () { revisarFranjaDeCopia(); }).observe(g, { attributes: true, attributeFilter: ['style', 'class'] });
+      }
+    } catch (e) {}
+    /* crm.html retoma el PIN guardado justo DESPUÉS de alAbrir: se mira al soltar. */
+    try { W.setTimeout(revisarFranjaDeCopia, 0); } catch (e2) {}
+  }
+
   function pintarPuerta() {
+    if (E.puerta === 'copia') return pintarAvisoDeCopia();
     if (!puertaDeCorreo()) return false;
     var tarjeta = D.querySelector('#gate .gate-card');
     if (!tarjeta) return false;
@@ -781,6 +877,7 @@
       '<div class="gate-err" id="crErr" aria-live="polite"></div>' +
       '<button type="button" class="cr-otra" id="crReintentar" style="display:none">Reintentar</button>' +
       '<button type="button" class="cr-otra" id="crOtra">Entrar con correo</button>' +
+      (E.veniaDeCopia ? '<button type="button" class="cr-otra" id="crVolverCopia">Volver a la copia de este celular</button>' : '') +
       '<p class="cr-nota">Queda abierto en este celular hasta que toques «Salir». ' +
       'No guarda tu cartera: la trae de la nube y, por ahora, solo se mira.</p>';
     var equipo = tarjeta.querySelector('.gate-link');
@@ -788,6 +885,8 @@
     caja.addEventListener('submit', function (ev) { ev.preventDefault(); entrarConCorreo(); });
     $('crOtra').addEventListener('click', alternarCorreo);
     $('crReintentar').addEventListener('click', function () { reintentar(true); });
+    var vuelta0 = $('crVolverCopia');
+    if (vuelta0) vuelta0.addEventListener('click', volverALaCopia);
     try { var s = N.sesion(); var cel = s ? celularDeSesion(s.correo, W.CuentaSocio) : ''; if (cel) $('crCorreo').value = cel; } catch (e) {}
     return true;
   }
@@ -912,7 +1011,16 @@
     var equipo = false;
     try { equipo = !!ganchos.equipo(); } catch (e) {}
     E.puerta = quePuerta({ celular: esCelular(W.navigator), conFichas: gavetaConFichas(leerGaveta()), equipo: equipo });
+    /* 24-nov-2026 — con una copia en este celular: si Joan ya escogió «Ver lo de
+       hoy», la puerta es la del correo (y el PIN guardado no abre: entrar() mira
+       puertaDeCorreo); si no, la del PIN con su aviso, y la franja si ya está adentro. */
+    if (E.puerta === 'copia' && quiereVerHoy()) { E.puerta = 'correo'; E.veniaDeCopia = true; }
+    if (E.puerta === 'copia') { pintarAvisoDeCopia(); vigilarLaPuertaDeCopia(); return E.puerta; }
     if (E.puerta !== 'correo') return E.puerta;
+    armarPuertaDeCorreo();
+    return E.puerta;
+  }
+  function armarPuertaDeCorreo() {
     D.addEventListener('click', alTocar, true);
     D.addEventListener('change', alCambiar, true);
     D.addEventListener('input', alCambiar, true);
@@ -929,7 +1037,6 @@
       W.addEventListener('online', function () { reintentar(false); });
       D.addEventListener('visibilitychange', function () { reintentar(false); });
     } catch (e2) {}
-    return E.puerta;
   }
 
   var api = {
@@ -937,6 +1044,7 @@
     puertaDeCorreo: puertaDeCorreo, pintarPuerta: pintarPuerta, salir: salir,
     alRepintar: function () { if (E.activo) { ponerTapas(); pintarFranja(); barrer(D); } },
     barrer: barrer,
+    verLoDeHoy: verLoDeHoy, volverALaCopia: volverALaCopia, revisarFranjaDeCopia: revisarFranjaDeCopia,
     _estado: E
   };
   Object.keys(puro).forEach(function (k) { api[k] = puro[k]; });

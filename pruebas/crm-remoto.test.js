@@ -847,3 +847,114 @@ describe('crm-remoto · lo que no se puede, no se ve', () => {
     assert.ok(abrir.indexOf('barrer(D)') > abrir.indexOf('E.ganchos.abrir()'), 'y el barrido entero va después');
   });
 });
+
+/* ==========================================================================
+ * 24-nov-2026 — EL CELULAR QUE GUARDA UNA COPIA (la puerta 'copia')
+ * Si alguna vez se trajo la cartera a un teléfono, su PIN abre esa copia, la de
+ * aquel día, y nada lo decía. Ahora lo dice (en la puerta y, con el CRM ya
+ * abierto, en una franja) y ofrece «Ver lo de hoy»: la cartera de la nube, para
+ * mirar. La copia no se toca. Y lo que Joan escoja se recuerda en ese aparato.
+ * ======================================================================== */
+describe('crm-remoto · el celular que guarda una copia', () => {
+  const COPIA = JSON.stringify({ socios: [{ id: 's1', nombre: 'Persona De Mentira' }], prestamos: [] });
+  const HOY = 'joan_crm_ver_hoy', MARCA = 'joan_crm_remoto';
+  const conCopia = extra => pantalla(Object.assign({ almacen: Object.assign({ [R.GAVETA]: COPIA }, (extra && extra.almacen) || {}) },
+    extra ? { sesion: extra.sesion } : {}));
+
+  test('la puerta sigue siendo la del PIN, y ahora dice que es una copia y ofrece «Ver lo de hoy»', () => {
+    const p = conCopia();
+    assert.equal(p.C.alAbrir(p.ganchos), 'copia');
+    assert.ok(p.porId.crCopia, 'no pinta el aviso de la copia');
+    assert.match(p.porId.crCopia.innerHTML, /Este celular guarda una copia de tu cartera<\/b>, de cuando la trajiste\. No se actualiza sola/);
+    assert.match(p.porId.crCopia.innerHTML, /<button type="button" class="cr-hoy" id="crHoy">Ver lo de hoy<\/button>/);
+    assert.match(p.porId.crCopia.innerHTML, /es solo para mirar\. La copia de este celular no se toca\./);
+    assert.notEqual(p.porId.pinBtn.style.display, 'none', 'escondió el PIN: con él se abre la copia');
+    assert.equal(p.C.puertaDeCorreo(), false);
+    assert.equal(p.oyentesDoc.length, 0, 'puso las rejas de mirar sobre una copia que se trabaja con PIN');
+    assert.equal(p.nube._traidas.length, 0, 'le preguntó a la nube sin que nadie lo pidiera');
+    p.correr();                                   // lo que quedó para «al soltar» no revienta
+    /* Y crm.html vuelve a pedirla cuando repone la tarjeta: no se duplica, y contesta false. */
+    assert.equal(p.C.pintarPuerta(), false);
+  });
+
+  test('«Ver lo de hoy» en la puerta: pasa a celular y contraseña, lo recuerda, y la copia queda intacta', async () => {
+    const p = conCopia();
+    p.C.alAbrir(p.ganchos);
+    p.porId.crHoy.dispatch('click');
+    assert.ok(p.almacen[HOY], 'no recordó que Joan quiere ver lo de hoy');
+    assert.equal(p.C.puertaDeCorreo(), true);
+    assert.ok(p.porId.crPuerta, 'no pintó la puerta del celular y la contraseña');
+    assert.match(p.porId.crPuerta.innerHTML, /id="crVolverCopia">Volver a la copia de este celular</, 'no deja volver a la copia');
+    assert.equal(p.porId.pinBtn.style.display, 'none', 'el PIN quedó a la vista junto a la otra puerta');
+    assert.equal(p.recargas.length, 0, 'en la puerta no hace falta recargar');
+    await p.entrarBien();
+    assert.equal(p.C.activo(), true, 'no abrió mirando desde la nube');
+    assert.equal(p.estado.abrio, 1);
+    assert.equal(p.almacen[R.GAVETA], COPIA, 'mirar lo de hoy tocó la copia del celular');
+    assert.throws(() => p.W.localStorage.setItem(R.GAVETA, '{}'), 'mirando, la gaveta se pudo escribir');
+    assert.equal(p.almacen[R.GAVETA], COPIA);
+  });
+
+  test('la próxima vez abre directo lo de hoy: sin PIN y sin volver a preguntar', async () => {
+    const p = conCopia({ almacen: { [HOY]: '1', [MARCA]: JSON.stringify({ desde: 1, siempre: true }) },
+      sesion: { access_token: 'tok', refresh_token: 'ref', correo: '573001112233@tugarantia.net' } });
+    assert.equal(p.C.alAbrir(p.ganchos), 'correo');
+    assert.equal(p.porId.crCopia, undefined, 'volvió a ofrecer la copia a quien ya escogió');
+    await quieta(); await quieta();
+    assert.equal(p.C.activo(), true, 'con la sesión abierta no entró solo');
+    assert.equal(p.almacen[R.GAVETA], COPIA);
+  });
+
+  test('«Volver a la copia de este celular» olvida la preferencia y recarga: vuelve la puerta del PIN', () => {
+    const p = conCopia({ almacen: { [HOY]: '1' } });
+    assert.equal(p.C.alAbrir(p.ganchos), 'correo');
+    p.porId.crVolverCopia.dispatch('click');
+    assert.equal(p.almacen[HOY], undefined, 'la preferencia se quedó');
+    assert.equal(p.recargas.length, 1);
+    const q = pantalla({ almacen: p.almacen });
+    assert.equal(q.C.alAbrir(q.ganchos), 'copia');
+    assert.equal(q.almacen[R.GAVETA], COPIA);
+  });
+
+  test('con el CRM ya abierto sobre la copia (el PIN se retomó solo): una franja lo dice, y «Ver lo de hoy» recarga', () => {
+    const p = conCopia();
+    p.C.alAbrir(p.ganchos);
+    /* La puerta a la vista: sin franja. */
+    p.porId.gate = { style: { display: '' } };
+    assert.equal(p.C.revisarFranjaDeCopia(), false);
+    assert.equal(p.porId.crFranjaCopia, undefined);
+    /* La puerta escondida: el CRM está abierto con la copia. */
+    p.porId.gate.style.display = 'none';
+    assert.equal(p.C.revisarFranjaDeCopia(), true);
+    const f = p.porId.crFranjaCopia;
+    assert.ok(f && p.principal.hijos[0] === f, 'la franja no va arriba de todo');
+    assert.match(f.innerHTML, /📱 Copia de este celular<\/b>.*Es de cuando la trajiste: no se actualiza sola\./);
+    assert.equal(p.C.revisarFranjaDeCopia(), true);
+    assert.equal(p.principal.hijos.filter(x => x.id === 'crFranjaCopia').length, 1, 'la franja se duplicó');
+    p.porId.crHoyAdentro.dispatch('click');
+    assert.ok(p.almacen[HOY]);
+    assert.equal(p.recargas.length, 1, 'adentro hay que recargar: el CRM abierto escribe sobre la copia');
+    assert.equal(p.C.activo(), false, 'se puso a mirar sin recargar, con la copia cargada en la página');
+    assert.equal(p.almacen[R.GAVETA], COPIA);
+  });
+
+  test('a quien no tiene copia no se le habla de copias', () => {
+    const p = pantalla();
+    assert.equal(p.C.alAbrir(p.ganchos), 'correo');
+    assert.equal(p.porId.crCopia, undefined);
+    assert.equal(/crVolverCopia/.test(p.porId.crPuerta.innerHTML), false);
+    assert.equal(p.C.revisarFranjaDeCopia(), false);
+    /* Ni al computador, tenga la cartera que tenga. */
+    const pc = pantalla({ navegador: PC, almacen: { [R.GAVETA]: COPIA, [HOY]: '1' } });
+    assert.equal(pc.C.alAbrir(pc.ganchos), 'pin');
+    assert.equal(pc.porId.crCopia, undefined);
+    assert.equal(pc.porId.crPuerta, undefined);
+  });
+
+  test('crm.html: la tarjeta repuesta vuelve a pedir la puerta (también la de la copia), y el PIN no abre con la del correo', () => {
+    const puerta = CRM.slice(CRM.indexOf('function pintarSalidaDeLaPuerta()'), CRM.indexOf('function pintarSalidaDeLaPuerta()') + 900);
+    assert.match(puerta, /try \{ if \(window\.CrmRemoto && CrmRemoto\.pintarPuerta\(\)\) return; \} catch \(e\) \{\}/);
+    assert.match(CRM, /function entrar\(\)\{[\s\S]{0,400}?try\{ if\(window\.CrmRemoto && CrmRemoto\.puertaDeCorreo\(\)\) return; \}catch\(e\)\{\}/,
+      'con «Ver lo de hoy» escogido, el PIN guardado abriría la copia por debajo de la puerta del correo');
+  });
+});

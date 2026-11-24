@@ -1313,7 +1313,7 @@
      nube, y va por etapas.
      Va ANTES de puente.js porque guardar() lo necesita y guardar() se llama
      desde el arranque. -->
-<script src="nube.js?v=143"></script>
+<script src="nube.js?v=162"></script>
 <!-- 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (crm-remoto.js, etapa U1 de
      RECETA-PLAN-UN-SOLO-CRM.md). En un computador no hace nada: decide por el tipo
      de aparato, nunca por el ancho. Va después de nube.js, que es quien trae. -->
@@ -14847,7 +14847,9 @@ var _cajonDeLaPuerta = null;
 function pintarSalidaDeLaPuerta() {
   /* 23-nov-2026 — en un celular sin cartera la puerta es la del correo (crm-remoto.js): la
      del PIN se queda debajo, escondida, y esta salida ya no tiene nada que ofrecer. */
-  try { if (window.CrmRemoto && CrmRemoto.puertaDeCorreo() && CrmRemoto.pintarPuerta()) return; } catch (e) {}
+  /* 24-nov-2026 — y en un celular que guarda una copia, pintarPuerta deja su aviso («Ver lo
+     de hoy») y contesta false: la puerta del PIN sigue con lo suyo. */
+  try { if (window.CrmRemoto && CrmRemoto.pintarPuerta()) return; } catch (e) {}
   const caja = document.getElementById('salidaPuerta');
   if (!caja) return;
   const t = textoSalidaDeLaPuerta();

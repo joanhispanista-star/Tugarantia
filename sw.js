@@ -3043,7 +3043,26 @@
    así que esta entrega pasa a v159.
    Y DE v159 A v162 (24-nov-2026): antes salieron el cruce a mano (v159) y la sesión del cliente
    con el día de pago (v160), y v161 quedó apartado para los extractos. Las tres piezas del
-   celular (crm-remoto.js, crm-movil.js y crm-movil.css) van con ?v=162. */
+   celular (crm-remoto.js, crm-movil.js y crm-movil.css) van con ?v=162.
+   Y TRES COSAS MÁS, del 24-nov por la noche, para que «siempre abierto» sea verdad:
+   · LA SESIÓN DEL DUEÑO NO SE CAE POR LA SEÑAL. panel/nube.js (refrescar) borraba la sesión ante
+     CUALQUIER fallo al renovarla: la señal que se cae justo después del 401, un 429 o un 5xx
+     dejaban el teléfono pidiendo la contraseña. Ahora solo se borra si el servidor dice que no
+     (400, 401, 403); lo demás sale con su `sin_red` o su estado y la puerta reintenta sola.
+     panel/nube.js pasa a ?v=162 en crm, espejo, subir y traer, y en la precarga.
+     Pruebas: pruebas/la-sesion-del-dueno-no-se-cae.test.js.
+   · «SOY JOAN» EN UN CELULAR LLEVA AL CRM. panel/index.html mandaba al Panel en el bolsillo a
+     todo el que no tuviera la cartera en su navegador: el CRM del celular existía y nadie
+     llegaba a él. Ahora, sin cartera, un celular o una tableta van a crm.html (que la trae de
+     la nube, para mirar) y la nota ofrece el Panel en el bolsillo para registrar un cobro; un
+     computador sin cartera sigue yendo al Panel en el bolsillo. Pruebas: dos-links.test.js.
+   · EL CELULAR QUE GUARDA UNA COPIA lo dice y ofrece «Ver lo de hoy». Si alguna vez se trajo la
+     cartera a un teléfono (traer.html), su PIN abre esa copia, la de aquel día, y nada lo
+     decía. Ahora la puerta lo dice y, con el CRM ya abierto, una franja arriba de todo. «Ver lo
+     de hoy» pasa a celular y contraseña y trae la cartera de la nube para mirar; la copia no se
+     toca, y la elección se recuerda en ese aparato hasta «Volver a la copia de este celular».
+     Cambian panel/crm-remoto.js y UNA línea de panel/crm.html (pintarSalidaDeLaPuerta).
+   Nada de esto necesita base nueva. */
 const CACHE = 'tugarantia-v162';
 const BASE = new URL('./', self.location).pathname;
 
@@ -3107,7 +3126,7 @@ const ARCHIVOS = [
   'app/comisiones.js?v=142',   // 31-oct-2026 — ?v=142: un cierre con pérdida no le paga comisión al asesor (ver la nota de v142)
   'app/bases.js',
   'panel/espejo.webmanifest',
-  'panel/nube.js?v=143',   // 4-nov-2026 — ?v=143: las fotos y el cupo, el abono con id, el PIN de este aparato (ver la nota de v143)
+  'panel/nube.js?v=162',   // 24-nov-2026 — ?v=162: la sesión del dueño no se borra por un fallo de señal al renovarla (ver la nota de v162)
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
   'panel/nube-crm.js?v=143',   // 4-nov-2026 — ?v=143: una nota sobre la pestaña vieja; la regla mira el texto (ver la nota de v143)
   /* 23-nov-2026 — el CRM en un celular, solo para mirar. Ver la nota de v158. */
