@@ -149,14 +149,34 @@ body{background:var(--laca);color:var(--tinta);
   function leer() { try { return localStorage.getItem(LLAVE_QUIEN); } catch (e) { return null; } }
   function guardar(v) { try { if (v) localStorage.setItem(LLAVE_QUIEN, v); else localStorage.removeItem(LLAVE_QUIEN); } catch (e) {} }
 
+  /* 24-nov-2026 — EN UN CELULAR, «SOY JOAN» LLEVA AL CRM. Joan: «quiero que el CRM
+     siempre este abierto en mi celular… con toda la informacion que podria yo encontrar
+     en el crm del computador». Desde v162 crm.html se abre en un teléfono sin cartera
+     con su celular y su contraseña, y la trae de la nube para MIRAR
+     (panel/crm-remoto.js). Antes esta puerta lo mandaba al Panel en el bolsillo y el
+     CRM del celular existía sin que nadie llegara a él.
+     La regla del cajón no se suelta: un COMPUTADOR sin la cartera sigue yendo al
+     Panel en el bolsillo (ahí el CRM no tiene de dónde pintar). Por eso aquí sí se
+     mira el aparato, y con la MISMA cuenta que crm-remoto.js (esCelular): una prueba
+     compara las dos. El iPad se presenta como Macintosh: lo delata que se toca. */
+  function esCelular() {
+    var n = (typeof navigator === 'object' && navigator) ? navigator : {}, ua = String(n.userAgent || '');
+    if (/iPhone|iPod|iPad|Android|Windows Phone/i.test(ua)) return true;
+    return /Macintosh/i.test(ua) && Number(n.maxTouchPoints) > 1;
+  }
   var cartera = hayCartera();
-  var destinoJoan = cartera ? 'crm.html' : 'espejo.html';
+  var celular = esCelular();
+  var destinoJoan = (cartera || celular) ? 'crm.html' : 'espejo.html';
 
   var btnJoan = document.getElementById('btnJoan');
   btnJoan.href = destinoJoan;
   document.getElementById('notaJoan').innerHTML = cartera
     ? 'Tu cartera completa está en este aparato: entras al CRM con tu PIN. '
       + '<a href="espejo.html">O abre el Panel en el bolsillo</a>.'
+    : celular
+    ? 'Entras al CRM con tu celular y tu contraseña: ves tu cartera al día, traída de la '
+      + 'nube. En el celular el CRM es <b>solo para mirar</b>. '
+      + '<a href="espejo.html">Para registrar un cobro, abre el Panel en el bolsillo</a>.'
     : 'Tu cartera completa vive en tu computador, así que aquí entras al '
       + '<b>Panel en el bolsillo</b>, que trabaja con lo que está en la nube. '
       + '<a href="crm.html">Abrir el CRM de todas formas</a> (aquí no está tu cartera).';
@@ -172,7 +192,7 @@ body{background:var(--laca);color:var(--tinta);
     document.getElementById('recordado').classList.remove('oculto');
     document.getElementById('recordadoTxt').textContent = quien === 'equipo'
       ? 'Entrando como alguien del equipo…'
-      : (cartera ? 'Entrando a tu CRM…' : 'Entrando al Panel en el bolsillo…');
+      : ((cartera || celular) ? 'Entrando a tu CRM…' : 'Entrando al Panel en el bolsillo…');
     /* Un respiro antes de irse, para que «No soy yo» se alcance a tocar. */
     var t = setTimeout(function () { location.href = destino; }, 900);
     document.getElementById('noSoyYo').addEventListener('click', function () {

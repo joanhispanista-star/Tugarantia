@@ -2987,7 +2987,231 @@
    CACHE y VERSION_SITIO suben a v160. NO HAY BASE NUEVA. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
    número nunca baja. */
-/* v161 — 24-nov-2026 — TUS EXTRACTOS, TAMBIÉN PARA EL EMPLEADO, Y QUÉ PLATAFORMAS USA.
+/* v162 — 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (etapa U1 de
+   RECETA-PLAN-UN-SOLO-CRM.md). Joan: «quiero poder abrir el crm desde mi celular… tener toda
+   la informacion actualizada en mi telefono, no quiero subir nada a la nube de forma manual».
+   Lo que abría su iPhone era el Panel en el bolsillo, otra pantalla con su propia copia.
+   · panel/crm-remoto.js, NUEVO: en un celular sin cartera, la puerta de crm.html pide correo y
+     contraseña de la nube (no el PIN, que es de la gaveta de cada navegador). La cartera llega
+     con panel_traer, se arma en la MEMORIA de la página y se va al cerrar: la gaveta del CRM
+     (joan_socios_v1) nunca se crea en el celular. Vuelve a traer cada 5 minutos y al volver
+     a la página.
+   · Solo mira. Tres rejas: una acción cuyo nombre no está en la lista de mirar no corre;
+     guardar() se niega y la pantalla vuelve a lo de la nube; y nadie puede escribir la gaveta
+     por ningún camino. WhatsApp no se abre desde ahí (no quedaría anotado).
+   · No llegan prospectos, bases ni papeleras, ni el PIN del computador. Solicitudes, Chat,
+     Registrados, Ventas, Bases y Ajustes abren y dicen que por ahora se miran en el computador.
+   · En un computador no cambia nada: la decisión es por el tipo de aparato, nunca por el ancho.
+   Cambian panel/crm.html (ocho enganches) y entra panel/crm-remoto.js?v=162 a la precarga.
+   Pruebas nuevas: pruebas/crm-remoto.test.js. CACHE y VERSION_SITIO suben a v162.
+   24-nov-2026, SEGUNDA PARTE (misma versión, todavía sin publicar): CÓMO SE VE EN EL TELÉFONO.
+   Joan: «hay muchas pestañas que no me aparecen desde el celular… modificalo».
+   · panel/crm-movil.css, NUEVA: la hoja del teléfono. Llega apagada (<link media="not all">)
+     y solo se enciende en un celular o una tableta con el menú de Joan; en un computador,
+     nunca, ni con la ventana angosta; en el celular de un gerente o un asesor, tampoco.
+     Créditos, Clientes, la cola del Tablero y Cobranzas pasan de tabla ancha a una ficha por
+     fila; los cuadros van a pantalla completa; los botones, a 44 px.
+   · panel/crm-movil.js, NUEVO: abajo quedan fijas Tablero, Créditos, Clientes y Cobranzas, y
+     el quinto puesto es «Más», que abre las otras trece pestañas encima de lo que se está
+     viendo. Son los mismos botones de crm.html, movidos: ninguno se copia.
+   · Lo que no se puede, no se ve: en un celular que solo mira, crm-remoto.js ESCONDE los
+     botones que escriben («＋ Nuevo crédito», «Pago», borrar, WhatsApp, subir fotos) con la
+     MISMA regla que ya los frenaba, y deja de solo lectura los campos cuyo cambio no se oye.
+     Las seis pestañas que todavía no se miran llevan la marca «PC» en el menú. Cinco frases
+     de crm.html que explicaban botones escondidos cambian en ese modo (soloMirar()).
+   · Los rótulos de las fichas van por la posición de la columna: pruebas/crm-movil.test.js
+     pinta las seis tablas y compara sus <th> con la hoja.
+   Entran a la precarga panel/crm-movil.js?v=162 y panel/crm-movil.css?v=162.
+   24-nov-2026, TERCERA PARTE (misma versión, sin publicar). Joan: «no quiero tener que
+   ingresar con correo… solo quiero que sea ingresar con mi numero de celular y la contraseña…
+   quiero que el CRM siempre este abierto en mi celular… que se vea la hora y fecha de registro».
+   · La puerta del celular pide CELULAR y contraseña. Es la cuenta de ese celular (la misma de
+     la app: CuentaSocio.correoDeTelefono); quién es dueño lo decide el servidor (panel_duenos).
+     Un celular que no esté anotado entra a Supabase, panel_traer lo rechaza, y la puerta lo
+     dice y cierra esa sesión. «Entrar con correo» queda como salida.
+   · SIEMPRE ABIERTO: la marca de la puerta ya no vence a la medianoche. Cierra «Salir», o que
+     el servidor diga que la sesión no vale. Si al abrir no hay señal, no pide la contraseña:
+     ofrece «Reintentar» y entra sola cuando vuelve.
+   · 📥 Registrados y «👁 Ver datos» dicen el día Y LA HORA del registro, en la hora del aparato
+     (antes solo el día, y cortado en UTC: después de las 7 p. m. salía el día siguiente).
+   PARA QUE JOAN ENTRE CON SU CELULAR falta un paso suyo, una vez, en Supabase: anotar la
+   cuenta de su celular en panel_duenos. No es base nueva: es una fila.
+   NO HAY BASE NUEVA. TG_PUBLICADO=main.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja.
+   NACIÓ COMO v158: las fotos de la portada salieron primero con ese número (24-nov-2026),
+   así que esta entrega pasa a v159.
+   Y DE v159 A v162 (24-nov-2026): antes salieron el cruce a mano (v159) y la sesión del cliente
+   con el día de pago (v160), y v161 quedó apartado para los extractos. Las tres piezas del
+   celular (crm-remoto.js, crm-movil.js y crm-movil.css) van con ?v=162.
+   Y TRES COSAS MÁS, del 24-nov por la noche, para que «siempre abierto» sea verdad:
+   · LA SESIÓN DEL DUEÑO NO SE CAE POR LA SEÑAL. panel/nube.js (refrescar) borraba la sesión ante
+     CUALQUIER fallo al renovarla: la señal que se cae justo después del 401, un 429 o un 5xx
+     dejaban el teléfono pidiendo la contraseña. Ahora solo se borra si el servidor dice que no
+     (400, 401, 403); lo demás sale con su `sin_red` o su estado y la puerta reintenta sola.
+     panel/nube.js pasa a ?v=162 en crm, espejo, subir y traer, y en la precarga.
+     Pruebas: pruebas/la-sesion-del-dueno-no-se-cae.test.js.
+   · «SOY JOAN» EN UN CELULAR LLEVA AL CRM. panel/index.html mandaba al Panel en el bolsillo a
+     todo el que no tuviera la cartera en su navegador: el CRM del celular existía y nadie
+     llegaba a él. Ahora, sin cartera, un celular o una tableta van a crm.html (que la trae de
+     la nube, para mirar) y la nota ofrece el Panel en el bolsillo para registrar un cobro; un
+     computador sin cartera sigue yendo al Panel en el bolsillo. Pruebas: dos-links.test.js.
+   · EL CELULAR QUE GUARDA UNA COPIA lo dice y ofrece «Ver lo de hoy». Si alguna vez se trajo la
+     cartera a un teléfono (traer.html), su PIN abre esa copia, la de aquel día, y nada lo
+     decía. Ahora la puerta lo dice y, con el CRM ya abierto, una franja arriba de todo. «Ver lo
+     de hoy» pasa a celular y contraseña y trae la cartera de la nube para mirar; la copia no se
+     toca, y la elección se recuerda en ese aparato hasta «Volver a la copia de este celular».
+     Cambian panel/crm-remoto.js y UNA línea de panel/crm.html (pintarSalidaDeLaPuerta).
+   · «COBRAR», A UN TOQUE. Como ahora el CRM es lo primero que abre el celular, y ahí solo se
+     mira, la franja de arriba lleva «Cobrar» y la puerta un enlace: los dos abren el Panel en
+     el bolsillo (espejo.html), que es donde se registra un cobro en la calle.
+   Nada de esto necesita base nueva. */
+/* v163 — 24-nov-2026 — EL CRM EN EL CELULAR, SEGUNDA TANDA: REGISTRADOS, FECHAS Y TRAER.HTML.
+   Joan: «tanto para crm de pc como de celular… quiero que se vea la hora y fecha de registro».
+   · 📥 REGISTRADOS ABRE EN EL CELULAR. Estaba tapada: todo lo que pinta crm.html ahí se pregunta
+     con la clave del computador, que el celular no tiene. panel/crm-remoto.js pinta su propia
+     lista con la SESIÓN del dueño (panel_registros, base/20261002_panel_registros.sql, la que ya
+     usa el Panel en el bolsillo): quién se registró, el día y la HORA, de dónde, si su cédula no
+     cuadra, si ya es cliente y qué pidió. A propósito no trae fotos ni datos completos: la
+     pantalla dice que eso se mira en el computador. Nada queda en el disco del teléfono, y
+     nunca se pregunta con la clave (clave_ok cuenta los intentos de todos los aparatos).
+     «🔎 Revisar a todos» (revision.html, que pide la clave) se esconde en el celular.
+   · PLANTILLAS Y EQUIPO DICEN DE QUÉ DÍA SON. Esas dos listas no suben solas desde el
+     computador (solo con ☁ Subir): en el celular podían ser de hace meses sin que nada lo
+     dijera. Ahora cada pestaña lo dice, con la fecha que trae el paquete. El arreglo de fondo
+     (que suban solas) toca el motor de sincronización y va aparte.
+   · PANEL/TRAER.HTML YA NO ESCRIBE LA CARTERA EN UN CELULAR. Era el punto de la etapa U1 que
+     tenía que salir con el CRM del celular: desde v143 la nube no trae el PIN, así que traer
+     la cartera a un teléfono la dejaba guardada ahí, abriendo con el PIN de fábrica. En un
+     celular la página lo dice arriba, con dos botones (al CRM y al Panel en el bolsillo), y
+     «Traer» queda apagado; mirar y bajar el respaldo siguen sirviendo al que ya tenía una copia.
+     En un computador no cambia nada.
+   Cambia panel/crm-remoto.js (?v=163 en crm.html y en la precarga). Sin base nueva.
+   Pruebas: pruebas/crm-remoto.test.js (tres grupos nuevos) y pruebas/traer-en-un-celular.test.js.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+/* v164 — 24-nov-2026 — EN EL CELULAR, SOCIOS Y CICLOS YA NO SE DESLIZAN DE LADO.
+   Eran las cinco tablas que quedaban anchas en la hoja del teléfono (560 a 637 px dentro de
+   364, medido): «Cartera por tramo», «Niveles», «Revisión de la migración» y «Perfiles por
+   completar» en Socios, y la de Ciclos. Ahora cada fila es una ficha con sus rótulos, como
+   Créditos y Clientes (panel/crm-movil.css, bloque 4b). Los rótulos van por la posición de la
+   columna: pruebas/crm-movil.test.js pinta las cinco y compara sus <th> con la hoja.
+   Y una frase: en un celular que solo mira, «Revisión de la migración» ya no dice «Te faltan
+   N por revisar» (ahí no hay cómo): dice cuántos hay sin revisar y que se hace en el computador.
+   Cambia panel/crm-movil.css y una frase de panel/crm.html. La hoja y su pieza (crm-movil.js, que
+   no cambia) van siempre con el mismo número: las dos pasan a ?v=164 en crm.html y en la precarga.
+   En el computador no cambia nada: la hoja sigue apagada ahí (comprobado píxel a píxel).
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+/* v165 — 24-nov-2026 — EL COMPUTADOR SUBE SOLAS SU CONFIGURACIÓN, SUS PLANTILLAS Y SU EQUIPO.
+   Hasta hoy esas tres solo llegaban a la nube cuando Joan tocaba ☁ Subir a mano, y el CRM del
+   celular mostraba las de la última vez: plantillas, equipo y tasa podían ser de hace meses.
+   · panel/nube-crm.js: `config`, `plantillas` y `equipo` entran a lo que sube solo, con una regla
+     distinta a la de todo lo demás: EL COMPUTADOR MANDA (CLAVES_DEL_PC). No se congelan nunca,
+     porque un ajuste congelado no es de ningún cliente y deja esperando la publicación del
+     equipo y los historiales de TODOS. Al emparejar se toma la revisión de la nube y se sube lo
+     de acá encima; si al subir chocan (otro navegador hizo ☁ Subir primero), se anota la revisión
+     del servidor y se reintenta a los 1,5 s, a lo más tres veces seguidas. Su único autor es este
+     CRM: el Panel en el bolsillo no escribe ajustes y lo del gerente llega por otra puerta.
+     El PIN no viaja (armarLote ya le pasaba configQueViaja a `config`); al emparejar, `config` se
+     compara también así, sin el PIN. La primera subida le quita a la copia de la nube el PIN
+     viejo, si todavía lo tenía de antes de v143.
+   · panel/crm-remoto.js: en el celular que mira, en los ajustes manda la nube ENTERA. Al juntar
+     ganaba lo que ya había, campo por campo, y nadie desaparecía: alguien que el computador
+     retiró seguía «activo» en el celular. Y la nota de fecha de Plantillas y Equipo ya no manda
+     a tocar ☁ Subir: dice de cuándo son y que suben solas con el CRM abierto en el computador.
+   · panel/espejo.html y la cinta del CRM: tres frases decían que las plantillas no suben solas.
+   Cambian panel/nube-crm.js y panel/crm-remoto.js (?v=165 en crm.html y en la precarga).
+   Sin base nueva: panel_empujar ya aceptaba cualquier ajuste con su control de revisiones.
+   Pruebas: pruebas/el-pc-sube-sus-ajustes.test.js («la prueba del PC» del plan: publicar no se
+   frena), con diez roturas a propósito cazadas una por una.
+   OJO AL PUBLICAR: el CRM del computador no se recarga solo. Hasta que Joan lo recargue, su
+   computador sigue con el motor de antes y las tres no suben.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. Lo que
+   ya subió a la nube se queda (es lo del computador); el número nunca baja. */
+/* v166 — 24-nov-2026 — «¿AÚN SIN RESPUESTA?»: DEL CHAT AL WHATSAPP DE SERVICIO AL CLIENTE.
+   Joan: «quiero que pongas mi numero de telefono para garantia como numero de contacto de
+   servicio al cliente por ahora, en caso de que no le den respuesta desde la aplicacion entonses
+   que exista el boton que lo redirija a mi whatsapp».
+   El 22-sep había pedido lo contrario («nada de compartir mi numero») y el WhatsApp del negocio
+   se quitó del registro. Por eso el número no vuelve a estar a la vista: sale SOLO un botón, y
+   SOLO cuando la persona escribió por el chat y nadie de la casa le contestó en 15 minutos.
+   · app/sin-respuesta.js, NUEVO (lo piden la app y el registro): la regla. Cuenta desde el PRIMER mensaje
+     sin respuesta; lo que cuenta como respuesta es que conteste una PERSONA (una respuesta
+     automática no); en el enlace no viaja ningún dato de la persona.
+   · app/socio.html: usa el contacto oficial de siempre (NEGOCIO_OFICIAL), que no sale nunca de
+     un enlace. play/index.html: el mismo número (WA_SERVICIO; una prueba compara los dos), y no
+     sale en PlataChat, que es otra marca.
+   · Se vuelve a mirar con el reloj, llegue algo o no: justo cuando nadie contesta, nada repinta.
+   Ese WhatsApp es para ATENDER a quien ya escribió: no para ofrecer crédito ni para cobrar.
+   app/chat.js NO se toca (lo cargan cinco páginas y se pide sin versión): la regla va en un
+   archivo nuevo, app/sin-respuesta.js?v=166, que entra a la precarga. Sin base nueva.
+   Pruebas: pruebas/sin-respuesta-whatsapp.test.js.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+/* v167 — 25-nov-2026 — TRAER EN UN COMPUTADOR: EL PIN DE ESTE APARATO SE ESCOGE ANTES DE TRAER.
+   Era el punto que faltaba de la etapa U1 (RECETA-PLAN-UN-SOLO-CRM.md). Desde v143 el PIN no viaja
+   por la nube, así que panel/traer.html, en un computador nuevo, dejaba la cartera entera abriendo
+   con el PIN de fábrica y solo decía «cámbialo apenas entres».
+   · panel/traer.html: cuando el paquete no trae PIN y el aparato no tiene uno suyo, el paso 5
+     muestra dos casillas y la página NO escribe hasta que se escoja un PIN (de 4 a 6 números; ni el
+     de fábrica ni su continuación, ni un número repetido). Ese es el que queda guardado con la
+     cartera. La reja está en el botón y otra vez donde se escribe: si el aparato cambió desde que
+     se miró y quedaría con el de fábrica, se niega.
+   · Lo que NO cambia: si el paquete trae un PIN de antes de v143, manda ese; si el aparato ya tiene
+     cartera y PIN suyo, lo conserva; en un celular la página sigue sin traer.
+   · El PIN no se pinta nunca, y las casillas se vacían al terminar.
+   Ningún .js cambió: no hay direcciones nuevas. Sin base nueva.
+   Pruebas: pruebas/traer-escoge-su-pin.test.js (18); cinco de antes describían «arranca con el de
+   fábrica» y ahora dicen la regla nueva, con la razón escrita.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+/* v168 — 25-nov-2026 — 📥 SOLICITUDES EN EL CELULAR, MIRANDO.
+   Joan quiere en el celular «toda la informacion que podria yo encontrar en el crm del
+   computador». La pestaña de Solicitudes seguía tapada en el teléfono: la bandeja se lee con la
+   clave del computador, que el celular no tiene (y no debe tener).
+   · base/20261125_solicitudes_en_el_celular.sql, NUEVO: panel_solicitudes, la bandeja para la
+     SESIÓN del dueño. Devuelve solo lo que la tarjeta pinta (quién pidió, cuándo, cuánto, qué se le
+     propuso, si ya aceptó); nunca la cuenta del desembolso, lo que declaró, el celular del gerente
+     ni la tasa. Corre el reloj de las vencidas antes de contestar, como el computador.
+     HAY QUE CORRERLO en el SQL Editor (y Reload schema). Mientras no, la pestaña dice cuál
+     archivo falta, y no insiste sola contra una función que no existe.
+   · panel/crm-remoto.js: la pestaña se abre con su lista, agrupada por lo que toca hacer (responder,
+     desembolsar, esperar al cliente), con el día y la hora de cada una, «Llamar» y el número de las
+     que le tocan a Joan en el botón del menú. Solo se MIRA: responder y desembolsar siguen en el
+     computador, y la pantalla lo dice. Nada queda guardado en el teléfono.
+   Cambia panel/crm-remoto.js (?v=168 en crm.html y en la precarga).
+   Pruebas: pruebas/crm-remoto.test.js (dos grupos nuevos) y
+   pruebas/solicitudes-en-el-celular-postgres.test.js (la función, llamada en un PostgreSQL de
+   verdad con todas las migraciones; sin TG_PG_BIN esa parte se salta).
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. La
+   función de la base puede quedarse: sin esta página nadie la llama. El número nunca baja. */
+/* v169 — 25-nov-2026 — EL CHAT DEL CELULAR, CON TU SESIÓN.
+   El chat del Panel en el bolsillo (clientes y equipo, con su lista, su hilo, sus fotos y su
+   número de sin leer) existe desde el 26-oct, pero solo funcionaba en un teléfono con la CLAVE
+   del computador guardada. El de Joan entra con su sesión y no la tiene: la pestaña decía «este
+   teléfono todavía no tiene la conexión y la clave». Los clientes escribían y nadie contestaba
+   (de ahí el botón «¿Aún sin respuesta?» de v166, que es un parche).
+   · base/20261125b_el_chat_con_tu_sesion.sql, NUEVO: once gemelas `panel_…` de las funciones
+     del chat. Preguntan panel_es_dueno() y llaman a la función DE SIEMPRE con la clave que la
+     base ya guarda: no copian ningún cuerpo, y la clave no sale de la base. Borrar una
+     conversación entera (chat_olvidar) NO tiene gemela: sigue en el computador.
+     HAY QUE CORRERLO en el SQL Editor (y Reload schema). Mientras no, el chat dice cuál falta.
+   · panel/chat-de-sesion.js, NUEVO: arma la conexión del chat para quien entró con su sesión;
+     el mismo pedido de app/chat.js sale por NubeTuGarantia.rpc, sin la clave en el cuerpo.
+     app/chat.js NO se toca.
+   · panel/espejo.html: chatCfg() usa la clave si la hay (como siempre) y, si no, la sesión.
+     Sin haber entrado lo dice, con el botón «Entrar con mi correo».
+   · panel/crm-remoto.js: en el CRM del celular (que solo mira) la pestaña Chat ya no dice «en
+     tu computador»: dice que está en el Panel en el bolsillo y lleva allá.
+   Entra panel/chat-de-sesion.js?v=169 a la precarga; panel/crm-remoto.js va con ?v=169.
+   Pruebas: pruebas/el-chat-con-tu-sesion.test.js y, llamando en un PostgreSQL de verdad,
+   pruebas/el-chat-con-tu-sesion-postgres.test.js (sin TG_PG_BIN esa parte se salta).
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. Las
+   funciones de la base pueden quedarse: sin esta página nadie las llama. El número nunca baja. */
+/* v170 — 25-nov-2026 — TUS EXTRACTOS, TAMBIÉN PARA EL EMPLEADO, Y QUÉ PLATAFORMAS USA.
+   (Se armó el 24-nov como v161 y quedó apartado esperando su SQL; mientras tanto salieron
+   v162 a v169, así que sale con el número siguiente. Donde abajo decía v161, es v170.)
    Joan, el 24-nov: «si indica que es empleado entonses seria bueno pedir los estractos
    bancarios y que el cliente pueda indicar que plataformas usa como nequi, daviplata,
    nubank, lulo bank u otros… para poder dar con un analisis de riesgo mucho mas acertado y
@@ -2995,7 +3219,7 @@
    Los extractos se construyeron el 13-nov en la rama v145-extractos, para quien NO era
    empleado, y nunca se publicaron. Salen hoy, traídos enteros sobre la v160, con dos cambios:
    ya no dependen de la ocupación, y el cliente marca qué plataformas usa. Lo demás es lo
-   del 13-nov, y su nota de entonces va debajo tal cual (donde dice v145, hoy es v161;
+   del 13-nov, y su nota de entonces va debajo tal cual (donde dice v145, hoy es v170;
    donde dice «solo si la ocupación no es Empleado», hoy es para todos):
    ---------------------------------------------------------------------------------
    13-nov-2026 — TUS EXTRACTOS (rama v145-extractos; sale con lote-v145, que es quien
@@ -3032,12 +3256,12 @@
    pregunta a la base y con un 404 lo quita, y lo dice), la tarjeta tampoco, y el CRM
    dice que falta el archivo: nada se rompe.
    ---------------------------------------------------------------------------------
-   CACHE y VERSION_SITIO suben a v161. HAY BASE NUEVA, SIN APLICAR (la corre Joan):
+   CACHE y VERSION_SITIO suben a v170. HAY BASE NUEVA, SIN APLICAR (la corre Joan):
    base/20261113c_los_extractos.sql y, después, base/20261124_plataformas_del_extracto.sql.
    Sin ellas el paso no aparece y nada se rompe. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
    número nunca baja. */
-const CACHE = 'tugarantia-v161';
+const CACHE = 'tugarantia-v170';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3056,6 +3280,7 @@ const ARCHIVOS = [
   /* El chat: lo comparten la app del socio, el CRM y el espejo, igual que el
      motor y el puente. Es la razón de que este service worker viva en la raíz. */
   'app/chat.js',
+  'app/sin-respuesta.js?v=166',   // 24-nov-2026 — «¿Aún sin respuesta?»: del chat al WhatsApp de servicio al cliente
   /* 26-oct-2026 — chat-1: los relojes del chat (el hilo abierto, la bandeja
      escondida) y cómo juntar mensajes por id. Lo carga crm.html con
      <script src>; el espejo y la app del socio lo usan con el mismo
@@ -3100,9 +3325,14 @@ const ARCHIVOS = [
   'app/comisiones.js?v=142',   // 31-oct-2026 — ?v=142: un cierre con pérdida no le paga comisión al asesor (ver la nota de v142)
   'app/bases.js',
   'panel/espejo.webmanifest',
-  'panel/nube.js?v=143',   // 4-nov-2026 — ?v=143: las fotos y el cupo, el abono con id, el PIN de este aparato (ver la nota de v143)
+  'panel/nube.js?v=162',   // 24-nov-2026 — ?v=162: la sesión del dueño no se borra por un fallo de señal al renovarla (ver la nota de v162)
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
-  'panel/nube-crm.js?v=143',   // 4-nov-2026 — ?v=143: una nota sobre la pestaña vieja; la regla mira el texto (ver la nota de v143)
+  'panel/nube-crm.js?v=165',   // 24-nov-2026 — ?v=165: config, plantillas y equipo suben solos (ver la nota de v165)
+  /* 23-nov-2026 — el CRM en un celular, solo para mirar. Ver la nota de v158. */
+  'panel/crm-remoto.js?v=169',
+  'panel/chat-de-sesion.js?v=169',   // 25-nov-2026 — el chat del Panel en el bolsillo, con la sesión del dueño
+  'panel/crm-movil.js?v=164',    // 24-nov-2026 — la barra de abajo y «Más» del CRM en un teléfono
+  'panel/crm-movil.css?v=164',   // la hoja del teléfono: llega apagada, la enciende crm-movil.js
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
   'panel/historiales-auto.js?v=147',
   /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132.
@@ -3178,7 +3408,7 @@ const ARCHIVOS = [
   /* 28-oct-2026 — ?v=141: cambió lo que la app recoge y lo que se borra con
      la cuenta (la historia laboral).
      13-nov-2026 — ?v=145: y otra vez, con los extractos (ver su nota). */
-  'app/cumplimiento.js?v=161',
+  'app/cumplimiento.js?v=170',
   /* 14-sep-2026 — lo que play/ carga desde que es la puerta unica. ficha.js lee
      el paquete del socio y motor.js cotiza el credito con garantia; los dos ya
      estaban arriba o entran aqui, y ninguno se duplica en la lista porque el
@@ -3285,11 +3515,11 @@ const ARCHIVOS = [
   'app/misiones.css',
   /* 13-nov-2026 — «Tus extractos»: el paso del registro y la tarjeta de la cuenta
      (app/extractos.js, que piden play/ y app/socio.html) y lo del CRM
-     (panel/extractos-crm.js). NUEVOS, con ?v=161 en la dirección, como los piden
+     (panel/extractos-crm.js). NUEVOS, con ?v=170 en la dirección, como los piden
      las páginas: firman al llegar. Salen con el CACHE de lote-v145 (ver la nota
      de los extractos). */
-  'app/extractos.js?v=161',
-  'panel/extractos-crm.js?v=161',
+  'app/extractos.js?v=170',
+  'panel/extractos-crm.js?v=170',
   /* 10-nov-2026 — la pestaña «🗺️ Mapa»: sus dos guiones y su hoja los pide crm.html, así que
      llegan JUNTO con él (sin señal, la pestaña dice que el mapa no cargó en vez de romper).
      El mapa en sí (el JSON de panel/mapa/, ~600 KB desde v145) NO va aquí: se pide al abrir

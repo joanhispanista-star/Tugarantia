@@ -73,11 +73,66 @@ describe('el link del panel existe', () => {
 
 describe('a Joan se le mira el cajón, no el aparato', () => {
 
-  test('decide por la cartera, no por el tipo de aparato', () => {
-    assert.match(PUERTA_CODIGO, /var destinoJoan = cartera \? 'crm\.html' : 'espejo\.html'/);
-    assert.equal(/userAgent|matchMedia|pointer:coarse|innerWidth/.test(PUERTA_CODIGO), false,
-      'volvió a decidir por el aparato: en un segundo computador mandaría a Joan ' +
-      'a un CRM vacío que dice «nada por gestionar»');
+  /* 24-nov-2026 — decía «decide por la cartera, no por el tipo de aparato», y vetaba
+     mirar el userAgent. Lo que esa regla cuidaba sigue en pie: un COMPUTADOR sin la
+     cartera no va a un CRM vacío. Lo nuevo es que en un CELULAR sin cartera el CRM ya
+     no está vacío (v162: panel/crm-remoto.js lo abre desde la nube, para mirar), y la
+     puerta tiene que llevar a Joan hasta él. */
+  test('con la cartera, al CRM; sin ella, un celular al CRM (desde la nube) y un computador al Panel en el bolsillo', () => {
+    assert.match(PUERTA_CODIGO, /var destinoJoan = \(cartera \|\| celular\) \? 'crm\.html' : 'espejo\.html'/);
+    assert.equal(/matchMedia|pointer:coarse|innerWidth/.test(PUERTA_CODIGO), false,
+      'decide por el ANCHO de la pantalla: una ventana angosta en el computador iría a un CRM sin cartera');
+    /* La puerta de verdad, corrida con cada aparato y cada cajón. */
+    const guion = /<script>\s*\(function \(\) \{([\s\S]*?)\}\)\(\);\s*<\/script>\s*<\/body>/.exec(PUERTA)[1];
+    const abrir = (nav, conCartera, recordado) => {
+      const el = {}, disco = Object.assign({}, conCartera ? { joan_socios_v1: '{}' } : {}, recordado ? { tg_puerta_panel: recordado } : {});
+      const elem = id => (el[id] = el[id] || { id, href: '', innerHTML: '', textContent: '', _oy: {},
+        classList: { add() {}, remove() {} }, addEventListener(t, f) { this._oy[t] = f; } });
+      const ctx = { navigator: nav, location: { search: '', href: '' }, document: { getElementById: elem },
+        localStorage: { get length() { return Object.keys(disco).length; }, key: i => Object.keys(disco)[i] || null,
+          getItem: k => (k in disco ? disco[k] : null), setItem: (k, v) => { disco[k] = String(v); }, removeItem: k => { delete disco[k]; } },
+        setTimeout: f => { ctx._irse = f; return 1; }, clearTimeout() {} };
+      require('node:vm').runInNewContext('(function () {' + guion + '})();', ctx);
+      return { href: elem('btnJoan').href, nota: elem('notaJoan').innerHTML, entrando: elem('recordadoTxt').textContent,
+               irse: () => { ctx._irse(); return ctx.location.href; } };
+    };
+    const IPHONE = { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1', maxTouchPoints: 5 };
+    const ANDROID = { userAgent: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36', maxTouchPoints: 5 };
+    const IPAD = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.1 Safari/605.1.15', maxTouchPoints: 5 };
+    const PC = { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36', maxTouchPoints: 0 };
+    const MAC = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.1 Safari/605.1.15', maxTouchPoints: 0 };
+    [IPHONE, ANDROID, IPAD].forEach(n => {
+      const p = abrir(n, false);
+      assert.equal(p.href, 'crm.html', 'un celular sin cartera no llega al CRM: ' + n.userAgent);
+      assert.match(p.nota, /En el celular el CRM es <b>solo para mirar<\/b>/, 'no dice que ahí solo se mira');
+      assert.match(p.nota, /<a href="espejo\.html">Para registrar un cobro, abre el Panel en el bolsillo<\/a>/, 'no deja tomar el otro camino');
+    });
+    [PC, MAC].forEach(n => {
+      const p = abrir(n, false);
+      assert.equal(p.href, 'espejo.html', 'un computador sin cartera va a un CRM que no tiene de dónde pintar');
+      assert.match(p.nota, /Abrir el CRM de todas formas<\/a> \(aquí no está tu cartera\)/);
+    });
+    [IPHONE, PC].forEach(n => assert.equal(abrir(n, true).href, 'crm.html'));
+    /* Y el aparato que ya recordaba «soy Joan» (el iPhone de Joan lo recuerda): entra solo al mismo sitio. */
+    const rec = abrir(IPHONE, false, 'joan');
+    assert.equal(rec.entrando, 'Entrando a tu CRM…');
+    assert.equal(rec.irse(), 'crm.html');
+    assert.equal(abrir(PC, false, 'joan').irse(), 'espejo.html');
+  });
+  test('«¿es un celular?» se contesta igual que en el CRM (panel/crm-remoto.js): si una cambia, la otra también', () => {
+    const R = require('../panel/crm-remoto.js');
+    const f = /function esCelular\(\) \{([\s\S]*?)\n  \}/.exec(PUERTA_CODIGO.replace(/\r\n/g, '\n'));
+    assert.ok(f, 'la puerta ya no tiene su esCelular');
+    const dePuerta = nav => require('node:vm').runInNewContext('(function () {' + f[1] + '})()', { navigator: nav });
+    [['Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X)', 5], ['Mozilla/5.0 (iPod touch)', 5], ['Mozilla/5.0 (iPad; CPU OS 12_0)', 5],
+     ['Mozilla/5.0 (Linux; Android 14; Pixel 8)', 5], ['Mozilla/5.0 (Windows Phone 10.0)', 1],
+     ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5], ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 0],
+     ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 1], ['Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 0],
+     ['Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 10], ['Mozilla/5.0 (X11; Linux x86_64)', 0], ['', 0]]
+      .forEach(([userAgent, maxTouchPoints]) => {
+        const nav = { userAgent, maxTouchPoints };
+        assert.equal(dePuerta(nav), R.esCelular(nav), 'la puerta y el CRM no dicen lo mismo de: ' + userAgent + ' (' + maxTouchPoints + ')');
+      });
   });
 
   test('mira el NOMBRE de la llave, sin leer la cartera', () => {
@@ -108,6 +163,8 @@ describe('a Joan se le mira el cajón, no el aparato', () => {
     assert.match(PUERTA, /Abrir el CRM de todas formas<\/a> \(aquí no está tu cartera\)/,
       'sin decir que aquí no está su cartera, el enlace de escape es una trampa');
     assert.match(PUERTA, /O abre el Panel en el bolsillo/);
+    /* 24-nov-2026 — y el del celular: dice que ahí solo se mira y deja ir a registrar el cobro. */
+    assert.match(PUERTA, /En el celular el CRM es <b>solo para mirar<\/b>/);
   });
 });
 

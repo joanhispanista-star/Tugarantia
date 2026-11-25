@@ -177,12 +177,15 @@ describe('traer.html no promete que el PIN viaja', () => {
     assert.match(avisos(conAjustes({ pin: PIN, negocio: 'X' })), /Con ellos viaja el <b>PIN que tenías cuando se subieron por última vez/);
   });
 
-  test('si config NO trae el PIN, dice que este aparato arranca con el de fábrica', () => {
+  /* 25-nov-2026 (v167) — esta prueba exigía «PIN 1234… Cámbialo»: el aparato quedaba con el de
+     fábrica y la página solo lo avisaba. Ahora un computador no trae hasta que se escoja un PIN
+     (pruebas/traer-escoge-su-pin.test.js), y el paso 3 lo anuncia. */
+  test('si config NO trae el PIN, no promete ninguno ni deja el de fábrica: se escoge antes de traer', () => {
     const h = avisos(conAjustes({ negocio: 'X' }));
     assert.doesNotMatch(h, /mismo PIN del computador/, 'prometió un PIN que no viene');
-    assert.match(h, /PIN 1234/);
+    assert.doesNotMatch(h, /PIN 1234|Cámbialo/, 'volvió a dejar el aparato con el PIN de fábrica');
     assert.match(h, /Desde la versión v143 tu PIN no viaja por la nube/);
-    assert.match(h, /Cámbialo/);
+    assert.match(h, /<b>El PIN de este aparato lo escoges tú en el paso 5<\/b>, antes de traer/);
   });
 
   test('sin config, lo de siempre', () => {

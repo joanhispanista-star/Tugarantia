@@ -2249,12 +2249,31 @@
       var n = guardarSesion(r, s.correo);
       if (!n) throw fallo(SESION_VENCIDA);
       return n;
-    }, function () {
+    }, function (e) {
+      /* 24-nov-2026 — SOLO SE BORRA SI EL SERVIDOR DIJO QUE NO. Antes se borraba
+         ante CUALQUIER fallo de esta llamada: la señal que se cae justo entre
+         el 401 y la renovación (un túnel, un ascensor), un 429 o un 5xx de
+         Supabase dejaban el teléfono sin sesión y pidiendo la contraseña, sin
+         que nadie la hubiera cerrado. Joan pidió el CRM «siempre abierto… como
+         cuando tu abres whatsapp»: la sesión se queda mientras nadie haya dicho
+         que ya no vale, y el fallo sale tal cual (con su `sin_red` o su estado)
+         para que quien llamó reintente en vez de mandar a la puerta.
+         Es el mismo arreglo de la sesión del cliente (app/sesion-socio.js, v160). */
+      if (noEsUnNoDelServidor(e)) throw e;
       /* Si el refresh no sirve, la sesión local ya no vale para nada: dejarla
          puesta solo consigue que cada acción falle con un error distinto. */
       borrarSesion();
       throw fallo(SESION_VENCIDA);
     });
+  }
+  /* ¿El fallo NO es el servidor negando la sesión? Sin respuesta (sin_red), o
+     una respuesta que habla del servidor y no de la sesión: 408 (tardó), 429
+     (muchas llamadas) y los 5xx. Un 400/401/403 sí es un «no». */
+  function noEsUnNoDelServidor(e) {
+    if (!e) return false;
+    if (e.sin_red) return true;
+    var st = Number(e.estado) || 0;
+    return st === 408 || st === 429 || st >= 500;
   }
 
   function salir() {

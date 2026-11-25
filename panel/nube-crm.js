@@ -137,7 +137,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (entorno) {
   'use strict';
 
-  var VERSION = '2026-10-23';
+  var VERSION = '2026-11-24';
   var E = entorno || {};
   var G = (typeof globalThis !== 'undefined') ? globalThis : {};
   var N = E.nube || G.NubeTuGarantia;
@@ -161,7 +161,30 @@
      llenan con push. traerGestiones() sí reescribe en sitio una gestión que ya
      tenía (Object.assign con lo que trae la nube), pero lo que copia es lo del
      servidor, y en esta etapa nada baja: el control de revisiones basta. */
-  var CLAVES_QUE_SUBEN = ['gestiones', 'asignaciones', 'actosComision'];
+  /* 24-nov-2026 — Y TRES QUE MANDA EL COMPUTADOR: config, plantillas y equipo.
+     Hasta hoy solo llegaban a la nube cuando Joan tocaba ☁ Subir a mano, y el
+     CRM del celular (panel/crm-remoto.js) mostraba las plantillas, el equipo y
+     la tasa de la última vez que lo hizo: podían ser de hace meses.
+     No son listas que solo suman, así que no pueden ir con la regla de las tres
+     de arriba (ante un choque, congelar): un ajuste congelado no es de ningún
+     cliente (libroPorCliente: sinCliente), y con uno solo la publicación del
+     equipo y los historiales de TODOS los clientes se quedan esperando. Tampoco
+     hace falta discutirlas: su único autor es este CRM. El Panel en el bolsillo
+     no escribe ajustes, el celular que mira no escribe nada, y lo que hace el
+     gerente llega por su propia puerta (traerEquipo), no por panel_ajustes. Lo
+     único que puede adelantársele es un ☁ Subir hecho desde otro navegador.
+     Así que con estas tres EL COMPUTADOR MANDA: al emparejar se toma la
+     revisión de la nube y se sube lo de acá encima; si al subir chocan, se
+     anota la revisión del servidor y se reintenta enseguida (a lo más
+     REINTENTOS_DEL_PC veces seguidas, por si de verdad hay otro aparato
+     escribiendo a la vez). Nunca se congelan y nunca pasan por ☁ Subir, paso 7.
+     El PIN no viaja: N.armarLote le pasa configQueViaja a `config`. */
+  var CLAVES_DEL_PC = ['config', 'plantillas', 'equipo'];
+  var CLAVES_QUE_SUBEN = ['gestiones', 'asignaciones', 'actosComision'].concat(CLAVES_DEL_PC);
+  /* 1,5 s y no 2: los 2 s ya son los de la primera vuelta tras el PIN (configurar). */
+  var REINTENTOS_DEL_PC = 3, ESPERA_DEL_PC_MS = 1500;
+  var _seguidasDelPc = 0;
+  function esDelPc(tabla, id) { return tabla === 'ajustes' && CLAVES_DEL_PC.indexOf(String(id)) >= 0; }
   var TABLAS = ['socios', 'creditos', 'respaldados'];
   var CAMPO_DB = { socios: 'socios', creditos: 'prestamos', respaldados: 'respaldados' };
   var QUIETUD_MS = 90000;
@@ -565,15 +588,25 @@
 
     var nube = {};
     lista(objeto(paquete).ajustes).forEach(function (a) { if (a && a.clave != null) nube[String(a.clave)] = a; });
-    r.ajustesAdoptados = []; r.ajustesCongelados = [];
+    r.ajustesAdoptados = []; r.ajustesCongelados = []; r.ajustesDelPc = [];
     CLAVES_QUE_SUBEN.forEach(function (k) {
       var a = nube[k];
       if (!a || objeto(db)[k] === undefined) return;   // sube como nuevo, o no lo pisa
       var suyo = N.jsonCanonico(a.datos);
-      if (N.jsonCanonico(N.sinFotos(db[k])) === suyo) {
+      /* 24-nov-2026 — `config` se compara como VIAJA (sin el PIN ni la fecha del
+         respaldo, que son de este aparato). Comparada entera, la de acá siempre
+         trae su PIN y nunca era igual a la de la nube. */
+      var mio = N.sinFotos(db[k]);
+      if (k === 'config' && typeof N.configQueViaja === 'function') mio = N.configQueViaja(mio);
+      var igual = N.jsonCanonico(mio) === suyo;
+      if (igual || CLAVES_DEL_PC.indexOf(k) >= 0) {
+        /* Iguales: se adopta la revisión y no hay nada que subir. Distintas, en
+           una de las tres del computador: se anota la revisión de la nube CON LO
+           QUE LA NUBE TIENE, y así la primera subida manda lo de acá encima, con
+           la revisión buena y sin choque. */
         r.espejo.ajustes[k] = { revision: num(a.revision), json: suyo, borrado: false,
                                 actualizado_en: a.actualizado_en || null, actualizado_por: a.actualizado_por || null };
-        r.ajustesAdoptados.push(k);
+        (igual ? r.ajustesAdoptados : r.ajustesDelPc).push(k);
       } else {
         r.congelar.push({ tabla: 'ajustes', id: k, motivo: 'difieren' });
         r.ajustesCongelados.push(k);
@@ -1140,6 +1173,13 @@
                 N.jsonCanonico(ch.suyo) === N.jsonCanonico(f.datos)) { yaEstaban.push({ ch: ch, f: f }); return false; }
             return true;
           });
+          /* 24-nov-2026 — LAS TRES DEL COMPUTADOR NO SE DISCUTEN (ver CLAVES_DEL_PC).
+             Un choque en config, plantillas o equipo quiere decir que el espejo
+             tenía una revisión vieja de ese ajuste (o ninguna). No va a ☁ Subir ni
+             se congela: abajo se anota en el espejo la revisión del servidor con
+             lo que el servidor tiene, y la vuelta siguiente manda lo de acá encima. */
+          var delPc = choques.filter(function (ch) { return esDelPc(ch.tabla, ch.id); });
+          choques = choques.filter(function (ch) { return !esDelPc(ch.tabla, ch.id); });
           /* (h.1) las dos versiones de cada choque, a disco ANTES de pintar nada */
           if (choques.length) { try { agregarChoques(choques); } catch (e) { /* las congeladas igual frenan */ } }
           var espAntes = leerEspejo();
@@ -1175,6 +1215,12 @@
             nuevo[x.ch.tabla][x.ch.id] = { revision: num(x.ch.revision_servidor), json: N.jsonCanonico(x.f.datos),
               borrado: false, actualizado_en: x.ch.actualizado_en || null, actualizado_por: x.ch.actualizado_por || null };
           });
+          delPc.forEach(function (ch) {
+            if (!nuevo.ajustes) nuevo.ajustes = {};
+            nuevo.ajustes[ch.id] = { revision: num(ch.revision_servidor), json: N.jsonCanonico(ch.suyo), borrado: false,
+              actualizado_en: ch.actualizado_en || null, actualizado_por: ch.actualizado_por || null };
+          });
+          if (delPc.length) resultado.delPc = num(resultado.delPc) + delPc.length;
           if (!escribirEspejo(nuevo)) {
             var largoEsp = 0; try { largoEsp = JSON.stringify(nuevo).length; } catch (e2) { largoEsp = 0; }
             _ultimo = { fase: 'espejo-no-cabe', cartera: c.txt.length, espejo: largoEsp, cuando: iso() };
@@ -1233,6 +1279,17 @@
       if (porOrdenDeJoan && !(e && e.sin_red)) { /* lo dice la cinta, no un alert */ }
     }).then(function () {
       _enVuelta = false;
+      /* 24-nov-2026 — una de las tres del computador chocó y ya quedó anotada la
+         revisión del servidor: se vuelve a subir enseguida, sin esperar los 90 s.
+         Con tope: si otro aparato está escribiendo ese ajuste a la vez, no se
+         queda dando vueltas; lo vuelve a intentar con el próximo cambio. */
+      if (resultado.delPc) {
+        if (!_apagado && _seguidasDelPc < REINTENTOS_DEL_PC) {
+          _seguidasDelPc++;
+          desprogramar(_quietud);
+          _quietud = programar(function () { _quietud = null; vuelta(false); }, ESPERA_DEL_PC_MS);
+        }
+      } else if (resultado.completa) _seguidasDelPc = 0;
       latir(false);
       _diag = diagnostico();
       if (_ultimo && _ultimo.fase === 'sin-conectar') _diag = { fase: 'sin-conectar' };
@@ -1560,9 +1617,10 @@
              computador (Ajustes, punto 3). Lo que junta es ☁ Subir, paso 6. */
           '<b>Todavía no baja nada</b>: lo que hagas en el celular llega a este computador con ☁ Subir (paso 6, «Aplicar»), ' +
           'que lo junta con lo tuyo. ⬇ Traer es para OTRO computador: aquí reemplazaría tu cartera entera. ' +
-          'No viajan las fotos (la selfie es dato biométrico, Ley 1581), la papelera, la configuración (tasa, PIN), ' +
-          'las plantillas ni el registro de WhatsApp del equipo (contactos). Las gestiones de cada cliente, que son ' +
-          'las que cuenta la Ley 2300, sí suben. · versión ' + esc(VERSION) + '</div></div>';
+          /* 24-nov-2026 — decía que la configuración y las plantillas no viajan. Ya suben solas, con el equipo. */
+          'No viajan las fotos (la selfie es dato biométrico, Ley 1581), la papelera, tu PIN ni el registro de WhatsApp ' +
+          'del equipo (contactos). La configuración (la tasa, sin el PIN), las plantillas y el equipo sí suben solos, y ' +
+          'también las gestiones de cada cliente, que son las que cuenta la Ley 2300. · versión ' + esc(VERSION) + '</div></div>';
       }
     } catch (e) { /* nada más que hacer */ }
     /* 22-oct-2026 — la línea común de crm.html se repinta con esta. */
@@ -1995,7 +2053,8 @@
     libroPorCliente: libroPorCliente,
     /* Las piezas puras, para pruebas/nube-crm.test.js. No las llama crm.html. */
     _puro: {
-      CLAVES_QUE_SUBEN: CLAVES_QUE_SUBEN, LLAVE_ESPEJO: LLAVE_ESPEJO, LLAVE_SELLO: LLAVE_SELLO,
+      CLAVES_QUE_SUBEN: CLAVES_QUE_SUBEN, CLAVES_DEL_PC: CLAVES_DEL_PC, REINTENTOS_DEL_PC: REINTENTOS_DEL_PC, ESPERA_DEL_PC_MS: ESPERA_DEL_PC_MS,
+      LLAVE_ESPEJO: LLAVE_ESPEJO, LLAVE_SELLO: LLAVE_SELLO,
       LLAVE_ESTADO: LLAVE_ESTADO, LLAVE_DUENO: LLAVE_DUENO, ESPERAS_MS: ESPERAS_MS, mismoLibro: mismoLibro,
       loQueLaNubeTieneDeMas: loQueLaNubeTieneDeMas,
       planDeSubida: planDeSubida, borradosExplicitos: borradosExplicitos, frenoPorFichas: frenoPorFichas,

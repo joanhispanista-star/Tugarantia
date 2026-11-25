@@ -62,11 +62,25 @@ function conRed(respuesta) {
 
 describe('el número de Joan no se reparte desde play/', () => {
 
-  test('no queda el celular en ninguna parte de lo que se publica', () => {
-    assert.ok(!/3103606348/.test(PLAY),
-      'el celular de Joan volvió a play/index.html');
-    assert.ok(!/310[\s.-]?360[\s.-]?6348/.test(PLAY),
-      'el celular de Joan volvió a play/index.html, escrito con espacios');
+  /* 24-nov-2026 — LA REGLA CAMBIÓ, Y LA CAMBIÓ JOAN. El 22-sep dijo «nada de compartir mi
+     numero» y esta prueba no dejaba que su celular apareciera en play/ por ninguna parte.
+     El 24-nov pidió: «quiero que pongas mi numero de telefono para garantia como numero de
+     contacto de servicio al cliente por ahora, en caso de que no le den respuesta desde la
+     aplicacion entonses que exista el boton que lo redirija a mi whatsapp».
+     Lo que se vigila ahora es esa frontera: el número vive en UN solo sitio de play/ (la
+     constante del botón de «¿Aún sin respuesta?», que solo sale cuando la persona escribió
+     por el chat y nadie de la casa le contestó: app/sin-respuesta.js y pruebas/sin-respuesta-whatsapp.test.js),
+     no está escrito en ninguna frase, y sigue sin estar en la política. */
+  test('el celular solo vive en la constante del botón de «¿Aún sin respuesta?»; en ninguna frase ni en la política', () => {
+    const apariciones = PLAY.match(/310[\s.-]?360[\s.-]?6348/g) || [];
+    assert.equal(apariciones.length, 1,
+      'el celular de Joan está ' + apariciones.length + ' veces en play/index.html: tiene que estar solo en WA_SERVICIO');
+    assert.match(PLAY, /var WA_SERVICIO = '573103606348';/,
+      'el celular está en play/, pero no en la constante del botón de «¿Aún sin respuesta?»');
+    assert.match(VIVO, /SinRespuesta\.pintar\(c, toca \? HILO\.mensajes : \[\], \{ whatsapp: WA_SERVICIO, ahora: Date\.now\(\) \}\)/,
+      'WA_SERVICIO ya no se usa solo para el botón de «¿Aún sin respuesta?»');
+    assert.equal((VIVO.match(/WA_SERVICIO/g) || []).length, 2,
+      'WA_SERVICIO se usa en más de un sitio: el número tiene que salir SOLO en ese botón');
     assert.ok(!/WA_NEGOCIO\s*=/.test(PLAY),
       'volvió la variable con el número del negocio');
     assert.ok(!/3103606348/.test(PRIV),

@@ -666,6 +666,11 @@
     .cal-more{font-size:9px}
   }
 </style>
+<!-- 24-nov-2026 — LA HOJA DEL TELÉFONO (panel/crm-movil.css). Llega APAGADA
+     (media="not all"): la enciende panel/crm-movil.js, y solo en un celular o una
+     tableta con el menú de Joan. En un computador no se enciende nunca, ni con la
+     ventana angosta. Va después de la hoja de arriba porque la pisa. -->
+<link rel="stylesheet" href="crm-movil.css?v=164" media="not all" id="hojaMovil">
 </head>
 <body>
 
@@ -1312,7 +1317,16 @@
      nube, y va por etapas.
      Va ANTES de puente.js porque guardar() lo necesita y guardar() se llama
      desde el arranque. -->
-<script src="nube.js?v=143"></script>
+<script src="nube.js?v=162"></script>
+<!-- 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (crm-remoto.js, etapa U1 de
+     RECETA-PLAN-UN-SOLO-CRM.md). En un computador no hace nada: decide por el tipo
+     de aparato, nunca por el ancho. Va después de nube.js, que es quien trae. -->
+<script src="crm-remoto.js?v=169"></script>
+<!-- 24-nov-2026 — LA BARRA DE ABAJO Y «MÁS» (crm-movil.js): enciende la hoja del
+     teléfono y mete en una caja las pestañas que no caben en la barra. Va después
+     de crm-remoto.js, que es quien sabe si el aparato es un celular; y ANTES del
+     guion de la página, que le cuelga irA a cada .navbtn dondequiera que esté. -->
+<script src="crm-movil.js?v=164"></script>
 <script src="../app/puente.js?v=143"></script>
 <!-- El chat, compartido con app/socio.html por la misma razón que el puente:
      quien decide de qué lado va un mensaje y cómo se escapa el texto vive en un
@@ -1816,12 +1830,19 @@ _selloDesdeDisco(false);
    esperáramos al próximo guardar(), cada carga volvería a correrla sobre
    créditos ya revisados — que fue exactamente el defecto que se arregla hoy. */
 if(_fechasMigradas) guardar();
+/* 23-nov-2026 — ¿Este CRM está abierto en un celular, mirando desde la nube? (crm-remoto.js).
+   Con `function`, que sube sola: cargar() y guardar() la llaman antes de su línea. Si la
+   pieza no llegó, es que no: el CRM de siempre. */
+function soloMirar(){ try{ return !!(window.CrmRemoto && CrmRemoto.activo()); }catch(e){ return false; } }
 function cargar(){
   /* Se pone en cero en CADA carga: el contador dice qué tocó ESTA pasada, no
      cuántas se tocaron desde que se abrió el Panel. Quien llama decide si hay
      que grabar la constancia. */
   _fechasMigradas=0;
-  let d={}; try{ d=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){}
+  /* 23-nov-2026 — EN UN CELULAR QUE SOLO MIRA, LA CARTERA NO SALE DE LA GAVETA: sale de
+     la memoria, donde crm-remoto.js armó lo que vino de la nube. Es el único cambio de
+     esta función; todo lo de abajo (los valores por defecto) le aplica igual. */
+  let d={}; try{ d=soloMirar() ? CrmRemoto.paraCargar() : JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){}
   d.socios=d.socios||d.clientes||[]; d.prestamos=d.prestamos||[]; d.papelera=d.papelera||[];
   /* 2-ago-2026: dos arreglos nuevos. Se AGREGAN, no se toca nada de lo de antes.
      Un respaldo viejo (o el localStorage de siempre) no los trae y por eso todas
@@ -1999,6 +2020,10 @@ function codRespaldado(r){ return PUENTE.codRespaldado(r); }
 var _guardadoOk = true;
 
 function guardar(deFondo){
+  /* 23-nov-2026 — UN CELULAR QUE SOLO MIRA NO GUARDA (crm-remoto.js). Va primero: aquí no
+     hay gaveta, ni sello, ni otra pestaña que mirar. La pieza decide si lo dice (cambió
+     algo con un toque) o si calla (una pintada), y devuelve la pantalla a lo de la nube. */
+  if (soloMirar()) return CrmRemoto.alGuardar(deFondo === 'de-fondo');
   /* 4-nov-2026 — UNA PESTAÑA VIEJA NO BORRA UN COBRO. Medido el 3-nov con este
      mismo archivo en dos pestañas: la A cobra y guarda; la B tiene un cuadro
      abierto, así que no se recarga sola (alEscribirOtraPagina espera), y al
@@ -4351,8 +4376,13 @@ function renderCobranzas() {
       '<span class="muted">Mira abajo por qué.</span></p></div>';
   } else {
     caja.innerHTML = aviso + avisoCaros + barra +
-      '<div class="muted" style="padding:0 14px 8px;font-size:12px">Destilda a quien no quieras. ' +
-      'Lo que no se puede es <b>agregar</b> a alguien de la tabla de abajo: esos topes no tienen casilla.</div>' +
+      /* 24-nov-2026 — en un celular que solo mira no hay casillas ni envío (crm-remoto.js
+         los esconde): la frase que los explica hablaba de algo que no está. */
+      (soloMirar()
+        ? '<div class="muted" style="padding:0 14px 8px;font-size:12px">A estas personas se les puede escribir hoy. ' +
+          'Los mensajes se mandan desde tu computador.</div>'
+        : '<div class="muted" style="padding:0 14px 8px;font-size:12px">Destilda a quien no quieras. ' +
+      'Lo que no se puede es <b>agregar</b> a alguien de la tabla de abajo: esos topes no tienen casilla.</div>') +
       '<table><thead><tr><th style="width:34px"></th><th>Cliente</th><th>Debe</th><th>Créditos</th>' +
         '<th>Vence</th><th>Mensaje</th><th style="width:1%">Gestión</th></tr></thead><tbody>' +
       /* 16-sep-2026 — LA COLUMNA DEL MENSAJE SE RECORTA A UN CHIP. El texto
@@ -4409,9 +4439,12 @@ function renderCobranzas() {
   if (cajaF) {
     cajaF.innerHTML = !fuera.length
       ? '<div class="empty"><div class="ic">👍</div><p>Nadie quedó fuera.</p></div>'
-      : '<div class="muted" style="padding:0 14px 8px;font-size:12px">A esta gente <b>no se le ' +
+      : (soloMirar()
+        ? '<div class="muted" style="padding:0 14px 8px;font-size:12px">A esta gente <b>no se le ' +
+          'puede escribir hoy</b>: al lado de cada una está el motivo. Puedes mirar su historia.</div>'
+        : '<div class="muted" style="padding:0 14px 8px;font-size:12px">A esta gente <b>no se le ' +
         'puede escribir hoy</b>, y por eso no tienen casilla. Pero sí puedes <b>mirar su historia ' +
-        'y registrarle un pago</b>: eso no es contactar, y acá está buena parte de tu cartera.</div>' +
+        'y registrarle un pago</b>: eso no es contactar, y acá está buena parte de tu cartera.</div>') +
         '<table><thead><tr><th>Cliente</th><th>Debe</th><th>Por qué no</th>' +
         '<th style="width:1%">Gestión</th></tr></thead><tbody>' +
         fuera.map(function (f) {
@@ -4490,9 +4523,12 @@ function pintarNoLesToca(fuera, filas) {
     return;
   }
   caja.innerHTML =
-    '<div class="muted" style="padding:0 14px 8px;font-size:12px">Créditos abiertos que <b>todavía no ' +
+    (soloMirar()
+      ? '<div class="muted" style="padding:0 14px 8px;font-size:12px">Créditos abiertos que <b>todavía no ' +
+        'vencen</b>. No se les manda cobro.</div>'
+      : '<div class="muted" style="padding:0 14px 8px;font-size:12px">Créditos abiertos que <b>todavía no ' +
     'vencen</b>. No se les manda cobro, pero si alguien te paga antes de tiempo, aquí le registras el ' +
-    'pago con <b>💵 Pago</b>.</div>' +
+    'pago con <b>💵 Pago</b>.</div>') +
     '<table><thead><tr><th>Cliente</th><th>Debe</th><th>Créditos</th><th>Vence</th>' +
     '<th style="width:1%">Gestión</th></tr></thead><tbody>' +
     lista.map(function (g) {
@@ -6828,7 +6864,13 @@ function verCliente(id){
      en qué va y tiene su botón. */
   const cj=s.cuentaJunta, cpj=s.cuentaPorJuntar;
   const esperaClave=cpj&&cpj.noAntesDe&&Date.now()<Date.parse(cpj.noAntesDe);
-  const bloqueCuenta=`<div class="info-row con-botones"><span class="k">Su cuenta en la app
+  /* 24-nov-2026 — en un celular que solo mira, de este renglón queda lo que la ficha
+     SABE: si la cuenta está junta, con qué número y desde cuándo. «Este computador no
+     la ha juntado» y los cuatro botones (que crm-remoto.js esconde) no son de aquí; y
+     si la ficha no dice que esté junta, el celular no sabe más: no dice nada. */
+  const bloqueCuenta=soloMirar()
+    ? (cj?`<div class="info-row"><span class="k">Su cuenta en la app</span><span class="vv">Junta con el ${escHTML(UP?UP.bonito(cj.celular):cj.celular)} desde el ${fmtFecha(cj.fecha)}</span></div>`:'')
+    : `<div class="info-row con-botones"><span class="k">Su cuenta en la app
        <div class="muted">${cj?'Junta desde este computador con el '+escHTML(UP?UP.bonito(cj.celular):cj.celular)+' el '+fmtFecha(cj.fecha)
          :cpj?(cpj.motivo?'La nube no juntó su cuenta sola: falta tu toque (lo que dice abajo)'
                :esperaClave?'Le diste una clave nueva al número de su ficha: '+escHTML(horaDeJuntarse(s,cpj.noAntesDe))
@@ -8017,7 +8059,7 @@ function verCredito(id){
     <div class="two" style="margin-top:18px">${p.pagado?'<span></span>':`<button class="btn btn-rojo" onclick="abrirPago('${p.id}')" title="Pagó todo, abonó y pasa a la otra quincena, o prórroga">Registrar cobro / abono / prórroga</button>`}<button class="btn btn-ghost" onclick="verCliente('${s.id}')">Ver cliente</button></div>
     ${btnAjustarV}
     <button class="btn btn-ghost btn-sm" style="margin-top:12px;width:100%" onclick="borrarCredito('${p.id}')">🗑 Borrar este crédito · quedó mal guardado</button>
-    <div class="muted" style="text-align:center;margin-top:6px;font-size:12px">Va a la papelera, no se pierde.</div>`);
+    ${soloMirar()?'':'<div class="muted" style="text-align:center;margin-top:6px;font-size:12px">Va a la papelera, no se pierde.</div>'}`);
 }
 
 /* ===== PAGO / PRÓRROGA / COMPROBANTE ===== */
@@ -12488,7 +12530,10 @@ function renderSocios(){
     (!foto.length?`<div class="empty"><div class="ic">📋</div><p>Sin clientes todavía.</p></div>`:
     `<div class="alerta ${sinRevisar.length?'warn':'info'}" style="margin-bottom:12px">
       ${sinRevisar.length
-        ? `Te faltan <b>${sinRevisar.length}</b> de ${foto.length} cliente(s) por revisar. Mira que el número le cuadre a cada uno: su historial sube solo a la nube, así que lo que ves aquí es lo que él ve en su app.`
+        ? (soloMirar()
+            /* 24-nov-2026 — en un celular que solo mira no hay «Revisar»: no se le pide lo que ahí no puede hacer. */
+            ? `Hay <b>${sinRevisar.length}</b> de ${foto.length} cliente(s) sin revisar. Lo que ves aquí es lo que cada uno ve en su app; la revisión se hace en tu computador.`
+            : `Te faltan <b>${sinRevisar.length}</b> de ${foto.length} cliente(s) por revisar. Mira que el número le cuadre a cada uno: su historial sube solo a la nube, así que lo que ves aquí es lo que él ve en su app.`)
         : `Ya revisaste a los ${foto.length} clientes. ✓`}
       ${conAjuste.length?`<br>Llevas ${conAjuste.length} ajuste(s) a mano, por ${COP(totalAjustes)} en total.`:''}
     </div>
@@ -12833,7 +12878,10 @@ function renderRegistros(){
       <td>${abierto?'<span class="chip al-dia">📱 App</span>':'<span class="chip pagado">🎟️ '+escHTML(r.codigo||'Invitación')+'</span>'}</td>
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
-      <td>${fmtFecha(String(r.creado_en||'').slice(0,10))}</td>
+      ${/* 24-nov-2026 — CON LA HORA, Y EN EL DÍA DE AQUÍ. Joan: «quiero que se vea la hora y
+           fecha de registro». Salía solo el día, y cortado de la hora UTC: quien se
+           registraba después de las 7 p. m. aparecía con la fecha del día siguiente.
+           fmtFechaHora usa el día y la hora de este aparato. */''}<td style="white-space:nowrap">${r.creado_en?escHTML(fmtFechaHora(r.creado_en)):'—'}</td>
       <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${r.telefono?`<button class="btn btn-ghost btn-sm" onclick="escribirlePorLaApp('registro','${escHTML(String(r.id))}')" title="En el chat de su app, sin WhatsApp, solo si ese celular ya tiene cuenta (se le pregunta a la nube al tocarlo). Lo ve cuando abra la app: no le llega aviso al celular.">💬 Escribirle por la app</button> `:''}${r.telefono&&necesitaAvisoResponsable(r)?`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeAvisoResponsable(r)))}" title="Se registró con la política anterior: avísale que desde el 15-oct la responsable de sus datos es NEXECO S.A.S.">📣 Aviso de datos</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}${c0
         /* 7-oct-2026 — EL TOQUE. Cuando el puente lo reconoce con fuerza
            (la misma cédula, o el mismo celular sin nada que lo contradiga),
@@ -13009,6 +13057,8 @@ function verDatosRegistro(id){
     +'Nadie ha comprobado su identidad contra la Registraduría ni contra ninguna central: eso no se consulta. '
     +'Lo único que sabemos es de dónde salió cada texto, y eso lo dice el cotejo de aquí abajo. '
     +'Al abrirle la ficha se prellenan y viajan con el cliente.</div>'
+    /* 24-nov-2026 — cuándo se registró, con la hora (lo que el servidor anotó al recibirlo). */
+    +(r.creado_en?'<div class="info-row"><span class="k">Se registró el</span><span class="vv">'+escHTML(fmtFechaHora(r.creado_en))+'</span></div>':'')
     +(filas||'<div class="muted">No dejó datos además del nombre y el celular.</div>')
     +bloqueHuella(r.huella,{registro:r})
     +'<div class="sub-h">Fotos del registro</div><div id="regFotos" class="muted">Buscando las fotos…</div>'
@@ -14802,6 +14852,11 @@ function textoSalidaDeLaPuerta() {
    repone con innerHTML, y lo que trae _tarjetaPin es la que nació escondida. */
 var _cajonDeLaPuerta = null;
 function pintarSalidaDeLaPuerta() {
+  /* 23-nov-2026 — en un celular sin cartera la puerta es la del correo (crm-remoto.js): la
+     del PIN se queda debajo, escondida, y esta salida ya no tiene nada que ofrecer. */
+  /* 24-nov-2026 — y en un celular que guarda una copia, pintarPuerta deja su aviso («Ver lo
+     de hoy») y contesta false: la puerta del PIN sigue con lo suyo. */
+  try { if (window.CrmRemoto && CrmRemoto.pintarPuerta()) return; } catch (e) {}
   const caja = document.getElementById('salidaPuerta');
   if (!caja) return;
   const t = textoSalidaDeLaPuerta();
@@ -26967,6 +27022,9 @@ function alTocarElMenu(ev) {
 }
 (function () { const lado = document.querySelector('.side'); if (lado) lado.addEventListener('click', alTocarElMenu); })();
 function entrar(){ const retomada=_retomandoDueno===true, campoPin=document.getElementById('pinInput');
+  /* 23-nov-2026 — con la puerta del correo, el PIN no abre nada: ni el 1234 de fábrica
+     con Enter sobre un campo escondido (crm-remoto.js). */
+  try{ if(window.CrmRemoto && CrmRemoto.puertaDeCorreo()) return; }catch(e){}
   if(!retomada) document.getElementById('pinErr').className='gate-err';
   /* 9-nov-2026 — EL PIN SE COMPARA CON LO QUE HAY EN EL DISCO, NO CON LO DE HACE HORAS
      (revisión de plata-e1). Una puerta abierta en un aparato sin cartera tiene en memoria
@@ -27092,6 +27150,23 @@ function esperarParaRecargar(){
    nada —lo que sube ya está en disco—; lo usará la bajada para no repintarle un
    formulario mientras escribe. No conoce ids sueltos: Ajustes es `v-cfg` (no
    existe ningún `v-ajustes`). Y si no sabe, dice que SÍ: se aplaza. */
+/* 23-nov-2026 — LO QUE crm-remoto.js PIDE PRESTADO. Abrir sin PIN y sin nada de lo que
+   entrar() arranca para el computador: ni la subida (NubeCRM), ni los historiales, ni la
+   publicación del equipo, ni el oyente de otras pestañas, ni la sesión de 24 h. Un celular
+   que mira no sube nada. Por eso es otra función y no un «si» más dentro de entrar(). */
+function abrirSoloMirar(){
+  _crmAbierto=true; DB=cargar();
+  document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='grid';
+  render();
+}
+/* Llegó algo nuevo de la nube, o una acción intentó cambiar algo: la pantalla vuelve a lo
+   que hay en la memoria. `trasNegar`: el cuadro abierto muestra un cambio que no existe, y
+   se cierra. La pestaña en la que está Joan no se mueve. */
+function repintarSoloMirar(trasNegar){
+  if(trasNegar){ try{ cerrarModal(); }catch(e){} }
+  DB=cargar(); render();
+  try{ if(_vistaCRM==='cobranzas') renderCobranzas(); if(_vistaCRM==='cal') renderCalendario(); }catch(e){}
+}
 function estoyOcupado(){ try{ if(modal.classList.contains('on')) return true; var a=document.activeElement; if(a && (a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.tagName==='SELECT'||a.isContentEditable)) return true; var v=document.querySelector('.view.on'); return !!(v && (v.id==='v-cfg' || v.id==='v-plantillas')); }catch(e){ return true; } }
 /* 1-oct-2026 — lo que hace el botón de la cinta cuando otra página escribió la
    cartera: las MISMAS tres líneas del arranque y de importar(), con el sello en
@@ -27312,7 +27387,7 @@ if (/^#equipo(?:$|&)/.test(location.hash || '')) { try { pintarPuertaEquipo(); }
      rpc, sbCfg, openModal y la cartera que ese bloque declara, y se engancha a
      tres funciones suyas sin tocarlas (ver el porqué abajo). Nuevo, con ?v=145:
      firma al llegar. Si no llega, no se pinta nada de esto y el CRM sigue. -->
-<script src="extractos-crm.js?v=161"></script>
+<script src="extractos-crm.js?v=170"></script>
 <script>
 /* ==========================================================================
  * 📄 LOS EXTRACTOS — 13 de noviembre de 2026
@@ -27547,7 +27622,7 @@ function guardarResumenExtractos(socioId){
      DESPUÉS del bloque grande y no arriba con los demás: arranca desde entrar(),
      que vive en ese bloque, y usa funciones que ese bloque declara. nube.js no se
      repite: ya está arriba desde el 15-sep, antes de puente.js. -->
-<script src="nube-crm.js?v=143"></script>
+<script src="nube-crm.js?v=165"></script>
 <script>
 /* 1-oct-2026 — RECETA E. Si nube-crm.js no llegó (un service worker viejo, sin
    señal), la barra de Ajustes quedaría vacía, y un div vacío no se distingue de
@@ -27592,6 +27667,11 @@ function abrirMapaClientes(){
    existen igual —se declaran antes de correr—, pero sus variables no, y por
    eso se mira TG_A_MEDIAS y que SESION_DURA_MS ya tenga valor. */
 try {
+  /* 23-nov-2026 — primero se decide la puerta de este aparato (crm-remoto.js). En un
+     computador contesta 'pin' y no toca nada; con #equipo, tampoco. */
+  try { if (!window.TG_A_MEDIAS && window.CrmRemoto && typeof abrirSoloMirar === 'function') CrmRemoto.alAbrir({
+    db: () => DB, abrir: abrirSoloMirar, repintar: repintarSoloMirar, ocupado: estoyOcupado,
+    equipo: () => String(location.hash || '').split('&')[0] === '#equipo' }); } catch (e) {}
   if (!window.TG_A_MEDIAS && typeof SESION_DURA_MS === 'number' && typeof retomarSesionAlAbrir === 'function') retomarSesionAlAbrir();
 } catch (e) {}
 </script>
@@ -27612,7 +27692,7 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
    cuando alguien sospechaba.
    VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
    él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v161';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v170';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }

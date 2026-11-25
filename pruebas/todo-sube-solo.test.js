@@ -558,8 +558,10 @@ describe('6 · ningún texto pide tocar un botón que ya no está', () => {
   test('traer.html y espejo.html', () => {
     assert.doesNotMatch(sinComentarios(LEER('panel/traer.html')), /lo emparejes una vez/);
     const esp = sinComentarios(LEER('panel/espejo.html'));
-    /* Las plantillas NO suben solas: el celular dice dónde se suben ahora. */
-    assert.match(esp, /viaja cuando subes las plantillas: en el computador, Ajustes → Avanzado → ☁ Subir; no suben solas/);
-    assert.match(esp, /la cartera sube sola, las plantillas no/);
+    /* 24-nov-2026 — decía «las plantillas NO suben solas». Desde hoy suben solas (el computador
+       manda: pruebas/el-pc-sube-sus-ajustes.test.js), y el celular dice qué hacer si no han llegado. */
+    assert.doesNotMatch(esp, /no suben solas|las plantillas no\)/);
+    assert.match(esp, /sube solo con las plantillas cuando abres el CRM allá; si no llega, abre el CRM en el computador y espera un par de minutos/);
+    assert.match(esp, /suben solas cuando abres el CRM allá, y este teléfono aún no las ha traído/);
   });
 });

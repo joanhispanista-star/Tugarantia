@@ -9353,8 +9353,19 @@ describe('LOS DOCUMENTOS LEGALES IDENTIFICAN AL RESPONSABLE (27-ago-2026)', () =
      app/socio.html SÍ lo conserva, y es a propósito: es la otra app, la de los
      socios del quincenal, y quitarle el número es una decisión distinta que
      Joan no ha tomado. Si algún día la toma, esta prueba es el sitio donde se
-     anota. */
-  test('play/ ya no reparte el número de Joan, y socio.html todavía sí', () => {
+     anota.
+
+     24-nov-2026 — SE ANOTA: JOAN ABRIÓ UNA RENDIJA, NO LA PUERTA. «quiero que
+     pongas mi numero de telefono para garantia como numero de contacto de
+     servicio al cliente por ahora, en caso de que no le den respuesta desde la
+     aplicacion entonses que exista el boton que lo redirija a mi whatsapp».
+     El número vuelve a play/, pero en UN solo sitio (la constante WA_SERVICIO)
+     y para UNA sola cosa: el botón de «¿Aún sin respuesta?», que sale cuando la
+     persona escribió por el chat y nadie de la casa le contestó en un rato
+     (app/sin-respuesta.js). Sigue sin estar escrito en ninguna frase, y el chat
+     sigue siendo la puerta. El detalle lo cuidan canal-unico.test.js y
+     sin-respuesta-whatsapp.test.js. */
+  test('play/ no reparte el número de Joan (solo el botón de «¿Aún sin respuesta?»), y socio.html todavía sí', () => {
     const SOC = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
     const PL = fs.readFileSync(path.join(__dirname, '..', 'play', 'index.html'), 'utf8');
     assert.ok(/whatsapp:\s*'57\d{10}'/.test(SOC),
@@ -9364,8 +9375,11 @@ describe('LOS DOCUMENTOS LEGALES IDENTIFICAN AL RESPONSABLE (27-ago-2026)', () =
        número. */
     assert.ok(!/WA_NEGOCIO\s*=/.test(PL),
       'volvió WA_NEGOCIO a play/index.html: el cliente nuevo no tiene que ver el celular de Joan');
-    assert.ok(!/3103606348|310\s?360\s?6348/.test(PL),
-      'el celular de Joan volvió a play/index.html, escrito a mano en alguna parte');
+    const veces = PL.match(/310[\s.-]?360[\s.-]?6348/g) || [];
+    assert.equal(veces.length, 1,
+      'el celular de Joan está ' + veces.length + ' veces en play/index.html: solo puede estar en la constante del botón de «¿Aún sin respuesta?»');
+    assert.ok(/var WA_SERVICIO = '573103606348';/.test(PL),
+      'el celular de Joan está en play/index.html, pero escrito a mano en otra parte y no en WA_SERVICIO');
     /* Y el reemplazo tiene que existir: quitar el botón sin poner el otro es
        dejar al que olvidó la contraseña sin ninguna puerta, que es peor que el
        WhatsApp. pedir_ayuda_clave es la única función que se llama sin sesión. */

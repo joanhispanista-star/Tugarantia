@@ -820,9 +820,15 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
     await asentar();
     return T;
   };
-  const hastaTraer = async paq => {
+  /* 25-nov-2026 (v167) — `pin`: con un paquete sin PIN, un computador no trae hasta que se
+     escoja uno (pruebas/traer-escoge-su-pin.test.js). Se teclea en las dos casillas, como un dedo. */
+  const escogerPin = (T, pin) => ['pinNuevo', 'pinNuevo2'].forEach(id => {
+    T.elems[id].value = pin; (T.elems[id]._oyentes.input || []).forEach(f => f({ target: T.elems[id] }));
+  });
+  const hastaTraer = async (paq, pin) => {
     const T = await hastaMirar(paq);
     T.tocar('btnRespaldo');
+    if (pin) escogerPin(T, pin);
     T.tocar('btnTraer');
     await asentar();
     return T;
@@ -854,11 +860,14 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
     assert.doesNotMatch(T.texto('resumen3'), /Invalid|NaN|undefined/);
   });
 
-  test('una fila config sin PIN no promete uno: el CRM va a arrancar con el de fábrica', async () => {
-    const T = await hastaTraer(paquete([{ clave: 'config', datos: { negocio: 'Tu Garantía' }, actualizado_en: '2026-08-18T20:15:00Z' }]));
+  /* 25-nov-2026 (v167) — decía «…el CRM va a arrancar con el de fábrica» y exigía «PIN de fábrica
+     (1234)» en el paso 6. Ya no arranca con ese: se escoge antes de traer. */
+  test('una fila config sin PIN no promete uno ni deja el de fábrica: queda el que se escoge antes de traer', async () => {
+    const T = await hastaTraer(paquete([{ clave: 'config', datos: { negocio: 'Tu Garantía' }, actualizado_en: '2026-08-18T20:15:00Z' }]), '482915');
     assert.match(T.texto('resumen3'), /Los ajustes sí vienen, pero sin PIN/);
-    assert.match(T.texto('msg6'), /PIN de fábrica \(1234\).*los ajustes vinieron sin PIN/);
-    assert.doesNotMatch(T.texto('msg6'), /te va a pedir un PIN/);
+    assert.match(T.texto('msg6'), /PIN que acabas de escoger en esta página ?: los ajustes vinieron sin PIN/);
+    assert.doesNotMatch(T.texto('msg6'), /te va a pedir un PIN,|de fábrica \(1234\)/);
+    assert.equal(JSON.parse(T.almacen[LLAVE]).config.pin, '482915');
   });
 
   describe('si no recuerda ese PIN, se dice antes de traer', () => {
@@ -1068,10 +1077,11 @@ describe('F6. El PIN que viaja es el de la última subida de ajustes, con su fec
     });
   });
 
-  test('control: sin la fila config, como siempre', async () => {
-    const T = await hastaTraer(paquete([]));
+  test('control: sin la fila config, lo mismo (25-nov-2026: tampoco queda el de fábrica)', async () => {
+    const T = await hastaTraer(paquete([]), '482915');
     assert.match(T.texto('resumen3'), /Los ajustes no vienen/);
-    assert.match(T.texto('msg6'), /PIN de fábrica \(1234\).*los ajustes no vinieron/);
+    assert.match(T.texto('msg6'), /PIN que acabas de escoger en esta página ?: los ajustes no vinieron/);
+    assert.doesNotMatch(T.texto('msg6'), /de fábrica \(1234\)/);
   });
 });
 
@@ -1365,7 +1375,7 @@ describe('F6b. Sin PIN en el paquete, este aparato conserva el suyo y su fecha d
     ? { status: 200, cuerpo: { access_token: 'acceso-de-prueba', refresh_token: 'renovar-de-prueba', expires_in: 3600, user: { id: 'u1', email: 'duena@prueba.test' } } }
     : /rpc\/panel_traer/.test(url) ? { status: 200, cuerpo: paq } : { status: 404, cuerpo: {} };
   const conCartera = () => ({ [LLAVE]: JSON.stringify({ socios: [SOCIO], prestamos: [], config: { pin: '777111', ultimoRespaldo: '2026-10-20', negocio: 'Tu Garantía' } }) });
-  const traer = async (paq, almacen) => {
+  const traer = async (paq, almacen, pin) => {
     const T = abrirTraer({ red: nube(paq), almacen });
     if (almacen && almacen[LLAVE]) { T.elems.pin.value = JSON.parse(almacen[LLAVE]).config.pin; T.tocar('btnPuerta'); }
     T.elems.sbCorreo.value = 'duena@prueba.test'; T.elems.sbClave.value = 'una-clave-inventada';
@@ -1378,6 +1388,8 @@ describe('F6b. Sin PIN en el paquete, este aparato conserva el suyo y su fecha d
     /* Con cartera, el respaldo baja un archivo de verdad (Blob y un <a>), que aquí no hay:
        lo que se prueba es lo que pasa DESPUÉS del respaldo. */
     T.ev('E.respaldoHecho = true; refrescarBotones()');
+    /* 25-nov-2026 (v167) — `pin`: el que se escoge en el paso 5 cuando el aparato quedaría con el de fábrica. */
+    if (pin) ['pinNuevo', 'pinNuevo2'].forEach(id => { T.elems[id].value = pin; (T.elems[id]._oyentes.input || []).forEach(f => f({ target: T.elems[id] })); });
     T.tocar('btnTraer');
     await asentar();
     return { T, paso3, config: JSON.parse(T.almacen[LLAVE]).config };
@@ -1435,10 +1447,22 @@ describe('F6b. Sin PIN en el paquete, este aparato conserva el suyo y su fecha d
     assert.match(T.texto('msg6'), /El CRM te va a pedir un PIN, porque los ajustes vinieron en el paquete/);
   });
 
-  test('CONTROL: un aparato sin cartera y un paquete sin PIN arranca con el de fábrica, y lo dice', async () => {
-    const { T, paso3, config } = await traer(paquete([SIN_PIN]), {});
-    assert.ok(!config.pin, 'le inventó un PIN');
-    assert.match(paso3, /PIN 1234/);
-    assert.match(T.texto('msg6'), /PIN de fábrica \(1234\)/);
+  /* 25-nov-2026 (v167) — este control decía «…arranca con el de fábrica, y lo dice», y exigía que la
+     cartera quedara SIN PIN. Era el hueco: entre traer y entrar, abría con el 1234. Ahora no se
+     puede traer sin escoger uno, y ese es el que queda. */
+  test('CONTROL: un aparato sin cartera y un paquete sin PIN no trae hasta escoger un PIN, y queda ese', async () => {
+    const sinEscoger = abrirTraer({ red: nube(paquete([SIN_PIN])), almacen: {} });
+    sinEscoger.elems.sbCorreo.value = 'duena@prueba.test'; sinEscoger.elems.sbClave.value = 'una-clave-inventada';
+    sinEscoger.tocar('btnEntrar'); await asentar();
+    sinEscoger.tocar('btnMirar'); await asentar();
+    sinEscoger.tocar('btnRespaldo');
+    assert.equal(sinEscoger.elems.btnTraer.disabled, true, 'se puede traer y quedar con el PIN de fábrica');
+
+    const { T, paso3, config } = await traer(paquete([SIN_PIN]), {}, '482915');
+    assert.equal(config.pin, '482915', 'no quedó el PIN escogido');
+    assert.doesNotMatch(paso3, /PIN 1234/);
+    assert.match(paso3, /lo escoges tú en el paso 5/);
+    assert.match(T.texto('msg6'), /PIN que acabas de escoger en esta página/);
+    for (const t of [paso3, T.texto('msg6')]) assert.ok(!t.includes('482915'), 'la pantalla pintó el PIN');
   });
 });

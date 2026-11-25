@@ -105,8 +105,8 @@
      casilla, en la política y en los términos: pruebas/los-extractos.test.js
      dice qué más. NO es VERSION_AUTORIZACION de app/cuenta.js: esa es la
      general, y no sube (a nadie se le vuelve a pedir nada por esto). */
-  var VERSION_AUTORIZACION = '2026-11-24';
-  var FECHA_EN_PALABRAS = '24 de noviembre de 2026';
+  var VERSION_AUTORIZACION = '2026-11-25';
+  var FECHA_EN_PALABRAS = '25 de noviembre de 2026';
 
   /* Los topes son los de la base (extracto_subir): aquí se miran antes para
      decirlo sin gastar la subida, y allá otra vez. 3 PDF: los tres meses, que

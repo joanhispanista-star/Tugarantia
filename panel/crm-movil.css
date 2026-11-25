@@ -1,0 +1,576 @@
+/* ============================================================================
+   panel/crm-movil.css — 24 de noviembre de 2026 — EL CRM EN UN TELÉFONO
+
+   Joan, el 23-nov: «hay muchas pestañas que no me aparecen desde el celular…
+   modificalo». A 390 px el CRM era el del computador encogido: un menú de 1.342 px
+   de alto antes del contenido, una fila de Créditos de 933 px de ancho en una caja
+   de 356 (el botón «Pago» a 859 px del borde) y 706 controles por debajo de los
+   44 px que pide un dedo. Esta hoja NO cambia el HTML ni los guiones de crm.html:
+   solo cómo se pinta en un teléfono.
+
+   QUIÉN LA ENCIENDE. La página la pide apagada:
+       <link rel="stylesheet" href="crm-movil.css?v=…" media="not all" id="hojaMovil">
+   y panel/crm-movil.js le pone media="screen" SOLO si el aparato es un celular o
+   una tableta (CrmRemoto.esCelular: por el tipo de aparato, nunca por el ancho) y
+   el menú es el de Joan. En un computador no se enciende nunca, ni con la ventana
+   angosta: ahí sigue la hoja de siempre, la que crm.html trae adentro. En el
+   celular de un gerente o de un asesor tampoco: sus pantallas no se han mirado
+   con esta hoja, y una hoja sin mirar no se le pone a nadie.
+
+   Va DESPUÉS de la hoja de crm.html: a igual peso gana la última regla, así que
+   esto pisa lo de arriba sin editarlo. Apagarla deja el CRM como estaba.
+
+   Casi todo va dentro de un solo @media. Lleva «screen» a propósito: sin eso el
+   bloque también aplicaría al IMPRIMIR (A4 y carta miden menos de 880), como ya
+   le pasó a la hoja de siempre el 6-nov.
+
+   LO FRÁGIL, Y CÓMO SE VIGILA. Las fichas de Créditos, Clientes, la cola del
+   Tablero y Cobranzas ponen el rótulo de cada dato por la POSICIÓN de su columna
+   (nth-child). Si una de esas tablas gana, pierde o cambia de sitio una columna,
+   el rótulo queda sobre la cifra que no es, sin ningún error. Por eso
+   pruebas/crm-movil.test.js pinta las seis tablas de verdad y compara sus <th>
+   con los rótulos de aquí: la batería se pone roja antes de que la pantalla mienta.
+
+   Probada en Chrome haciendo de iPhone (390 × 844). NO en un iPhone de verdad.
+   ========================================================================== */
+
+/* FUERA DEL @media: un celular acostado o una tableta pasan de 880 px y ven el
+   menú del computador. Ahí lo que crm-movil.js añadió no se pinta, y la caja de
+   «Más» no es caja: sus botones siguen en la barra lateral, uno debajo del otro. */
+.mas-btn,.mas-velo,.mas-cabeza,.mas-buscar{display:none}
+.mas-hoja{display:contents}
+
+@media screen and (max-width:880px){
+
+  /* ======================================================================
+     1. LA PÁGINA
+     ====================================================================== */
+  html{-webkit-text-size-adjust:100%}
+  .main{padding:14px 12px 28px;min-width:0}
+  .ph{margin-bottom:14px;gap:10px;align-items:stretch}
+  .ph>div:first-child{flex:1 1 100%;min-width:0}
+  .ph h1{font-size:24px}
+  .ph h2{font-size:19px}
+  .ph .sub{font-size:13px;line-height:1.35}
+  /* El botón del encabezado («＋ Nuevo crédito») a todo el ancho: es el gesto de
+     la pantalla y con el pulgar no se apunta a una esquina. */
+  .ph>.btn{flex:1 1 100%;justify-content:center;min-height:48px;font-size:15px}
+  .ph>div:not(:first-child){display:flex;flex-wrap:wrap;gap:8px;flex:1 1 100%}
+  .ph>div:not(:first-child)>.btn{flex:1 1 auto;justify-content:center}
+
+  /* ======================================================================
+     2. LAS CIFRAS — dos por fila, y ninguna recortada
+     A 390 px cada tarjeta mide 179 y por dentro quedan 153. La cifra va en mono:
+     a 21 px son 12,6 por carácter y «$123.450.000» (151 px) ya rozaba el borde;
+     a 18 son 10,8 y caben 14 caracteres. Si algún día no cabe, PARTE el renglón
+     (overflow-wrap): una cifra en dos renglones es fea, una recortada es falsa.
+     ====================================================================== */
+  .kpis,.kpis2{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}
+  .kpi{padding:11px 12px 10px;border-radius:14px;min-width:0}
+  .kpi .et{font-size:11px;line-height:1.25}
+  .kpi .nm{font-size:18px;margin-top:4px;overflow-wrap:anywhere}
+  .kpi .x{font-size:10.5px;line-height:1.3}
+  .kpi-title{margin:2px 0 8px}
+
+  /* El Tablero, en el orden del día: las cifras de arriba, la cola de a quién
+     gestionar hoy, y DESPUÉS los once indicadores. En el computador todo cabe en
+     una pantalla; en el celular los indicadores eran seis pantallas de bajar
+     antes de la primera persona a la que hay que escribirle. Solo cambia el orden
+     en que se pinta: ni el HTML ni lo que dice. */
+  #v-dash.on{display:flex;flex-direction:column}
+  #v-dash>*{min-width:0}
+  #v-dash>.ph{order:0}
+  #v-dash>#avisoSolicitudesNuevas,#v-dash>#avisoSobrantes{order:1}
+  #v-dash>#kpis{order:2}
+  #v-dash>.card{order:3}
+  #v-dash>.kpi-title{order:4}
+  #v-dash>#kpis2{order:5}
+
+  /* ======================================================================
+     3. LAS TARJETAS Y LAS TABLAS QUE NO SE TOCARON
+     Las tablas de las pestañas que este bloque no rehízo siguen como hoy: se
+     deslizan de lado DENTRO de su tarjeta (.card>div, de la hoja de siempre), con
+     menos relleno. Lo nuevo es la sombra del borde, que dice «sigue a la derecha»
+     sin depender de la barra de desplazamiento, que en iPhone no se ve.
+     ====================================================================== */
+  .card{border-radius:14px;margin-bottom:14px}
+  .card-h{padding:12px 14px;gap:6px 10px}
+  .card-h h3{font-size:15.5px}
+  th{padding:8px 10px}
+  td{padding:9px 10px;font-size:13.5px}
+  .card>div{
+    background:
+      linear-gradient(to right,var(--papel) 40%,rgba(var(--papel-rgb),0)) left center/36px 100% no-repeat local,
+      linear-gradient(to left,var(--papel) 40%,rgba(var(--papel-rgb),0)) right center/36px 100% no-repeat local,
+      linear-gradient(to right,rgba(var(--laca-rgb),.16),rgba(var(--laca-rgb),0)) left center/12px 100% no-repeat scroll,
+      linear-gradient(to left,rgba(var(--laca-rgb),.16),rgba(var(--laca-rgb),0)) right center/12px 100% no-repeat scroll}
+  /* Los renglones de etiqueta y valor FUERA de un cuadro (Ajustes, sobre todo). La
+     etiqueta no se encoge (.k lleva flex:none) y en Ajustes es un párrafo entero:
+     hoy, a 390 px, la tarjeta de Ajustes mide 1.414 px de ancho y «📱 Abrir» queda
+     a 899 px del borde, fuera de la pantalla. La hoja de siempre ya lo arregla
+     dentro de los cuadros (#mBody); aquí, en las pestañas. */
+  .view .info-row{flex-wrap:wrap}
+  .view .info-row>.k{flex:1 1 200px;min-width:0;overflow-wrap:anywhere}
+  .view .info-row>.vv{min-width:0}
+  /* En una pantalla táctil el :hover se queda pegado en la última fila que se
+     tocó y se lee como «esta fila está elegida». */
+  @media (hover:none){ tr:hover td{background:none} }
+
+  /* ======================================================================
+     4. LAS TABLAS ANCHAS, UNA FICHA POR FILA
+     Créditos (9 columnas), Clientes (9), la cola del Tablero (5) y las tres de
+     Cobranzas (7, 4 y 5). Cada <tr> pasa a ser una rejilla y cada <td> cae en su
+     sitio por su POSICIÓN (nth-child), con su rótulo escrito aquí.
+
+     OJO, Y ES LO FRÁGIL DE ESTE BLOQUE: los rótulos están atados al ORDEN de las
+     columnas que arman renderCred, renderClientes, renderCobranzas,
+     pintarNoLesToca y la cola. El día que una de esas funciones gane, pierda o
+     cambie de sitio una columna, el rótulo de aquí queda sobre la cifra que no
+     es. Lo vigila pruebas/crm-movil.test.js: pinta las seis tablas y compara
+     sus <th> con los rótulos de aquí. Si cambias una columna, cambia las dos.
+     ====================================================================== */
+  :is(#tblCred,#tblClientes)>table:first-of-type,
+  :is(#cola,#tblCobranzas,#tblFueraCob,#tblNoToca)>table{display:block;min-width:0;width:100%}
+  :is(#tblCred,#tblClientes)>table:first-of-type>thead,
+  :is(#cola,#tblCobranzas,#tblFueraCob,#tblNoToca)>table>thead{display:none}
+  :is(#tblCred,#tblClientes)>table:first-of-type>:is(tbody,tfoot),
+  :is(#cola,#tblCobranzas,#tblFueraCob,#tblNoToca)>table>tbody{display:block}
+  :is(#tblCred,#tblClientes)>table:first-of-type>:is(tbody,tfoot)>tr,
+  :is(#cola,#tblCobranzas,#tblFueraCob,#tblNoToca)>table>tbody>tr{
+    display:grid;gap:6px 10px;align-items:start;padding:12px 14px 13px;border-bottom:1px solid var(--linea)}
+  :is(#tblCred,#tblClientes)>table:first-of-type>tbody>tr:last-child,
+  :is(#cola,#tblCobranzas,#tblFueraCob,#tblNoToca)>table>tbody>tr:last-child{border-bottom:none}
+  :is(#tblCred,#tblClientes)>table:first-of-type>:is(tbody,tfoot)>tr>td,
+  :is(#cola,#tblCobranzas,#tblFueraCob,#tblNoToca)>table>tbody>tr>td{
+    display:block;padding:0;border:0;min-width:0;font-size:13.5px;line-height:1.35;background:none;text-align:left!important;white-space:normal!important}
+  :is(#tblCred,#tblClientes)>table:first-of-type>tbody>tr>td>b:first-child,
+  :is(#cola,#tblCobranzas,#tblFueraCob,#tblNoToca)>table>tbody>tr>td>b:first-child{font-size:15.5px;line-height:1.25}
+  /* El rótulo de cada dato: el mismo gris en mayúsculas de los <th>. */
+  #tblCred>table:first-of-type>:is(tbody,tfoot)>tr>td:is(:nth-child(3),:nth-child(4),:nth-child(5),:nth-child(6),:nth-child(7))::before,
+  #tblCred>table:first-of-type>tfoot>tr>td:nth-child(2)::before,
+  #tblClientes>table:first-of-type>tbody>tr>td:is(:nth-child(3),:nth-child(4),:nth-child(5),:nth-child(6),:nth-child(7))::before,
+  #cola>table>tbody>tr>td:is(:nth-child(2),:nth-child(3))::before,
+  #tblCobranzas>table>tbody>tr>td:is(:nth-child(3),:nth-child(4),:nth-child(5),:nth-child(6))::before,
+  #tblFueraCob>table>tbody>tr>td:is(:nth-child(2),:nth-child(3))::before,
+  #tblNoToca>table>tbody>tr>td:is(:nth-child(2),:nth-child(3),:nth-child(4))::before{
+    display:block;font-family:'Inter',system-ui,sans-serif;font-size:10px;font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--gris);margin-bottom:2px;line-height:1.3}
+  /* La fila de botones de cada ficha: a todo el ancho y a 44 px. */
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(9),
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(9),
+  #cola>table>tbody>tr>td:nth-child(5),
+  #tblCobranzas>table>tbody>tr>td:nth-child(7),
+  #tblFueraCob>table>tbody>tr>td:nth-child(4),
+  #tblNoToca>table>tbody>tr>td:nth-child(5){display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(9)>.btn,
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(9)>.btn,
+  #cola>table>tbody>tr>td:nth-child(5)>.btn,
+  #tblCobranzas>table>tbody>tr>td:nth-child(7)>.btn,
+  #tblFueraCob>table>tbody>tr>td:nth-child(4)>.btn,
+  #tblNoToca>table>tbody>tr>td:nth-child(5)>.btn{flex:1 1 auto;justify-content:center;white-space:nowrap;min-height:46px}
+
+  /* --- Créditos: N° · Cliente · Capital · A pagar · Ganancia · Desemb.→Quincena · E.A. · Estado · botones --- */
+  #tblCred>table:first-of-type>:is(tbody,tfoot)>tr{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(1){grid-area:1/1/2/2;font-size:12px;align-self:center}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(8){grid-area:1/2/2/4;justify-self:end;text-align:right!important}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(8) .chip{white-space:normal;text-align:right}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(2){grid-area:2/1/3/4}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(3){grid-area:3/1/4/2}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(4){grid-area:3/2/4/3}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(7){grid-area:3/3/4/4}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(5){grid-area:4/1/5/4}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(6){grid-area:5/1/6/4}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(9){grid-area:6/1/7/4}
+  /* «esp. …» y «te deja …» venían uno debajo del otro, y «N días» también: en el
+     celular van seguidos, en el mismo renglón de su dato. */
+  #tblCred>table:first-of-type>tbody>tr>td:is(:nth-child(5),:nth-child(6))>div{display:inline;margin-left:10px}
+  /* El crédito ya pagado no tiene «A pagar» (dice «—»): esa casilla no se pinta y
+     la E.A. toma su sitio. Con :has(), que mira el estado de la fila. */
+  #tblCred>table:first-of-type>tbody>tr:has(.chip.pagado)>td:nth-child(4){display:none}
+  #tblCred>table:first-of-type>tbody>tr:has(.chip.pagado)>td:nth-child(7){grid-area:3/2/4/3}
+  #tblCred>table:first-of-type>:is(tbody,tfoot)>tr>td:nth-child(3)::before{content:"Capital"}
+  #tblCred>table:first-of-type>:is(tbody,tfoot)>tr>td:nth-child(4)::before{content:"A pagar"}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(5)::before{content:"Ganancia"}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(6)::before{content:"Desembolso → vence"}
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(7)::before{content:"E.A."}
+  /* «Borrar» va al final, angosto y apartado de «Pago»: los dos escriben, y el
+     pulgar que busca uno no puede caer en el otro. */
+  #tblCred>table:first-of-type>tbody>tr>td:nth-child(9)>.btn:last-child{flex:0 0 48px;margin-left:10px}
+  /* El pie (los totales): el título a todo el ancho y las tres sumas debajo, cada
+     una bajo el rótulo de su columna. En el <tfoot> las celdas son otras: la 1
+     abarca dos columnas, así que Capital, A pagar y Ganancia son la 2, la 3 y la 4. */
+  #tblCred>table:first-of-type>tfoot>tr{background:var(--fondo);border-top:2px solid var(--laca);border-bottom:none}
+  #tblCred>table:first-of-type>tfoot>tr>td{font-weight:800}
+  #tblCred>table:first-of-type>tfoot>tr>td:nth-child(1){grid-area:1/1/2/4;font-size:14.5px}
+  #tblCred>table:first-of-type>tfoot>tr>td:nth-child(2){grid-area:2/1/3/2}
+  #tblCred>table:first-of-type>tfoot>tr>td:nth-child(3){grid-area:2/2/3/3}
+  #tblCred>table:first-of-type>tfoot>tr>td:nth-child(4){grid-area:3/1/4/4}
+  #tblCred>table:first-of-type>tfoot>tr>td:nth-child(4)>div{display:inline;margin-left:10px}
+  #tblCred>table:first-of-type>tfoot>tr>td:nth-child(5){display:none}
+  #tblCred>table:first-of-type>tfoot>tr>td:nth-child(2)::before{content:"Capital"}
+  #tblCred>table:first-of-type>tfoot>tr>td:nth-child(3)::before{content:"A pagar"}
+  #tblCred>table:first-of-type>tfoot>tr>td:nth-child(4)::before{content:"Ganancia"}
+  #tblCred>div:first-child{padding:12px 14px 0;margin-bottom:4px!important}
+  #tblCred>div:first-child>.muted{display:block;margin:6px 0 0!important}
+
+  /* --- Clientes: N° · Cliente · Contacto · Ciudad · Créditos · Prórrogas · Ganancia generada · Riesgo · botones --- */
+  #tblClientes>table:first-of-type>tbody>tr{grid-template-columns:repeat(6,minmax(0,1fr))}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(1){grid-area:1/1/2/3;font-size:12px;align-self:center}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(8){grid-area:1/3/2/7;justify-self:end}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(8)::before{content:"Riesgo";font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--gris);margin-right:6px}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(2){grid-area:2/1/3/7}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(3){grid-area:3/1/4/4}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(4){grid-area:3/4/4/7}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(5){grid-area:4/1/5/3}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(6){grid-area:4/3/5/5}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(7){grid-area:4/5/5/7}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(9){grid-area:5/1/6/7}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(3)::before{content:"Contacto"}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(4)::before{content:"Ciudad"}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(5)::before{content:"Créditos"}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(6)::before{content:"Prórrogas"}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(7)::before{content:"Ganancia"}
+  /* «Ver» es a lo que se viene: el más ancho y a la derecha, donde cae el pulgar. */
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(9)>.btn{flex:0 0 auto}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(9)>.btn:last-child{flex:1 1 auto}
+  #tblClientes>table:first-of-type>tbody>tr>td:nth-child(4) a{display:inline-block;padding:13px 0}
+  #tblClientes>div:first-child{padding:12px 14px 0;margin-bottom:4px!important}
+  #tblClientes>div:first-child>.muted{display:block;margin:6px 0 0!important}
+  #tblClientes>div:first-child a[onclick]{display:inline-block;padding:15px 8px}
+  .card:has(>#buscaCliente){padding:8px!important}
+
+  /* --- La cola del Tablero: Cliente · A pagar · Vence · Estado · botones --- */
+  #cola>table>tbody>tr{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
+  #cola>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/3}
+  #cola>table>tbody>tr>td:nth-child(4){grid-area:1/3/2/4;justify-self:end}
+  #cola>table>tbody>tr>td:nth-child(2){grid-area:2/1/3/2}
+  #cola>table>tbody>tr>td:nth-child(3){grid-area:2/2/3/4}
+  #cola>table>tbody>tr>td:nth-child(5){grid-area:3/1/4/4}
+  #cola>table>tbody>tr>td:nth-child(2)::before{content:"A pagar"}
+  #cola>table>tbody>tr>td:nth-child(3)::before{content:"Vence"}
+  /* El botón de WhatsApp de la cola era un globo solo, de 38 px: con su nombre. */
+  #cola>table>tbody>tr>td:nth-child(5)>.btn-wa::after{content:"WhatsApp"}
+
+  /* --- Cobranzas, «Quién puede recibir mensaje hoy»: casilla · Cliente · Debe · Créditos · Vence · Mensaje · Gestión --- */
+  #tblCobranzas>table>tbody>tr{grid-template-columns:40px minmax(0,1fr) auto}
+  #tblCobranzas>table>tbody>tr>td:nth-child(1){grid-area:1/1/3/2}
+  #tblCobranzas>table>tbody>tr>td:nth-child(1)>input{width:28px;height:28px;margin:6px 0 0;accent-color:var(--laca)}
+  #tblCobranzas>table>tbody>tr>td:nth-child(2){grid-area:1/2/2/3}
+  #tblCobranzas>table>tbody>tr>td:nth-child(3){grid-area:1/3/2/4;text-align:right!important}
+  #tblCobranzas>table>tbody>tr>td:nth-child(5){grid-area:2/2/3/3}
+  #tblCobranzas>table>tbody>tr>td:nth-child(4){grid-area:2/3/3/4;text-align:right!important}
+  #tblCobranzas>table>tbody>tr>td:nth-child(6){grid-area:3/1/4/4}
+  #tblCobranzas>table>tbody>tr>td:nth-child(7){grid-area:4/1/5/4}
+  #tblCobranzas>table>tbody>tr>td:nth-child(3)::before{content:"Debe"}
+  #tblCobranzas>table>tbody>tr>td:nth-child(4)::before{content:"Créditos"}
+  #tblCobranzas>table>tbody>tr>td:nth-child(5)::before{content:"Vence"}
+  #tblCobranzas>table>tbody>tr>td:nth-child(6)::before{content:"Mensaje"}
+  #tblCobranzas>table>tbody>tr>td:nth-child(6)>div{display:inline-block;margin-left:8px}
+  #tblCobranzas>table>tbody>tr>td:nth-child(6) a{display:inline-block;padding:14px 0;font-size:13px!important}
+  /* En un celular que solo mira no hay casilla (crm-remoto.js la esconde): su
+     columna de 40 px no se queda vacía a la izquierda de cada persona. */
+  body.solo-mirar #tblCobranzas>table>tbody>tr{grid-template-columns:0 minmax(0,1fr) auto;column-gap:0}
+  body.solo-mirar #tblCobranzas>table>tbody>tr>td:nth-child(1){display:none}
+  body.solo-mirar #tblCobranzas>table>tbody>tr>td:is(:nth-child(3),:nth-child(4)){padding-left:10px}
+
+  /* --- Cobranzas, «Quién no, y por qué»: Cliente · Debe · Por qué no · Gestión --- */
+  #tblFueraCob>table>tbody>tr{grid-template-columns:minmax(0,1fr) auto}
+  #tblFueraCob>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/2}
+  #tblFueraCob>table>tbody>tr>td:nth-child(2){grid-area:1/2/2/3;text-align:right!important}
+  #tblFueraCob>table>tbody>tr>td:nth-child(3){grid-area:2/1/3/3}
+  #tblFueraCob>table>tbody>tr>td:nth-child(4){grid-area:3/1/4/3}
+  #tblFueraCob>table>tbody>tr>td:nth-child(2)::before{content:"Debe"}
+  #tblFueraCob>table>tbody>tr>td:nth-child(3)::before{content:"Por qué no"}
+
+  /* --- Cobranzas, «Todavía no les toca»: Cliente · Debe · Créditos · Vence · Gestión --- */
+  #tblNoToca>table>tbody>tr{grid-template-columns:minmax(0,1fr) auto}
+  #tblNoToca>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/2}
+  #tblNoToca>table>tbody>tr>td:nth-child(2){grid-area:1/2/2/3;text-align:right!important}
+  #tblNoToca>table>tbody>tr>td:nth-child(4){grid-area:2/1/3/2}
+  #tblNoToca>table>tbody>tr>td:nth-child(3){grid-area:2/2/3/3;text-align:right!important}
+  #tblNoToca>table>tbody>tr>td:nth-child(5){grid-area:3/1/4/3}
+  #tblNoToca>table>tbody>tr>td:nth-child(2)::before{content:"Debe"}
+  #tblNoToca>table>tbody>tr>td:nth-child(3)::before{content:"Créditos"}
+  #tblNoToca>table>tbody>tr>td:nth-child(4)::before{content:"Vence"}
+
+  /* ======================================================================
+     4b. SOCIOS Y CICLOS: CINCO TABLAS MÁS, UNA FICHA POR FILA  (24-nov-2026)
+     Eran las que seguían deslizándose de lado: 560 a 637 px dentro de 364
+     (medido en el iPhone de mentira). Mismo método del bloque 4, con el mismo
+     riesgo: los rótulos van por la POSICIÓN de la columna, atados al orden que
+     arman renderSocios (socTramos, socNiveles, socMigracion, socPerfiles) y
+     renderCiclos (tblCiclos). pruebas/crm-movil.test.js las pinta y compara
+     sus <th> con los rótulos de aquí. Si cambias una columna, cambia las dos.
+     Tres de las cinco no tienen columna de botones (son para leer), así que no
+     entran en la regla de «la fila de botones» del bloque 4.
+     ====================================================================== */
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table{display:block;min-width:0;width:100%}
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table>thead{display:none}
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table>:is(tbody,tfoot){display:block}
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table>:is(tbody,tfoot)>tr{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 10px;align-items:start;
+    padding:12px 14px 13px;border-bottom:1px solid var(--linea)}
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table>tbody>tr:last-child{border-bottom:none}
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table>:is(tbody,tfoot)>tr>td{
+    display:block;padding:0;border:0;min-width:0;font-size:13.5px;line-height:1.35;background:none;text-align:left!important;white-space:normal!important}
+  :is(#socTramos,#socNiveles,#socMigracion,#socPerfiles,#tblCiclos)>table>tbody>tr>td>b:first-child{font-size:15.5px;line-height:1.25}
+  #socTramos>table>tbody>tr>td:is(:nth-child(2),:nth-child(3),:nth-child(4),:nth-child(5),:nth-child(6))::before,
+  #socNiveles>table>tbody>tr>td:is(:nth-child(2),:nth-child(3),:nth-child(4),:nth-child(5))::before,
+  #socMigracion>table>:is(tbody,tfoot)>tr>td:is(:nth-child(2),:nth-child(3),:nth-child(4),:nth-child(5),:nth-child(6))::before,
+  #socPerfiles>table>tbody>tr>td:is(:nth-child(2),:nth-child(3),:nth-child(4))::before,
+  #tblCiclos>table>tbody>tr>td:is(:nth-child(2),:nth-child(3),:nth-child(4),:nth-child(5),:nth-child(6),:nth-child(7))::before{
+    display:block;font-family:'Inter',system-ui,sans-serif;font-size:10px;font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--gris);margin-bottom:2px;line-height:1.3}
+
+  /* --- Socios, «Cartera por tramo»: Tramo · Días · Créditos · Por cobrar · Qué toca hacer · Canal --- */
+  #socTramos>table>tbody>tr{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr)}
+  #socTramos>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/4}
+  #socTramos>table>tbody>tr>td:nth-child(2){grid-area:2/1/3/2}
+  #socTramos>table>tbody>tr>td:nth-child(3){grid-area:2/2/3/3}
+  #socTramos>table>tbody>tr>td:nth-child(4){grid-area:2/3/3/4}
+  #socTramos>table>tbody>tr>td:nth-child(5){grid-area:3/1/4/4}
+  #socTramos>table>tbody>tr>td:nth-child(6){grid-area:4/1/5/4}
+  #socTramos>table>tbody>tr>td:nth-child(2)::before{content:"Días"}
+  #socTramos>table>tbody>tr>td:nth-child(3)::before{content:"Créditos"}
+  #socTramos>table>tbody>tr>td:nth-child(4)::before{content:"Por cobrar"}
+  #socTramos>table>tbody>tr>td:nth-child(5)::before{content:"Qué toca hacer"}
+  #socTramos>table>tbody>tr>td:nth-child(6)::before{content:"Canal"}
+
+  /* --- Socios, «Niveles»: Nivel · Prórrogas · Socios · Garantía · Cupo disponible --- */
+  #socNiveles>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/3}
+  #socNiveles>table>tbody>tr>td:nth-child(2){grid-area:2/1/3/2}
+  #socNiveles>table>tbody>tr>td:nth-child(3){grid-area:2/2/3/3}
+  #socNiveles>table>tbody>tr>td:nth-child(4){grid-area:3/1/4/2}
+  #socNiveles>table>tbody>tr>td:nth-child(5){grid-area:3/2/4/3}
+  #socNiveles>table>tbody>tr>td:nth-child(2)::before{content:"Prórrogas"}
+  #socNiveles>table>tbody>tr>td:nth-child(3)::before{content:"Socios"}
+  #socNiveles>table>tbody>tr>td:nth-child(4)::before{content:"Garantía"}
+  #socNiveles>table>tbody>tr>td:nth-child(5)::before{content:"Cupo disponible"}
+
+  /* --- Socios, «Revisión de la migración»: Cliente · Ganada pagando · Por sus datos · Ajuste · Garantía final · Cupo · botón --- */
+  #socMigracion>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/3}
+  #socMigracion>table>tbody>tr>td:nth-child(2){grid-area:2/1/3/2}
+  #socMigracion>table>tbody>tr>td:nth-child(3){grid-area:2/2/3/3}
+  #socMigracion>table>tbody>tr>td:nth-child(4){grid-area:3/1/4/2}
+  #socMigracion>table>tbody>tr>td:nth-child(5){grid-area:3/2/4/3}
+  #socMigracion>table>tbody>tr>td:nth-child(6){grid-area:4/1/5/2}
+  #socMigracion>table>tbody>tr>td:nth-child(7){grid-area:4/2/5/3;text-align:right!important}
+  #socMigracion>table>:is(tbody,tfoot)>tr>td:nth-child(2)::before{content:"Ganada pagando"}
+  #socMigracion>table>:is(tbody,tfoot)>tr>td:nth-child(3)::before{content:"Por sus datos"}
+  #socMigracion>table>:is(tbody,tfoot)>tr>td:nth-child(4)::before{content:"Ajuste"}
+  #socMigracion>table>:is(tbody,tfoot)>tr>td:nth-child(5)::before{content:"Garantía final"}
+  #socMigracion>table>:is(tbody,tfoot)>tr>td:nth-child(6)::before{content:"Cupo"}
+  #socMigracion>table>tfoot>tr>td:nth-child(1){grid-column:1/3;font-weight:700}
+  #socMigracion>table>tbody>tr>td:nth-child(7)>.btn{min-height:44px}
+
+  /* --- Socios, «Perfiles por completar»: Cliente · Perfil · Le falta · Garantía pendiente · botón --- */
+  #socPerfiles>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/3}
+  #socPerfiles>table>tbody>tr>td:nth-child(2){grid-area:2/1/3/2}
+  #socPerfiles>table>tbody>tr>td:nth-child(4){grid-area:2/2/3/3}
+  #socPerfiles>table>tbody>tr>td:nth-child(3){grid-area:3/1/4/3}
+  #socPerfiles>table>tbody>tr>td:nth-child(5){grid-area:4/1/5/3}
+  #socPerfiles>table>tbody>tr>td:nth-child(2)::before{content:"Perfil"}
+  #socPerfiles>table>tbody>tr>td:nth-child(3)::before{content:"Le falta"}
+  #socPerfiles>table>tbody>tr>td:nth-child(4)::before{content:"Garantía pendiente"}
+  #socPerfiles>table>tfoot>tr>td{grid-column:1/3}
+  #socPerfiles>table>tbody>tr>td:nth-child(5)>.btn{width:100%;justify-content:center;min-height:46px}
+
+  /* --- Ciclos: Quincena · Invertido · Por cobrar · Ganancia del ciclo · Descuentos dados · Capital perdido · Vencen --- */
+  #tblCiclos>table>tbody>tr>td:nth-child(1){grid-area:1/1/2/3}
+  #tblCiclos>table>tbody>tr>td:nth-child(2){grid-area:2/1/3/2}
+  #tblCiclos>table>tbody>tr>td:nth-child(3){grid-area:2/2/3/3}
+  #tblCiclos>table>tbody>tr>td:nth-child(4){grid-area:3/1/4/2}
+  #tblCiclos>table>tbody>tr>td:nth-child(5){grid-area:3/2/4/3}
+  #tblCiclos>table>tbody>tr>td:nth-child(6){grid-area:4/1/5/2}
+  #tblCiclos>table>tbody>tr>td:nth-child(7){grid-area:4/2/5/3}
+  #tblCiclos>table>tbody>tr>td:nth-child(2)::before{content:"Invertido"}
+  #tblCiclos>table>tbody>tr>td:nth-child(3)::before{content:"Por cobrar"}
+  #tblCiclos>table>tbody>tr>td:nth-child(4)::before{content:"Ganancia del ciclo"}
+  #tblCiclos>table>tbody>tr>td:nth-child(5)::before{content:"Descuentos dados"}
+  #tblCiclos>table>tbody>tr>td:nth-child(6)::before{content:"Capital perdido"}
+  #tblCiclos>table>tbody>tr>td:nth-child(7)::before{content:"Vencen"}
+
+  /* ======================================================================
+     5. LOS CUADROS, A PANTALLA COMPLETA
+     Un solo cuadro sirve para todo (#modal). En el celular deja de flotar con 20
+     px de aire a cada lado: ocupa la pantalla, el título se queda arriba y la ×
+     mide 44 × 44 (medía 22 × 26, y es la forma obvia de cerrar con el dedo).
+     ====================================================================== */
+  .modal{padding:0;place-items:stretch}
+  .modal-card{max-width:none;width:100%;height:100%;max-height:none;border-radius:0;box-shadow:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  .modal-h{padding:calc(8px + env(safe-area-inset-top)) 8px 8px 16px;gap:8px}
+  .modal-h h3{font-size:17px;line-height:1.25;min-width:0;overflow-wrap:anywhere}
+  .modal-h .x{flex:none;min-width:44px;min-height:44px;display:grid;place-items:center;font-size:28px;line-height:1;border-radius:10px;background:var(--fondo);color:var(--tinta)}
+  .modal-b{padding:14px 16px calc(28px + env(safe-area-inset-bottom))}
+  .modal-b .btn{justify-content:center;text-align:center}
+  .modal-b .two{gap:8px}
+  .modal-b .two>.btn,.modal-b>.btn{min-height:48px}
+  .info-row{padding:9px 0}
+  /* Los renglones con una frase y varios botones (la cuenta en la app, quién lo
+     atiende): los botones de dos en dos, parejos, en vez de cada uno de un ancho. */
+  .info-row.con-botones .vv{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .info-row.con-botones .vv>.btn{flex:1 1 calc(50% - 4px);margin:0!important}
+  .info-row.con-botones .vv>div{flex:1 1 100%}
+  /* Los enlaces de texto que REGISTRAN algo («ver», «💵 pago» en el historial de la
+     ficha) medían 17 px de alto, pegados uno al otro: pasan a ser botones. Va con
+     :has() para tocar solo el renglón que los lleva (iPhone con iOS 15.4 o más). */
+  #mBody .info-row:has(>.vv>a[onclick]){flex-wrap:wrap}
+  #mBody .info-row:has(>.vv>a[onclick])>.k{flex:1 1 100%;font-weight:700;color:var(--tinta)}
+  #mBody .info-row:has(>.vv>a[onclick])>.vv{flex:1 1 100%;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;text-align:left;font-size:0}
+  #mBody .info-row:has(>.vv>a[onclick])>.vv>*{font-size:13.5px}
+  #mBody .info-row>.vv>a[onclick]{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:64px;padding:0 14px;
+    border:1.5px solid var(--linea);border-radius:9px;background:var(--papel);color:var(--laca);font-weight:700;text-decoration:none}
+  /* Los dos botones, en su propio renglón y parejos: una calza invisible de todo el
+     ancho (order:1) parte el renglón entre los datos y ellos (order:2). */
+  #mBody .info-row:has(>.vv>a[onclick])>.vv::after{content:'';flex:0 0 100%;height:0;order:1}
+  #mBody .info-row>.vv>a[onclick]{order:2;flex:1 1 0}
+  /* La caja de subir el comprobante: una fila de 64 px en vez de un cuadro de 110. */
+  .modal-b label.up{min-height:64px;flex-direction:row;gap:10px;padding:10px 14px}
+
+  /* ======================================================================
+     6. EL DEDO: 44 px y 16 px
+     · .btn-sm medía 38 (la hoja de siempre promete «nada por debajo de 44» una
+       línea antes de ponerlo en 38). En el computador se queda en 38.
+     · Safari en iPhone ACERCA la pantalla al enfocar un campo de menos de 16 px y
+       no la devuelve. Los campos del CRM van a 14,5 / 14 / 13,5 / 13 y varios lo
+       llevan escrito en el style="" del HTML: por eso el !important.
+       El PIN de la puerta (24 px) no entra en la lista.
+     ====================================================================== */
+  .btn-sm{min-height:44px;padding:9px 13px}
+  a.btn{text-decoration:none}
+  /* Un texto de ayuda largo dentro de un campo («…(Enter abre la ficha si queda
+     uno)») se cortaba a media palabra: termina en puntos suspensivos. */
+  :is(.app,.modal) input:placeholder-shown{text-overflow:ellipsis}
+  .cal-nav button{width:44px;height:44px}
+  .btn-girar{min-height:44px}
+  .sesion-cinta .sesion-salir{min-height:44px;font-size:13px}
+  .varchip{min-height:36px;display:inline-flex;align-items:center;padding:6px 12px}
+  .view summary{padding-top:7px;padding-bottom:7px}
+  :is(.app,.modal) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]),select,textarea){font-size:16px!important}
+  :is(.app,.modal) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=hidden]),select){min-height:44px}
+  :is(.app,.modal) input:is([type=checkbox],[type=radio]){min-width:22px;min-height:22px}
+  .gate-card{width:min(340px,calc(100vw - 32px));padding:32px 26px}
+  .gate-card .gate-link{min-height:44px;font-size:13.5px}
+  .gate-salida a{min-height:44px}
+
+  /* ======================================================================
+     7. EL MENÚ: LA BARRA DE ABAJO Y «MÁS»
+     Lo de todos los días (Tablero, Créditos, Clientes y Cobranzas) se queda FIJO
+     abajo, donde cae el pulgar, y el quinto puesto es «Más»: abre las otras trece
+     pestañas ENCIMA de lo que se está viendo, sin subir hasta el comienzo de la
+     página. Arriba del todo queda solo el buscador; al final de la página, el
+     horario de cobro.
+
+     Cómo: <aside class="side"> deja de ser una caja (display:contents) y sus
+     hijos pasan a ser hijos de la rejilla de .app, que ya es display:grid (lo
+     pone entrar() en el style=""). Las cuatro de abajo salen de la rejilla con
+     position:fixed, cada una en su quinto del ancho. Las otras trece las mete
+     panel/crm-movil.js en <div class="mas-hoja"> (son los MISMOS botones, con su
+     mismo oyente): aquí esa caja es una hoja que sube desde la barra.
+
+     Si crm-movil.js no alcanzó a armar la hoja, las trece NO se pierden: caen
+     en la rejilla de .app, arriba de la página, cuatro por fila (era el boceto
+     del 23-nov). Por eso .app sigue siendo de cuatro columnas.
+
+     CUÁLES VAN EN LA BARRA está escrito dos veces, aquí y en EN_LA_BARRA de
+     crm-movil.js: pruebas/crm-movil.test.js compara las dos listas.
+     Las capas: la franja de «Solo mirar» 40 · el velo 41 · la hoja 42 · la barra
+     43 · los cuadros (.modal) 50, que tapan la barra a propósito.
+     ====================================================================== */
+  .app{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;align-content:start;
+    padding:calc(10px + env(safe-area-inset-top)) 12px calc(62px + env(safe-area-inset-bottom))}
+  /* Con el teléfono acostado o en una tableta de pie caben seis por fila. */
+  @media (min-width:560px){ .app{grid-template-columns:repeat(6,minmax(0,1fr))} }
+  .side{display:contents;color:var(--tinta-2)}
+  .side::after{content:none}
+  .side .brand,.side .sep,.side .marcagua{display:none}
+  .side>div{grid-column:1/-1}
+  .main{grid-column:1/-1;order:2;padding:14px 0 24px}
+
+  /* --- arriba: el buscador --- */
+  /* Sin la laca de la barra debajo, el campo y cada resultado llevan la suya. */
+  .busca{order:0;margin:0 0 2px;padding:0}
+  .busca input{min-height:48px;padding:10px 14px;border-radius:12px;background:var(--laca);border-color:var(--laca)}
+  .busca-item{min-height:48px;padding:8px 14px;background:var(--laca-2)}
+  .busca-item:hover{background:var(--laca-3)}
+  .busca-nada{color:var(--gris);font-size:13px}
+  .busca-item b{font-size:14.5px}
+  .busca-item .mini{font-size:12px}
+
+  /* --- cada pestaña, como una ficha: el icono arriba y el nombre debajo --- */
+  .navbtn{order:1;width:auto;min-width:0;min-height:58px;flex-direction:column;justify-content:center;gap:3px;
+    padding:7px 2px 6px;border-radius:12px;font-size:11px;line-height:1.15;text-align:center;
+    background:var(--laca-2);color:rgba(var(--blanco-laca-rgb),.82)}
+  .navbtn .ic{font-size:20px;width:auto;line-height:1.1}
+  .navbtn>span[id]:empty{display:none}
+  .navbtn.on{background:var(--laca);color:var(--blanco-laca);box-shadow:inset 0 0 0 1.5px rgba(var(--amarillo-rgb),.55)}
+  .navbtn.on::before{left:26%;right:26%;top:0;bottom:auto;width:auto;height:3px;border-radius:0 0 3px 3px}
+  /* El número de lo que espera («(3)»), en una pastilla sobre el icono: en línea
+     no cabe al lado de «Solicitudes» en 78 px. */
+  .navbtn>span[id]:not(:empty){position:absolute;top:3px;left:calc(50% + 4px);padding:1px 6px;border-radius:999px;
+    background:var(--rojo);color:var(--papel);font-size:10.5px;font-weight:800;line-height:1.4;white-space:nowrap}
+
+  /* --- abajo, fija: las cuatro de todos los días y «Más» --- */
+  .navbtn:is([data-v="dash"],[data-v="cred"],[data-v="clientes"],[data-v="cobranzas"]),.mas-btn{
+    position:fixed;bottom:0;z-index:43;width:20%;height:calc(58px + env(safe-area-inset-bottom));min-height:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    padding:6px 2px calc(5px + env(safe-area-inset-bottom));border:0;border-radius:0;
+    font:inherit;font-size:10.5px;font-weight:600;line-height:1.15;text-align:center;
+    background:var(--laca);color:rgba(var(--blanco-laca-rgb),.66);border-top:1px solid rgba(var(--amarillo-rgb),.5);box-shadow:none}
+  .navbtn[data-v="dash"]{left:0}
+  .navbtn[data-v="cred"]{left:20%}
+  .navbtn[data-v="clientes"]{left:40%}
+  .navbtn[data-v="cobranzas"]{left:60%}
+  .mas-btn{left:80%;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .navbtn:is([data-v="dash"],[data-v="cred"],[data-v="clientes"],[data-v="cobranzas"]) .ic,.mas-btn .ic{font-size:22px;width:auto;line-height:1.1}
+  .navbtn:is([data-v="dash"],[data-v="cred"],[data-v="clientes"],[data-v="cobranzas"]).on,
+  html.mas-abierto .mas-btn{background:var(--laca-2);color:var(--blanco-laca);box-shadow:none}
+  .navbtn:is([data-v="dash"],[data-v="cred"],[data-v="clientes"],[data-v="cobranzas"]).on::before{left:22%;right:22%;top:-1px}
+  /* «Más» se enciende cuando la pestaña abierta es una de las de adentro, y lleva
+     un punto rojo cuando alguna de adentro tiene algo esperando (Solicitudes,
+     Chat, Socios). Van aparte, con :has(): un iPhone anterior a iOS 15.4 no
+     entiende :has() y descarta la regla ENTERA donde aparezca; así pierde el
+     encendido y el punto, no la barra. */
+  .side:has(.mas-hoja .navbtn.on) .mas-btn{background:var(--laca-2);color:var(--blanco-laca)}
+  .side:has(.mas-hoja .navbtn>span[id]:not(:empty)) .mas-btn::after{content:'';position:absolute;top:8px;left:calc(50% + 9px);
+    width:9px;height:9px;border-radius:50%;background:var(--rojo);box-shadow:0 0 0 2px var(--laca)}
+
+  /* --- la hoja de «Más» --- */
+  .mas-velo{display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:41;background:rgba(var(--laca-rgb),.5);touch-action:none}
+  .mas-hoja{display:none;position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom));z-index:42;
+    max-height:76vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+    grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;align-content:start;
+    padding:4px 12px 14px;background:var(--fondo);border-radius:18px 18px 0 0;
+    box-shadow:0 -18px 44px -20px rgba(var(--laca-rgb),.7)}
+  @media (min-width:560px){ .mas-hoja{grid-template-columns:repeat(6,minmax(0,1fr))} }
+  html.mas-abierto .mas-velo{display:block}
+  html.mas-abierto .mas-hoja{display:grid}
+  .mas-cabeza{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:48px;
+    padding-left:2px;font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--gris)}
+  .mas-cerrar{flex:none;width:44px;height:44px;display:grid;place-items:center;border:0;border-radius:10px;
+    background:var(--papel);color:var(--tinta);font:inherit;font-size:26px;line-height:1;cursor:pointer}
+  .mas-buscar{grid-column:1/-1;display:flex;align-items:center;gap:10px;min-height:48px;margin-bottom:2px;padding:0 14px;
+    border:0;border-radius:12px;background:var(--laca);color:rgba(var(--blanco-laca-rgb),.82);
+    font:inherit;font-size:14.5px;font-weight:600;text-align:left;cursor:pointer}
+  /* Las que en este celular todavía no se pueden mirar (crm-remoto.js les pone
+     .cr-en-pc) van al final de la hoja, y su marca «PC» en la esquina. */
+  .mas-hoja .navbtn.cr-en-pc{order:2}
+  body.solo-mirar .mas-hoja .navbtn.cr-en-pc::after{position:absolute;top:4px;right:5px;margin:0}
+
+  /* --- al final de la página: el horario de cobro, la nube y la sesión ---
+     Son las mismas cajas de la barra del computador, con su mismo texto. Estaban
+     pensadas para ir sobre la laca: cada una lleva ahora su propia laca debajo,
+     con el mismo velo de su estado encima (calma, ojo, mal). */
+  .side .horario,.nube-todo,.sesion-cinta{order:3;margin:0 0 2px;padding:12px 14px;font-size:12.5px;border-radius:12px}
+  .side .horario b,.nube-todo b,.sesion-cinta b{font-size:13px}
+  .horario.ok{background:linear-gradient(rgba(var(--papel-rgb),.08),rgba(var(--papel-rgb),.08)),var(--laca)}
+  .horario.no{background:linear-gradient(rgba(var(--amarillo-rgb),.13),rgba(var(--amarillo-rgb),.13)),var(--laca)}
+  .nube-todo,.sesion-cinta{background:linear-gradient(rgba(var(--papel-rgb),.08),rgba(var(--papel-rgb),.08)),var(--laca)}
+  .nube-todo.ojo{background:linear-gradient(rgba(var(--amarillo-rgb),.13),rgba(var(--amarillo-rgb),.13)),var(--laca)}
+  .nube-todo.mal{background:linear-gradient(color-mix(in srgb,var(--rojo-laca) 22%,transparent),color-mix(in srgb,var(--rojo-laca) 22%,transparent)),var(--laca)}
+  /* El enlace que venía metido en la frase («☁ Subir») medía 16 px de alto: baja a
+     su propio renglón, como botón. */
+  .nube-todo a{display:flex;width:max-content;min-height:44px;align-items:center;margin-top:8px;padding:0 16px;border:1px solid currentColor;border-radius:9px;text-decoration:none}
+  .sesion-cinta .sesion-salir{margin-top:10px}
+  .side .avisos-pie{order:4;padding:12px 2px!important;font-size:12.5px!important}
+}

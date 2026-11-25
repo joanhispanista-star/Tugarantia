@@ -154,6 +154,8 @@ function abrirPlay(opciones) {
   ctx.FichaSocio = require(path.join(RAIZ, 'app', 'ficha.js'));
   ctx.RuletaCupo = require(path.join(RAIZ, 'app', 'ruleta.js'));
   ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
+  /* 24-nov-2026 — «¿Aún sin respuesta?» (app/sin-respuesta.js): la página lo pide después de chat.js. */
+  ctx.SinRespuesta = require(path.join(RAIZ, 'app', 'sin-respuesta.js'));
   /* 13-nov-2026 — «Falta tu cédula» en la cuenta. No guarda estado en el
      módulo (cada página arma su controlador), así que la copia compartida no
      envenena a nadie. `sinFaltaCedula: true` simula que no llegó. */

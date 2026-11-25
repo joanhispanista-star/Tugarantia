@@ -1077,16 +1077,20 @@ details.plegado>summary{padding:0 var(--e4)}
    caché que va al lado (VERSION_SITIO, que sube al juntar el lote). Si un cliente
    dice que no le sale dónde subir sus extractos, el sello dice si tiene la
    versión que lo trae.
-   24-nov-2026 (v161): lo de arriba sale hoy, y «Sube tus extractos» ya no es solo
-   para quien no es empleado: también el empleado, con las plataformas que usa. Si un
-   cliente dice que no le sale dónde subirlos, el sello dice si tiene v161. */
-var VERSION_APP = '2026-11-24';
+   24-nov-2026 (v166): «¿Aún sin respuesta?» en el Chat. Si la persona escribió y nadie de la
+   casa le contestó en 15 minutos, sale un botón al WhatsApp de servicio al cliente. Si un
+   cliente dice que esperó y no le salió el botón, esta fecha dice si tiene la versión que lo trae.
+   25-nov-2026 (v170): «Sube tus extractos» sale hoy (se construyó el 13-nov y quedó apartado
+   como v161), y ya no es solo para quien no es empleado: también el empleado, con las
+   plataformas que usa. Si un cliente dice que no le sale dónde subirlos, el sello dice si
+   tiene v170. */
+var VERSION_APP = '2026-11-25';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
    tiene lo último (las fechas son tres y van a mano). Sube con CACHE, siempre:
    pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v161';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v170';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1156,6 +1160,10 @@ setTimeout(function () {
      quien decide de qué lado va un mensaje y cómo se escapa el texto es un solo
      archivo, para que no haya dos verdades sobre la misma conversación. -->
 <script src="chat.js"></script>
+<!-- 24-nov-2026 — «¿Aún sin respuesta?»: el botón al WhatsApp de servicio al cliente cuando
+     nadie contesta el chat (sin-respuesta.js, nuevo). Va después de chat.js: de ahí toma
+     quién escribió cada mensaje. -->
+<script src="sin-respuesta.js?v=166"></script>
 <!-- 26-oct-2026 (chat-1) — los relojes del chat, los mismos del CRM y del
      espejo: la conversación abierta se mueve sola y el número de la barra late
      en toda la app. Sin versión en la dirección: es un archivo nuevo, no hay
@@ -1188,7 +1196,7 @@ setTimeout(function () {
      quitarlos). La pantalla es la misma del registro (play/), y toma lo puro de
      historia-laboral.js: va después de él. Nuevo, con ?v=145: firma al llegar.
      Si no llega, no hay tarjeta y la app sigue igual. -->
-<script src="extractos.js?v=161"></script>
+<script src="extractos.js?v=170"></script>
 <!-- 23-oct-2026 — la calculadora del pedido, primera tarjeta de Entrar (ver
      calculadoraDeEntrar): la misma de play/ y de la portada del sitio, con la
      misma dirección versionada que la precarga de sw.js. creditos.js es la
@@ -5485,6 +5493,9 @@ function vistaChat() {
     '<div class="ch-hilo" id="chHilo" style="max-height:52vh">' +
       '<div class="ch-vacio">Trayendo tus mensajes…</div>' +
     '</div>' +
+    /* 24-nov-2026 — «¿Aún sin respuesta?»: ver chatPintarEspera. Fuera del hilo, para
+       poder ponerlo y quitarlo con el reloj sin repintar la conversación. */
+    '<div id="chSinRespuesta"></div>' +
     '<div class="ch-escribir">' +
       '<textarea id="chTexto" rows="1" placeholder="Escribe aquí…" ' +
         'maxlength="' + CHAT.LARGO_MAX + '" oninput="chatContar()"></textarea>' +
@@ -5510,6 +5521,7 @@ function vistaChat() {
 function chatPintar() {
   var caja = $('chHilo'); if (!caja) return;
   if (CH.error) {
+    chatPintarEspera();        // con el hilo en error no se ofrece nada: se quita si estaba
     caja.innerHTML = '<div class="ch-vacio">' + esc(CH.error) + '</div>';
     return;
   }
@@ -5525,6 +5537,19 @@ function chatPintar() {
   /* Bajar o no lo decide quien llamó: el reloj (ChatVivo.hilo) baja al abrir
      y cuando la persona ya estaba al final, y no le arrastra la pantalla a
      quien está leyendo arriba. */
+  chatPintarEspera();
+}
+
+/* 24-nov-2026 — «¿AÚN SIN RESPUESTA?» (la regla y su porqué, en app/sin-respuesta.js). Si la
+   persona escribió y nadie de la casa le ha contestado en un rato, sale el botón al
+   WhatsApp de servicio al cliente: el contacto oficial de siempre (contactoOficial),
+   que nunca sale de un enlace. Se vuelve a mirar con el reloj de abajo, porque
+   justo cuando nadie contesta no llega ningún mensaje que repinte nada. */
+function chatPintarEspera() {
+  var c = $('chSinRespuesta'); if (!c || !window.SinRespuesta) return;
+  /* Con el hilo en error no hay conversación a la vista: no se ofrece nada. */
+  try { SinRespuesta.pintar(c, CH.error ? [] : CH.mensajes, { whatsapp: contactoOficial().whatsapp, ahora: Date.now() }); }
+  catch (e) { /* un aviso que no se pudo pintar no puede tumbar el chat */ }
 }
 
 /* Un aviso al lado del cuadro ('' lo esconde). Si la lámina no tiene el
@@ -5701,8 +5726,11 @@ function arrancarChat() {
     reloj: { setInterval: function (f, ms) { return setInterval(f, ms); }, clearInterval: function (id) { clearInterval(id); } }
   });
   CH.vivo.cargar();
+  /* 24-nov-2026 — el reloj de «¿Aún sin respuesta?»: cada medio minuto, mientras el chat esté abierto. */
+  CH.relojEspera = setInterval(function () { if (mio === CH) chatPintarEspera(); }, 30000);
 }
 function pararChat() {
+  if (CH && CH.relojEspera) { clearInterval(CH.relojEspera); CH.relojEspera = null; }
   if (CH && CH.vivo) { CH.vivo.parar('cerrada'); CH.vivo = null; }
 }
 

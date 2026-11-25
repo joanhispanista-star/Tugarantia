@@ -467,13 +467,16 @@ describe('6d. «💬 Escribirle por la app» desde la ficha del celular', () => 
     assert.doesNotMatch(plano(e.cuerpo()), /esté junta con ella/);
   });
 
-  test('sin la conexión y la clave no se abre nada, y se dice por qué', async () => {
+  /* 25-nov-2026 — decía «sin la conexión y la clave» y exigía «clave de sincronización» en el
+     aviso. La clave ya no hace falta (pruebas/el-chat-con-tu-sesion.test.js): lo que falta es entrar. */
+  test('sin haber entrado a la nube no se abre nada, y se dice por qué', async () => {
     const { e } = celular({ cartera: cartera(), conectado: false });
     await asentar();
     e.tocar('verficha', { id: 's-bru' });
     e.tocar('chat-ficha', { id: 's-bru' }); await asentar();
     assert.equal(charla(e), false);
     assert.equal(e.avisos.length, 1);
-    assert.match(e.avisos[0], /clave de sincronización/);
+    assert.match(e.avisos[0], /en este teléfono todavía no has entrado/);
+    assert.doesNotMatch(e.avisos[0], /clave de sincronización/);
   });
 });

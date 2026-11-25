@@ -48,8 +48,8 @@ const { asentar } = require('./esperar.js');
    publicación). Si lote-v145 sale otro día, se cambia AQUÍ y esta prueba dice
    qué más mover: app/extractos.js (VERSION_AUTORIZACION y FECHA_EN_PALABRAS),
    la política y los términos. */
-const PUBLICACION = '2026-11-24';
-const PUBLICACION_EN_PALABRAS = '24 de noviembre de 2026';
+const PUBLICACION = '2026-11-25';
+const PUBLICACION_EN_PALABRAS = '25 de noviembre de 2026';
 
 const plano = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ');
 const PDF64 = Buffer.from('%PDF-1.4\n% extracto de mentira\n%%EOF\n', 'binary').toString('base64');
