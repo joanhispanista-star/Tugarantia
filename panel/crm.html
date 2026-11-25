@@ -1317,7 +1317,7 @@
 <!-- 23-nov-2026 — EL CRM EN UN CELULAR, SOLO PARA MIRAR (crm-remoto.js, etapa U1 de
      RECETA-PLAN-UN-SOLO-CRM.md). En un computador no hace nada: decide por el tipo
      de aparato, nunca por el ancho. Va después de nube.js, que es quien trae. -->
-<script src="crm-remoto.js?v=165"></script>
+<script src="crm-remoto.js?v=168"></script>
 <!-- 24-nov-2026 — LA BARRA DE ABAJO Y «MÁS» (crm-movil.js): enciende la hoja del
      teléfono y mete en una caja las pestañas que no caben en la barra. Va después
      de crm-remoto.js, que es quien sabe si el aparato es un celular; y ANTES del
@@ -27443,7 +27443,7 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
    cuando alguien sospechaba.
    VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
    él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v167';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v168';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }

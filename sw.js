@@ -3166,7 +3166,27 @@
    fábrica» y ahora dicen la regla nueva, con la razón escrita.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
    número nunca baja. */
-const CACHE = 'tugarantia-v167';
+/* v168 — 25-nov-2026 — 📥 SOLICITUDES EN EL CELULAR, MIRANDO.
+   Joan quiere en el celular «toda la informacion que podria yo encontrar en el crm del
+   computador». La pestaña de Solicitudes seguía tapada en el teléfono: la bandeja se lee con la
+   clave del computador, que el celular no tiene (y no debe tener).
+   · base/20261125_solicitudes_en_el_celular.sql, NUEVO: panel_solicitudes, la bandeja para la
+     SESIÓN del dueño. Devuelve solo lo que la tarjeta pinta (quién pidió, cuándo, cuánto, qué se le
+     propuso, si ya aceptó); nunca la cuenta del desembolso, lo que declaró, el celular del gerente
+     ni la tasa. Corre el reloj de las vencidas antes de contestar, como el computador.
+     HAY QUE CORRERLO en el SQL Editor (y Reload schema). Mientras no, la pestaña dice cuál
+     archivo falta, y no insiste sola contra una función que no existe.
+   · panel/crm-remoto.js: la pestaña se abre con su lista, agrupada por lo que toca hacer (responder,
+     desembolsar, esperar al cliente), con el día y la hora de cada una, «Llamar» y el número de las
+     que le tocan a Joan en el botón del menú. Solo se MIRA: responder y desembolsar siguen en el
+     computador, y la pantalla lo dice. Nada queda guardado en el teléfono.
+   Cambia panel/crm-remoto.js (?v=168 en crm.html y en la precarga).
+   Pruebas: pruebas/crm-remoto.test.js (dos grupos nuevos) y
+   pruebas/solicitudes-en-el-celular-postgres.test.js (la función, llamada en un PostgreSQL de
+   verdad con todas las migraciones; sin TG_PG_BIN esa parte se salta).
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. La
+   función de la base puede quedarse: sin esta página nadie la llama. El número nunca baja. */
+const CACHE = 'tugarantia-v168';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3234,7 +3254,7 @@ const ARCHIVOS = [
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
   'panel/nube-crm.js?v=165',   // 24-nov-2026 — ?v=165: config, plantillas y equipo suben solos (ver la nota de v165)
   /* 23-nov-2026 — el CRM en un celular, solo para mirar. Ver la nota de v158. */
-  'panel/crm-remoto.js?v=165',
+  'panel/crm-remoto.js?v=168',
   'panel/crm-movil.js?v=164',    // 24-nov-2026 — la barra de abajo y «Más» del CRM en un teléfono
   'panel/crm-movil.css?v=164',   // la hoja del teléfono: llega apagada, la enciende crm-movil.js
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */

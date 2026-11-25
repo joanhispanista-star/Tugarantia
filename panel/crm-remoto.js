@@ -244,6 +244,16 @@
     return ((h % 12) || 12) + ':' + dosCifras(m) + (h < 12 ? ' a. m.' : ' p. m.');
   }
   var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  /* 25-nov-2026 — las de las tarjetas de 📥 Solicitudes (más abajo). Van AQUÍ, antes de
+     «lo puro»: sin pantalla (Node, las pruebas) la pieza devuelve lo puro antes de llegar
+     al final, y un var puesto después de ese punto se queda sin valor. */
+  var QUIEN_PROPUSO = { automatica: 'automática', joan: 'tuya', gerente: 'de un gerente' };
+  /* Agrupada por lo que le toca hacer a Joan, como la bandeja del computador. */
+  var GRUPOS_DE_SOLICITUDES = [
+    ['nueva', 'Te toca responder'],
+    ['aceptada', 'Aceptaron: te toca desembolsar'],
+    ['contrapropuesta', 'Esperan la respuesta del cliente']
+  ];
   /** «hoy, 9:21 a. m.», «ayer, 6:40 p. m.» o «el 18 de nov, 3:05 p. m.». */
   function cuandoFue(ms, ahora) {
     var d = new Date(ms), a = new Date(ahora);
@@ -362,8 +372,9 @@
      qué. No se esconden del menú: Joan las busca ahí, y una función que no se
      encuentra no existe; se abren y dicen dónde están. */
   var POR_AHORA_EN_EL_PC = 'Por ahora esto se mira en tu computador.';
+  /* 25-nov-2026 — Solicitudes salió de aquí: se mira con la sesión del dueño
+     (panel_solicitudes; ver «📥 Solicitudes, en el celular», más abajo). */
   var TAPAS = {
-    solicitudes: 'Las solicitudes llegan con la clave del computador, que este celular no tiene. ' + POR_AHORA_EN_EL_PC,
     mensajes: 'El chat llega con la clave del computador, que este celular no tiene. ' + POR_AHORA_EN_EL_PC,
     ventas: 'Ventas vive de los prospectos, que no suben solos a la nube. ' + POR_AHORA_EN_EL_PC,
     bases: 'Las bases de prospectos viven en tu computador y no suben solas a la nube. ' + POR_AHORA_EN_EL_PC,
@@ -419,6 +430,7 @@
     fechasDeAjustes: fechasDeAjustes, fechaConAnio: fechaConAnio, notaDeFecha: notaDeFecha,
     celularBonito: celularBonito, chipsDeRegistro: chipsDeRegistro, tarjetaDeRegistro: tarjetaDeRegistro,
     listaDeRegistrados: listaDeRegistrados,
+    celularDeSolicitud: celularDeSolicitud, diaDePago: diaDePago, tarjetaDeSolicitud: tarjetaDeSolicitud, listaDeSolicitudes: listaDeSolicitudes,
     GAVETA: GAVETA, LLAVE_HASTA: LLAVE_HASTA, CONEXION: CONEXION,
     CLAVES_QUE_PASAN: CLAVES_QUE_PASAN, CONFIG_QUE_NO_VIAJA: CONFIG_QUE_NO_VIAJA,
     CADA_MS: CADA_MS, AL_VOLVER_MS: AL_VOLVER_MS, MIRAR: MIRAR, TAPAS: TAPAS,
@@ -454,7 +466,9 @@
     esperando: false,     // hay sesión guardada pero la primera traída falló: se reintenta
     veniaDeCopia: false,  // este celular guarda una copia y Joan escogió ver lo de hoy
     /* 📥 Registrados, mirando (ver más abajo). Solo en memoria. */
-    reg: { estado: 'nada', filas: [], nuevos: 0, pedidosLeidos: true, leidoEn: 0, pedidoEn: 0, error: '', sinRed: false, enCurso: null }
+    reg: { estado: 'nada', filas: [], nuevos: 0, pedidosLeidos: true, leidoEn: 0, pedidoEn: 0, error: '', sinRed: false, enCurso: null },
+    /* 📥 Solicitudes, mirando (25-nov-2026, ver más abajo). Solo en memoria. */
+    sol: { estado: 'nada', filas: [], nuevas: 0, aceptadas: 0, propuestas: 0, leidoEn: 0, pedidoEn: 0, error: '', sinRed: false, enCurso: null }
   };
 
   function almacen() { try { return W.localStorage; } catch (e) { return null; } }
@@ -528,6 +542,7 @@
     var el = ev.target;
     if (cercano(el, '[data-cr]')) return;                       // lo nuestro: la franja y su «Salir»
     if (cercano(el, '.navbtn[data-v="registrados"]')) traerRegistrados(false);   // al abrir su pestaña, se vuelve a mirar
+    if (cercano(el, '.navbtn[data-v="solicitudes"]')) traerSolicitudes(false);
     var a = cercano(el, 'a[href]');
     if (a && enlaceQueEscribe(a.getAttribute('href'))) return frenar(ev, NO_WHATSAPP);
     var f = cercano(el, 'input[type="file"]');
@@ -701,6 +716,7 @@
       pintarFranja();
       ponerFechas();
       traerRegistrados(false);
+      traerSolicitudes(false);
     }, function (e) {
       /* La sesión que ya no vale no se arregla sola: a la puerta, y se dice. */
       if (e && (e.estado === 401 || e.estado === 403 || /venció la sesión/i.test(motivo(e)))) return salir(true);
@@ -762,6 +778,9 @@
         'background:var(--ambar-tinte,#fbeedb);color:var(--ambar,#9a5b12)}' +
       '.cr-reg-aviso.suave{background:var(--papel);color:var(--gris);border:1px solid var(--linea)}' +
       '.cr-reg-pie{margin:12px 0 0;font-size:12px;line-height:1.5;color:var(--gris)}.cr-reg-pie a{color:inherit;font-weight:700}' +
+      '.cr-sol-grupo{margin:14px 0 8px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--gris)}' +
+      '.cr-cuenta{display:inline-block;min-width:20px;margin-left:6px;padding:1px 6px;border-radius:999px;background:var(--rojo);' +
+        'color:#fff;font-size:11.5px;font-weight:700;line-height:1.5;text-align:center}.cr-cuenta:empty{display:none}' +
       '.cr-fecha{margin:0 0 12px;padding:10px 12px;border-radius:12px;border:1px dashed var(--linea);' +
         'font-size:12.5px;line-height:1.45;color:var(--gris)}' +
       /* Lo que la barra dice del computador (la subida sola, la sesión del PIN, «pregunto
@@ -1010,6 +1029,193 @@
     return reg.enCurso;
   }
 
+  /* ------------------------------------------- 📥 Solicitudes, en el celular
+     25-nov-2026 — Joan quiere en el celular «toda la informacion que podria yo
+     encontrar en el crm del computador», y la pestaña de Solicitudes seguía
+     tapada: la bandeja se lee con la CLAVE del computador (listar_solicitudes_
+     abiertas), que el celular no tiene. Ahora hay una puerta para la SESIÓN del
+     dueño, panel_solicitudes (base/20261125_solicitudes_en_el_celular.sql), que
+     trae SOLO lo que estas tarjetas pintan: quién pidió, cuándo, cuánto, qué se
+     le propuso y si ya aceptó. A PROPÓSITO no trae la cuenta donde se desembolsa,
+     lo que declaró ni la tasa: eso se mira en el computador, y la pantalla lo dice.
+     Aquí solo se MIRA: responder, proponer y desembolsar siguen en el computador.
+     Mismo molde que Registrados: lista propia bajo el título, la vista «tapada»
+     para lo que pinta crm.html, nada guardado en el teléfono (vive en E.sol), y
+     nunca una función de clave. */
+  var LIMITE_SOLICITUDES = 100;
+  /* El celular de quien pidió: el que la solicitud trae aparte (PlataChat), o su
+     llave cuando la llave ES un celular (play/ guarda ahí el celular). Si la llave
+     es una cédula (la app de socios), el número sale de su ficha, no de aquí. */
+  function celularDeSolicitud(s) {
+    var x = objeto(s);
+    var c = celularBonito(x.celular);
+    if (c) return c;
+    var ll = texto(x.llave).replace(/\D/g, '');
+    return (ll.length === 10 && ll.charAt(0) === '3') ? celularBonito(ll) : '';
+  }
+  /** «15 de dic» para un día 'AAAA-MM-DD' (sin hora: es una fecha de pago). Con el mes
+      corto, como cuandoFue: con el largo, «Propuesta automática» partía la fila en dos. */
+  function diaDePago(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(texto(iso));
+    if (!m || !MESES[Number(m[2]) - 1]) return '';
+    return Number(m[3]) + ' de ' + MESES[Number(m[2]) - 1];
+  }
+  /** Una solicitud. `o`: {ahora, ficha(s) → {texto, telefono} o null}. */
+  function tarjetaDeSolicitud(s, o) {
+    var x = objeto(s), op = objeto(o);
+    var ms = Date.parse(texto(x.creada_en));
+    var cuando = isNaN(ms) ? '' : cuandoFue(ms, op.ahora);
+    var ficha = null;
+    try { ficha = typeof op.ficha === 'function' ? op.ficha(x) : null; } catch (e) { ficha = null; }
+    ficha = objeto(ficha);
+    var chips = [];
+    if (x.app === 'platachat') chips.push('PlataChat');
+    if (x.sobre_cupo === true) chips.push('Pide más que su cupo');
+    if (x.cuenta_sin_juntar === true) chips.push('Su cuenta está sin juntar');
+    if (ficha.texto) chips.push(texto(ficha.texto));
+    /* «Pidió» es SOLO lo que la persona pidió. Si dijo una cifra, esa. Si no la
+       dijo y nadie le ha propuesto nada, la cifra de la solicitud es la suya (la
+       app de socios). Si ya hay una propuesta y no hay cifra pedida, no se le
+       inventa una: «un crédito». */
+    var pedido = Number(x.pedido_monto) > 0 ? Number(x.pedido_monto) : (!x.propuesta_por && x.estado === 'nueva' && Number(x.capital) > 0 ? Number(x.capital) : 0);
+    var plazoPedido = Number(x.pedido_plazo) > 0 ? ' · a ' + Number(x.pedido_plazo) + ' días' : '';
+    var filas = '<div class="cr-reg-fila"><span>Pidió</span><b>' + (pedido ? esc(enPesos(pedido)) + esc(plazoPedido) : 'un crédito') +
+      ' <i>· ' + (x.producto === 'cuotas' ? 'a cuotas' : x.producto === 'respaldado' ? 'con garantía' : 'quincenal') + '</i></b></div>' +
+      (x.pedido_nota ? '<div class="cr-reg-mini">«' + esc(x.pedido_nota) + '»</div>' : '');
+    if (x.estado !== 'nueva' || x.propuesta_por) {
+      var paga = Number(x.plazo_meses) > 0 ? 'a ' + Number(x.plazo_meses) + (Number(x.plazo_meses) === 1 ? ' mes' : ' meses') : (diaDePago(x.fecha_corte) ? 'paga el ' + diaDePago(x.fecha_corte) : '');
+      filas += '<div class="cr-reg-fila"><span>Propuesta' + (QUIEN_PROPUSO[x.propuesta_por] ? ' ' + QUIEN_PROPUSO[x.propuesta_por] : '') + '</span><b>' +
+        (Number(x.capital) > 0 ? esc(enPesos(x.capital)) : '—') + (paga ? ' <i>· ' + esc(paga) + '</i>' : '') + '</b></div>';
+    }
+    if (x.estado === 'aceptada') {
+      var ac = Date.parse(texto(x.aceptada_en));
+      filas += '<div class="cr-reg-fila"><span>Aceptó</span><b>' + (isNaN(ac) ? 'sí' : esc(cuandoFue(ac, op.ahora))) + '</b></div>';
+    }
+    var lim = Date.parse(texto(x.responder_antes_de));
+    if (x.estado === 'nueva' && !isNaN(lim)) {
+      filas += '<div class="cr-reg-fila"><span>Se le prometió respuesta</span><b>' + esc(cuandoFue(lim, op.ahora)) + '</b></div>';
+    }
+    var cel = celularDeSolicitud(x) || celularBonito(ficha.telefono), diez = cel.replace(/ /g, '');
+    return '<div class="cr-reg">' +
+      '<b class="cr-reg-nombre">' + esc(x.nombre || 'Sin nombre') + '</b>' +
+      '<div class="cr-reg-cuando">' + (cuando ? 'Pidió ' + esc(cuando) : 'No sé cuándo pidió') + '</div>' +
+      (chips.length ? '<div class="cr-reg-chips">' + chips.map(function (c) { return '<span>' + esc(c) + '</span>'; }).join('') + '</div>' : '') +
+      filas +
+      (cel ? '<div class="cr-reg-fila"><span>Celular</span><a class="cr-reg-tel" href="tel:+57' + esc(diez) + '">' + esc(cel) + ' · Llamar</a></div>'
+           : '<div class="cr-reg-mini">Aquí no tengo su celular.</div>') +
+      '</div>';
+  }
+  /** Toda la lista, con su estado dicho. `sol` es E.sol; `o`: {ahora, ficha}. */
+  function listaDeSolicitudes(sol, o) {
+    var g = objeto(sol), op = objeto(o), filas = lista(g.filas), n = filas.length;
+    var mirar = '<button type="button" class="cr-reg-mirar" id="crSolMirar"' + (g.estado === 'cargando' ? ' disabled' : '') + '>↻ Volver a mirar</button>';
+    var pie = '<p class="cr-reg-pie">Aquí solo se mira. Para responder, proponer o desembolsar: 📥 Solicitudes, en tu computador. ' +
+      'La cuenta donde se desembolsa y lo que declaró también se ven allá.</p>';
+    if (g.estado === 'falta') {
+      return '<div class="cr-reg-aviso"><b>Tu base todavía no tiene esta parte.</b> Corre base/20261125_solicitudes_en_el_celular.sql en el ' +
+        'SQL Editor de Supabase y vuelve a mirar.</div>' + mirar;
+    }
+    var aviso = '';
+    if (g.estado === 'error') {
+      aviso = '<div class="cr-reg-aviso"><b>' + (g.sinRed ? 'Sin señal: no pude mirar las solicitudes.' : 'No pude mirar las solicitudes.') + '</b> ' +
+        (g.sinRed ? '' : esc(g.error || '') + ' ') + 'Eso <b>no</b> quiere decir que no haya ninguna.' +
+        (n ? ' Abajo va la lista de la última vez que contestó la nube.' : '') + '</div>';
+    }
+    if (!n && (g.estado === 'nada' || g.estado === 'cargando')) return '<div class="cr-reg-aviso suave">Mirando las solicitudes…</div>';
+    var total = Math.max((Number(g.nuevas) || 0) + (Number(g.aceptadas) || 0) + (Number(g.propuestas) || 0), n);
+    var cab = '<div class="cr-reg-cab"><b>' + (g.estado === 'error' && !n ? 'Solicitudes' : total === 1 ? '1 solicitud abierta' : total + ' solicitudes abiertas') + '</b>' +
+      '<span>' + (g.leidoEn ? 'La nube contestó ' + esc(cuandoFue(g.leidoEn, op.ahora)) : '') + '</span>' + mirar + '</div>';
+    if (!n) return cab + aviso + (g.estado === 'ok' ? '<div class="cr-reg-aviso suave">Nadie esperando: no hay solicitudes abiertas.</div>' : '') + pie;
+    var cuerpo = GRUPOS_DE_SOLICITUDES.map(function (gr) {
+      var suyas = filas.filter(function (s) { return objeto(s).estado === gr[0]; });
+      if (!suyas.length) return '';
+      return '<div class="cr-sol-grupo">' + esc(gr[1]) + ' · ' + suyas.length + '</div>' +
+        suyas.map(function (s) { return tarjetaDeSolicitud(s, { ahora: op.ahora, ficha: op.ficha }); }).join('');
+    }).join('');
+    return cab + aviso +
+      (total > n ? '<div class="cr-reg-mini">Se ven las ' + n + ' más recientes de ' + total + '. Las demás, en el computador.</div>' : '') +
+      cuerpo + pie;
+  }
+  /* ¿De quién es? La misma pregunta de la bandeja del computador (candidatosDeCruce,
+     en el puente), contra la cartera que está en memoria. De ahí sale también su
+     celular cuando la solicitud entró con la cédula. */
+  function fichaDeSolicitud(s) {
+    var P = W.PuenteTuGarantia;
+    if (!P || typeof P.candidatosDeCruce !== 'function' || !E.db) return null;
+    var cel = celularDeSolicitud(s).replace(/ /g, '');
+    /* La llave es una cédula o un celular. Si es un celular NO se pasa como cédula:
+       el puente la compararía con la cédula de cada ficha y diría «no coincide». */
+    var ll = texto(objeto(s).llave).replace(/\D/g, '');
+    var llaveEsCelular = ll.length === 10 && ll.charAt(0) === '3';
+    var c = P.candidatosDeCruce(E.db, { cedula: llaveEsCelular ? '' : ll, telefono: cel, nombre: objeto(s).nombre })[0];
+    /* Solo lo seguro: la misma cédula (3) o el mismo celular sin nada que lo
+       contradiga (2). Un parecido de nombre o un celular con otra cédula no se afirma. */
+    if (!c || !c.socio || !(c.fuerza >= 2)) return null;
+    var cod = typeof P.codCliente === 'function' ? P.codCliente(c.socio) : texto(c.socio.nombre);
+    return { texto: 'Es tu cliente: ' + cod, telefono: c.socio.telefono };
+  }
+  /* El número en su botón del menú: las que le TOCAN a Joan (responder o desembolsar),
+     no las que esperan al cliente. Una solicitud que no se nota hasta abrir la pestaña
+     es una función muda. Es un elemento nuestro, aparte del de crm.html (#navSolicitudes),
+     que en el celular no tiene con qué contar. Sin número cuando no se pudo preguntar:
+     un «0» ahí se leería como «no hay ninguna». */
+  function marcarSolicitudesEnElMenu() {
+    var boton = null;
+    try { boton = D.querySelector('.navbtn[data-v="solicitudes"]'); } catch (e) { boton = null; }
+    if (!boton) return;
+    var c = $('crSolCuenta');
+    if (!c) {
+      c = D.createElement('span');
+      c.id = 'crSolCuenta';
+      c.className = 'cr-cuenta';
+      boton.appendChild(c);
+    }
+    var n = E.sol.estado === 'ok' ? (Number(E.sol.nuevas) || 0) + (Number(E.sol.aceptadas) || 0) : 0;
+    c.textContent = n > 0 ? String(n) : '';
+  }
+  function pintarSolicitudes() {
+    marcarSolicitudesEnElMenu();
+    var vista = $('v-solicitudes');
+    if (!vista) return;
+    var c = $('crSolicitudes');
+    if (!c) {
+      c = D.createElement('div');
+      c.id = 'crSolicitudes';
+      c.className = 'cr-tapa cr-lista';      // cr-tapa: es lo único de la vista que se ve en el celular
+      c.setAttribute('data-cr', '1');
+      var cabeza = vista.querySelector('.ph');
+      if (cabeza && cabeza.nextSibling) vista.insertBefore(c, cabeza.nextSibling); else vista.insertBefore(c, vista.firstChild);
+      vista.classList.add('cr-tapada');
+    }
+    c.innerHTML = listaDeSolicitudes(E.sol, { ahora: ahora(), ficha: fichaDeSolicitud });
+    var b = $('crSolMirar');
+    if (b) b.addEventListener('click', function () { traerSolicitudes(true); });
+  }
+  /* Pregunta con la SESIÓN del dueño. Un 404 es la base sin ese SQL; lo demás se
+     dice tal cual y deja la lista que hubiera («no pude preguntar» no es «nadie»). */
+  function traerSolicitudes(forzar) {
+    var sol = E.sol;
+    if (!E.activo || !N || typeof N.rpc !== 'function') return Promise.resolve(false);
+    if (sol.enCurso) return sol.enCurso;
+    if (!forzar && sol.estado === 'ok' && ahora() - sol.pedidoEn < 60000) return Promise.resolve(false);
+    /* Sin el SQL en la base no se insiste en cada vuelta: solo cuando Joan lo pide. */
+    if (!forzar && sol.estado === 'falta') return Promise.resolve(false);
+    if (sol.estado !== 'ok' || !sol.filas.length) sol.estado = 'cargando';
+    pintarSolicitudes();
+    sol.enCurso = N.rpc('panel_solicitudes', { p_limite: LIMITE_SOLICITUDES }).then(function (r) {
+      var x = objeto(r);
+      sol.filas = lista(x.solicitudes);
+      sol.nuevas = Number(x.nuevas) || 0; sol.aceptadas = Number(x.aceptadas) || 0; sol.propuestas = Number(x.propuestas) || 0;
+      var srv = Date.parse(texto(x.servidor_ahora));
+      sol.leidoEn = isNaN(srv) ? ahora() : srv;
+      sol.estado = 'ok'; sol.error = ''; sol.sinRed = false; sol.pedidoEn = ahora();
+    }, function (e) {
+      if (e && e.estado === 404) { sol.estado = 'falta'; sol.filas = []; return; }
+      sol.estado = 'error'; sol.error = motivo(e); sol.sinRed = !!(e && e.sin_red);
+    }).then(function () { sol.enCurso = null; pintarSolicitudes(); return true; });
+    return sol.enCurso;
+  }
+
   /* ------------------------------------------------------------ la puerta */
   function puertaDeCorreo() { return E.puerta === 'correo' && !E.activo; }
   function decirEnPuerta(t, tono) {
@@ -1188,6 +1394,7 @@
       pintarFranja();
       arrancarRelojes();
       traerRegistrados(true);
+      traerSolicitudes(true);
     }, function (e) {
       E.db = null;
       if (noEsDueno(e)) {
@@ -1293,7 +1500,7 @@
     alAbrir: alAbrir, activo: activo, paraCargar: paraCargar, alGuardar: alGuardar,
     puertaDeCorreo: puertaDeCorreo, pintarPuerta: pintarPuerta, salir: salir,
     alRepintar: function () { if (E.activo) { ponerTapas(); pintarFranja(); barrer(D); } },
-    barrer: barrer, ponerFechas: ponerFechas, traerRegistrados: traerRegistrados,
+    barrer: barrer, ponerFechas: ponerFechas, traerRegistrados: traerRegistrados, traerSolicitudes: traerSolicitudes,
     verLoDeHoy: verLoDeHoy, volverALaCopia: volverALaCopia, revisarFranjaDeCopia: revisarFranjaDeCopia,
     _estado: E
   };

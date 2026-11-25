@@ -1161,9 +1161,13 @@ describe('crm-remoto · 📥 Registrados en el celular', () => {
   });
 
   /* La pieza con su pantalla de mentira y una nube que anota cada pregunta. */
+  /* 25-nov-2026 — la pieza ahora también pregunta por las solicitudes (panel_solicitudes): aquí
+     se anotan y se contestan SOLO las preguntas de Registrados; lo demás recibe un «nada». */
   function conRegistrados(respuesta) {
     const preguntas = [];
-    const p = pantalla({ nube: { rpc(fn, c) { preguntas.push({ fn, c }); return typeof respuesta === 'function' ? respuesta(preguntas.length) : Promise.resolve(respuesta); } } });
+    const p = pantalla({ nube: { rpc(fn, c) {
+      if (fn !== 'panel_registros') return Promise.resolve({});
+      preguntas.push({ fn, c }); return typeof respuesta === 'function' ? respuesta(preguntas.length) : Promise.resolve(respuesta); } } });
     const vista = p.W.document.createElement('section'); vista.id = 'v-registrados';
     const cabeza = p.W.document.createElement('div'); cabeza.className = 'ph'; vista.appendChild(cabeza);
     const deCrm = p.W.document.createElement('div'); deCrm.id = 'tblRegistros'; vista.appendChild(deCrm);
@@ -1195,7 +1199,7 @@ describe('crm-remoto · 📥 Registrados en el celular', () => {
     assert.equal(preguntas.length, 2);
     assert.match(plano(p.porId.crRegistrados.innerHTML), /1 persona esperando/);
     assert.equal(R.TAPAS.registrados, undefined);
-    assert.deepEqual(Object.keys(R.TAPAS).sort(), ['bases', 'cfg', 'mensajes', 'solicitudes', 'ventas']);
+    assert.deepEqual(Object.keys(R.TAPAS).sort(), ['bases', 'cfg', 'mensajes', 'ventas']);   // 25-nov-2026: Solicitudes también salió
     /* Y «🔎 Revisar a todos» (revision.html pregunta con la clave del computador) no queda a la vista. */
     assert.ok(LEER('panel/crm-remoto.js').indexOf("body.solo-mirar a[href=\"revision.html\"]{display:none !important}") > 0);
     assert.ok(CRM.indexOf('href="revision.html"') > 0, 'el enlace ya no existe en crm.html: la regla sobra');
@@ -1218,5 +1222,215 @@ describe('crm-remoto · 📥 Registrados en el celular', () => {
     const sql = LEER('base/20261002_panel_registros.sql');
     assert.match(sql, /create or replace function public\.panel_registros\(p_estado text default 'nuevo', p_limite integer default 100\)/);
     assert.match(sql, /panel_es_dueno\(\)/);
+  });
+});
+
+/* ==========================================================================
+ * 25-nov-2026 — 📥 SOLICITUDES EN EL CELULAR, MIRANDO (v168)
+ * Joan quiere en el celular «toda la informacion que podria yo encontrar en el
+ * crm del computador». La bandeja se leía con la clave del computador; ahora
+ * hay una puerta para la SESIÓN del dueño (panel_solicitudes), que trae solo
+ * lo que la tarjeta pinta. Aquí solo se mira.
+ * ======================================================================== */
+describe('crm-remoto · 📥 Solicitudes en el celular', () => {
+  const AHORA = new Date(2026, 10, 25, 10, 30, 0).getTime();
+  const plano = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ');
+  const hoy = (h, m) => new Date(2026, 10, 25, h, m).toISOString();
+  /* De play/: entra con el celular, dijo cuánto. */
+  const NUEVA = { id: 4, estado: 'nueva', creada_en: hoy(9, 21), nombre: 'Ana De Mentira', llave: '3001112233', celular: null, app: 'tugarantia',
+    producto: 'quincenal', capital: 250000, total: 300000, pedido_monto: 250000, pedido_plazo: 30, pedido_nota: 'para surtir' };
+  /* De la app de socios: entra con la cédula, y la cifra de la solicitud es la suya. */
+  const SOCIA = { id: 3, estado: 'nueva', creada_en: hoy(8, 5), nombre: 'Socia De La App', llave: '52000111', capital: 300000, total: 360000, producto: 'quincenal' };
+  const ACEPTADA = { id: 2, estado: 'aceptada', creada_en: new Date(2026, 10, 24, 18, 40).toISOString(), aceptada_en: hoy(10, 5), nombre: '<b>Beto</b>', llave: '3001114455',
+    celular: '3001114455', app: 'platachat', producto: 'cuotas', plazo_meses: 3, capital: 500000, total: 600000, sobre_cupo: true, cuenta_sin_juntar: true, propuesta_por: 'gerente' };
+  const PROPUESTA = { id: 1, estado: 'contrapropuesta', creada_en: hoy(7, 0), nombre: 'Nuevo De Play', llave: '3001116677', capital: 100000, total: 135000,
+    fecha_corte: '2026-12-05', propuesta_por: 'automatica' };
+  const RESPUESTA = { servidor_ahora: new Date(AHORA - 60000).toISOString(), nuevas: 2, aceptadas: 1, propuestas: 1, solicitudes: [NUEVA, SOCIA, ACEPTADA, PROPUESTA] };
+
+  test('cada solicitud dice el DÍA Y LA HORA en que pidió, cuánto pidió y cómo llamar', () => {
+    const t = plano(R.tarjetaDeSolicitud(NUEVA, { ahora: AHORA }));
+    assert.match(t, /Ana De Mentira Pidió hoy, 9:21 a\. m\./);
+    assert.match(t, /Pidió \$250\.000 · a 30 días · quincenal «para surtir»/);
+    assert.match(t, /Celular 300 111 2233 · Llamar/);
+    assert.match(R.tarjetaDeSolicitud(NUEVA, { ahora: AHORA }), /href="tel:\+573001112233"/);
+    assert.match(plano(R.tarjetaDeSolicitud(ACEPTADA, { ahora: AHORA })), /Pidió ayer, 6:40 p\. m\./);
+  });
+
+  test('«Pidió» es solo lo que la persona pidió: su cifra, la de la solicitud si nadie le ha propuesto nada, o «un crédito»', () => {
+    assert.match(plano(R.tarjetaDeSolicitud(SOCIA, { ahora: AHORA })), /Pidió \$300\.000 · quincenal/);
+    const p = plano(R.tarjetaDeSolicitud(PROPUESTA, { ahora: AHORA }));
+    assert.match(p, /Pidió un crédito · quincenal/, 'le puso como pedida la cifra que se le PROPUSO');
+    assert.match(p, /Propuesta automática \$100\.000 · paga el 5 de dic/);
+    assert.equal(R.diaDePago('2026-12-05'), '5 de dic'); assert.equal(R.diaDePago('no es fecha'), ''); assert.equal(R.diaDePago('2026-13-05'), '');
+    /* Con una propuesta ya hecha y sin cifra pedida, tampoco aunque siga «nueva». */
+    assert.match(plano(R.tarjetaDeSolicitud(Object.assign({}, SOCIA, { propuesta_por: 'joan' }), { ahora: AHORA })), /Pidió un crédito .*Propuesta tuya \$300\.000/);
+    assert.equal(/Propuesta/.test(plano(R.tarjetaDeSolicitud(SOCIA, { ahora: AHORA }))), false, 'inventó una propuesta en una solicitud que nadie ha respondido');
+  });
+
+  test('la aceptada dice cuándo aceptó, de quién era la propuesta y a cuántos meses; las píldoras, solo cuando dicen algo', () => {
+    const t = plano(R.tarjetaDeSolicitud(ACEPTADA, { ahora: AHORA, ficha: () => ({ texto: 'Es tu cliente: CL-0021', telefono: '3105550142' }) }));
+    assert.match(t, /PlataChat Pide más que su cupo Su cuenta está sin juntar Es tu cliente: CL-0021/);
+    assert.match(t, /Pidió un crédito · a cuotas Propuesta de un gerente \$500\.000 · a 3 meses Aceptó hoy, 10:05 a\. m\./);
+    assert.equal(/cr-reg-chips/.test(R.tarjetaDeSolicitud(SOCIA, { ahora: AHORA })), false);
+    /* PlataChat promete una hora de respuesta: se dice mientras siga sin responder. */
+    const conHora = Object.assign({}, NUEVA, { app: 'platachat', responder_antes_de: hoy(11, 0) });
+    assert.match(plano(R.tarjetaDeSolicitud(conHora, { ahora: AHORA })), /Se le prometió respuesta hoy, 11:00 a\. m\./);
+    assert.equal(/prometió/.test(plano(R.tarjetaDeSolicitud(Object.assign({}, conHora, { estado: 'contrapropuesta' }), { ahora: AHORA }))), false);
+  });
+
+  test('el celular: el que trae, la llave si ES un celular, o el de su ficha; una cédula nunca se pinta como teléfono', () => {
+    assert.equal(R.celularDeSolicitud({ celular: '+57 300 111 4455', llave: '52000111' }), '300 111 4455');
+    assert.equal(R.celularDeSolicitud({ llave: '3001112233' }), '300 111 2233');
+    assert.equal(R.celularDeSolicitud({ llave: '52000111' }), '');
+    assert.equal(R.celularDeSolicitud({ llave: '1020304050' }), '', 'una cédula de diez dígitos se tomó por celular');
+    const sinFicha = R.tarjetaDeSolicitud(SOCIA, { ahora: AHORA });
+    assert.match(plano(sinFicha), /Aquí no tengo su celular\./);
+    assert.equal(/tel:/.test(sinFicha), false);
+    assert.match(R.tarjetaDeSolicitud(SOCIA, { ahora: AHORA, ficha: () => ({ texto: 'Es tu cliente: CL-0007', telefono: '310 555 0142' }) }), /href="tel:\+573105550142"/);
+    assert.equal(/undefined/.test(R.tarjetaDeSolicitud(SOCIA, { ahora: AHORA, ficha: () => { throw new Error('x'); } })), false);
+  });
+
+  test('no enseña la llave, no escribe por WhatsApp, no trae botones que escriban, y lo de la base sale escapado', () => {
+    const h = [NUEVA, SOCIA, ACEPTADA, PROPUESTA].map(s => R.tarjetaDeSolicitud(s, { ahora: AHORA })).join('');
+    assert.equal(/52000111/.test(h), false, 'la cédula quedó a la vista en la lista del celular');
+    assert.equal(/wa\.me|whatsapp/i.test(h), false);
+    assert.equal(/onclick=|<button/.test(h), false, 'una tarjeta de solo mirar trae un botón');
+    assert.equal(/<b>Beto<\/b>/.test(h), false, 'un nombre con etiquetas se pintó como HTML');
+    assert.match(h, /&lt;b&gt;Beto&lt;\/b&gt;/);
+    assert.equal(/%/.test(plano(h)), false, 'salió un porcentaje');
+  });
+
+  test('la lista va agrupada por lo que te toca hacer, dice cuántas hay y que aquí solo se mira', () => {
+    const t = plano(R.listaDeSolicitudes({ estado: 'ok', filas: RESPUESTA.solicitudes, nuevas: 2, aceptadas: 1, propuestas: 1, leidoEn: AHORA - 60000 }, { ahora: AHORA }));
+    assert.match(t, /4 solicitudes abiertas La nube contestó hoy, 10:29 a\. m\. ↻ Volver a mirar/);
+    const orden = ['Te toca responder · 2', 'Ana De Mentira', 'Socia De La App', 'Aceptaron: te toca desembolsar · 1', 'Esperan la respuesta del cliente · 1', 'Nuevo De Play'].map(x => t.indexOf(x));
+    assert.ok(orden.every((x, i) => x >= 0 && (i === 0 || x > orden[i - 1])), 'los grupos o su orden no son los de la bandeja: ' + orden.join());
+    assert.match(t, /Aquí solo se mira\. Para responder, proponer o desembolsar: 📥 Solicitudes, en tu computador\./);
+    assert.match(plano(R.listaDeSolicitudes({ estado: 'ok', filas: [NUEVA], nuevas: 1, leidoEn: AHORA }, { ahora: AHORA })), /^ ?1 solicitud abierta/);
+    assert.match(plano(R.listaDeSolicitudes({ estado: 'ok', filas: [], leidoEn: AHORA }, { ahora: AHORA })), /Nadie esperando: no hay solicitudes abiertas\./);
+    assert.match(plano(R.listaDeSolicitudes({ estado: 'cargando', filas: [] }, { ahora: AHORA })), /Mirando las solicitudes…/);
+    assert.match(plano(R.listaDeSolicitudes({ estado: 'ok', filas: [NUEVA], nuevas: 150, aceptadas: 3, propuestas: 0, leidoEn: AHORA }, { ahora: AHORA })),
+      /153 solicitudes abiertas .*Se ven las 1 más recientes de 153\. Las demás, en el computador\./);
+  });
+
+  test('no poder preguntar NO es «ninguna»: se dice, y la lista que había se queda; sin el SQL dice cuál correr', () => {
+    const sin = plano(R.listaDeSolicitudes({ estado: 'error', sinRed: true, filas: [NUEVA], nuevas: 1, leidoEn: AHORA - 3600000 }, { ahora: AHORA }));
+    assert.match(sin, /Sin señal: no pude mirar las solicitudes\. Eso no quiere decir que no haya ninguna\. Abajo va la lista de la última vez que contestó la nube\./);
+    assert.match(sin, /Ana De Mentira/);
+    const err = plano(R.listaDeSolicitudes({ estado: 'error', error: 'Supabase respondió 500: x', filas: [] }, { ahora: AHORA }));
+    assert.match(err, /No pude mirar las solicitudes\. Supabase respondió 500: x Eso no quiere decir que no haya ninguna\./);
+    assert.equal(/Nadie esperando|0 solicitudes/.test(err), false, 'un fallo se pintó como «no hay ninguna»');
+    const falta = plano(R.listaDeSolicitudes({ estado: 'falta', filas: [] }, { ahora: AHORA }));
+    assert.match(falta, /Tu base todavía no tiene esta parte\. Corre base\/20261125_solicitudes_en_el_celular\.sql/);
+    assert.ok(fs.existsSync(path.join(RAIZ, 'base', '20261125_solicitudes_en_el_celular.sql')), 'el archivo que se nombra no existe');
+  });
+
+  /* La pieza con su pantalla de mentira y una nube que anota cada pregunta de solicitudes. */
+  function conSolicitudes(respuesta) {
+    const preguntas = [];
+    const p = pantalla({ nube: { rpc(fn, c) {
+      if (fn !== 'panel_solicitudes') return Promise.resolve({ registros: [] });
+      preguntas.push({ fn, c }); return typeof respuesta === 'function' ? respuesta(preguntas.length) : Promise.resolve(respuesta); } } });
+    const vista = p.W.document.createElement('section'); vista.id = 'v-solicitudes';
+    const cabeza = p.W.document.createElement('div'); cabeza.className = 'ph'; vista.appendChild(cabeza);
+    const deCrm = p.W.document.createElement('div'); deCrm.id = 'bandeja'; vista.appendChild(deCrm);
+    return { p, preguntas, vista };
+  }
+  test('al entrar pregunta con la sesión del dueño (panel_solicitudes), pinta bajo el título y deja tapado lo que pinta crm.html', async () => {
+    const { p, preguntas, vista } = conSolicitudes(RESPUESTA);
+    const antes = Object.keys(p.almacen).filter(k => k !== 'joan_crm_remoto').sort().join();
+    p.C.alAbrir(p.ganchos);
+    await p.entrarBien(); await quieta(); await quieta();
+    assert.equal(JSON.stringify(preguntas), JSON.stringify([{ fn: 'panel_solicitudes', c: { p_limite: 100 } }]));
+    const c = p.porId.crSolicitudes;
+    assert.ok(c && vista.hijos[1] === c, 'la lista no va justo debajo del título');
+    assert.match(plano(c.innerHTML), /4 solicitudes abiertas .*Te toca responder · 2 .*Ana De Mentira Pidió /);
+    assert.ok(vista._clases.has('cr-tapada'), 'lo de crm.html («conecta Supabase en Ajustes») quedaría a la vista');
+    assert.ok(c.className.split(' ').includes('cr-tapa'), 'la regla que tapa la vista escondería también la lista');
+    assert.equal(c.getAttribute('data-cr'), '1', 'sin data-cr el filtro de toques frenaría «↻ Volver a mirar»');
+    /* Nada de las solicitudes queda en el disco del teléfono. */
+    assert.equal(Object.keys(p.almacen).filter(k => /Ana De Mentira|3001112233/.test(String(p.almacen[k]))).length, 0, 'una solicitud quedó guardada en el celular');
+    assert.equal(Object.keys(p.almacen).filter(k => k !== 'joan_crm_remoto').sort().join(), antes, 'apareció una llave nueva en el disco');
+  });
+
+  test('«↻ Volver a mirar» pregunta otra vez; si la nube falla, lo dice y no borra lo que ya se veía', async () => {
+    const { p, preguntas } = conSolicitudes(n => n === 1 ? Promise.resolve(RESPUESTA) : n === 2
+      ? Promise.resolve(Object.assign({}, RESPUESTA, { nuevas: 1, aceptadas: 0, propuestas: 0, solicitudes: [NUEVA] }))
+      : Promise.reject({ motivo: 'Sin internet.', sin_red: true }));
+    p.C.alAbrir(p.ganchos);
+    await p.entrarBien(); await quieta(); await quieta();
+    p.porId.crSolMirar.dispatch('click');
+    await quieta(); await quieta();
+    assert.equal(preguntas.length, 2);
+    assert.match(plano(p.porId.crSolicitudes.innerHTML), /1 solicitud abierta/);
+    p.porId.crSolMirar.dispatch('click');
+    await quieta(); await quieta();
+    const t = plano(p.porId.crSolicitudes.innerHTML);
+    assert.match(t, /Sin señal: no pude mirar las solicitudes\./);
+    assert.match(t, /Ana De Mentira/);
+  });
+
+  test('con la base sin el SQL (404) dice cuál correr, y no vuelve a preguntar sola en cada vuelta: solo cuando Joan lo pide', async () => {
+    const { p, preguntas } = conSolicitudes(() => Promise.reject({ estado: 404, motivo: 'no existe' }));
+    p.C.alAbrir(p.ganchos);
+    await p.entrarBien(); await quieta(); await quieta();
+    assert.match(plano(p.porId.crSolicitudes.innerHTML), /Tu base todavía no tiene esta parte\. Corre base\/20261125_solicitudes_en_el_celular\.sql/);
+    assert.equal(preguntas.length, 1);
+    await p.C.traerSolicitudes(false);
+    assert.equal(preguntas.length, 1, 'insiste sola contra una función que no existe');
+    p.porId.crSolMirar.dispatch('click');
+    await quieta(); await quieta();
+    assert.equal(preguntas.length, 2, '«↻ Volver a mirar» ya no pregunta: después de correr el SQL no habría cómo verlo');
+  });
+
+  test('ya no está tapada, NUNCA pregunta con la clave del computador, y la función es de la sesión del dueño', () => {
+    assert.equal(R.TAPAS.solicitudes, undefined);
+    const codigo = LEER('panel/crm-remoto.js').replace(/\/\*[\s\S]*?\*\//g, ' ').split('\n').map(l => l.replace(/(^|\s)\/\/.*$/, '$1')).join('\n');
+    assert.equal(/p_clave|listar_solicitudes|marcar_solicitud|contrapropuesta_solicitud|contrapropuesta_a_cuotas/.test(codigo), false);
+    assert.match(codigo, /N\.rpc\('panel_solicitudes', \{ p_limite: LIMITE_SOLICITUDES \}\)/);
+    const sql = LEER('base/20261125_solicitudes_en_el_celular.sql');
+    assert.match(sql, /create or replace function public\.panel_solicitudes\(p_limite integer default 100\)/);
+    assert.match(sql, /if not public\.panel_es_dueno\(\) then raise exception 'no autorizado'; end if;/);
+    /* Lo que la tarjeta lee es lo que la función manda: ni un campo que no exista. */
+    const manda = [...sql.matchAll(/^\s+'([a-z_]+)',\s/gm)].map(m => m[1]);
+    const lee = [...new Set([...codigo.slice(codigo.indexOf('function tarjetaDeSolicitud'), codigo.indexOf('function pintarSolicitudes')).matchAll(/\bx\.([a-z_]+)\b/g)].map(m => m[1]))];
+    lee.forEach(c => assert.ok(manda.includes(c), 'la tarjeta lee «' + c + '», que panel_solicitudes no manda'));
+  });
+
+  test('en la pantalla de verdad existe la vista que se tapa, con su título', () => {
+    assert.match(CRM, /id="v-solicitudes"/, 'crm.html ya no tiene la vista de Solicitudes: la lista del celular no tendría dónde pintarse');
+    assert.match(CRM, /class="navbtn[^"]*" data-v="solicitudes"/);
+  });
+});
+
+describe('crm-remoto · el número de Solicitudes en el menú', () => {
+  const hoy = (h, m) => new Date(2026, 10, 25, h, m).toISOString();
+  const SOL = (id, estado) => ({ id, estado, creada_en: hoy(9, id), nombre: 'Persona ' + id, llave: '300111000' + id, capital: 100000 });
+  function conMenu(respuesta) {
+    const p = pantalla({ nube: { rpc(fn) { return fn === 'panel_solicitudes' ? (typeof respuesta === 'function' ? respuesta() : Promise.resolve(respuesta)) : Promise.resolve({ registros: [] }); } } });
+    const boton = p.W.document.createElement('button'); boton.className = 'navbtn'; boton.setAttribute('data-v', 'solicitudes');
+    const original = p.W.document.querySelector.bind(p.W.document);
+    p.W.document.querySelector = s => s === '.navbtn[data-v="solicitudes"]' ? boton : original(s);
+    return { p, boton };
+  }
+  test('cuenta las que te tocan (nuevas y aceptadas), no las que esperan al cliente', async () => {
+    const { p, boton } = conMenu({ servidor_ahora: hoy(10, 0), nuevas: 2, aceptadas: 1, propuestas: 5, solicitudes: [SOL(1, 'nueva'), SOL(2, 'nueva'), SOL(3, 'aceptada')] });
+    p.C.alAbrir(p.ganchos);
+    await p.entrarBien(); await quieta(); await quieta();
+    const c = p.porId.crSolCuenta;
+    assert.ok(c && boton.hijos.includes(c), 'el número no quedó dentro del botón de Solicitudes: el menú del celular mueve el botón entero');
+    assert.equal(c.textContent, '3');
+    assert.equal(c.getAttribute('data-cr'), null, 'con data-cr, tocar justo el número no volvería a mirar');
+  });
+  test('sin nada que te toque no dice nada; y si no se pudo preguntar, tampoco pone un cero', async () => {
+    const vacia = conMenu({ servidor_ahora: hoy(10, 0), nuevas: 0, aceptadas: 0, propuestas: 4, solicitudes: [] });
+    vacia.p.C.alAbrir(vacia.p.ganchos);
+    await vacia.p.entrarBien(); await quieta(); await quieta();
+    assert.equal(vacia.p.porId.crSolCuenta.textContent, '');
+    const caida = conMenu(() => Promise.reject({ motivo: 'Sin internet.', sin_red: true }));
+    caida.p.C.alAbrir(caida.p.ganchos);
+    await caida.p.entrarBien(); await quieta(); await quieta();
+    assert.equal(caida.p.porId.crSolCuenta.textContent, '', 'un fallo se pintó como un número');
+    assert.match(LEER('panel/crm-remoto.js'), /\.cr-cuenta:empty\{display:none\}/);
   });
 });
