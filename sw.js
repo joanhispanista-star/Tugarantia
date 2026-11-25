@@ -3149,7 +3149,24 @@
    Pruebas: pruebas/sin-respuesta-whatsapp.test.js.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
    número nunca baja. */
-const CACHE = 'tugarantia-v166';
+/* v167 — 25-nov-2026 — TRAER EN UN COMPUTADOR: EL PIN DE ESTE APARATO SE ESCOGE ANTES DE TRAER.
+   Era el punto que faltaba de la etapa U1 (RECETA-PLAN-UN-SOLO-CRM.md). Desde v143 el PIN no viaja
+   por la nube, así que panel/traer.html, en un computador nuevo, dejaba la cartera entera abriendo
+   con el PIN de fábrica y solo decía «cámbialo apenas entres».
+   · panel/traer.html: cuando el paquete no trae PIN y el aparato no tiene uno suyo, el paso 5
+     muestra dos casillas y la página NO escribe hasta que se escoja un PIN (de 4 a 6 números; ni el
+     de fábrica ni su continuación, ni un número repetido). Ese es el que queda guardado con la
+     cartera. La reja está en el botón y otra vez donde se escribe: si el aparato cambió desde que
+     se miró y quedaría con el de fábrica, se niega.
+   · Lo que NO cambia: si el paquete trae un PIN de antes de v143, manda ese; si el aparato ya tiene
+     cartera y PIN suyo, lo conserva; en un celular la página sigue sin traer.
+   · El PIN no se pinta nunca, y las casillas se vacían al terminar.
+   Ningún .js cambió: no hay direcciones nuevas. Sin base nueva.
+   Pruebas: pruebas/traer-escoge-su-pin.test.js (18); cinco de antes describían «arranca con el de
+   fábrica» y ahora dicen la regla nueva, con la razón escrita.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+const CACHE = 'tugarantia-v167';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

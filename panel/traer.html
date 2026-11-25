@@ -227,6 +227,9 @@ details>summary::-webkit-details-marker{display:none}
 #notaConexion:not(:empty)+#msg2 .aviso{margin-top:var(--e3)}
 /* El aviso del PIN es el primer hijo de su cajón, y encima siempre tiene otro aviso. */
 #avisoPinPaso3 .aviso,#avisoPinAntesDeTraer .aviso{margin-top:var(--e3)}
+/* 25-nov-2026 (v167) — lo mismo para el aviso de las casillas del PIN: es el primer hijo de su
+   cajón y sin esto queda pegado al recuadro de arriba (visto en la foto del 25-nov). */
+#pinNuevoCaja .aviso{margin-top:var(--e3)}
 /* 6-nov-2026 — «Cambiar la conexión» casi nadie la necesita: como enlace, para que debajo
    de «Entrar» no parezca el paso siguiente. 44 px para el dedo igual. */
 .btn-texto{display:block;width:100%;min-height:44px;background:none;border:0;color:var(--gris);
@@ -430,6 +433,20 @@ details>summary::-webkit-details-marker{display:none}
       <div id="msg5"></div>
       <div id="resumen5"></div>
       <div id="avisoPinAntesDeTraer"></div>
+      <!-- 25-nov-2026 (v167) — EL PIN DE ESTE APARATO SE ESCOGE ANTES DE TRAER. Desde v143 el PIN no
+           viaja por la nube, así que un computador nuevo quedaba con la cartera entera abriendo con el
+           PIN de fábrica, y la página solo decía «cámbialo apenas entres». Ahora no escribe hasta que
+           Joan escoja uno (ver tocaEscogerPin). Va en el HTML y no pintado: lo que se pinta se vuelve
+           a pintar, y repintar borraría lo que va escribiendo. Nace oculto; lo prende refrescarBotones. -->
+      <div id="pinNuevoCaja" class="oculto">
+        <div class="aviso ambar"><b class="tit">Antes de traer: escoge el PIN de este aparato</b>
+          Tu PIN no viaja por la nube y este aparato no tiene uno suyo. Escógelo aquí: es el que te va a
+          pedir el CRM al abrir. Queda guardado solo en este aparato.</div>
+        <label for="pinNuevo">PIN nuevo (de 4 a 6 números)</label>
+        <input id="pinNuevo" type="password" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="new-password">
+        <label for="pinNuevo2">Escríbelo otra vez</label>
+        <input id="pinNuevo2" type="password" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="new-password">
+      </div>
       <button class="btn" type="button" id="btnTraer" disabled>Traer y reemplazar lo de este aparato</button>
       <div class="porque-off" id="porqueOff"></div>
     </div>
@@ -1247,6 +1264,32 @@ function quePinQuedaraAqui(m){
   return quePinQueda(hayFichas(E.hay), !!(E.hay && E.hay.pinPropio), !!(m && m.pinViaja));
 }
 
+/* 25-nov-2026 (v167) — UN COMPUTADOR NO SE QUEDA CON EL PIN DE FÁBRICA. Cuando la regla de arriba
+   da 'fabrica' (el paquete no trae PIN y este aparato no tiene uno suyo), la página no escribe
+   hasta que Joan escoja un PIN en el paso 5; ese es el que queda guardado con la cartera. Era el
+   punto que faltaba de la etapa U1 (RECETA-PLAN-UN-SOLO-CRM.md): hasta hoy solo avisaba «cámbialo
+   apenas entres», y entre traer y entrar la cartera completa abría con una llave que está escrita
+   en el código de un repositorio público.
+   En un celular no aplica: ahí la página ya no trae (razonParaNoEscribir).
+   El valor no se guarda en E ni se pinta nunca: se lee de las dos casillas al traer y se borran. */
+function tocaEscogerPin(){
+  if(esCelular()) return false;
+  var m = E.lectura;
+  return !!m && quePinQuedaraAqui(m) === 'fabrica';
+}
+/* Por qué todavía no sirve lo escrito en las casillas, o null si ya sirve. De 4 a 6 números: 6 es
+   lo que cabe en Ajustes del CRM («PIN de acceso»), que es donde después se cambia. */
+function motivoDelPinNuevo(){
+  var a = String(($('pinNuevo') || {}).value || ''), b = String(($('pinNuevo2') || {}).value || '');
+  if(!a) return 'Falta escoger el PIN de este aparato: las dos casillas de arriba del botón.';
+  if(!/^\d{4,6}$/.test(a)) return 'El PIN son de 4 a 6 números, sin letras ni espacios.';
+  if('123456'.indexOf(a) === 0) return 'Ese es el PIN de fábrica o su continuación: es lo primero que cualquiera prueba. Escoge otro.';
+  if(/^(\d)\1+$/.test(a)) return 'Un PIN con el mismo número repetido se adivina al primer intento. Escoge otro.';
+  if(!b) return 'Escribe el PIN otra vez en la segunda casilla.';
+  if(a !== b) return 'Las dos casillas no dicen lo mismo. Escríbelo otra vez.';
+  return null;
+}
+
 /* Las dos razones por las que esta pantalla se NIEGA a escribir. Devuelve el
    texto del motivo, o null si se puede. Se decide con lo MEDIDO, no con lo
    supuesto. */
@@ -1337,18 +1380,26 @@ function pintarLoQueViene(){
      escribe traerYEscribir. */
   var pinQueda = quePinQuedaraAqui(m);
   var conservaPin = pinQueda === 'propio';
+  /* 25-nov-2026 (v167) — aquí decía «va a arrancar con el PIN 1234. Cámbialo apenas entres». Ya no
+     arranca con ese: en un computador se escoge en el paso 5 (tocaEscogerPin), y en un celular la
+     página no trae, así que del PIN no hay nada que prometer. */
+  var escoge = tocaEscogerPin();
   if(!m.hayConfig){
     h += '<div class="aviso ambar"><b class="tit">Los ajustes no vienen</b>'+
          'El paquete no trae tu configuración. El CRM de este aparato va a arrancar con los valores de fábrica'+
          (conservaPin
            ? ', menos el PIN: <b>este aparato conserva el que ya tenía</b>.</div>'
-           : ', y eso incluye el <b>PIN '+esc(PIN_DE_FABRICA)+'</b>. Cámbialo desde el CRM apenas entres.</div>');
+           : escoge
+           ? ', menos el PIN: <b>ese lo escoges tú en el paso 5</b>, antes de traer.</div>'
+           : '.</div>');
   }else if(!m.pinViaja){
     h += '<div class="aviso ambar"><b class="tit">Los ajustes sí vienen, pero sin PIN</b>'+
          'Desde la versión v143 tu PIN no viaja por la nube. '+
          (conservaPin
            ? '<b>Este aparato conserva el PIN que ya tenía.</b></div>'
-           : 'El CRM de este aparato va a arrancar con el <b>PIN '+esc(PIN_DE_FABRICA)+'</b>. Cámbialo desde el CRM apenas entres.</div>');
+           : escoge
+           ? '<b>El PIN de este aparato lo escoges tú en el paso 5</b>, antes de traer.</div>'
+           : 'En un celular no hace falta: aquí no se trae la cartera.</div>');
   }else if(pinQueda === 'propio'){
     /* El paquete trae un PIN de antes de v143, pero este aparato ya tiene cartera y PIN suyo. */
     h += '<div class="aviso info"><b class="tit">Los ajustes sí vienen, y este aparato conserva su PIN</b>'+
@@ -1470,6 +1521,14 @@ function traerYEscribir(){
   }
   var no = razonParaNoEscribir();
   if(no){ pinta('msg5','ambar','<b class="tit">No escribí nada</b>'+no); return; }
+  /* 25-nov-2026 (v167) — el PIN de este aparato, si toca escogerlo. El botón ya está apagado
+     mientras falte (refrescarBotones); esto es la misma reja puesta donde se escribe. */
+  var pinNuevo = null;
+  if(tocaEscogerPin()){
+    var faltaPin = motivoDelPinNuevo();
+    if(faltaPin){ pinta('msg5','ambar','<b class="tit">No escribí nada</b>'+esc(faltaPin)); return; }
+    pinNuevo = String($('pinNuevo').value);
+  }
 
   var m = E.lectura;
   var ok = confirm(
@@ -1529,6 +1588,21 @@ function traerYEscribir(){
       if(cfgPropia.ultimoRespaldo) nueva.config.ultimoRespaldo = cfgPropia.ultimoRespaldo;
     }
   }catch(e){ /* sin cajón legible no hay nada propio que conservar */ }
+
+  /* 25-nov-2026 (v167) — UN COMPUTADOR NO SE QUEDA CON EL PIN DE FÁBRICA. La regla se acaba de
+     decidir leyendo el cajón en este momento; si dio 'fabrica', el PIN que queda es el que Joan
+     escogió en las casillas. Y si no hay uno escogido (el aparato cambió desde que se miró), no
+     se escribe: es preferible negarse a dejar la cartera detrás de la llave que todos conocen. */
+  if(nueva && pinQueQuedo === 'fabrica'){
+    if(!pinNuevo){
+      return fallo('escoger el PIN de este aparato',
+        'Este aparato quedaría abriendo con el PIN de fábrica. Aprieta «Volver a mirar este aparato» arriba y escoge un PIN en el paso 5.');
+    }
+    if(!nueva.config || typeof nueva.config !== 'object') nueva.config = {};
+    nueva.config.pin = pinNuevo;
+    pinQueQuedo = 'escogido';
+  }
+  pinNuevo = null;
 
   /* PASO B — comprobar la forma antes de escribir. Un paquete raro no puede
      terminar en la llave de la cartera con forma de cualquier cosa: crm.html
@@ -1593,6 +1667,9 @@ function traerYEscribir(){
      de suposición que después nadie revisa. Se relee y se cuenta. */
   E.hay = mirarEsteAparato();
   E.escrito = true;
+  /* 25-nov-2026 (v167) — el PIN escogido ya quedó guardado con la cartera: no se queda en la pantalla. */
+  if($('pinNuevo')) $('pinNuevo').value = '';
+  if($('pinNuevo2')) $('pinNuevo2').value = '';
   var quedaron = E.hay;
   var esperados = m.tablas.socios.quedan;
   /* Ya se trajo: «no traigas todavía» ya no le sirve a nadie. El paso 6 dice de qué fecha es. */
@@ -1639,8 +1716,9 @@ function traerYEscribir(){
       ? 'El CRM te va a pedir el <b>PIN que ya tenía este aparato</b>: '+
         (m.pinViaja ? 'este aparato ya tenía tu cartera y un PIN suyo, y lo que baja no se lo quita'
           : m.hayConfig ? 'los ajustes vinieron sin PIN' : 'los ajustes no vinieron')+', y ese no se cambia al traer.'
-      : 'El CRM va a arrancar con el <b>PIN de fábrica ('+esc(PIN_DE_FABRICA)+')</b>: '+
-        (m.hayConfig ? 'los ajustes vinieron sin PIN' : 'los ajustes no vinieron')+'. Cámbialo apenas entres.')+
+      : 'El CRM te va a pedir el <b>PIN que acabas de escoger en esta página</b>: '+
+        (m.hayConfig ? 'los ajustes vinieron sin PIN' : 'los ajustes no vinieron')+
+        ', y un computador no se queda con el de fábrica. Para cambiarlo: Ajustes del CRM, «PIN de acceso».')+
     '<br><br>Si tenías el CRM abierto en otra pestaña, <b>ciérrala y ábrelo de nuevo</b>: esa pestaña todavía '+
     'tiene en memoria la cartera vieja y lo que guardes allá no va a quedar: te va a pedir que recargues.');
   refrescarBotones();
@@ -1676,7 +1754,13 @@ function refrescarBotones(){
 
   $('btnMirar').disabled = !conectado;
 
-  var puede = conectado && !!m && E.respaldoHecho && !E.otraPestanaEscribio && !no && !E.escrito;
+  /* 25-nov-2026 (v167) — las casillas del PIN salen solo cuando toca escogerlo y todavía se puede
+     traer; y mientras lo escrito no sirva, el botón sigue apagado y abajo dice por qué. */
+  var escoge = tocaEscogerPin() && !no && !E.escrito;
+  var faltaPin = escoge ? motivoDelPinNuevo() : null;
+  if($('pinNuevoCaja')) $('pinNuevoCaja').classList.toggle('oculto', !escoge);
+
+  var puede = conectado && !!m && E.respaldoHecho && !E.otraPestanaEscribio && !no && !E.escrito && !faltaPin;
   $('btnTraer').disabled = !puede;
 
   /* El motivo va ESCRITO debajo del botón. En un teléfono no hay `title` que
@@ -1689,6 +1773,7 @@ function refrescarBotones(){
   else if(no)                      texto='No se puede traer: mira el aviso rojo del paso 3.';
   else if(E.otraPestanaEscribio)   texto='Otra pestaña escribió: vuelve a mirar este aparato.';
   else if(!E.respaldoHecho)        texto='Falta el respaldo (paso 4). El botón se prende cuando lo bajes.';
+  else if(faltaPin)                texto=faltaPin;
   $('porqueOff').textContent = texto;
 }
 
@@ -1710,6 +1795,8 @@ document.addEventListener('DOMContentLoaded', function(){
   $('btnRespaldo').addEventListener('click', bajarRespaldo);
   $('btnConfirmoRespaldo').addEventListener('click', confirmarRespaldo);
   $('btnTraer').addEventListener('click', traerYEscribir);
+  /* 25-nov-2026 (v167) — cada tecla en las casillas del PIN vuelve a decidir si el botón se prende. */
+  ['pinNuevo','pinNuevo2'].forEach(function(id){ $(id).addEventListener('input', refrescarBotones); });
   pintarAvisoDeCelular();
   arrancar();
 });

@@ -37,7 +37,7 @@ const PAQUETE = { completo: true, servidor_ahora: '2026-11-06T15:00:00Z', contad
 const nube = url => /grant_type=password/.test(url)
   ? { status: 200, cuerpo: { access_token: 'acceso-de-prueba', refresh_token: 'renovar-de-prueba', expires_in: 3600, user: { id: 'u1', email: 'duena@prueba.test' } } }
   : /rpc\/panel_traer/.test(url) ? { status: 200, cuerpo: PAQUETE } : { status: 404, cuerpo: {} };
-async function hastaTraer(navegador, almacen) {
+async function hastaTraer(navegador, almacen, pin) {
   const T = abrirTraer({ red: nube, navegador, almacen });
   T.elems.sbCorreo.value = 'duena@prueba.test'; T.elems.sbClave.value = 'una-clave-inventada';
   T.tocar('btnEntrar');
@@ -47,6 +47,8 @@ async function hastaTraer(navegador, almacen) {
   T.tocar('btnRespaldo');
   /* El banco no deja tocar un botón apagado («un dedo no lo dispara»): en un celular
      «Traer» queda apagado, y eso es justo lo que se quiere. Solo se toca si está prendido. */
+  /* 25-nov-2026 (v167) — `pin`: en un computador, con un paquete sin PIN, se escoge antes de traer. */
+  if (pin) ['pinNuevo', 'pinNuevo2'].forEach(id => { T.elems[id].value = pin; (T.elems[id]._oyentes.input || []).forEach(f => f({ target: T.elems[id] })); });
   if (!T.elems.btnTraer.disabled) T.tocar('btnTraer');
   await asentar();
   return T;
@@ -94,11 +96,14 @@ describe('traer.html en un celular', () => {
     assert.equal(T.almacen[LLAVE], copia, 'la copia del celular se pisó');
   });
 
-  test('en un computador todo sigue igual: sin aviso, y trae y escribe', async () => {
-    const T = await hastaTraer(PC);
+  /* 25-nov-2026 (v167) — decía «todo sigue igual». Sigue trayendo, pero ya no deja la cartera con
+     el PIN de fábrica: escoge uno antes (pruebas/traer-escoge-su-pin.test.js). */
+  test('en un computador sigue trayendo: sin aviso de celular, con el PIN que se escoge antes', async () => {
+    const T = await hastaTraer(PC, undefined, '482915');
     assert.equal(T.elems.enCelular.innerHTML || '', '');
     assert.ok(T.almacen[LLAVE], 'el computador dejó de poder traer su cartera');
     assert.equal(JSON.parse(T.almacen[LLAVE]).socios.length, 1);
+    assert.equal(JSON.parse(T.almacen[LLAVE]).config.pin, '482915');
   });
 
   test('«¿es un celular?» se contesta igual que en el CRM y en la puerta del panel', () => {
