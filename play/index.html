@@ -585,6 +585,9 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
      marca de «esto te lo contestó una máquina» y el «leído» son reglas, no
      adorno, y no se escriben dos veces. -->
 <script src="../app/chat.js"></script>
+<!-- 24-nov-2026 — «¿Aún sin respuesta?»: el botón al WhatsApp de servicio al cliente cuando
+     nadie contesta el chat (../app/sin-respuesta.js, nuevo). Después de chat.js. -->
+<script src="../app/sin-respuesta.js?v=166"></script>
 <!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
      momento seguro (momentoSeguroPlay, abajo). Si no llega, la página funciona
      igual que antes: solo no avisa. -->
@@ -730,13 +733,16 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
 /* 20-nov-2026 — la Navidad se prende desde el 20-nov y no desde el 1-dic (Joan: «sube
    lo de navidad desde ya»). Si alguien dice que en noviembre no ve la guirnalda, esta
    fecha dice si tenía la versión que la trae. */
+/* 24-nov-2026 (v166) — «¿Aún sin respuesta?» en el Chat: si la persona escribió y nadie de la
+   casa le contestó en 15 minutos, sale un botón al WhatsApp de servicio al cliente (solo en Tu
+   Garantía). La fecha es la misma de v160: aquí distingue el número del sello. */
 var VERSION_PLAY = '2026-11-24';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
    Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no deja pasar
    uno sin el otro. Sale también en el sello del pie. */
-var VERSION_SITIO = 'v165';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v166';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -13499,7 +13505,9 @@ function traerNuevosDelCanal() {
     if (HILO !== h || !j || j.ok !== true) return;
     var nuevos = (j.mensajes || []).filter(function (m) { return Number(m.id) > (h.ultimo || 0); });
     yaLeido(c);
-    if (!nuevos.length) return;
+    /* 24-nov-2026 — justo cuando nadie contesta no llega nada nuevo: el aviso de
+       «¿Aún sin respuesta?» se mira en cada latido, llegue algo o no. */
+    if (!nuevos.length) { pintarEsperaDelChat(); return; }
     h.mensajes = h.mensajes.concat(nuevos);
     h.ultimo = ultimoIdDe(h.mensajes);
     pintarHilo();
@@ -13539,6 +13547,8 @@ function laminaChat() {
       '<p class="sub" id="canalPie">' + esc(pieDeCanal()) + '</p>' +
     '</div>' +
     '<div class="card"><div id="hilo" class="ch-hilo"></div>' +
+      /* 24-nov-2026 — «¿Aún sin respuesta?»: ver pintarEsperaDelChat. */
+      '<div id="chSinRespuesta"></div>' +
       '<label for="chTexto" class="oculto">Tu mensaje</label>' +
       '<textarea id="chTexto" rows="3" placeholder="Escribe aquí…" ' +
         'style="width:100%;margin-top:var(--e3)"></textarea>' +
@@ -13608,6 +13618,7 @@ function botonesDeCanal() {
 
 function pintarHilo() {
   var caja = $('hilo'); if (!caja) return;
+  pintarEsperaDelChat();       // 24-nov-2026 — también cuando el hilo no se puede pintar: ahí se quita
   if (HILO.estado === 'apagado') {
     /* 22-sep-2026 — decía «todavía no está encendido… escríbenos por WhatsApp».
        El chat se encendió y el WhatsApp se fue, así que la frase mentía dos
@@ -13631,6 +13642,27 @@ function pintarHilo() {
     yo: 'socio', hoy: hoyISO(), alVerFoto: 'verFotoChat',
     vacio: 'Todavía no han hablado por aquí. Escribe y te contestamos.'
   });
+  pintarEsperaDelChat();
+}
+
+/* 24-nov-2026 — «¿AÚN SIN RESPUESTA?». Joan: «quiero que pongas mi numero de telefono
+   para garantia como numero de contacto de servicio al cliente por ahora, en caso de
+   que no le den respuesta desde la aplicacion entonses que exista el boton que lo
+   redirija a mi whatsapp».
+   El 22-sep pidió lo contrario («nada de compartir mi numero») y WA_NEGOCIO se fue de
+   esta página (ver arriba, junto a olvide()). Por eso el número no vuelve a estar a la
+   vista: sale SOLO un botón, y SOLO cuando la persona escribió por el chat y nadie de
+   la casa le contestó en un rato (la regla y su porqué, en app/sin-respuesta.js).
+   Es el MISMO número que la app tiene como contacto oficial (app/socio.html,
+   NEGOCIO_OFICIAL): una prueba compara los dos. En PlataChat no sale: es otra marca. */
+var WA_SERVICIO = '573103606348';
+function pintarEsperaDelChat() {
+  var c = $('chSinRespuesta'); if (!c || !window.SinRespuesta) return;
+  /* Solo en Tu Garantía y con la conversación a la vista: si el hilo no se pudo
+     traer, o es PlataChat, se le pasa un hilo vacío y el aviso se quita. */
+  var toca = MARCA !== 'platachat' && HILO.estado === 'listo';
+  try { SinRespuesta.pintar(c, toca ? HILO.mensajes : [], { whatsapp: WA_SERVICIO, ahora: Date.now() }); }
+  catch (e) { /* un aviso que no se pudo pintar no puede tumbar el chat */ }
 }
 
 /* LA FOTO DEL CLIENTE. Se comprime con lo mismo que usa el resto de la casa

@@ -3129,7 +3129,27 @@
    computador sigue con el motor de antes y las tres no suben.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. Lo que
    ya subió a la nube se queda (es lo del computador); el número nunca baja. */
-const CACHE = 'tugarantia-v165';
+/* v166 — 24-nov-2026 — «¿AÚN SIN RESPUESTA?»: DEL CHAT AL WHATSAPP DE SERVICIO AL CLIENTE.
+   Joan: «quiero que pongas mi numero de telefono para garantia como numero de contacto de
+   servicio al cliente por ahora, en caso de que no le den respuesta desde la aplicacion entonses
+   que exista el boton que lo redirija a mi whatsapp».
+   El 22-sep había pedido lo contrario («nada de compartir mi numero») y el WhatsApp del negocio
+   se quitó del registro. Por eso el número no vuelve a estar a la vista: sale SOLO un botón, y
+   SOLO cuando la persona escribió por el chat y nadie de la casa le contestó en 15 minutos.
+   · app/sin-respuesta.js, NUEVO (lo piden la app y el registro): la regla. Cuenta desde el PRIMER mensaje
+     sin respuesta; lo que cuenta como respuesta es que conteste una PERSONA (una respuesta
+     automática no); en el enlace no viaja ningún dato de la persona.
+   · app/socio.html: usa el contacto oficial de siempre (NEGOCIO_OFICIAL), que no sale nunca de
+     un enlace. play/index.html: el mismo número (WA_SERVICIO; una prueba compara los dos), y no
+     sale en PlataChat, que es otra marca.
+   · Se vuelve a mirar con el reloj, llegue algo o no: justo cuando nadie contesta, nada repinta.
+   Ese WhatsApp es para ATENDER a quien ya escribió: no para ofrecer crédito ni para cobrar.
+   app/chat.js NO se toca (lo cargan cinco páginas y se pide sin versión): la regla va en un
+   archivo nuevo, app/sin-respuesta.js?v=166, que entra a la precarga. Sin base nueva.
+   Pruebas: pruebas/sin-respuesta-whatsapp.test.js.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja. */
+const CACHE = 'tugarantia-v166';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3148,6 +3168,7 @@ const ARCHIVOS = [
   /* El chat: lo comparten la app del socio, el CRM y el espejo, igual que el
      motor y el puente. Es la razón de que este service worker viva en la raíz. */
   'app/chat.js',
+  'app/sin-respuesta.js?v=166',   // 24-nov-2026 — «¿Aún sin respuesta?»: del chat al WhatsApp de servicio al cliente
   /* 26-oct-2026 — chat-1: los relojes del chat (el hilo abierto, la bandeja
      escondida) y cómo juntar mensajes por id. Lo carga crm.html con
      <script src>; el espejo y la app del socio lo usan con el mismo

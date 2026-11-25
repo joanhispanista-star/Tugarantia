@@ -468,3 +468,49 @@ describe('7. la cuenta sin juntar también tiene el hilo vivo', () => {
     assert.match(plano(el(A, 'chHilo').innerHTML), /entra otra vez/);
   });
 });
+
+/* ========================================================================== */
+/* 24-nov-2026 — «¿AÚN SIN RESPUESTA?». Joan: «en caso de que no le den respuesta desde la
+   aplicacion entonses que exista el boton que lo redirija a mi whatsapp». La regla se prueba
+   en pruebas/sin-respuesta-whatsapp.test.js; aquí, que la app de verdad la engancha. */
+describe('7. «¿Aún sin respuesta?»: del chat al WhatsApp de servicio al cliente', () => {
+  const HACE_30 = { creado_en: '2026-10-26T09:30:00-05:00' }, HACE_5 = { creado_en: '2026-10-26T09:55:00-05:00' };
+  const OFICIAL = /var NEGOCIO_OFICIAL = \{ nombre: 'Tu Garantía', whatsapp: '(\d+)' \};/.exec(leer('app/socio.html'))[1];
+
+  test('escribió hace media hora y nadie le contestó: debajo del hilo sale el botón, al contacto oficial de la app', async () => {
+    const hilo = { servicio: [msg(1, 'socio', 'hola, ¿me ayudan?', HACE_30)], cobranza: [], creditos: [] };
+    const { A } = await abrirCuenta({ nube: { hilo } });
+    A.ev("irA('chat')"); await asentar(16);
+    const h = el(A, 'chSinRespuesta').innerHTML;
+    assert.match(plano(h), /¿Aún sin respuesta\? Perdona la demora\. Escríbenos por WhatsApp\. Escribir por WhatsApp/);
+    assert.ok(h.includes('href="https://wa.me/' + OFICIAL + '?text='), 'el botón no va al contacto oficial de la app: ' + h.slice(0, 220));
+    assert.equal(h.includes('3001112222'), false, 'el celular de la persona viajó en el enlace');
+  });
+
+  test('si ya le contestó una persona, o escribió hace cinco minutos, no sale', async () => {
+    const casos = [
+      [msg(1, 'socio', 'hola', HACE_30), msg(2, 'equipo', 'hola, cuéntame', HACE_5)],
+      [msg(1, 'socio', 'hola', HACE_5)],
+      [msg(1, 'panel', 'hola, ¿cómo vas?', HACE_30)]
+    ];
+    for (const servicio of casos) {
+      const { A } = await abrirCuenta({ nube: { hilo: { servicio, cobranza: [], creditos: [] } } });
+      A.ev("irA('chat')"); await asentar(16);
+      assert.equal(el(A, 'chSinRespuesta').innerHTML || '', '', 'salió el botón sin que tocara: ' + JSON.stringify(servicio.map(x => x.de)));
+    }
+  });
+
+  test('el reloj de medio minuto lo hace aparecer sin que llegue ningún mensaje, y se apaga al salir del chat', async () => {
+    const hilo = { servicio: [msg(1, 'socio', 'hola', { creado_en: '2026-10-26T09:46:00-05:00' })], cobranza: [], creditos: [] };   // hace 14 min
+    const { A, reloj, vivos } = await abrirCuenta({ nube: { hilo } });
+    A.ev("irA('chat')"); await asentar(16);
+    assert.equal(el(A, 'chSinRespuesta').innerHTML || '', '', 'a los 14 minutos ya salió');
+    assert.equal(vivos(30000).length, 1, 'no hay reloj de medio minuto: cuando nadie contesta, nada más repinta');
+    /* Pasan dos minutos y no llega nada. */
+    A.ev('Date.now = function () { return ' + (AHORA + 2 * 60000) + '; }');
+    await reloj(30000);
+    assert.match(plano(el(A, 'chSinRespuesta').innerHTML), /¿Aún sin respuesta\?/, 'pasaron los 15 minutos y el botón no apareció');
+    A.ev("irA('inicio')"); await asentar();
+    assert.equal(vivos(30000).length, 0, 'el reloj siguió andando fuera del chat');
+  });
+});
