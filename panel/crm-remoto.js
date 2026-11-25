@@ -375,10 +375,18 @@
   /* 25-nov-2026 — Solicitudes salió de aquí: se mira con la sesión del dueño
      (panel_solicitudes; ver «📥 Solicitudes, en el celular», más abajo). */
   var TAPAS = {
-    mensajes: 'El chat llega con la clave del computador, que este celular no tiene. ' + POR_AHORA_EN_EL_PC,
+    /* 25-nov-2026 — el chat SÍ se puede en el celular: en el Panel en el bolsillo, que
+       ahora lo abre con la sesión (panel/chat-de-sesion.js). Aquí, que solo se mira,
+       la pestaña dice dónde está y lleva allá (TAPAS_CON_SALIDA). */
+    mensajes: 'El chat se lee y se contesta en el Panel en el bolsillo, en su pestaña Chat. Esta pantalla es solo para mirar.',
     ventas: 'Ventas vive de los prospectos, que no suben solos a la nube. ' + POR_AHORA_EN_EL_PC,
     bases: 'Las bases de prospectos viven en tu computador y no suben solas a la nube. ' + POR_AHORA_EN_EL_PC,
     cfg: 'Los ajustes son de cada aparato: el PIN, el respaldo y la conexión de tu computador no están en este celular.'
+  };
+  /* Las tapadas que tienen a dónde ir: su título no es «todavía no», llevan un botón,
+     y su botón del menú no dice «PC» (no es cierto que solo se pueda en el computador). */
+  var TAPAS_CON_SALIDA = {
+    mensajes: { titulo: 'El chat está en el Panel en el bolsillo', a: 'espejo.html', boton: 'Abrir el Panel en el bolsillo' }
   };
   function tapaDe(vista) { return TAPAS[texto(vista)] || ''; }
 
@@ -434,6 +442,7 @@
     GAVETA: GAVETA, LLAVE_HASTA: LLAVE_HASTA, CONEXION: CONEXION,
     CLAVES_QUE_PASAN: CLAVES_QUE_PASAN, CONFIG_QUE_NO_VIAJA: CONFIG_QUE_NO_VIAJA,
     CADA_MS: CADA_MS, AL_VOLVER_MS: AL_VOLVER_MS, MIRAR: MIRAR, TAPAS: TAPAS,
+    TAPAS_CON_SALIDA: TAPAS_CON_SALIDA,
     NO_DESDE_AQUI: NO_DESDE_AQUI, NO_WHATSAPP: NO_WHATSAPP,
     esCelular: esCelular, gavetaConFichas: gavetaConFichas, quePuerta: quePuerta,
     paqueteParaMirar: paqueteParaMirar, armar: armar, contar: contar, ultimoCambio: ultimoCambio,
@@ -758,6 +767,8 @@
         'font-size:14.5px;line-height:1.5;color:var(--tinta)}' +
       '.cr-tapa b{display:block;margin-bottom:4px}' +
       '.cr-tapa.cr-lista{padding:0;border:0;background:none}' +
+      '.cr-tapa a.cr-ir-chat{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:12px;border-radius:12px;' +
+        'background:var(--tinta);color:var(--papel);font-weight:700;text-decoration:none}' +
       /* «🔎 Revisar a todos» abre revision.html, que pregunta con la clave del computador:
          en el celular no tiene cómo. Es un enlace sin onclick, así que el barrido no lo ve. */
       'body.solo-mirar a[href="revision.html"]{display:none !important}' +
@@ -875,13 +886,16 @@
       /* 24-nov-2026 — y su botón del menú lo dice ANTES de tocarlo: una marca «PC».
          Seis pestañas que abren para decir «todavía no» sin avisar eran seis
          toques perdidos (y en la hoja de «Más» del teléfono van al final). */
-      try { var boton = D.querySelector('.navbtn[data-v="' + v + '"]'); if (boton) boton.classList.add('cr-en-pc'); } catch (e) {}
+      var salida = TAPAS_CON_SALIDA[v] || null;
+      try { var boton = D.querySelector('.navbtn[data-v="' + v + '"]'); if (boton && !salida) boton.classList.add('cr-en-pc'); } catch (e) {}
       var vista = $('v-' + v);
       if (!vista || vista.querySelector('.cr-tapa')) return;
       var t = D.createElement('div');
       t.className = 'cr-tapa';
       t.setAttribute('data-cr', '1');
-      t.innerHTML = '<b>En el celular, todavía no</b>' + esc(TAPAS[v]);
+      t.innerHTML = salida
+        ? '<b>' + esc(salida.titulo) + '</b>' + esc(TAPAS[v]) + '<a class="cr-ir cr-ir-chat" href="' + esc(salida.a) + '">' + esc(salida.boton) + '</a>'
+        : '<b>En el celular, todavía no</b>' + esc(TAPAS[v]);
       var cabeza = vista.querySelector('.ph');
       if (cabeza && cabeza.nextSibling) vista.insertBefore(t, cabeza.nextSibling); else vista.insertBefore(t, vista.firstChild);
       vista.classList.add('cr-tapada');

@@ -485,6 +485,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
 <script src="tanda.js"></script>
 <!-- El chat, el mismo archivo que cargan crm.html y app/socio.html. -->
 <script src="../app/chat.js"></script>
+<!-- 25-nov-2026 — EL CHAT CON TU SESIÓN (chat-de-sesion.js, nuevo). En un teléfono que no
+     tiene la clave del computador, el chat sale por la sesión de Joan: ver chatCfg().
+     Va después de nube.js y de chat.js. -->
+<script src="chat-de-sesion.js?v=169"></script>
 <!-- 26-oct-2026 — chat-1: los relojes del chat (la conversación abierta cada
      8 s, solo a la vista) y cómo juntar mensajes por id, compartidos con el
      CRM y la app del socio por la misma razón que chat.js. Si no llega (una
@@ -2398,7 +2402,7 @@ var _msj = { ident: null, tipo: 'cliente', quien: '', celular: '', nota: '', con
  * ======================================================================== */
 function verFotoCliente(id) {
   var cfg = chatCfg();
-  if (!cfg) { alert('Sin la conexión y la clave no puedo pedirle la foto a la nube.'); return; }
+  if (!cfg) { alert('Sin entrar a la nube no puedo pedirle la foto.'); return; }
   ChatTuGarantia.fotoDelPanel(cfg, id).then(function (j) {
     mostrarFoto(j && j.imagen);
   }).catch(function (e) {
@@ -2465,7 +2469,7 @@ function mandarFotoCliente(inp) {
   if (!f) return;
   var est = document.getElementById('mFotoEstado');
   var cfg = chatCfg();
-  if (!cfg) { return estadoFoto(est, 'Sin la conexion y la clave no puedo mandar nada.', true); }
+  if (!cfg) { return estadoFoto(est, 'Sin entrar a la nube no puedo mandar nada.', true); }
   if (!_msj.ident) { return estadoFoto(est, 'Abre primero una conversacion.', true); }
   var ident = _msj.ident, tipo = _msj.tipo;
 
@@ -2514,9 +2518,16 @@ function estadoFoto(el, texto, malo) {
   el.style.color = malo ? 'var(--ambar-tinta)' : '';
 }
 
+/* 25-nov-2026 — CON LA CLAVE, COMO SIEMPRE; SIN ELLA, CON TU SESIÓN. El chat de esta
+   pantalla solo funcionaba en un teléfono con la clave de sincronización guardada, y el
+   de Joan no la tiene: entra con su correo o su celular. Ahora, si no hay clave pero sí
+   sesión, los mismos pedidos salen por la sesión (panel/chat-de-sesion.js y las gemelas
+   de base/20261125b_el_chat_con_tu_sesion.sql). El teléfono que YA tiene la clave no
+   cambia en nada: va primero. */
 function chatCfg() {
   var c = (NUBE && NUBE.config) ? NUBE.config() : null;
-  return c && c.url && c.anon && c.clave ? c : null;
+  if (c && c.url && c.anon && c.clave) return c;
+  try { return (window.ChatDeSesion && NUBE) ? ChatDeSesion.cfg(NUBE) : null; } catch (e) { return null; }
 }
 
 /* 26-oct-2026 — EL AVISO QUE NO EXISTE, DICHO (chat-1). No hay push ni
@@ -2531,10 +2542,11 @@ function vistaMensajes() {
   }
   var cfg = chatCfg();
   if (!cfg) {
-    return '<div class="aviso ambar"><b>El chat vive en la nube.</b> Este teléfono '
-      + 'todavía no tiene la conexión y la clave de sincronización, así que no puedo traer '
-      + 'ni mandar nada. No quiere decir que no te hayan escrito: quiere decir que no puedo '
-      + 'mirar.</div>';
+    /* 25-nov-2026 — ya no hace falta la clave: basta haber entrado (chatCfg). */
+    return '<div class="aviso ambar"><b>El chat vive en la nube.</b> En este teléfono '
+      + 'todavía no has entrado, así que no puedo traer ni mandar nada. No quiere decir que '
+      + 'no te hayan escrito: quiere decir que no puedo mirar.</div>'
+      + '<button class="btn arriba" type="button" data-acc="conexion">Entrar con mi correo</button>';
   }
   if (_msj.estado === 'nada') { setTimeout(traerBandejas, 0); _msj.estado = 'cargando'; }
 
@@ -3053,7 +3065,7 @@ function responderHilo() {
    asigna como propiedad). */
 function verFotoEquipo(id) {
   var cfg = chatCfg();
-  if (!cfg) { alert('Sin la conexión y la clave no puedo pedirle la foto a la nube.'); return; }
+  if (!cfg) { alert('Sin entrar a la nube no puedo pedirle la foto.'); return; }
   ChatTuGarantia.llamar(cfg, 'equipo_foto_panel', { p_clave: cfg.clave, p_id: Number(id) || 0 }).then(function (j) {
     if (!j || j.ok !== true || !j.imagen) { alert('No pude traer esa foto.'); return; }
     mostrarFoto(j.imagen);
@@ -3071,8 +3083,8 @@ function escribirlePorLaApp(id) {
   var s = socioPorId(id); if (!s) return;
   if (!window.ChatTuGarantia) { alert('No cargó ../app/chat.js: sin ese archivo no puedo abrir el chat.'); return; }
   if (!chatCfg()) {
-    alert('El chat vive en la nube y este teléfono todavía no tiene la conexión y la clave de sincronización. '
-      + 'Se le ponen desde el computador (Ajustes → 📲 Compartir con mis clientes).');
+    alert('El chat vive en la nube y en este teléfono todavía no has entrado. '
+      + 'Entra con tu correo y tu contraseña y vuelve a tocar.');
     return;
   }
   var llave = P.llaveEnLaNube(s);
@@ -6795,7 +6807,7 @@ if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
    quien lo usa. VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' →
    'v138') y sube con él: pruebas/se-actualiza-sola.test.js no deja pasar uno
    sin el otro. */
-var VERSION_SITIO = 'v168';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v169';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
   try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }

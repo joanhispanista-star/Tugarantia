@@ -3186,7 +3186,30 @@
    verdad con todas las migraciones; sin TG_PG_BIN esa parte se salta).
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. La
    función de la base puede quedarse: sin esta página nadie la llama. El número nunca baja. */
-const CACHE = 'tugarantia-v168';
+/* v169 — 25-nov-2026 — EL CHAT DEL CELULAR, CON TU SESIÓN.
+   El chat del Panel en el bolsillo (clientes y equipo, con su lista, su hilo, sus fotos y su
+   número de sin leer) existe desde el 26-oct, pero solo funcionaba en un teléfono con la CLAVE
+   del computador guardada. El de Joan entra con su sesión y no la tiene: la pestaña decía «este
+   teléfono todavía no tiene la conexión y la clave». Los clientes escribían y nadie contestaba
+   (de ahí el botón «¿Aún sin respuesta?» de v166, que es un parche).
+   · base/20261125b_el_chat_con_tu_sesion.sql, NUEVO: once gemelas `panel_…` de las funciones
+     del chat. Preguntan panel_es_dueno() y llaman a la función DE SIEMPRE con la clave que la
+     base ya guarda: no copian ningún cuerpo, y la clave no sale de la base. Borrar una
+     conversación entera (chat_olvidar) NO tiene gemela: sigue en el computador.
+     HAY QUE CORRERLO en el SQL Editor (y Reload schema). Mientras no, el chat dice cuál falta.
+   · panel/chat-de-sesion.js, NUEVO: arma la conexión del chat para quien entró con su sesión;
+     el mismo pedido de app/chat.js sale por NubeTuGarantia.rpc, sin la clave en el cuerpo.
+     app/chat.js NO se toca.
+   · panel/espejo.html: chatCfg() usa la clave si la hay (como siempre) y, si no, la sesión.
+     Sin haber entrado lo dice, con el botón «Entrar con mi correo».
+   · panel/crm-remoto.js: en el CRM del celular (que solo mira) la pestaña Chat ya no dice «en
+     tu computador»: dice que está en el Panel en el bolsillo y lleva allá.
+   Entra panel/chat-de-sesion.js?v=169 a la precarga; panel/crm-remoto.js va con ?v=169.
+   Pruebas: pruebas/el-chat-con-tu-sesion.test.js y, llamando en un PostgreSQL de verdad,
+   pruebas/el-chat-con-tu-sesion-postgres.test.js (sin TG_PG_BIN esa parte se salta).
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. Las
+   funciones de la base pueden quedarse: sin esta página nadie las llama. El número nunca baja. */
+const CACHE = 'tugarantia-v169';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3254,7 +3277,8 @@ const ARCHIVOS = [
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
   'panel/nube-crm.js?v=165',   // 24-nov-2026 — ?v=165: config, plantillas y equipo suben solos (ver la nota de v165)
   /* 23-nov-2026 — el CRM en un celular, solo para mirar. Ver la nota de v158. */
-  'panel/crm-remoto.js?v=168',
+  'panel/crm-remoto.js?v=169',
+  'panel/chat-de-sesion.js?v=169',   // 25-nov-2026 — el chat del Panel en el bolsillo, con la sesión del dueño
   'panel/crm-movil.js?v=164',    // 24-nov-2026 — la barra de abajo y «Más» del CRM en un teléfono
   'panel/crm-movil.css?v=164',   // la hoja del teléfono: llega apagada, la enciende crm-movil.js
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
