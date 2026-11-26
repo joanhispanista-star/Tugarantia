@@ -179,13 +179,18 @@
    13-nov-2026 (sale con el CACHE v144) — sube porque las condiciones de una
    propuesta quincenal a cuotas se leen con la garantía del quincenal, cuota
    por cuota, y el recargo sobre el capital de la cuota
-   (app/calculadora-solicitud.js, ahora con ?v=144). */
-var VERSION_APP = '2026-11-13';
+   (app/calculadora-solicitud.js, ahora con ?v=144).
+
+   26-nov-2026 (sale con el CACHE v171) — sube porque «Salir» también borra la cuenta
+   que el registro de Tu Garantía deja abierta en el teléfono desde hoy
+   (app/cuenta-abierta.js). Si alguien dice que salió de PlataChat y el registro le
+   abrió la cuenta sola, esta fecha dice si tenía la versión que lo impide. */
+var VERSION_APP = '2026-11-26';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja. Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no
    deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v170';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v171';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 (function () {
   var v = document.getElementById('holaVersion');
   if (v) v.textContent = 'Versión ' + VERSION_APP + ' · ' + VERSION_SITIO;
@@ -3327,6 +3332,10 @@ function salir(msg) {
      haya dejado una versión anterior): con ella, el siguiente «Abrir mi
      cuenta» de este teléfono rebotaba aquí durante un día. */
   try { localStorage.removeItem('play_cuenta_creada'); } catch (e) {}
+  /* 26-nov-2026 — y la cuenta que play/ deja abierta en el TELÉFONO desde hoy
+     (app/cuenta-abierta.js), con el celular que recuerda: es el mismo registro, y
+     «Salir» es salir de este teléfono. */
+  try { localStorage.removeItem('play_cuenta_abierta'); localStorage.removeItem('play_celular_recordado'); } catch (e) {}
   AVISO_RESPONSABLE_PC_CERRADO = false;   /* el aviso es por persona: el que entre después lo ve si no lo cerró */
   S = null; SES = null; SIN_NUBE = false; AVISO_NUBE = ''; BORRADOR = ''; MI_REGISTRO = '';   /* el registro es de esa cuenta: el que entre después no hereda un «descartado» */
   SOL = null; RELOJ_OK = false; ACEPTANDO = false; PIDIENDO_PC = false;

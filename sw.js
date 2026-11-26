@@ -3260,8 +3260,46 @@
    base/20261113c_los_extractos.sql y, después, base/20261124_plataformas_del_extracto.sql.
    Sin ellas el paso no aparece y nada se rompe. TG_PUBLICADO=main.
    PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
+   número nunca baja.
+   =================================================================================
+   26-nov-2026 — v171: LA CUENTA QUEDA ABIERTA EN ESTE TELÉFONO.
+   Joan, con la foto de «Ya tienes una cuenta con este celular, pero esa contraseña no es
+   la suya»: «la app les pide contraseña y ya despues no pueden ingresar… quiero que sea
+   sencillo ingresar y registrarse como en cualquier otra app y que quede guardado el
+   usuario y contraseña en el telefono del cliente para que siempre este abierta… que
+   exista algun boton de guardar».
+   LA CAUSA no era un daño: play/ guardaba la sesión en sessionStorage a propósito (17-sep,
+   por los teléfonos prestados). Al cerrar el navegador la cuenta se cerraba; la persona
+   volvía, no recordaba la contraseña, la portada le mostraba primero «Abre tu cuenta»,
+   llenaba los nueve pasos otra vez y al final se estrellaba contra esa pantalla. La app
+   instalada ya se quedaba abierta desde el 20-ago; la página por donde TODOS entran, no.
+   QUÉ CAMBIA, y solo en Tu Garantía (PlataChat ya guarda la suya, platachat/sesion.js):
+   · play/ deja la sesión en el teléfono (localStorage, play_cuenta_abierta) y la renueva
+     sola: al volver, la cuenta abre sin pedir nada. Con el token vencido y sin señal no
+     se cierra; solo un «no» del servidor la da por cerrada, y entonces la portada trae
+     «Entrar» PRIMERO, con el celular ya puesto.
+   · La casilla «Dejar mi cuenta abierta en este teléfono» (el «botón de guardar»): nace
+     marcada, en «Entrar» y en el último paso del registro. Desmarcada, todo queda como
+     antes: la respuesta al teléfono prestado del 17-sep.
+   · La CONTRASEÑA no se guarda en el sitio: se le ofrece al llavero del teléfono (el
+     «¿Guardar contraseña?» de Chrome y Android), y «Entrar» es un formulario de verdad
+     para que el del iPhone también la ofrezca.
+   · Quien ya entró alguna vez en este teléfono ve «Hola de nuevo» con su celular; el que
+     no, tiene «Ya tengo cuenta: entrar» al lado de «Abrir mi cuenta».
+   · UNA SOLA CADENA: el token de renovar sirve una vez, y Supabase cierra la cuenta en
+     todas partes si le llega uno de dos vueltas atrás. app/socio.html toma la sesión de
+     play/ en la misma pestaña: ahora le devuelve lo que renueva y toma lo que play/
+     renueva; la pieza mira lo guardado ANTES de renovar. Y el «Salir» de la app y el de
+     PlataChat también borran la cuenta que play/ dejó abierta.
+   Entra un .js NUEVO con ?v=171 (firma al llegar), en la precarga de abajo:
+   app/cuenta-abierta.js (lo pide play/, después de cuenta.js). VERSION_PLAY y VERSION_APP
+   pasan a 2026-11-26. NO HAY BASE NUEVA. Lo que esto NO arregla: quien ya olvidó su
+   contraseña sigue necesitando el recado («Olvidé mi contraseña» → 🔑 en el CRM) hasta
+   que exista el código por SMS.
+   CACHE y VERSION_SITIO suben a v171. TG_PUBLICADO=main.
+   PARA DESHACER: se revierte el commit; CACHE y VERSION_SITIO suben al número siguiente. El
    número nunca baja. */
-const CACHE = 'tugarantia-v170';
+const CACHE = 'tugarantia-v171';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -3376,6 +3414,7 @@ const ARCHIVOS = [
   'play/estilo.css',
   'play/app.webmanifest',
   'app/cuenta.js?v=160',   // 28-oct-2026 — ?v=141: para qué son las referencias, como la política (ver la nota de v141)
+  'app/cuenta-abierta.js?v=171',   // 26-nov-2026 — la cuenta queda abierta en este teléfono (play/)
   /* 19-oct-2026 — el telefono de verdad: play/, app/socio.html y el CRM lo
      cargan con un <script src>. Sin el, la app instalada no anota el aparato
      (la pagina se protege sola) y el CRM no lo pone en palabras. Ver v138. */

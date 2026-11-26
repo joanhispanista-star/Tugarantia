@@ -1083,14 +1083,19 @@ details.plegado>summary{padding:0 var(--e4)}
    25-nov-2026 (v170): «Sube tus extractos» sale hoy (se construyó el 13-nov y quedó apartado
    como v161), y ya no es solo para quien no es empleado: también el empleado, con las
    plataformas que usa. Si un cliente dice que no le sale dónde subirlos, el sello dice si
-   tiene v170. */
-var VERSION_APP = '2026-11-25';
+   tiene v170.
+   26-nov-2026 (v171): la página del registro (play/) deja la cuenta abierta en el teléfono.
+   Aquí cambia poco y por dentro: la sesión que esta app toma de play/ en la misma pestaña
+   se mantiene al día en las dos, y «Salir» también cierra la que play/ dejó abierta. Si un
+   cliente dice que salió de la app y el registro le abrió la cuenta sola, el sello dice si
+   tiene v171. */
+var VERSION_APP = '2026-11-26';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
    tiene lo último (las fechas son tres y van a mano). Sube con CACHE, siempre:
    pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
-var VERSION_SITIO = 'v170';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v171';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1619,11 +1624,66 @@ function guardarSesionSocio(n) {
     if (SESION.paquete && !n.paquete) { n.paquete = SESION.paquete; n.paqueteEn = SESION.paqueteEn; }
     if (SESION.soloEstaPestana) n.soloEstaPestana = true;
     if (!n.celular) n.celular = SESION.celular;
+    devolverleAPlayLaRenovada(SESION, n);   // 26-nov-2026 — ver abajo
   }
   SESION = n;
   if (!SS || n.soloEstaPestana) return;
   SS.guardar(localStorage, n);
 }
+
+/* ===========================================================================
+ * 26-nov-2026 — LA SESIÓN QUE VINO DE play/ ES UNA SOLA CADENA
+ *
+ * Desde hoy play/ deja la cuenta abierta en el teléfono (play_cuenta_abierta,
+ * app/cuenta-abierta.js) y la renueva sola. El token de renovar sirve UNA vez, y
+ * si a Supabase le llega uno de dos vueltas atrás cierra la cuenta en todas
+ * partes. Esta app toma la sesión de play/ cuando vienen en la misma pestaña (el
+ * arranque, más abajo): son dos páginas con la MISMA cadena. Para que ninguna
+ * se quede con un eslabón viejo:
+ *   · lo que esta app renueva se le devuelve a play/ (devolverleAPlayLaRenovada);
+ *   · lo que play/ renueva en otra pestaña se toma aquí (tomarDePlayLoNuevo).
+ * Las dos miran el eslabón o el celular: nunca cruzan la cuenta de una persona
+ * con la de otra en un teléfono que usan dos.
+ * ======================================================================== */
+var LLAVE_PLAY_ABIERTA = 'play_cuenta_abierta', LLAVE_PLAY_CELULAR = 'play_celular_recordado';
+function devolverleAPlayLaRenovada(antes, n) {
+  if (!antes || !n || !antes.refresh_token || !n.refresh_token || antes.refresh_token === n.refresh_token) return;
+  var copias = [];
+  try { copias.push([sessionStorage, SS ? SS.LLAVE_PLAY : 'play_sesion']); } catch (e) {}
+  try { copias.push([localStorage, LLAVE_PLAY_ABIERTA]); } catch (e) {}
+  copias.forEach(function (c) {
+    try {
+      var j = JSON.parse(c[0].getItem(c[1]) || 'null');
+      if (!j || j.refresh_token !== antes.refresh_token) return;   // otra cadena (u otra persona): no se toca
+      j.access_token = n.access_token; j.refresh_token = n.refresh_token;
+      j.expira_en = n.expira_en; j.expires_at = Math.floor(Number(n.expira_en) / 1000);
+      c[0].setItem(c[1], JSON.stringify(j));
+    } catch (e) { /* un teléfono que no deja escribir: play/ volverá a pedir la contraseña */ }
+  });
+}
+function tomarDePlayLoNuevo() {
+  if (!SS || !SESION || !SESION.soloEstaPestana) return false;
+  var x = null;
+  try { x = SS.deSesionDePlay({ getItem: function () { return localStorage.getItem(LLAVE_PLAY_ABIERTA); } }, Date.now()); } catch (e) { x = null; }
+  if (!x || !x.refresh_token || x.refresh_token === SESION.refresh_token) return false;
+  if (!x.celular || x.celular !== SESION.celular) return false;          // la de otra persona no es la mía
+  if (!(Number(x.expira_en) > Number(SESION.expira_en))) return false;   // solo hacia adelante
+  /* En el MISMO objeto: la página sabe de quién es cada respuesta por la sesión que la pidió. */
+  SESION.access_token = x.access_token; SESION.refresh_token = x.refresh_token; SESION.expira_en = x.expira_en;
+  try {
+    var j = JSON.parse(sessionStorage.getItem(SS.LLAVE_PLAY) || 'null');
+    if (j && j.access_token) {
+      j.access_token = x.access_token; j.refresh_token = x.refresh_token;
+      j.expira_en = x.expira_en; j.expires_at = Math.floor(Number(x.expira_en) / 1000);
+      sessionStorage.setItem(SS.LLAVE_PLAY, JSON.stringify(j));
+    }
+  } catch (e) {}
+  return true;
+}
+try {
+  window.addEventListener('storage', function (e) { if (!e || e.key === LLAVE_PLAY_ABIERTA || e.key === null) tomarDePlayLoNuevo(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) tomarDePlayLoNuevo(); });
+} catch (e) {}
 
 function entrar() {
   var err = $('errEntrar');
@@ -5983,6 +6043,10 @@ function cerrarSesionLocal() {
   pararChat(); pararLatidoChat();
   if (SS) SS.borrar(localStorage);
   try { sessionStorage.removeItem(SS ? SS.LLAVE_PLAY : 'play_sesion'); } catch (e) {}
+  /* 26-nov-2026 — y la que play/ deja abierta en el TELÉFONO desde hoy, con el celular que
+     recuerda: «Salir» es salir de este teléfono. Si se quedara, la próxima visita a play/
+     abriría la cuenta sola, y en un teléfono prestado esa visita es de otra persona. */
+  try { localStorage.removeItem(LLAVE_PLAY_ABIERTA); localStorage.removeItem(LLAVE_PLAY_CELULAR); } catch (e) {}
   /* 9-nov-2026 — y la propuesta: la casilla, la cuenta elegida y las cuentas
      del registro de esta cuenta no se quedan para la siguiente. */
   if (PDA) PDA.soltar();
@@ -6283,7 +6347,7 @@ function avisarQueEsMomento() {
   if (!ses && SS) {
     try { ses = SS.deSesionDePlay(sessionStorage, Date.now()); if (ses) ses.soloEstaPestana = true; } catch (e) { ses = null; }
   }
-  if (ses) { SESION = ses; cargarCuenta(); }
+  if (ses) { SESION = ses; tomarDePlayLoNuevo(); cargarCuenta(); }   // 26-nov-2026 — con el eslabón más nuevo que haya dejado play/
   else if (teniaCodigo) pintarEntrar(SS.TEXTOS.cambioDePuerta);
 })();
 </script>

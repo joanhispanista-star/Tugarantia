@@ -84,7 +84,10 @@ function abrirPlay(opciones) {
     } },
     navigator: { userAgent: 'node', serviceWorker: { register: () => Promise.resolve() },
                  geolocation: { getCurrentPosition() {} }, mediaDevices: null },
-    fetch: () => Promise.reject(new Error('sin red en el banco de pruebas')),
+    /* 26-nov-2026 — `o.fetch`: una red puesta ANTES de que la página arranque. Con la cuenta
+       que quedó abierta, el arranque mismo sale a renovar la sesión: una red puesta después
+       de abrir el banco ya llegaría tarde. */
+    fetch: o.fetch || (() => Promise.reject(new Error('sin red en el banco de pruebas'))),
     setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
     requestAnimationFrame: () => 0, cancelAnimationFrame() {},
     matchMedia: () => ({ matches: false, addEventListener() {} }),
@@ -110,6 +113,9 @@ function abrirPlay(opciones) {
      el mismo proceso: ya pasó, y envenenó tres pruebas de otro archivo. */
   ctx.CreditosPublicables = Object.assign({}, require(path.join(RAIZ, 'app', 'creditos.js')));
   ctx.CuentaSocio = require(path.join(RAIZ, 'app', 'cuenta.js'));
+  /* 26-nov-2026 — la cuenta queda abierta en el teléfono (app/cuenta-abierta.js): la página lo pide después de cuenta.js.
+     `sinCuentaAbierta: true` simula que no llegó: la página sigue como antes, con la sesión solo en la pestaña. */
+  if (!o.sinCuentaAbierta) ctx.CuentaAbierta = require(path.join(RAIZ, 'app', 'cuenta-abierta.js'));
   /* 22-oct-2026 — dónde recibe la plata: la lista de bancos y sus reglas.
      `sinCuentas: true` simula que esos <script src> no llegaron. */
   if (!o.sinCuentas) {

@@ -259,8 +259,10 @@ describe('PlataChat: lo que carga y en qué orden', () => {
        Joan cerró sin que devolviera el capital
        (pruebas/cerrar-con-perdon-no-es-pago.test.js).
        13-nov-2026 — y con las condiciones de la propuesta quincenal a cuotas
-       (app/calculadora-solicitud.js ?v=144; pruebas/propuesta-a-cuotas.test.js). */
-    assert.match(PAGINA, /var VERSION_APP = '2026-11-13'/);
+       (app/calculadora-solicitud.js ?v=144; pruebas/propuesta-a-cuotas.test.js).
+       26-nov-2026 — y con el «Salir» que también borra la cuenta que el registro
+       de Tu Garantía deja abierta en el teléfono (pruebas/la-cuenta-queda-abierta.test.js). */
+    assert.match(PAGINA, /var VERSION_APP = '2026-11-26'/);
   });
 
   test('la guarda de HTTPS es lo PRIMERO que corre, antes que cualquier lectura del almacén', () => {

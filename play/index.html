@@ -535,6 +535,10 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
 
 <script src="../app/creditos.js"></script>
 <script src="../app/cuenta.js?v=160"></script>
+<!-- 26-nov-2026 — LA CUENTA QUEDA ABIERTA EN ESTE TELÉFONO (cuenta-abierta.js, nuevo): guarda
+     la sesión, la renueva sola y le ofrece la contraseña al llavero del teléfono. Ver
+     «LA CUENTA QUEDA ABIERTA», junto a LLAVE_SESION. -->
+<script src="../app/cuenta-abierta.js?v=171"></script>
 <!-- 22-oct-2026 — dónde recibe la plata el cliente: la lista de bancos (con su
      fuente y su fecha) y las reglas del paso «¿Dónde te enviamos la plata?» y
      de «¿A dónde te consignamos?» al aceptar. NO entran al guardián de abajo:
@@ -757,13 +761,17 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
 /* 25-nov-2026 (v170) — lo de arriba («Tus extractos») se construyó el 13-nov, quedó apartado
    como v161 y sale hoy; ya no es solo para quien no es empleado: Joan lo pidió también para el
    empleado, con las plataformas que usa. */
-var VERSION_PLAY = '2026-11-25';
+/* 26-nov-2026 (v171) — la cuenta queda abierta en este teléfono: al volver no pide la
+   contraseña, y «Entrar» trae la casilla «Dejar mi cuenta abierta en este teléfono»
+   (../app/cuenta-abierta.js, nuevo). Si alguien dice que le volvió a pedir la contraseña
+   al otro día, el pie dice si tenía la versión que la deja abierta. */
+var VERSION_PLAY = '2026-11-26';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
    Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no deja pasar
    uno sin el otro. Sale también en el sello del pie. */
-var VERSION_SITIO = 'v170';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+var VERSION_SITIO = 'v171';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -1485,6 +1493,7 @@ function guardarSesionEnCurso(s) {
   try {
     if (s && s.access_token) sessionStorage.setItem(LLAVE_SESION, JSON.stringify(s));
   } catch (e) {}
+  dejarLaCuentaAbierta(s);   // 26-nov-2026 — y en el teléfono, si la persona quiere (ver abajo)
 }
 function leerSesionEnCurso() {
   try {
@@ -1492,7 +1501,142 @@ function leerSesionEnCurso() {
     return (s && s.access_token) ? s : null;
   } catch (e) { return null; }
 }
-function olvidarSesionEnCurso() { try { sessionStorage.removeItem(LLAVE_SESION); } catch (e) {} }
+function olvidarSesionEnCurso() {
+  try { sessionStorage.removeItem(LLAVE_SESION); } catch (e) {}
+  /* 26-nov-2026 — y la que quedó en el teléfono: quien sale (o pasa su sesión a PlataChat)
+     no deja una cuenta que la próxima visita vuelva a abrir. */
+  if (CA) CA.borrar(almacenFijo());
+}
+
+/* ===========================================================================
+ * LA CUENTA QUEDA ABIERTA EN ESTE TELÉFONO — 26 de noviembre de 2026
+ *
+ * Joan, con la foto de «Ya tienes una cuenta con este celular, pero esa
+ * contraseña no es la suya»: «la app les pide contraseña y ya despues no pueden
+ * ingresar… quiero que sea sencillo ingresar y registrarse como en cualquier
+ * otra app y que quede guardado el usuario y contraseña en el telefono del
+ * cliente para que siempre este abierta… que exista algun boton de guardar».
+ *
+ * LO DE ARRIBA (17-sep) SIGUE SIENDO CIERTO Y YA NO ES TODO. La sesión de la
+ * pestaña se queda en sessionStorage, para la recarga. Pero cerrar el navegador
+ * cerraba la cuenta, y eso era lo que mandaba a la gente a registrarse otra
+ * vez con una contraseña que no recordaba. Ahora, ADEMÁS, queda en el teléfono
+ * (localStorage, app/cuenta-abierta.js) y se renueva sola, como en la app
+ * instalada desde el 20-ago. La objeción de entonces —el teléfono prestado— se
+ * contesta con la casilla «Dejar mi cuenta abierta en este teléfono»: nace
+ * marcada, es el «botón de guardar», y quien la desmarca queda como antes.
+ *
+ * LO QUE NO CAMBIA
+ *   · La CONTRASEÑA no se guarda en este sitio. Se le ofrece al llavero del
+ *     teléfono (CA.guardarEnElLlavero), que es de la persona.
+ *   · «Salir» lo cierra todo, aquí y en el servidor, y olvida el celular.
+ *   · En PlataChat la sesión se PASA y no se queda aquí (entrarAPlataChat):
+ *     allá ya queda abierta por su cuenta (platachat/sesion.js).
+ *   · La sesión viva sigue siendo EL MISMO objeto al renovarse (CA.copiarEn):
+ *     todo este archivo compara `SESION === ses` para saber de quién es cada
+ *     respuesta (UNA RESPUESTA DE LA RED SOLO VALE PARA QUIEN LA PIDIÓ).
+ * ======================================================================== */
+var CA = window.CuentaAbierta || null;
+function almacenFijo() { try { return window.localStorage; } catch (e) { return null; } }
+function celularDeEstaSesion(s) {
+  var m = String((s && s.user && s.user.email) || '').toLowerCase().match(/^57([0-9]{10})@tugarantia\.net$/);
+  return m ? m[1] : '';
+}
+function cfgDeLaCuenta() {
+  /* El fetch se le pasa, y se busca al LLAMAR: es el de esta página, el mismo de todas
+     sus otras consultas. Sin esto la pieza usaría el suyo, y en el banco de pruebas ese
+     es el de Node: saldría a internet de verdad. */
+  return { url: CFG.url, anon: CFG.anon,
+           fetch: function (u, o) { return fetch(u, o); },
+           releer: function () { return CA ? CA.leer(almacenFijo()) : null; } };
+}
+function dejarLaCuentaAbierta(s) {
+  if (!CA || MARCA === 'platachat' || !s || !s.access_token) return false;
+  if (!CA.guardar(almacenFijo(), s, Date.now())) return false;
+  CA.recordarCelular(almacenFijo(), celularDeEstaSesion(s));
+  return true;
+}
+function cuentaQueQuedoAbierta() { return (CA && MARCA !== 'platachat') ? CA.leer(almacenFijo()) : null; }
+/* La casilla: lo que diga queda anotado ANTES de entrar, para que la sesión
+   que llega se guarde (o no) con la respuesta de la persona. */
+function casillaDejarAbierta(id) {
+  if (!CA || MARCA === 'platachat') return '';
+  return '<label class="permiso"><input type="checkbox" id="' + id + '"' + (CA.quiere(almacenFijo()) ? ' checked' : '') + '><span>' +
+    '<b>Dejar mi cuenta abierta en este teléfono.</b>' +
+    '<span class="muted">Así no escribes la contraseña cada vez. Desmárcala si este teléfono no es tuyo.</span></span></label>';
+}
+function anotarSiQuedaAbierta(id) {
+  var c = $(id);
+  if (CA && c) CA.decir(almacenFijo(), !!c.checked);
+}
+/* El llavero del teléfono (el «¿Guardar contraseña?» de Chrome o de Android), solo si
+   la persona dejó la casilla marcada. No espera a nadie ni frena nada. */
+function ofrecerGuardarLaClave(cel, clave) {
+  if (!CA || MARCA === 'platachat' || !CA.quiere(almacenFijo())) return;
+  try { CA.guardarEnElLlavero(window, cel, clave, 'Tu Garantía'); } catch (e) {}
+}
+/* Renueva la sesión EN SITIO. Rechaza con {causa} como CA.renovar. */
+function renovarLaSesion(ses) {
+  if (!CA || !ses || !ses.refresh_token) return Promise.reject({ causa: 'sesion' });
+  var gastado = ses.refresh_token;
+  return CA.renovar(cfgDeLaCuenta(), ses).then(function (n) {
+    CA.copiarEn(ses, n);
+    if (SESION === ses) guardarSesionEnCurso(ses);
+    /* Si la pestaña ya es de otra cosa, lo guardado en el teléfono no se queda con el
+       eslabón que se acaba de gastar (CA.relevar solo toca la MISMA cadena). */
+    else CA.relevar(almacenFijo(), gastado, ses, Date.now());
+    return ses;
+  });
+}
+/* Mientras la cuenta está a la vista: si al token le quedan menos de cuatro
+   minutos, se renueva antes de que una consulta buena reciba un 401. Lo llaman
+   el latido del chat y la vuelta a la pestaña: no pone un reloj propio. */
+function mantenerLaSesionAlDia() {
+  var ses = SESION;
+  if (!CA || !ses || !ses.refresh_token || VISTA !== 'cuenta') return;
+  if (ses.expira_en === undefined) { var x = CA.sellar(ses, Date.now()); if (x) ses.expira_en = x.expira_en; }
+  if (CA.vigente(ses, Date.now() + 4 * 60000)) return;
+  renovarLaSesion(ses).then(null, function (e) {
+    if (e && e.causa === 'sesion' && SESION === ses) { FICHA_ESTADO = 'sesion'; if (VISTA === 'cuenta') pintarLamina(); }
+  });
+}
+/* Al abrir la página con una cuenta que quedó abierta. Si el token todavía
+   sirve, se entra; si venció (lo normal: dura una hora), se renueva primero.
+   Sin señal NO se cierra nada: la cuenta se abre con lo que hay y se renueva
+   en la primera consulta. Solo un «no» del servidor la da por cerrada. */
+function abrirLaCuentaQueQuedo(s) {
+  if (CA.vigente(s, Date.now())) return pintarCuenta(s);
+  VISTA = 'abriendo';
+  $('titulo').textContent = 'Tu cuenta';
+  $('cuerpo').innerHTML = '<div class="card"><div class="aviso">Abriendo tu cuenta…</div>' +
+    '<button class="btn sec sm" style="margin-top:var(--e4)" onclick="noEsMiCuenta()">No es mi cuenta</button></div>' + pie();
+  var gastado = s.refresh_token;
+  CA.renovar(cfgDeLaCuenta(), s).then(function (n) {
+    /* El eslabón nuevo se guarda aunque la pantalla ya sea otra: el viejo ya se gastó.
+       Si tocó «No es mi cuenta», lo guardado ya no está y no se vuelve a escribir. */
+    CA.relevar(almacenFijo(), gastado, n, Date.now());
+    if (VISTA !== 'abriendo') return;
+    pintarCuenta(n);
+  }, function (e) {
+    if (VISTA !== 'abriendo') return;
+    if (e && e.causa === 'sesion') {
+      /* El celular recordado se queda: la portada lo trae puesto y «Entrar» va primero. */
+      CA.borrar(almacenFijo());
+      pintarEntrar();
+      var err = $('errEntrar');
+      if (err) fallo(err, 'Tu cuenta se cerró en este teléfono. Entra otra vez con tu contraseña y queda abierta de nuevo.');
+      return;
+    }
+    pintarCuenta(s);
+  });
+}
+/* «No es mi cuenta»: en un teléfono que no es suyo, se borra lo que quedó y se va a la portada. */
+function noEsMiCuenta() {
+  if (CA) { CA.borrar(almacenFijo()); CA.olvidarCelular(almacenFijo()); }
+  olvidarSesionEnCurso();
+  SESION = null;
+  pintarEntrar();
+}
 
 /* ===========================================================================
  * UNA RESPUESTA DE LA RED SOLO VALE PARA QUIEN LA PIDIÓ — 21-oct-2026
@@ -1831,7 +1975,13 @@ function pintarEntrar() {
      del DESCONOCIDO: casi todo el que llega aquí no tiene cuenta todavía, y
      tener de primero un formulario de contraseña le dice, sin decirlo, que
      esto no es para él. El orden es el mensaje. */
+  /* 26-nov-2026 — EN UN TELÉFONO QUE YA TIENE CUENTA, «ENTRAR» VA PRIMERO. El orden
+     de abajo (25-ago: el registro primero) es para el desconocido, y sigue igual. Pero
+     quien ya abrió su cuenta aquí y la encuentra cerrada veía de primero «Abrir mi
+     cuenta», la abría otra vez, y nueve pasos después le decían que ya existía. */
+  var conocido = (CA && MARCA !== 'platachat') ? CA.celular(almacenFijo()) : '';
   $('cuerpo').innerHTML =
+    (conocido ? tarjetaDeEntrar(conocido) : '') +
     /* LA CALCULADORA VA PRIMERO Y ES LO MÁS GRANDE. El visitante saca algo útil
        en los primeros cinco segundos sin cuenta, sin registro y sin pedirle
        nada a cambio. Todo lo demás cuelga de ahí.
@@ -1883,24 +2033,16 @@ function pintarEntrar() {
         'juntamos tu historial con tu cuenta. No necesitas ningún código.</p>' +
       '<div class="muted" style="font-size:13px;margin-top:var(--e3)">' + esc(TEXTOS.empujon_visitante) + '</div>' +
       '<button class="btn arriba" onclick="abrirRegistro()">Abrir mi cuenta</button>' +
+      /* 26-nov-2026 — el atajo: «Entrar» está al final de esta portada, y quien ya tenía
+         cuenta abría otra por no verla (nueve pasos, y al final «ya tienes una cuenta»). */
+      (conocido ? '' : '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="irAEntrar()">Ya tengo cuenta: entrar</button>') +
     '</div>' +
     /* Y ahora sí, adónde se llega pagando: el crédito con garantía. Sigue
        visible para todos —Joan lo pidió el 14-sep y esa decisión no cambió—,
        pero después del botón: quien llega hasta acá ya entendió qué se vende. */
     tarjetaCalcGarantia() +
     tarjetaRecorrido() +
-    '<div class="card">' +
-      '<h3 class="tit">¿Ya abriste tu cuenta?</h3>' +
-      '<p class="sub">Entra con tu celular y la contraseña que tú pusiste.</p>' +
-      '<label for="inTel">Tu celular</label>' +
-      '<input id="inTel" type="tel" inputmode="numeric" autocomplete="username" ' +
-        'placeholder="300 111 2233" oninput="tecleaTel(this)">' +
-      '<label for="inClave">Tu contraseña</label>' +
-      campoClave('inClave', 'current-password') +
-      '<button class="btn sec arriba" id="btnEntrar">Entrar</button>' +
-      '<div id="errEntrar" class="aviso ambar oculto"></div>' +
-      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="olvide()">Olvidé mi contraseña</button>' +
-    '</div>' +
+    (conocido ? '' : tarjetaDeEntrar('')) +
     /* 21-oct-2026 — aquí iba la caja del instalador. Se fue: la app que se
        instala es app/socio.html (ver «DEJARLA EN EL CELULAR», más abajo). */
     plegable('quePasa', TEXTOS.confianza_titulo, TEXTOS.confianza) +
@@ -1909,6 +2051,33 @@ function pintarEntrar() {
   $('btnEntrar').addEventListener('click', entrar);
   $('inClave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
   avisarQueEsMomento();   // 21-oct-2026 — la portada es de la lista de SE ACTUALIZA SOLA
+}
+
+/* La tarjeta de entrar. `conocido` es el celular de la cuenta que ya se abrió en
+   este teléfono ('' si no hay): con él va de primera, con el número puesto.
+   26-nov-2026 — es un <form> de verdad, con sus nombres: así el llavero del
+   teléfono reconoce que es una entrada y ofrece guardar (y rellenar) la
+   contraseña. No se envía a ninguna parte: «Entrar» sigue llamando a entrar(). */
+function tarjetaDeEntrar(conocido) {
+  return '<div class="card">' +
+      (conocido
+        ? '<h3 class="tit">Hola de nuevo</h3>' +
+          '<p class="sub">Este teléfono ya tiene una cuenta. Entra con tu contraseña.</p>'
+        : '<h3 class="tit">¿Ya abriste tu cuenta?</h3>' +
+          '<p class="sub">Entra con tu celular y la contraseña que tú pusiste.</p>') +
+      '<form id="formEntrar" autocomplete="on" onsubmit="return false">' +
+      '<label for="inTel">Tu celular</label>' +
+      '<input id="inTel" name="username" type="tel" inputmode="numeric" autocomplete="username" ' +
+        'placeholder="300 111 2233" oninput="tecleaTel(this)" value="' + esc(conocido ? U.telefonoBonito(conocido) : '') + '">' +
+      '<label for="inClave">Tu contraseña</label>' +
+      campoClave('inClave', 'current-password') +
+      casillaDejarAbierta('inDejar') +
+      '<button class="btn ' + (conocido ? '' : 'sec ') + 'arriba" id="btnEntrar">Entrar</button>' +
+      '</form>' +
+      '<div id="errEntrar" class="aviso ambar oculto"></div>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="olvide()">Olvidé mi contraseña</button>' +
+      (conocido ? '<button class="btn sec sm" style="margin-top:var(--e2)" onclick="noEsMiCuenta()">No soy yo</button>' : '') +
+    '</div>';
 }
 
 function tecleaTel(el) {
@@ -1923,8 +2092,15 @@ function tecleaTel(el) {
     if (err) { err.textContent = ''; err.classList.add('oculto'); }
   }
 }
+/* «Ya tengo cuenta: entrar»: baja hasta la tarjeta de entrar y deja el cursor en el celular. */
+function irAEntrar() {
+  var f = $('formEntrar') || $('inTel');
+  try { if (f && f.scrollIntoView) f.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+  try { var t = $('inTel'); if (t && t.focus) t.focus({ preventScroll: true }); } catch (e2) {}
+}
 function noSoyYo() {
   olvidarCuentaCreada();
+  if (CA) CA.olvidarCelular(almacenFijo());   // 26-nov-2026
   var tel = $('inTel'); if (tel) tel.value = '';
   var err = $('errEntrar'); if (err) { err.innerHTML = ''; err.classList.add('oculto'); }
 }
@@ -1968,6 +2144,7 @@ function entrar() {
      aviso pedía volver a tocar lo mismo que acababa de fallar. Ahora la
      respuesta que llega tarde se adopta si nadie hizo otra cosa en la
      pestaña; y el aviso dice eso y la otra salida, sin prometer nada. */
+  anotarSiQuedaAbierta('inDejar');   // 26-nov-2026 — antes de entrar: la sesión que llega se guarda según esto
   var foto = fotoDelToque({ celular: tel });
   fallo(err, 'Entrando…');
   empezarViaje(foto, function () {
@@ -1996,6 +2173,7 @@ function entrar() {
           'sigue sin entrar toca «Olvidé mi contraseña» y te echamos una mano.');
       }
       err.classList.add('oculto');
+      ofrecerGuardarLaClave(tel, clave);   // 26-nov-2026 — el llavero del teléfono, si quiso
       pintarCuenta(r.j);
     })
     .catch(function () {
@@ -4104,6 +4282,9 @@ function pasoPermiso() {
     '<div class="ayuda" style="margin-top:var(--e3)">' +
       '<a href="../legal/privacidad.html" target="_blank" rel="noopener">Leer la política completa</a> · ' +
       '<a href="../legal/terminos.html" target="_blank" rel="noopener">Términos</a></div>' +
+    /* 26-nov-2026 — el «botón de guardar» que pidió Joan: la cuenta que nace queda abierta
+       en este teléfono, salvo que la persona diga que no es suyo. */
+    casillaDejarAbierta('rDejar') +
     cajaClaveFinal();
 }
 /* Solo aparece cuando la contraseña en curso no está (la relanzada de Android
@@ -5461,6 +5642,9 @@ function enviarRegistro(sensibles) {
     pintarRegistro(indiceDe('cobro'));
     return fallo($('errReg'), 'Antes de abrir tu cuenta, dinos dónde te enviamos la plata: llena al menos una y toca «Continuar».');
   }
+  /* 26-nov-2026 — la casilla «Dejar mi cuenta abierta en este teléfono», anotada ANTES de
+     crear la cuenta: la sesión que nace se guarda (o no) según lo que dijo. */
+  anotarSiQuedaAbierta('rDejar');
 
   /* 21-oct-2026 — G1: LA FOTO DEL TOQUE. Lo que sale a la bandeja y al
      signup se toma AQUÍ, al tocar «Abrir mi cuenta», y ninguna llamada de la
@@ -5649,6 +5833,9 @@ function enviarRegistro(sensibles) {
          fotos sin subir. Es el mismo defecto de la cámara, en el momento más
          caro del embudo. */
       if (res.j && res.j.access_token) { SESION = res.j; guardarSesionEnCurso(SESION); }
+      /* 26-nov-2026 — y la contraseña que acaba de crear, al llavero del teléfono (si dejó
+         la casilla marcada): es la que no va a recordar dentro de un mes. */
+      ofrecerGuardarLaClave(foto.celular, foto.clave);
       /* 20-oct-2026, rediseño (A) — AQUÍ, Y SOLO AQUÍ (y en el «ya tenías
          cuenta» de abajo), las fotos salen del registro: a la cola de ESTA
          cuenta, con el documento de ESTE registro. Ver LA COLA DE UNA CUENTA
@@ -5902,6 +6089,7 @@ function entrarConLaClaveDelRegistro(err, autorizacion, foto, opc) {
           return;
         }
         SESION = res.j; guardarSesionEnCurso(SESION);
+        ofrecerGuardarLaClave(foto.celular, foto.clave);   // 26-nov-2026 — entró con esta: al llavero del teléfono
         try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
         olvidarPaso(); olvidarClaveEnCurso();
         anotarCuentaCreada(foto.celular);
@@ -6146,18 +6334,30 @@ function rpcSesion(fn, cuerpo, ses, suelta) {
    encima de ella en ninguna pantalla. */
 function rpcConToken(fn, cuerpo, ses) {
   if (!ses || !ses.access_token) return Promise.reject({ sinSesion: true });
-  var p = fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
-               Authorization: 'Bearer ' + ses.access_token },
-    body: JSON.stringify(cuerpo || {})
-  }).then(function (r) {
-    if (r.ok) return r.json();
-    /* 20-oct-2026, cierre (B4) — con el estado a la vista: un 401/403 es la
-       sesión vencida, no la red, y la subida de las fotos lo trata distinto
-       (ver subirArchivosRegistro). El mensaje sigue siendo el de siempre. */
-    var e = new Error('http ' + r.status); e.status = r.status;
-    return Promise.reject(e);
+  var una = function () {
+    return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
+                 Authorization: 'Bearer ' + ses.access_token },
+      body: JSON.stringify(cuerpo || {})
+    }).then(function (r) {
+      if (r.ok) return r.json();
+      /* 20-oct-2026, cierre (B4) — con el estado a la vista: un 401/403 es la
+         sesión vencida, no la red, y la subida de las fotos lo trata distinto
+         (ver subirArchivosRegistro). El mensaje sigue siendo el de siempre. */
+      var e = new Error('http ' + r.status); e.status = r.status;
+      return Promise.reject(e);
+    });
+  };
+  /* 26-nov-2026 — EL TOKEN DURA UNA HORA Y LA CUENTA QUEDA ABIERTA DÍAS. Un 401 con un
+     token de renovar a la mano no es «volver a entrar»: se renueva UNA vez (en sitio:
+     `ses` sigue siendo el mismo objeto) y se repite la consulta. Si renovar no se
+     puede, sale el 401 de siempre y cada pantalla hace lo que ya hacía con él. */
+  var p = una().then(null, function (e) {
+    /* Solo Tu Garantía: en PlataChat la sesión es de paso (se entrega allá) y sus caminos
+       con la sesión vencida piden la contraseña, como siempre. */
+    if (!e || e.status !== 401 || !CA || MARCA === 'platachat' || !ses.refresh_token) throw e;
+    return renovarLaSesion(ses).then(una, function () { throw e; });
   });
   return (LECTURAS_QUE_NO_FRENAN || []).indexOf(fn) >= 0 ? p : escrituraEnCamino(p);
 }
@@ -13933,12 +14133,14 @@ function latidoChat(ses) {
     if (LATIDO !== ses) return;
     if (SESION !== ses || VISTA !== 'cuenta') { LATIDO = null; return; }
     if (paginaEscondida()) { latidoChat(ses); return; }
+    mantenerLaSesionAlDia();   // 26-nov-2026 — la cuenta queda abierta: el token se renueva antes de vencer
     traerNuevosDelCanal().then(contarSinLeer).then(function () { latidoChat(ses); });
   }, CHAT_CADA_MS);
 }
 /* Al volver a la app, sin esperar la vuelta: es cuando más se mira. */
 document.addEventListener('visibilitychange', function () {
   if (paginaEscondida() || VISTA !== 'cuenta' || !SESION) return;
+  mantenerLaSesionAlDia();   // 26-nov-2026 — el teléfono durmió: lo primero, el token
   traerNuevosDelCanal().then(contarSinLeer);
 });
 
@@ -14441,6 +14643,7 @@ function salirDeCuenta() {
      o la pestaña se cierra en medio, lo que no puede quedar es una sesión que
      una recarga vuelva a abrir. */
   olvidarSesionEnCurso();
+  if (CA) CA.olvidarCelular(almacenFijo());   // 26-nov-2026 — en un teléfono prestado, su número no se le muestra al siguiente
   SESION = null; FICHA = null; FICHA_ESTADO = 'sin'; TAB = 'credito';
   CANAL = 'servicio';
   HILO = { canal: null, mensajes: [], estado: 'sin' };
@@ -15152,6 +15355,8 @@ function avisarQueEsMomento() {
         en que el navegador reabre sin el sessionStorage.
      3. EL RESTO ve la portada. */
   var sesionGuardada = leerSesionEnCurso();
+  /* 26-nov-2026 — y la que quedó abierta en el teléfono, si la pestaña no trae la suya. */
+  var cuentaAbierta = sesionGuardada ? null : cuentaQueQuedoAbierta();
   var veniaDelRegistro = hayPasoGuardado();
   /* 28-oct-2026 — LOS ARCHIVOS DE LA HISTORIA LABORAL, CON LA REGLA DE LAS
      FOTOS: solo sobreviven a la vuelta de la cámara. Lo escogido (la
@@ -15258,6 +15463,9 @@ function avisarQueEsMomento() {
     volverAPlataChat();
   } else if (sesionGuardada) {
     pintarCuenta(sesionGuardada);
+  } else if (cuentaAbierta) {
+    /* 26-nov-2026 — tener cuenta gana sobre cualquier formulario a medias (la regla 1 de arriba). */
+    abrirLaCuentaQueQuedo(cuentaAbierta);
   } else if (reciente && !veniaDelRegistro) {
     /* 21-sep-2026 — la cuenta ya nació y la sesión se fue con la relanzada:
        se dice, con el celular puesto, en vez de mandarlo a llenar nueve pasos
